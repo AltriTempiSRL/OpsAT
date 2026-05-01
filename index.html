@@ -85,8 +85,75 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
 .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<style>
+#pin-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
+#pin-box{background:#fff;border-radius:16px;padding:40px 36px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);width:320px}
+#pin-box h2{margin:0 0 6px;font-size:20px;color:#1e3a8a}
+#pin-box p{margin:0 0 24px;font-size:13px;color:#6b7280}
+#pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:24px}
+.pin-dot{width:14px;height:14px;border-radius:50%;background:#e5e7eb;transition:background .2s}
+.pin-dot.filled{background:#1e3a8a}
+#pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.pin-key{padding:14px;font-size:18px;font-weight:700;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;cursor:pointer;color:#1f2937;transition:background .15s}
+.pin-key:hover{background:#dbeafe}
+.pin-key:active{background:#bfdbfe}
+#pin-error{color:#dc2626;font-size:12px;min-height:18px;margin-top:-8px}
+</style>
 </head>
 <body>
+
+<div id="pin-overlay">
+  <div id="pin-box">
+    <h2>Dashboard Despachos</h2>
+    <p>Ingresa el PIN para continuar</p>
+    <div id="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div id="pin-keypad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:13px;color:#6b7280">Borrar</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinKey('')" style="visibility:hidden"></button>
+    </div>
+    <div id="pin-error"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var entered='', correct='3094';
+  function pinKey(n){
+    if(entered.length>=4)return;
+    entered+=n;
+    document.getElementById('d'+(entered.length-1)).classList.add('filled');
+    if(entered.length===4){
+      if(entered===correct){
+        sessionStorage.setItem('pin_ok','1');
+        document.getElementById('pin-overlay').style.display='none';
+      } else {
+        document.getElementById('pin-error').textContent='PIN incorrecto. Intenta de nuevo.';
+        setTimeout(function(){pinClear();document.getElementById('pin-error').textContent='';},800);
+      }
+    }
+  }
+  function pinClear(){
+    entered='';
+    for(var i=0;i<4;i++) document.getElementById('d'+i).classList.remove('filled');
+  }
+  window.pinKey=pinKey; window.pinClear=pinClear;
+  if(sessionStorage.getItem('pin_ok')==='1') document.getElementById('pin-overlay').style.display='none';
+})();
+</script>
 
 <div class="hdr">
   <div class="hdr-row">
