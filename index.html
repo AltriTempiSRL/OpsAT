@@ -21,13 +21,13 @@
 :root{color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fb;color:#1f2937}
-.hdr{background:#3d3d3d;color:#fff;padding:16px 24px}
+.hdr{background:linear-gradient(135deg,#1a1208 0%,#3d2f1e 100%);color:#fff;padding:16px 24px}
 .hdr h1{margin:0 0 4px;font-size:22px;font-weight:700}
 .hdr p{margin:0;opacity:.9;font-size:13px}
 .hdr-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:6px;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.btn{background:#fff;color:#1e3a8a;border:none;padding:8px 14px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn{background:#fff;color:#3d2f1e;border:none;padding:8px 14px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .btn:disabled{opacity:.6;cursor:wait}
 .updated{font-size:12px;opacity:.85}
 main{padding:16px 20px;max-width:1400px;margin:0 auto}
@@ -86,17 +86,17 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 <style>
-#pin-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);display:flex;align-items:center;justify-content:center;z-index:9999}
-#pin-box{background:#fff;border-radius:16px;padding:40px 36px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);width:320px}
-#pin-box h2{margin:0 0 6px;font-size:20px;color:#1e3a8a}
+#pin-overlay{position:fixed;inset:0;background:#3d3d3d;display:flex;align-items:center;justify-content:center;z-index:9999}
+#pin-box{background:#fff;border-radius:16px;padding:40px 36px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);width:320px}
+#pin-box h2{margin:0 0 6px;font-size:20px;color:#3d3d3d}
 #pin-box p{margin:0 0 24px;font-size:13px;color:#6b7280}
 #pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:24px}
 .pin-dot{width:14px;height:14px;border-radius:50%;background:#e5e7eb;transition:background .2s}
-.pin-dot.filled{background:#1e3a8a}
+.pin-dot.filled{background:#3d3d3d}
 #pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
 .pin-key{padding:14px;font-size:18px;font-weight:700;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;cursor:pointer;color:#1f2937;transition:background .15s}
-.pin-key:hover{background:#dbeafe}
-.pin-key:active{background:#bfdbfe}
+.pin-key:hover{background:#e5e7eb}
+.pin-key:active{background:#d1d5db}
 #pin-error{color:#dc2626;font-size:12px;min-height:18px;margin-top:-8px}
 </style>
 </head>
@@ -124,7 +124,7 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
       <button class="pin-key" onclick="pinKey('9')">9</button>
       <button class="pin-key" onclick="pinClear()" style="font-size:13px;color:#6b7280">Borrar</button>
       <button class="pin-key" onclick="pinKey('0')">0</button>
-      <button class="pin-key" onclick="pinKey('')" style="visibility:hidden"></button>
+      <button class="pin-key" style="visibility:hidden"></button>
     </div>
     <div id="pin-error"></div>
   </div>
@@ -152,7 +152,7 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
   }
   window.pinKey=pinKey; window.pinClear=pinClear;
   if(sessionStorage.getItem('pin_ok')==='1') document.getElementById('pin-overlay').style.display='none';
-  document.addEventListener('keydown', function(e){
+  document.addEventListener('keydown',function(e){
     if(document.getElementById('pin-overlay').style.display==='none') return;
     if(e.key>='0'&&e.key<='9') pinKey(e.key);
     else if(e.key==='Backspace'||e.key==='Delete') pinClear();
@@ -163,10 +163,10 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
 <div class="hdr">
   <div class="hdr-row">
     <div style="display:flex;align-items:center;gap:16px">
-      <img src="logo.svg" alt="Altri Tempi" style="height:56px;width:56px;border-radius:6px;flex-shrink:0">
+      <img src="./descarga.png" alt="Altri Tempi" style="height:54px;width:54px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.4)">
       <div>
         <h1><span class="live-dot"></span>Dashboard Despachos</h1>
-        <p id="hdrSub">Live</p>
+        <p>Live · Conectado a Google Drive · Preparando · En Tránsito</p>
       </div>
     </div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -186,7 +186,12 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
     <div class="kpi articulos"><div class="kpi-label">Total artículos</div><div class="kpi-value" id="kpiArticulos">0</div><div class="kpi-sub">unidades</div></div>
   </div>
 
-  <div class="card" style="margin-bottom:16px">
+  <div class="grid grid-2" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <div class="card"><h3>Despachos por Vendedor</h3><div class="chart-wrap" style="height:240px"><canvas id="chartVendedor"></canvas></div></div>
+    <div class="card"><h3>Despachos por Fecha de Entrega</h3><div style="font-size:11px;color:#6b7280;margin:-8px 0 8px" id="chartDiaSub"></div><div class="chart-wrap" style="height:220px"><canvas id="chartDia"></canvas></div></div>
+  </div>
+
+  <div class="card">
     <h3>Detalle de Despachos · Vista Agrupada (Mes → Estatus → Orden)</h3>
     <div class="fbar">
       <input type="text" id="searchInput" placeholder="Buscar por cliente, orden, vendedor, vehículo...">
@@ -217,11 +222,6 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
         <tbody id="tableBody"></tbody>
       </table>
     </div>
-  </div>
-
-  <div class="grid grid-2" style="grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-    <div class="card"><h3>Despachos por Vendedor</h3><div class="chart-wrap" style="height:240px"><canvas id="chartVendedor"></canvas></div></div>
-    <div class="card"><h3>Despachos por Fecha de Entrega</h3><div style="font-size:11px;color:#6b7280;margin:-8px 0 8px" id="chartDiaSub"></div><div class="chart-wrap" style="height:220px"><canvas id="chartDia"></canvas></div></div>
   </div>
 </main>
 
@@ -434,7 +434,7 @@ async function loadFromDrive() {
   btn.innerHTML = '<span class="spinner"></span>Cargando…';
   const usingCowork = !!(window.cowork && window.cowork.callMcpTool);
   document.querySelector('.hdr p').textContent =
-    'Live';
+    'Live · ' + (usingCowork ? 'Google Drive (Cowork)' : 'Google Sheets CSV') + ' · Filtro: Preparando · En Tránsito';
   try {
     const data = usingCowork ? await loadViaCowork() : await loadViaCSV();
     currentData = data;
