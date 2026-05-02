@@ -1,17 +1,4 @@
 <!DOCTYPE html>
-<script type="application/json" id="cowork-artifact-meta">
-{
-  "name": "Dashboard Despachos Live",
-  "schemaVersion": 1,
-  "description": "Dashboard en vivo de despachos Altritempi — lee directamente el XLSX en Google Drive, filtra Preparando y En Tránsito, refresca cada 5 minutos.",
-  "mcpTools": [
-    "mcp__dbc0f1fc-0770-41e8-a55e-7fb8a5270ee0__read_file_content"
-  ],
-  "mcpServerNames": [
-    "Google Drive"
-  ]
-}
-</script>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -85,6 +72,7 @@ main{padding:16px 20px;max-width:1400px;margin:0 auto}
 .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<<<<<<< HEAD
 <style>
 #pin-overlay{position:fixed;inset:0;background:#3d3d3d;display:flex;align-items:center;justify-content:center;z-index:9999}
 #pin-box{background:#fff;border-radius:16px;padding:40px 36px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);width:320px}
@@ -274,37 +262,18 @@ function fmtLong(d){if(!d)return '<span class="empty-cell">(en blanco)</span>';c
 
 /**
  * Parse the "natural language representation" from read_file_content for the Despachos XLSX.
- * Format: "Despachos <headers,comma-sep> <row1,comma-sep> <row2,comma-sep> ..."
- * - All content on one line (no \n or \r)
- * - Sheet name prefix at start
- * - Rows separated by a SPACE that occurs after the 22nd field of each row
- * - Quoted fields use RFC-4180 double-quote escaping
- * - Dates formatted as "Wednesday, April 01, 2026" (quoted, contain commas)
  */
 function parseReadFileContent(rawContent) {
   let text = rawContent.trim();
-
-  // 1. Strip the "Despachos " sheet-name prefix
   if (text.startsWith('Despachos ')) text = text.substring('Despachos '.length);
-
-  // 2. Locate the end of the header row by finding the known last header field
-  //    followed by a space (the row separator before row 1)
   const LAST_HEADER_SEQ = ',Articulos total ';
   const hEnd = text.indexOf(LAST_HEADER_SEQ);
   if (hEnd < 0) throw new Error('No se encontró el encabezado esperado en el archivo.');
-
-  const headerText = text.substring(0, hEnd + LAST_HEADER_SEQ.length - 1); // up to "Articulos total"
-  const dataText   = text.substring(hEnd + LAST_HEADER_SEQ.length);          // after the space
-
+  const headerText = text.substring(0, hEnd + LAST_HEADER_SEQ.length - 1);
+  const dataText   = text.substring(hEnd + LAST_HEADER_SEQ.length);
   const headers = headerText.split(',').map(h => h.trim());
-  // Should be NUM_COLS (22) columns
-
-  // 3. RFC-4180-like parser for data, using SPACE as row terminator when we're
-  //    on the 22nd field (fCount === NUM_COLS - 1).
-  //    Field 22 = "Articulos total" which is always numeric → never contains a space.
   const rows = [];
   let cur = [], field = '', inQ = false, fCount = 0;
-
   for (let i = 0; i < dataText.length; i++) {
     const c = dataText[i];
     if (inQ) {
@@ -320,11 +289,9 @@ function parseReadFileContent(rawContent) {
         field = '';
         fCount++;
       } else {
-        // Extra comma inside last field (shouldn't happen normally)
         field += c;
       }
     } else if (c === ' ' && fCount === NUM_COLS - 1) {
-      // Row separator: space after the 22nd field
       cur.push(field.trim());
       if (cur.some(f => f)) rows.push(cur);
       cur = []; field = ''; fCount = 0;
@@ -332,10 +299,8 @@ function parseReadFileContent(rawContent) {
       field += c;
     }
   }
-  // Flush last row
   cur.push(field.trim());
   if (cur.some(f => f)) rows.push(cur);
-
   return { headers, rows };
 }
 
@@ -388,7 +353,6 @@ async function loadViaCowork() {
     'mcp__dbc0f1fc-0770-41e8-a55e-7fb8a5270ee0__read_file_content',
     { fileId: DRIVE_FILE_ID }
   );
-  // Extract the string content from whatever shape callMcpTool returns
   let rawContent = null;
   if (typeof result === 'string') { rawContent = result; }
   else if (Array.isArray(result)) {
@@ -459,17 +423,6 @@ function renderKPIs(){
   document.getElementById('kpiArticulos').textContent=currentData.reduce((s,d)=>s+(Number(d.cantArticulos)||0),0);
 }
 function groupCount(arr,key){const m={};for(const r of arr){const k=(r[key]||'(sin dato)').toString().trim()||'(sin dato)';m[k]=(m[k]||0)+1}return Object.entries(m).sort((a,b)=>b[1]-a[1])}
-function makeChart(id,type,labels,data,colors){if(charts[id])charts[id].destroy();const ctx=document.getElementById(id).getContext('2d');charts[id]=new Chart(ctx,{type:type,data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:type==='doughnut'?2:0,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',display:type==='doughnut',labels:{font:{size:10}}}},scales:type==='bar'?{y:{beginAtZero:true,ticks:{stepSize:1,precision:0}},x:{ticks:{font:{size:9}}}}:{}}})}
-function renderCharts(){
-  const e=groupCount(currentData,'estatus');
-  makeChart('chartEstatus','doughnut',e.map(g=>g[0]),e.map(g=>g[1]),e.map(g=>g[0]==='En Transito'?'#10b981':'#f59e0b'));
-  const c=groupCount(currentData,'ciudad');
-  makeChart('chartCiudad','bar',c.map(g=>g[0]),c.map(g=>g[1]),'#3b82f6');
-  const v=groupCount(currentData,'vendedor');
-  makeChart('chartVendedor','bar',v.map(g=>g[0]),v.map(g=>g[1]),'#8b5cf6');
-}
-function renderBdList(elId,groups,max){max=max||10;const el=document.getElementById(elId);el.innerHTML='';if(!groups.length){el.innerHTML='<li class="small">Sin datos</li>';return}const top=Math.max.apply(null,groups.map(g=>g[1]));groups.slice(0,max).forEach(([n,c])=>{const li=document.createElement('li');const pct=(c/top)*100;li.innerHTML='<span class="bd-name">'+esc(n)+'</span><span class="bd-bar"><span style="width:'+pct+'%"></span></span><span class="bd-count">'+c+'</span>';el.appendChild(li)})}
-function renderBreakdowns(){renderBdList('listClientes',groupCount(currentData,'cliente'));renderBdList('listLugar',groupCount(currentData,'lugarDespacho'));renderBdList('listFecha',groupCount(currentData,'fechaEntrega'))}
 function populateCiudadFilter(){const sel=document.getElementById('ciudadFilter');const cur=sel.value;sel.innerHTML='<option value="">Todas las ciudades</option>';const cs=Array.from(new Set(currentData.map(d=>d.ciudad).filter(Boolean))).sort();cs.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o)});sel.value=cur}
 
 function toggleAll(expand){Object.keys(collapseState).forEach(k=>collapseState[k]=!expand);renderTable()}
@@ -552,7 +505,7 @@ function makeChart(id,type,labels,datasets,opts){
 }
 
 function renderCharts(){
-  // ── Chart 1: Despachos por Vendedor (stacked: Preparando vs En Tránsito) ──
+  // Chart 1: Despachos por Vendedor (stacked: Preparando vs En Tránsito)
   const vendedores = [...new Set(currentData.map(d=>d.vendedor||'(sin asignar)'))].sort();
   const prepPorVend = vendedores.map(v=>currentData.filter(d=>(d.vendedor||'(sin asignar)')===v&&d.estatus==='Preparando').length);
   const transPorVend = vendedores.map(v=>currentData.filter(d=>(d.vendedor||'(sin asignar)')===v&&d.estatus==='En Transito').length);
@@ -561,16 +514,13 @@ function renderCharts(){
     {label:'En Tránsito', data:transPorVend, backgroundColor:'#10b981', borderRadius:4}
   ], {scales:{x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{stepSize:1,precision:0,font:{size:10}}}}});
 
-  // ── Chart 2: Despachos por Fecha de Entrega — solo Preparando / En Tránsito ──
-  // Debug: log raw date values to browser console
-  console.log('[Dashboard] fechaEntrega values:', currentData.map(d=>d.fechaEntrega));
+  // Chart 2: Despachos por Fecha de Entrega
   const dayMap={};
   currentData.forEach(d=>{
     const k=d.fechaEntrega||'(sin fecha)';
     if(!dayMap[k])dayMap[k]=0;
     dayMap[k]++;
   });
-  // Only keep real dates (exclude "(sin fecha)") for the chart
   const dias=Object.keys(dayMap).filter(d=>d!=='(sin fecha)'&&dayMap[d]>0).sort();
   const labelsDia=dias.map(d=>{
     const p=d.split('-');
