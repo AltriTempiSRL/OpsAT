@@ -916,7 +916,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     </div>
     <div class="app-header-right">
       <!-- Botón Guía de Usuario — URL dinámica según rol, se actualiza en enterApp() -->
-      <a id="btn-guide" href="/wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">📖 Guía</a>
+      <a id="btn-guide" href="wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">📖 Guía</a>
       <!-- Timer de almuerzo (visible solo cuando status=lunch) -->
       <span id="lunch-timer-wrap" title="Tiempo en almuerzo">
         🍴 <span id="lunch-timer-display">00:00</span>
@@ -1377,7 +1377,7 @@ async function doLogin() {
   const remember = document.getElementById('f-remember').checked;
   const errEl = document.getElementById('login-error');
   errEl.classList.remove('show');
-  if (!email||!password) { showErr(errEl,'Por favor completa todos los campos'); return; }
+  if (!email) { showErr(errEl,'Por favor escribe el correo'); return; }
   const btn = document.getElementById('btn-login');
   btn.disabled = true; btn.textContent = 'Ingresando…';
   try {
@@ -1387,7 +1387,7 @@ async function doLogin() {
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
     enterApp();
-  } catch(e) { showErr(errEl,'Error de conexión con el servidor'); btn.disabled=false; btn.textContent='Entrar'; }
+  } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
 }
 
 async function doRefresh() {
@@ -1421,16 +1421,54 @@ function saveSession(persist) {
   else { sessionStorage.setItem('wwp_auth',data); localStorage.removeItem('wwp_auth'); }
 }
 
-async function authFetch(url, opts={}) {
+async function authFetch(url, opts={}, timeoutMs) {
   opts.headers = {...(opts.headers||{}), 'Authorization':'Bearer '+_token, 'Content-Type':'application/json'};
-  let r = await fetch(url, opts);
+  let r = await fetchWithTimeout(url, opts, timeoutMs);
   if (r.status===401) {
     const ok = await doRefresh();
     if (!ok) { doLogout(); throw new Error('Sesión expirada'); }
     opts.headers['Authorization'] = 'Bearer '+_token;
-    r = await fetch(url, opts);
+    r = await fetchWithTimeout(url, opts, timeoutMs);
   }
   return r;
+}
+
+function fetchWithTimeout(url, opts, timeoutMs) {
+  if (!timeoutMs || typeof AbortController === 'undefined') return fetch(url, opts);
+  const ctrl = new AbortController();
+  const timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs);
+  const merged = {...(opts||{}), signal: ctrl.signal};
+  return fetch(url, merged).finally(function(){ clearTimeout(timer); });
+}
+
+function xhrJson(url, token, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = timeoutMs || 15000;
+    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.onload = function() {
+      var data = null;
+      try { data = xhr.responseText ? JSON.parse(xhr.responseText) : null; }
+      catch(e) { reject(new Error('Respuesta inválida del servidor')); return; }
+      resolve({status:xhr.status, ok:xhr.status >= 200 && xhr.status < 300, data:data});
+    };
+    xhr.onerror = function() { reject(new Error('Error de red al cargar tareas')); };
+    xhr.ontimeout = function() { reject(new Error('Tiempo agotado cargando tareas')); };
+    xhr.send();
+  });
+}
+
+async function authGetJson(url, timeoutMs) {
+  var r = await xhrJson(url, _token, timeoutMs);
+  if (r.status === 401) {
+    var ok = await doRefresh();
+    if (!ok) { doLogout(); throw new Error('Sesión expirada'); }
+    r = await xhrJson(url, _token, timeoutMs);
+  }
+  if (!r.ok) throw new Error((r.data && r.data.error) || ('Error del servidor: ' + r.status));
+  return r.data;
 }
 
 async function doForgot() {
@@ -1887,7 +1925,7 @@ function enterApp() {
   // Guía de usuario: admin → guía completa, encargado/auxiliar → guía staff
   var guideBtn = document.getElementById('btn-guide');
   if (guideBtn) {
-    guideBtn.href = (_user.role === 'admin') ? '/wwp-guide.html' : '/wwp-guide-staff.html';
+    guideBtn.href = (_user.role === 'admin') ? 'wwp-guide.html' : 'wwp-guide-staff.html';
   }
 
   // ── Construir nav dinámicamente según rol (RBAC) ──────────────────────
@@ -1941,7 +1979,7 @@ function enterApp() {
   connectSSE();
   connectWwpRealtime();
   // Request browser notification permission (non-intrusive — only if not decided yet)
-  if (Notification && Notification.permission === 'default') {
+  if ('Notification' in window && Notification.permission === 'default') {
     setTimeout(() => Notification.requestPermission(), 3000);
   }
 }
@@ -2004,12 +2042,13 @@ function switchTab(tab) {
 // TASKS
 // ═══════════════════════════════════════════════════════════════════════
 async function loadTasks() {
-  document.getElementById('tasks-list').innerHTML='<div class="loading"><div class="spinner"></div><br>Cargando tareas…</div>';
+  const listEl = document.getElementById('tasks-list');
+  listEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Cargando tareas…</div>';
   try {
-    const r = await authFetch('/api/wwp/tasks');
-    _tasks = await r.json();
+    const data = await authGetJson('/api/wwp/tasks', 15000);
+    _tasks = Array.isArray(data) ? data : (data.tasks || []);
     renderTasks();
-  } catch(e) { document.getElementById('tasks-list').innerHTML='<div class="loading">Error: '+e.message+'</div>'; }
+  } catch(e) { listEl.innerHTML='<div class="loading">Error: '+esc(e.message)+'</div>'; }
 }
 
 function filterTasks() {

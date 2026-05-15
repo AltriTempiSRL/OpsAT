@@ -1878,6 +1878,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <span class="sim-notice" id="sheets-status"><span class="sim-dot"></span>Sheets verificando…</span>
         <span class="sim-notice" id="odoo-status"><span class="sim-dot"></span>Odoo verificando…</span>
         <a href="index.html" class="btn-back">← Dashboard</a>
+        <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none">📖 Guía</a>
         <span id="hist-user-info" style="font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.2px"></span>
         <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none">🚪 Salir</button>
       </div>
@@ -2329,7 +2330,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- Botón Historial (visible solo para admin) -->
       <button id="btn-back-historial" onclick="goBackToHistorial()" style="display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.22);padding:6px 13px;border-radius:8px;font-weight:600;cursor:pointer;font-size:11px;margin-right:4px">← Historial</button>
       <!-- Botón Guía de Usuario — URL dinámica según rol, se actualiza en enterApp() -->
-      <a id="btn-guide" href="/wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">📖 Guía</a>
+      <a id="btn-guide" href="wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">📖 Guía</a>
       <!-- Timer de almuerzo (visible solo cuando status=lunch) -->
       <span id="lunch-timer-wrap" title="Tiempo en almuerzo">
         🍴 <span id="lunch-timer-display">00:00</span>
@@ -3368,7 +3369,7 @@ function enterApp() {
   // Guía de usuario: admin → guía completa, encargado/auxiliar → guía staff
   var guideBtn = document.getElementById('btn-guide');
   if (guideBtn) {
-    guideBtn.href = (_user.role === 'admin') ? '/wwp-guide.html' : '/wwp-guide-staff.html';
+    guideBtn.href = (_user.role === 'admin') ? 'wwp-guide.html' : 'wwp-guide-staff.html';
   }
 
   // ── Construir nav dinámicamente según rol (RBAC) ──────────────────────
