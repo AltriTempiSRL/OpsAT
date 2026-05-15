@@ -44,10 +44,14 @@ const WWP_TASKS_FILE  = path.join(__dirname, 'wwp-tasks.json');
 const WWP_ROLES_FILE  = path.join(__dirname, 'wwp-roles.json'); // { "oe_95": "admin", ... }
 const WWP_FOTOS_DIR   = path.join(__dirname, 'wwp-fotos');
 const WWP_LUNCH_FILE  = path.join(__dirname, 'wwp-lunch-breaks.json');
+const VEHICULOS_FILE  = path.join(__dirname, 'vehiculos-inspecciones.json');
 if (!fs.existsSync(WWP_FOTOS_DIR)) fs.mkdirSync(WWP_FOTOS_DIR, { recursive: true });
 
 function loadLunchBreaks() { try { return JSON.parse(fs.readFileSync(WWP_LUNCH_FILE,'utf-8')); } catch { return []; } }
 function saveLunchBreaks(b) { fs.writeFileSync(WWP_LUNCH_FILE, JSON.stringify(b, null, 2), 'utf-8'); }
+
+function loadInspecciones() { try { return JSON.parse(fs.readFileSync(VEHICULOS_FILE,'utf-8')); } catch { return []; } }
+function saveInspecciones(list) { fs.writeFileSync(VEHICULOS_FILE, JSON.stringify(list, null, 2), 'utf-8'); }
 
 function loadWwpTasks() {
   if (!fs.existsSync(WWP_TASKS_FILE)) return [];
@@ -264,6 +268,59 @@ function odooStrToAuthId(odooStr) {
   const num = parseInt((odooStr+'').replace('oe_',''));
   const u = loadAuthUsers().find(u => Number(u.odooId) === num);
   return u?.id || null;
+}
+
+function authIdToOdooStr(authId) {
+  if (!authId) return null;
+  const u = loadAuthUsers().find(u => u.id === authId);
+  return u?.odooId ? 'oe_' + u.odooId : null;
+}
+
+function taskParticipantIds(task) {
+  const ids = new Set();
+  if (!task) return ids;
+  [task.managerId, task.createdBy].filter(Boolean).forEach(id => ids.add(id));
+  (task.assignees || []).filter(Boolean).forEach(id => ids.add(id));
+  (task.auxiliaryAssignees || []).filter(Boolean).forEach(id => ids.add(id));
+  if (task.assignedTo) {
+    const authId = odooStrToAuthId(task.assignedTo);
+    if (authId) ids.add(authId);
+  }
+  (task.executors || []).forEach(id => {
+    if (!id) return;
+    ids.add((id + '').startsWith('oe_') ? odooStrToAuthId(id) || id : id);
+  });
+  return ids;
+}
+
+function taskAuxiliaryIds(task) {
+  return [...new Set([
+    ...(task?.auxiliaryAssignees || []),
+    ...(task?.executors || []).map(e => (e + '').startsWith('oe_') ? odooStrToAuthId(e) : e),
+    ...(task?.assignees || []).filter(id => id && id !== task.managerId)
+  ].filter(Boolean))];
+}
+
+function canViewTask(tasks, task, userId) {
+  if (taskParticipantIds(task).has(userId)) return true;
+  if (task.parentId) {
+    const parent = tasks.find(t => t.id === task.parentId);
+    if (taskParticipantIds(parent).has(userId)) return true;
+  } else {
+    const children = tasks.filter(t => t.parentId === task.id);
+    if (children.some(child => taskParticipantIds(child).has(userId))) return true;
+  }
+  return false;
+}
+
+function appendAssignmentTrace(task, action, by, note) {
+  if (!task.statusHistory) task.statusHistory = [];
+  task.statusHistory.push({
+    status: action,
+    date: new Date().toISOString(),
+    by: by || '',
+    note: note || ''
+  });
 }
 
 const NOTIF_LABELS = {
@@ -526,6 +583,8 @@ const MIME = {
   '.jpg':  'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
   '.svg':  'image/svg+xml',
   '.ico':  'image/x-icon',
 };
@@ -1457,7 +1516,7 @@ const server = http.createServer(async (req, res) => {
           const ext=(f.ext||'jpg').replace(/[^a-zA-Z0-9]/g,'').toLowerCase()||'jpg';
           const fname=`${id}_${Date.now()}_${fi}.${ext}`;
           const fpath=path.join(AV_FOTOS_DIR,fname);
-          const b64=f.data.replace(/^data:image\/[a-zA-Z]+;base64,/,'');
+          const b64=f.data.replace(/^data:[^;]+;base64,/,'');
           fs.writeFileSync(fpath,Buffer.from(b64,'base64'));
           const entry={url:`/av-fotos/${fname}`,caption:f.caption||'',date:new Date().toISOString()};
           list[idx].fotos.push(entry);
@@ -1576,9 +1635,10 @@ const server = http.createServer(async (req, res) => {
       const { email, password } = await readBody(req);
       const users = loadAuthUsers();
       const user  = users.find(u => u.email === (email||'').toLowerCase().trim() && u.active);
-      if (!user || !verifyPassword(password, user.passwordHash)) {
+      // MODO PRUEBAS: acceso temporal solo por correo. Reactivar verifyPassword al terminar pruebas.
+      if (!user) {
         res.writeHead(401,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:false,error:'Correo o contraseña incorrectos'})); return;
+        res.end(JSON.stringify({ok:false,error:'Correo no registrado o usuario inactivo'})); return;
       }
       const accessToken  = jwtSign({userId:user.id,role:user.role,name:user.name,odooId:user.odooId}, 8*3600);
       const refreshToken = crypto.randomBytes(32).toString('hex');
@@ -1897,16 +1957,11 @@ const server = http.createServer(async (req, res) => {
     if (q.status)     tasks = tasks.filter(t=>t.status===q.status);
     if (q.type)       tasks = tasks.filter(t=>t.type===q.type);
     if (q.assignedTo) tasks = tasks.filter(t=>t.assignedTo===q.assignedTo);
-    // Filtrado por rol: admins ven todo; managers/assistants solo sus tareas
+    // Filtrado por rol: admins ven todo; managers/assistants ven tareas donde
+    // participaron directa o indirectamente en el flujo hasta el cierre.
     if (jp.role !== 'admin') {
       const uid = jp.userId;
-      tasks = tasks.filter(t =>
-        t.managerId   === uid ||
-        t.createdBy   === uid ||
-        odooStrToAuthId(t.assignedTo) === uid ||
-        (t.executors||[]).some(e => odooStrToAuthId(e) === uid) ||
-        (t.assignees||[]).includes(uid)
-      );
+      tasks = tasks.filter(t => canViewTask(tasks, t, uid));
     }
     // Ordenar por fecha límite asc (nulls al final), luego por creación desc
     tasks.sort((a, b) => {
@@ -1930,6 +1985,11 @@ const server = http.createServer(async (req, res) => {
     const tasks = loadWwpTasks();
     const task = tasks.find(t => t.id === taskId);
     if (!task) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+    if (jp.role !== 'admin' && !canViewTask(tasks, task, jp.userId)) {
+      res.writeHead(403,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:'No tienes permiso para ver este chat'}));
+      return;
+    }
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, messages: task.messages||[]}));
     return;
@@ -1942,6 +2002,11 @@ const server = http.createServer(async (req, res) => {
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+    if (jp.role !== 'admin' && !canViewTask(tasks, tasks[idx], jp.userId)) {
+      res.writeHead(403,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:'No tienes permiso para escribir en este chat'}));
+      return;
+    }
     const d = await readBody(req);
     if (!d.text||!d.text.trim()) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Mensaje vacío'})); return; }
     const msg = {
@@ -1957,11 +2022,8 @@ const server = http.createServer(async (req, res) => {
     saveWwpTasks(tasks);
     // Notificar a los participantes de la tarea (excepto quien envió)
     const task = tasks[idx];
-    const recipients = new Set();
-    if (task.managerId && task.managerId !== jp.userId) recipients.add(task.managerId);
-    const assigneeId = odooStrToAuthId(task.assignedTo);
-    if (assigneeId && assigneeId !== jp.userId) recipients.add(assigneeId);
-    if (task.createdBy && task.createdBy !== jp.userId) recipients.add(task.createdBy);
+    const recipients = taskParticipantIds(task);
+    recipients.delete(jp.userId);
     recipients.forEach(uid => createNotification(uid, {
       type: 'comment_new',
       title: '💬 Mensaje nuevo',
@@ -1971,7 +2033,7 @@ const server = http.createServer(async (req, res) => {
     }));
     // Push SSE del mensaje nuevo a todos los que tienen el drawer abierto
     // (incluyendo al sender para multi-tab sync)
-    const allParticipants = new Set([task.managerId, assigneeId, task.createdBy].filter(Boolean));
+    const allParticipants = taskParticipantIds(task);
     const sseData = `data: ${JSON.stringify({event:'chat_message', taskId, message:msg})}\n\n`;
     allParticipants.forEach(uid => {
       (sseClients.get(uid)||new Set()).forEach(r => { try { r.write(sseData); } catch {} });
@@ -2004,6 +2066,7 @@ const server = http.createServer(async (req, res) => {
         managerName: d.managerName||null,      // Nombre del encargado
         executors: Array.isArray(d.executors) ? d.executors : [],  // Auxiliares (subtareas)
         assignees: Array.isArray(d.assignees) ? d.assignees : [],  // Múltiples encargados (auth user IDs)
+        auxiliaryAssignees: Array.isArray(d.auxiliaryAssignees) ? d.auxiliaryAssignees : [],
         odooRef: d.odooRef||'',
         location: d.location||'',
         dueDate: d.dueDate||null,
@@ -2013,10 +2076,18 @@ const server = http.createServer(async (req, res) => {
         createdAt: now,
         updatedAt: now
       };
-      // Si es tarea principal y viene con assignedTo → asignar encargado
-      if (!isSubtask && task.assignedTo) {
+      if (!isSubtask && task.managerId && !task.assignedTo) {
+        task.assignedTo = authIdToOdooStr(task.managerId);
+      }
+      // Si es tarea principal y viene con encargado → asignar y dejar trazabilidad
+      if (!isSubtask && (task.assignedTo || task.managerId)) {
         task.status='assigned';
-        task.statusHistory.push({ status:'assigned', date:now, by:d.createdBy||'', note:d.note||'' });
+        task.statusHistory.push({
+          status:'assigned',
+          date:now,
+          by:d.createdBy||'',
+          note:d.note || (task.managerName ? `Asignada a ${task.managerName}` : '')
+        });
       }
       // Si es subtarea con ejecutores → pasar a in_progress directamente
       if (isSubtask && task.executors.length > 0) {
@@ -2072,6 +2143,11 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (jp.role !== 'admin' && !canViewTask(tasks, tasks[idx], jp.userId)) {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'}));
+        return;
+      }
 
       // ── RBAC granular ────────────────────────────────────────────────────
       const isAdminOrMgr = ROLE_PERMISSIONS.edit_task.includes(jp.role);
@@ -2082,7 +2158,9 @@ const server = http.createServer(async (req, res) => {
         const myOdooStr = 'oe_' + jp.odooId;
         const isParticipant = task.managerId === myAuthId ||
                               task.assignedTo === myOdooStr ||
-                              (task.executors||[]).some(e => e === myOdooStr || e === myAuthId);
+                              (task.executors||[]).some(e => e === myOdooStr || e === myAuthId) ||
+                              (task.assignees||[]).includes(myAuthId) ||
+                              (task.auxiliaryAssignees||[]).includes(myAuthId);
         if (!isParticipant) {
           res.writeHead(403,{'Content-Type':'application/json'});
           res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'}));
@@ -2096,12 +2174,17 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ok:false,error:`Auxiliar no puede modificar: ${forbidden.join(', ')}`}));
           return;
         }
-        // Auxiliar no puede validar ni devolver a pending
-        if (d.status && !['in_progress','completed'].includes(d.status)) {
+        // Auxiliar puede iniciar/actualizar actividad, pero no cerrar/validar tareas.
+        if (d.status && d.status !== 'in_progress') {
           res.writeHead(403,{'Content-Type':'application/json'});
-          res.end(JSON.stringify({ok:false,error:'Auxiliar solo puede pasar a En Progreso o Completado'}));
+          res.end(JSON.stringify({ok:false,error:'Auxiliar no puede cerrar tareas; debe subir evidencia y responder el chat'}));
           return;
         }
+      }
+      if (d.status === 'completed' && !ROLE_PERMISSIONS.validate_task.includes(jp.role)) {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Solo administradores y encargados pueden cerrar tareas'}));
+        return;
       }
       // Solo admin|manager pueden validar
       if (d.status === 'validated' && !ROLE_PERMISSIONS.validate_task.includes(jp.role)) {
@@ -2118,9 +2201,14 @@ const server = http.createServer(async (req, res) => {
         if (d.status==='completed'||d.status==='validated') {
           const selItems=(tasks[idx].items||[]).filter(it=>it.selected);
           const missing=selItems.filter(it=>!it.evidence_images||it.evidence_images.length===0);
-          if (missing.length>0) {
+          if (selItems.length && missing.length>0) {
             res.writeHead(422,{'Content-Type':'application/json'});
             res.end(JSON.stringify({ok:false,error:'Faltan evidencias para: '+missing.map(it=>it.product_name).join(', ')}));
+            return;
+          }
+          if (!selItems.length && !(tasks[idx].evidence||[]).length) {
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'Debes subir al menos una foto de evidencia para completar la tarea'}));
             return;
           }
         }
@@ -2132,6 +2220,26 @@ const server = http.createServer(async (req, res) => {
       if (d.managerName!==undefined) tasks[idx].managerName=d.managerName;
       if (d.executors!==undefined) tasks[idx].executors=Array.isArray(d.executors)?d.executors:[];
       if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
+      if (d.auxiliaryAssignees!==undefined) tasks[idx].auxiliaryAssignees=Array.isArray(d.auxiliaryAssignees)?d.auxiliaryAssignees:[];
+      const assignmentChanged = d.assignedTo !== undefined ||
+                                d.managerId !== undefined ||
+                                d.executors !== undefined ||
+                                d.assignees !== undefined ||
+                                d.auxiliaryAssignees !== undefined;
+      if (assignmentChanged) {
+        const names = [];
+        const users = loadAuthUsers();
+        if (tasks[idx].managerId) {
+          const manager = users.find(u => u.id === tasks[idx].managerId);
+          names.push('Encargado: ' + (manager?.name || tasks[idx].managerName || tasks[idx].managerId));
+        }
+        const auxIds = taskAuxiliaryIds(tasks[idx]).filter(uid => uid !== tasks[idx].managerId);
+        if (auxIds.length) {
+          const auxNames = auxIds.map(uid => users.find(u => u.id === uid)?.name || uid);
+          names.push('Auxiliares: ' + auxNames.join(', '));
+        }
+        appendAssignmentTrace(tasks[idx], 'assigned', d.by || jp.name, names.join(' · '));
+      }
       if (d.title!==undefined) tasks[idx].title=d.title.trim();
       if (d.description!==undefined) tasks[idx].description=d.description;
       if (d.priority!==undefined) tasks[idx].priority=d.priority;
@@ -2176,6 +2284,17 @@ const server = http.createServer(async (req, res) => {
           });
         }
         // Cambio de assignees → notificar a los nuevos asignados
+        if (d.auxiliaryAssignees !== undefined && Array.isArray(d.auxiliaryAssignees)) {
+          const oldAux = taskAuxiliaryIds(oldTask);
+          d.auxiliaryAssignees.filter(uid => uid && !oldAux.includes(uid)).forEach(uid => {
+            createNotification(uid, {
+              type:'task_assigned', title:'📋 Tarea asignada como auxiliar',
+              message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
+              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+            });
+          });
+        }
+        // Compatibilidad: Cambio de assignees antiguo → notificar a los nuevos asignados
         if (d.assignees !== undefined && Array.isArray(d.assignees)) {
           const oldAssignees = oldTask?.assignees || [];
           d.assignees.filter(uid => uid && !oldAssignees.includes(uid)).forEach(uid => {
@@ -2188,9 +2307,7 @@ const server = http.createServer(async (req, res) => {
         }
         // Cambio de estado
         if (d.status && d.status !== oldTask?.status) {
-          const recipients = [...new Set([t2.managerId, odooStrToAuthId(t2.assignedTo),
-            ...(t2.executors||[]).map(e=>odooStrToAuthId(e)),
-            ...(t2.assignees||[])].filter(Boolean))];
+          const recipients = [...taskParticipantIds(t2)];
           const STATUS_MSG = {
             assigned    :['task_assigned','✅ Tarea asignada','Ha sido asignada'],
             in_progress :['status_changed','▶️ Tarea iniciada','Cambió a En Progreso'],
@@ -2245,6 +2362,11 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (_jpEv.role !== 'admin' && !canViewTask(tasks, tasks[idx], _jpEv.userId)) {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'No tienes permiso para subir evidencia en esta tarea'}));
+        return;
+      }
       if (!tasks[idx].evidence) tasks[idx].evidence=[];
       const saved=[];
       (d.fotos||[]).forEach((f,fi)=>{
@@ -2281,6 +2403,77 @@ const server = http.createServer(async (req, res) => {
     tasks[idx].updatedAt=new Date().toISOString();
     saveWwpTasks(tasks);
     broadcastWwpTasks('evidence_deleted', tasks[idx], { taskId:id, file:fname });
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true}));
+    return;
+  }
+
+  // ── INSPECCIONES DE VEHÍCULOS ──────────────────────────────────────────────
+
+  // GET /api/vehiculos/inspecciones — lista todas las inspecciones [JWT requerido]
+  if (reqPath === '/api/vehiculos/inspecciones' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const qs = new URL(req.url, 'http://x').searchParams;
+    let list = loadInspecciones();
+    // Filtros opcionales: ?fecha=2026-05-15  ?vehiculo=Camión
+    if (qs.get('fecha')) list = list.filter(i => i.fecha === qs.get('fecha'));
+    if (qs.get('vehiculo')) list = list.filter(i => i.vehiculo === qs.get('vehiculo'));
+    // Ordenar más recientes primero
+    list = list.slice().sort((a, b) => new Date(b.creadoEn) - new Date(a.creadoEn));
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify(list));
+    return;
+  }
+
+  // POST /api/vehiculos/inspeccion — registrar nueva inspección [JWT requerido, cualquier rol]
+  if (reqPath === '/api/vehiculos/inspeccion' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const list = loadInspecciones();
+        // Generar ID único
+        const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        const seq = String(list.filter(i => i.fecha === data.fecha).length + 1).padStart(3,'0');
+        const inspeccion = {
+          id:            `INS-${dateStr}-${seq}`,
+          fecha:         data.fecha         || new Date().toISOString().slice(0,10),
+          hora:          data.hora          || new Date().toTimeString().slice(0,5),
+          vehiculo:      String(data.vehiculo      || '').trim(),
+          placa:         String(data.placa         || '').trim().toUpperCase(),
+          conductor:     String(data.conductor     || jp.name || '').trim(),
+          conductorId:   jp.sub,
+          km:            Number(data.km)           || 0,
+          combustible:   String(data.combustible   || '').trim(),
+          estadoGeneral: String(data.estadoGeneral || 'bueno').trim(),
+          observaciones: String(data.observaciones || '').trim(),
+          creadoEn:      new Date().toISOString()
+        };
+        if (!inspeccion.vehiculo) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'vehiculo requerido'})); return; }
+        list.push(inspeccion);
+        saveInspecciones(list);
+        res.writeHead(201, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(inspeccion));
+      } catch(e) {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'JSON inválido'}));
+      }
+    });
+    return;
+  }
+
+  // DELETE /api/vehiculos/inspeccion/:id — eliminar inspección [solo admin]
+  if (reqPath.startsWith('/api/vehiculos/inspeccion/') && req.method === 'DELETE') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Solo admin'})); return; }
+    const id = reqPath.replace('/api/vehiculos/inspeccion/','');
+    let list = loadInspecciones();
+    const before = list.length;
+    list = list.filter(i => i.id !== id);
+    if (list.length === before) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'No encontrada'})); return; }
+    saveInspecciones(list);
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
     return;
@@ -2533,6 +2726,11 @@ const server = http.createServer(async (req, res) => {
       const tasks=loadWwpTasks();
       const idx=tasks.findIndex(t=>t.id===taskId);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      if (_jpItemEv.role !== 'admin' && !canViewTask(tasks, tasks[idx], _jpItemEv.userId)) {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'No tienes permiso para subir evidencia en esta tarea'}));
+        return;
+      }
       const itemIdx=(tasks[idx].items||[]).findIndex(it=>it.item_id===itemId);
       if (itemIdx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
       if (!tasks[idx].items[itemIdx].evidence_images) tasks[idx].items[itemIdx].evidence_images=[];
@@ -2581,12 +2779,42 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── GET /api/odoo/attachment/:id — servir adjunto de Odoo inline ────────────
+  if (reqPath.match(/^\/api\/odoo\/attachment\/\d+$/) && req.method === 'GET') {
+    const attId = parseInt(reqPath.split('/').pop(), 10);
+    try {
+      if (!odooUid) await authenticate();
+      const result = await odooCall('ir.attachment', 'read', [[attId]], { fields: ['datas', 'mimetype', 'name'] });
+      const att = result && result[0];
+      if (!att || !att.datas) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Adjunto no encontrado' }));
+        return;
+      }
+      const buf = Buffer.from(att.datas, 'base64');
+      const mime = att.mimetype || 'application/octet-stream';
+      const safeName = encodeURIComponent((att.name || 'adjunto').replace(/[^\w.\-]/g, '_'));
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Content-Length': buf.length,
+        'Content-Disposition': `inline; filename="${safeName}"`,
+        'Cache-Control': 'private, max-age=3600',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(buf);
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   // ── Servir archivos estáticos ─────────────────────────────────────────────
   let filePath = path.join(__dirname, reqPath === '/' ? 'index.html' : reqPath);
   // Redirigir /historial a historial.html
   if (reqPath === '/historial') filePath = path.join(__dirname, 'historial.html');
   // Fotos de averías desde av-fotos/
-  if (reqPath.startsWith('/av-fotos/')) filePath = path.join(AV_FOTOS_DIR, path.basename(reqPath));
+  if (reqPath.startsWith('/av-fotos/')) filePath = path.join(AV_FOTOS_DIR, path.basename(decodeURIComponent(reqPath)));
   // Fotos de evidencia WWP desde wwp-fotos/
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));
 

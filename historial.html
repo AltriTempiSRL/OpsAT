@@ -330,6 +330,45 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .btn-nueva-wwp{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s;letter-spacing:.2px}
 .btn-nueva-wwp:hover{background:#2563eb}
 .wwp-tasks-block{margin:14px 0;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+/* ── MÓDULO VEHÍCULOS ── */
+.veh-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+.veh-header-left h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0 0 2px}
+.veh-header-left p{font-size:12px;color:var(--text-muted);margin:0}
+.veh-form-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:22px}
+.veh-form-card h3{font-size:13px;font-weight:800;color:var(--text-primary);margin:0 0 16px;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:7px}
+.veh-form-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.veh-form-grid .span2{grid-column:span 2}
+.veh-form-grid .span3{grid-column:span 3}
+.veh-field label{display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.veh-field input,.veh-field select,.veh-field textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;background:var(--surface);color:var(--text-primary);transition:border-color .15s}
+.veh-field input:focus,.veh-field select:focus,.veh-field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(27,59,111,.08)}
+.veh-field textarea{resize:vertical;min-height:70px}
+.estado-btns{display:flex;gap:8px;flex-wrap:wrap}
+.estado-btn{padding:7px 14px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;font-family:inherit}
+.estado-btn.active-bueno{background:#dcfce7;border-color:#16a34a;color:#15803d}
+.estado-btn.active-regular{background:#fef9c3;border-color:#ca8a04;color:#92400e}
+.estado-btn.active-malo{background:#fee2e2;border-color:#dc2626;color:#b91c1c}
+.estado-btn.active-atencion{background:#fff7ed;border-color:#ea580c;color:#c2410c}
+.fuel-select-wrap{position:relative}
+.veh-form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-light)}
+.veh-insp-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.veh-insp-toolbar h3{font-size:14px;font-weight:800;color:var(--text-primary);margin:0;flex:1}
+.veh-filter-select{padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--surface);outline:none;color:var(--text-primary)}
+.veh-insp-table{width:100%;border-collapse:collapse;font-size:13px}
+.veh-insp-table th{padding:9px 12px;text-align:left;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border);background:var(--surface-2)}
+.veh-insp-table td{padding:11px 12px;border-bottom:1px solid var(--border-light);color:var(--text-primary);vertical-align:top}
+.veh-insp-table tr:last-child td{border-bottom:none}
+.veh-insp-table tr:hover td{background:var(--surface-2)}
+.veh-estado-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.veh-estado-bueno{background:#dcfce7;color:#15803d}
+.veh-estado-regular{background:#fef9c3;color:#92400e}
+.veh-estado-malo{background:#fee2e2;color:#b91c1c}
+.veh-estado-atencion{background:#fff7ed;color:#c2410c}
+.veh-empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
+.veh-fuel-bar{display:flex;gap:3px;align-items:center}
+.veh-fuel-seg{width:14px;height:8px;border-radius:2px;background:var(--border)}
+.veh-fuel-seg.on{background:#16a34a}
+.veh-obs{font-size:12px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
 .wwp-tasks-hdr{background:#fffbeb;border-bottom:1px solid var(--border);padding:8px 14px;font-size:11px;font-weight:800;color:#92400e;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
 .wwp-task-row{display:flex;align-items:flex-start;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border-light);font-size:12px}
 .wwp-task-row:last-child{border-bottom:none}
@@ -2496,6 +2535,149 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       </div>
       <div id="users-list"><div class="loading"><div class="spinner"></div><br>Cargando…</div></div>
     </div>
+
+    <!-- ═══════════════ TAB VEHÍCULOS ═══════════════ -->
+    <div id="tab-vehiculos" style="display:none">
+
+      <!-- Header -->
+      <div class="veh-header">
+        <div class="veh-header-left">
+          <h2>🚗 Inspección de Vehículos</h2>
+          <p>Registro diario de estado antes de cada salida</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" onclick="vehExportCSV()" title="Exportar a CSV para Google Sheets">📥 Exportar CSV</button>
+        </div>
+      </div>
+
+      <!-- Formulario de inspección -->
+      <div class="veh-form-card">
+        <h3>📋 Nueva Inspección</h3>
+        <div class="veh-form-grid">
+
+          <!-- Vehículo -->
+          <div class="veh-field">
+            <label>Vehículo *</label>
+            <select id="vf-vehiculo" onchange="vehUpdatePlaca()">
+              <option value="">— Seleccionar —</option>
+              <option value="Camión Hyundai">🚛 Camión Hyundai</option>
+              <option value="Furgoneta Citroën">🚐 Furgoneta Citroën</option>
+              <option value="Camión Grande">🚚 Camión Grande</option>
+              <option value="Pick-up Toyota">🛻 Pick-up Toyota</option>
+            </select>
+          </div>
+
+          <!-- Placa -->
+          <div class="veh-field">
+            <label>Placa</label>
+            <input type="text" id="vf-placa" placeholder="Ej. A123456" maxlength="10" style="text-transform:uppercase">
+          </div>
+
+          <!-- Conductor -->
+          <div class="veh-field">
+            <label>Conductor</label>
+            <input type="text" id="vf-conductor" placeholder="Nombre del conductor">
+          </div>
+
+          <!-- Fecha -->
+          <div class="veh-field">
+            <label>Fecha *</label>
+            <input type="date" id="vf-fecha">
+          </div>
+
+          <!-- Hora -->
+          <div class="veh-field">
+            <label>Hora de salida</label>
+            <input type="time" id="vf-hora">
+          </div>
+
+          <!-- Kilometraje -->
+          <div class="veh-field">
+            <label>Kilometraje actual</label>
+            <input type="number" id="vf-km" placeholder="Ej. 45230" min="0" step="1">
+          </div>
+
+          <!-- Combustible -->
+          <div class="veh-field span2">
+            <label>Nivel de combustible</label>
+            <select id="vf-combustible">
+              <option value="">— Seleccionar —</option>
+              <option value="Lleno">⛽ Lleno (100%)</option>
+              <option value="3/4">⛽ Tres cuartos (75%)</option>
+              <option value="1/2">⛽ Mitad (50%)</option>
+              <option value="1/4">⛽ Un cuarto (25%)</option>
+              <option value="Reserva">⚠️ Reserva</option>
+            </select>
+          </div>
+
+          <!-- Estado general -->
+          <div class="veh-field span3">
+            <label>Estado general del vehículo</label>
+            <div class="estado-btns" id="vf-estado-btns">
+              <button type="button" class="estado-btn" data-estado="bueno"    onclick="vehSetEstado('bueno')">✅ Bueno</button>
+              <button type="button" class="estado-btn" data-estado="regular"  onclick="vehSetEstado('regular')">🟡 Regular</button>
+              <button type="button" class="estado-btn" data-estado="malo"     onclick="vehSetEstado('malo')">🔴 Malo</button>
+              <button type="button" class="estado-btn" data-estado="atencion" onclick="vehSetEstado('atencion')">⚠️ Requiere atención</button>
+            </div>
+            <input type="hidden" id="vf-estado" value="bueno">
+          </div>
+
+          <!-- Observaciones -->
+          <div class="veh-field span3">
+            <label>Observaciones</label>
+            <textarea id="vf-observaciones" placeholder="Daños visibles, novedades, reparaciones pendientes…"></textarea>
+          </div>
+        </div>
+
+        <div class="veh-form-actions">
+          <button class="btn-cancel" onclick="vehResetForm()">Limpiar</button>
+          <button class="btn-primary" onclick="vehSubmit()">💾 Guardar Inspección</button>
+        </div>
+      </div>
+
+      <!-- Lista de inspecciones -->
+      <div>
+        <div class="veh-insp-toolbar">
+          <h3>📋 Historial de Inspecciones</h3>
+          <select class="veh-filter-select" id="veh-filter-vehiculo" onchange="vehLoadList()">
+            <option value="">Todos los vehículos</option>
+            <option value="Camión Hyundai">Camión Hyundai</option>
+            <option value="Furgoneta Citroën">Furgoneta Citroën</option>
+            <option value="Camión Grande">Camión Grande</option>
+            <option value="Pick-up Toyota">Pick-up Toyota</option>
+          </select>
+          <select class="veh-filter-select" id="veh-filter-estado" onchange="vehLoadList()">
+            <option value="">Todos los estados</option>
+            <option value="bueno">Bueno</option>
+            <option value="regular">Regular</option>
+            <option value="malo">Malo</option>
+            <option value="atencion">Requiere atención</option>
+          </select>
+          <button class="btn-sm" onclick="vehLoadList()" title="Actualizar lista">🔄</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="veh-insp-table" id="veh-insp-table">
+            <thead>
+              <tr>
+                <th>Fecha / Hora</th>
+                <th>Vehículo</th>
+                <th>Conductor</th>
+                <th>KM</th>
+                <th>Combustible</th>
+                <th>Estado</th>
+                <th>Observaciones</th>
+                <th id="veh-col-acciones" style="display:none"></th>
+              </tr>
+            </thead>
+            <tbody id="veh-insp-tbody">
+              <tr><td colspan="8" class="veh-empty">Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- /tab-vehiculos -->
+
   </div>
 </div>
 
@@ -3424,6 +3606,30 @@ function enterApp() {
     if (_currentTab === 'users') switchTab('tasks');
   }
 
+  // Vehículos tab — todos los roles
+  let vehTab = nav.querySelector('[data-tab="vehiculos"]');
+  if (!vehTab) {
+    vehTab = document.createElement('button');
+    vehTab.className = 'nav-tab'; vehTab.dataset.tab = 'vehiculos';
+    vehTab.innerHTML = '<span class="nav-tab-icon">🚗</span> Vehículos';
+    vehTab.onclick = () => switchTab('vehiculos');
+    nav.appendChild(vehTab);
+  }
+  // Mostrar columna Acciones en tabla solo para admin
+  var acCol = document.getElementById('veh-col-acciones');
+  if (acCol) acCol.style.display = (_user.role === 'admin') ? '' : 'none';
+  // Pre-llenar conductor con el usuario actual
+  var cInput = document.getElementById('vf-conductor');
+  if (cInput && _user) cInput.value = _user.name;
+  // Pre-llenar fecha de hoy
+  var fInput = document.getElementById('vf-fecha');
+  if (fInput) fInput.value = new Date().toISOString().slice(0,10);
+  // Pre-llenar hora actual
+  var hInput = document.getElementById('vf-hora');
+  if (hInput) hInput.value = new Date().toTimeString().slice(0,5);
+  // Seleccionar estado "Bueno" por defecto
+  vehSetEstado('bueno');
+
   // Botones que requieren admin|manager
   document.getElementById('btn-new-task').style.display = can('create_task') ? '' : 'none';
   document.getElementById('drawer-edit-btn').style.display = can('edit_task') ? '' : 'none';
@@ -3497,8 +3703,10 @@ function switchTab(tab) {
   document.getElementById('tab-tasks').style.display = tab==='tasks'?'':'none';
   document.getElementById('tab-dashboard').style.display = tab==='dashboard'?'':'none';
   document.getElementById('tab-users').style.display = tab==='users'?'':'none';
+  document.getElementById('tab-vehiculos').style.display = tab==='vehiculos'?'':'none';
   if (tab==='dashboard') loadDashboard();
   if (tab==='users') loadUsers();
+  if (tab==='vehiculos') vehLoadList();
   closeProfileMenu();
 }
 
@@ -8841,6 +9049,172 @@ async function loadAllReports(){
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+
+// ── MÓDULO INSPECCIÓN DE VEHÍCULOS ───────────────────────────────────────────
+
+// Vehículos disponibles (lista configurable)
+var VEH_PLACAS = {
+  'Camión Hyundai':    'A-123456',
+  'Furgoneta Citroën': 'B-789012',
+  'Camión Grande':     'C-345678',
+  'Pick-up Toyota':    'D-901234'
+};
+
+function vehUpdatePlaca() {
+  var v = document.getElementById('vf-vehiculo').value;
+  var p = document.getElementById('vf-placa');
+  if (p && VEH_PLACAS[v]) p.value = VEH_PLACAS[v];
+  else if (p) p.value = '';
+}
+
+function vehSetEstado(estado) {
+  document.getElementById('vf-estado').value = estado;
+  document.querySelectorAll('#vf-estado-btns .estado-btn').forEach(function(btn) {
+    btn.className = 'estado-btn';
+    if (btn.dataset.estado === estado) btn.classList.add('active-' + estado);
+  });
+}
+
+function vehResetForm() {
+  document.getElementById('vf-vehiculo').value = '';
+  document.getElementById('vf-placa').value = '';
+  document.getElementById('vf-km').value = '';
+  document.getElementById('vf-combustible').value = '';
+  document.getElementById('vf-observaciones').value = '';
+  // Mantener conductor, fecha y hora
+  if (_user) document.getElementById('vf-conductor').value = _user.name;
+  document.getElementById('vf-fecha').value = new Date().toISOString().slice(0,10);
+  document.getElementById('vf-hora').value = new Date().toTimeString().slice(0,5);
+  vehSetEstado('bueno');
+}
+
+function vehSubmit() {
+  var vehiculo  = document.getElementById('vf-vehiculo').value.trim();
+  var conductor = document.getElementById('vf-conductor').value.trim();
+  var fecha     = document.getElementById('vf-fecha').value;
+  if (!vehiculo) { alert('Por favor selecciona un vehículo.'); return; }
+  if (!fecha)    { alert('Por favor indica la fecha.'); return; }
+
+  var payload = {
+    vehiculo:      vehiculo,
+    placa:         document.getElementById('vf-placa').value.trim(),
+    conductor:     conductor,
+    fecha:         fecha,
+    hora:          document.getElementById('vf-hora').value,
+    km:            Number(document.getElementById('vf-km').value) || 0,
+    combustible:   document.getElementById('vf-combustible').value,
+    estadoGeneral: document.getElementById('vf-estado').value || 'bueno',
+    observaciones: document.getElementById('vf-observaciones').value.trim()
+  };
+
+  var btn = document.querySelector('#tab-vehiculos .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+
+  fetch('/api/vehiculos/inspeccion', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_token||'') },
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(saved) {
+    if (saved.error) throw new Error(saved.error);
+    vehResetForm();
+    vehLoadList();
+    // Feedback visual
+    if (btn) { btn.textContent = '✅ Guardado'; setTimeout(function(){ btn.textContent = '💾 Guardar Inspección'; btn.disabled = false; }, 2000); }
+  })
+  .catch(function(err) {
+    alert('Error al guardar: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar Inspección'; }
+  });
+}
+
+function vehLoadList() {
+  var tbody = document.getElementById('veh-insp-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="veh-empty"><div class="spinner" style="width:20px;height:20px;margin:0 auto 8px"></div>Cargando…</td></tr>';
+
+  var filtroVeh    = (document.getElementById('veh-filter-vehiculo') || {}).value || '';
+  var filtroEstado = (document.getElementById('veh-filter-estado')   || {}).value || '';
+  var url = '/api/vehiculos/inspecciones';
+  if (filtroVeh) url += '?vehiculo=' + encodeURIComponent(filtroVeh);
+
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + (_token||'') } })
+  .then(function(r) { return r.json(); })
+  .then(function(list) {
+    if (filtroEstado) list = list.filter(function(i){ return i.estadoGeneral === filtroEstado; });
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="veh-empty">No hay inspecciones registradas.</td></tr>';
+      return;
+    }
+    var isAdmin = _user && _user.role === 'admin';
+    tbody.innerHTML = list.map(function(i) {
+      var estadoClass = { bueno:'veh-estado-bueno', regular:'veh-estado-regular', malo:'veh-estado-malo', atencion:'veh-estado-atencion' }[i.estadoGeneral] || 'veh-estado-bueno';
+      var estadoLabel = { bueno:'✅ Bueno', regular:'🟡 Regular', malo:'🔴 Malo', atencion:'⚠️ Requiere atención' }[i.estadoGeneral] || i.estadoGeneral;
+      var fuelSegs = vehFuelSegs(i.combustible);
+      var accionesCell = isAdmin
+        ? '<td><button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">🗑️</button></td>'
+        : '';
+      return '<tr>'
+        + '<td><strong>' + escH(i.fecha) + '</strong>'
+        + (i.hora ? '<br><span style="font-size:11px;color:var(--text-muted)">' + escH(i.hora) + '</span>' : '') + '</td>'
+        + '<td><strong>' + escH(i.vehiculo) + '</strong>'
+        + (i.placa ? '<br><span style="font-size:11px;color:var(--text-muted)">' + escH(i.placa) + '</span>' : '') + '</td>'
+        + '<td>' + escH(i.conductor||'—') + '</td>'
+        + '<td>' + (i.km ? i.km.toLocaleString() + ' km' : '—') + '</td>'
+        + '<td><div class="veh-fuel-bar">' + fuelSegs + '</div>'
+        + '<span style="font-size:11px;color:var(--text-muted)">' + escH(i.combustible||'—') + '</span></td>'
+        + '<td><span class="veh-estado-badge ' + estadoClass + '">' + estadoLabel + '</span></td>'
+        + '<td>' + (i.observaciones ? '<span class="veh-obs">' + escH(i.observaciones) + '</span>' : '<span style="color:var(--text-muted)">—</span>') + '</td>'
+        + accionesCell
+        + '</tr>';
+    }).join('');
+  })
+  .catch(function() {
+    tbody.innerHTML = '<tr><td colspan="8" class="veh-empty">Error al cargar inspecciones.</td></tr>';
+  });
+}
+
+function vehFuelSegs(combustible) {
+  var levels = { 'Lleno':4, '3/4':3, '1/2':2, '1/4':1, 'Reserva':0 };
+  var on = levels[combustible] !== undefined ? levels[combustible] : -1;
+  if (on < 0) return '';
+  return [0,1,2,3].map(function(i){
+    return '<div class="veh-fuel-seg' + (i < on ? ' on' : '') + '"></div>';
+  }).join('');
+}
+
+function vehDelete(id) {
+  if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
+  fetch('/api/vehiculos/inspeccion/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + (_token||'') }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(){ vehLoadList(); })
+  .catch(function(){ alert('Error al eliminar la inspección.'); });
+}
+
+function vehExportCSV() {
+  fetch('/api/vehiculos/inspecciones', { headers: { 'Authorization': 'Bearer ' + (_token||'') } })
+  .then(function(r){ return r.json(); })
+  .then(function(list) {
+    if (!list.length) { alert('No hay inspecciones para exportar.'); return; }
+    var headers = ['ID','Fecha','Hora','Vehículo','Placa','Conductor','KM','Combustible','Estado','Observaciones','Registrado'];
+    var rows = list.map(function(i) {
+      return [i.id, i.fecha, i.hora||'', i.vehiculo, i.placa||'', i.conductor||'',
+              i.km||0, i.combustible||'', i.estadoGeneral||'', (i.observaciones||'').replace(/,/g,';'), i.creadoEn||'']
+             .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+    });
+    var csv = '﻿' + headers.join(',') + '\n' + rows.join('\n'); // BOM para Excel
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = 'inspecciones_vehiculos_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click(); URL.revokeObjectURL(url);
+  })
+  .catch(function(){ alert('Error al exportar.'); });
+}
 
 // ── AUTOCOMPLETE DEL BUSCADOR ────────────────────────────────────────────────
 var _acFocusIdx = -1;
