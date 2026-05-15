@@ -2438,18 +2438,19 @@ const server = http.createServer(async (req, res) => {
         const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
         const seq = String(list.filter(i => i.fecha === data.fecha).length + 1).padStart(3,'0');
         const inspeccion = {
-          id:            `INS-${dateStr}-${seq}`,
-          fecha:         data.fecha         || new Date().toISOString().slice(0,10),
-          hora:          data.hora          || new Date().toTimeString().slice(0,5),
-          vehiculo:      String(data.vehiculo      || '').trim(),
-          placa:         String(data.placa         || '').trim().toUpperCase(),
-          conductor:     String(data.conductor     || jp.name || '').trim(),
-          conductorId:   jp.sub,
-          km:            Number(data.km)           || 0,
-          combustible:   String(data.combustible   || '').trim(),
-          estadoGeneral: String(data.estadoGeneral || 'bueno').trim(),
-          observaciones: String(data.observaciones || '').trim(),
-          creadoEn:      new Date().toISOString()
+          id:                    `INS-${dateStr}-${seq}`,
+          fecha:                 data.fecha    || new Date().toISOString().slice(0,10),
+          hora:                  data.hora     || new Date().toTimeString().slice(0,5),
+          vehiculo:              String(data.vehiculo   || '').trim(),
+          placa:                 String(data.placa      || '').trim().toUpperCase(),
+          conductor:             String(data.conductor  || jp.name || '').trim(),
+          conductorId:           jp.sub,
+          km:                    Number(data.km)        || 0,
+          items:                 data.items             || {},
+          apto:                  data.apto              || null,
+          observacionesGenerales:String(data.observacionesGenerales || '').trim(),
+          firmaConductor:        String(data.firmaConductor         || '').trim(),
+          creadoEn:              new Date().toISOString()
         };
         if (!inspeccion.vehiculo) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'vehiculo requerido'})); return; }
         list.push(inspeccion);
