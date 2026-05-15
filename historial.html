@@ -95,7 +95,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* ── AUTOCOMPLETE ── */
 .ac-wrap{position:relative;flex:1;max-width:500px}
 .ac-wrap input{width:100%;max-width:none;flex:none}
-.ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;width:480px;max-width:90vw;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;max-height:380px;overflow-y:auto;display:none}
+.ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;width:480px;max-width:90vw;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;max-height:min(600px,70vh);overflow-y:auto;display:none}
 .ac-dropdown.open{display:block}
 .ac-item{padding:11px 16px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border-light);transition:background .1s}
 .ac-item:last-child{border-bottom:none}
@@ -8876,7 +8876,7 @@ function _acCandidates(q) {
   // 1. Órdenes y transferencias desde GS_CACHE / GS
   var src = Object.keys(GS_CACHE).length > 0 ? GS_CACHE : GS;
   Object.keys(src).forEach(function(num) {
-    if (results.length >= 14 || seen[num]) return;
+    if (results.length >= 30 || seen[num]) return;
     var r = src[num];
     var cliente = String(r.cliente || r.nombre || '');
     if (String(num).toLowerCase().includes(ql) || cliente.toLowerCase().includes(ql)) {
@@ -8892,9 +8892,9 @@ function _acCandidates(q) {
   });
 
   // 2. Artículos desde ARTICULOS
-  if (SEARCH_MODE === 'articulo' || results.length < 6) {
+  if (SEARCH_MODE === 'articulo' || results.length < 10) {
     Object.keys(ARTICULOS).forEach(function(code) {
-      if (results.length >= 16 || seen[code]) return;
+      if (results.length >= 30 || seen[code]) return;
       var a = ARTICULOS[code];
       var nombre = String(a.nombre || '');
       if (code.toLowerCase().includes(ql) || nombre.toLowerCase().includes(ql)) {
@@ -8904,7 +8904,7 @@ function _acCandidates(q) {
     });
   }
 
-  return results.slice(0, 12);
+  return results.slice(0, 25);
 }
 
 function _acRender(q) {
