@@ -2546,6 +2546,45 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
           </tbody>
         </table>
       </div>
+
+      <!-- Historial de inspecciones de vehículos -->
+      <div class="sec-header" style="margin:28px 0 12px">🚗 INSPECCIONES DE VEHÍCULOS</div>
+      <div id="veh-historial-section">
+        <div class="veh-insp-toolbar">
+          <select class="veh-filter-select" id="veh-filter-vehiculo" onchange="vehLoadList()">
+            <option value="">Todos los vehículos</option>
+            <option value="Camión Hyundai">Camión Hyundai</option>
+            <option value="Furgoneta Citroën">Furgoneta Citroën</option>
+            <option value="Camión Grande">Camión Grande</option>
+            <option value="Pick-up Toyota">Pick-up Toyota</option>
+          </select>
+          <select class="veh-filter-select" id="veh-filter-apto" onchange="vehLoadList()">
+            <option value="">Todos</option>
+            <option value="si">Aptos</option>
+            <option value="no">No aptos</option>
+          </select>
+          <button class="btn-sm" onclick="vehLoadList()" title="Actualizar">🔄</button>
+          <button class="btn-sm" onclick="vehExportCSV()" title="Exportar a CSV" style="margin-left:auto">📥 Exportar CSV</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="veh-insp-table" id="veh-insp-table">
+            <thead>
+              <tr>
+                <th>Fecha / Hora</th>
+                <th>Vehículo</th>
+                <th>Conductor</th>
+                <th>KM</th>
+                <th>Apto</th>
+                <th>Observaciones</th>
+                <th id="veh-col-acciones"></th>
+              </tr>
+            </thead>
+            <tbody id="veh-insp-tbody">
+              <tr><td colspan="7" class="veh-empty">Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- USERS TAB (admin only) -->
@@ -2565,9 +2604,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
           <h2>🚗 Inspección de Vehículos</h2>
           <p>Formulario diario de inspección antes de cada salida</p>
         </div>
-        <div id="veh-admin-tools" style="display:none;gap:8px;align-items:center">
-          <button class="btn-sm" onclick="vehExportCSV()" title="Exportar historial a CSV">📥 Exportar CSV</button>
-        </div>
+        <div id="veh-admin-tools" style="display:none"></div>
       </div>
 
       <!-- ════ FORMULARIO ════ -->
@@ -2641,43 +2678,6 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         </div>
       </div>
 
-      <!-- ════ HISTORIAL (solo admin) ════ -->
-      <div id="veh-historial-section" style="display:none;margin-top:24px">
-        <div class="veh-insp-toolbar">
-          <h3>📋 Historial de Inspecciones</h3>
-          <select class="veh-filter-select" id="veh-filter-vehiculo" onchange="vehLoadList()">
-            <option value="">Todos los vehículos</option>
-            <option value="Camión Hyundai">Camión Hyundai</option>
-            <option value="Furgoneta Citroën">Furgoneta Citroën</option>
-            <option value="Camión Grande">Camión Grande</option>
-            <option value="Pick-up Toyota">Pick-up Toyota</option>
-          </select>
-          <select class="veh-filter-select" id="veh-filter-apto" onchange="vehLoadList()">
-            <option value="">Todos</option>
-            <option value="si">Aptos</option>
-            <option value="no">No aptos</option>
-          </select>
-          <button class="btn-sm" onclick="vehLoadList()" title="Actualizar">🔄</button>
-        </div>
-        <div style="overflow-x:auto">
-          <table class="veh-insp-table" id="veh-insp-table">
-            <thead>
-              <tr>
-                <th>Fecha / Hora</th>
-                <th>Vehículo</th>
-                <th>Conductor</th>
-                <th>KM</th>
-                <th>Apto</th>
-                <th>Observaciones</th>
-                <th id="veh-col-acciones" style="display:none"></th>
-              </tr>
-            </thead>
-            <tbody id="veh-insp-tbody">
-              <tr><td colspan="7" class="veh-empty">Cargando…</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
 
     </div>
     <!-- /tab-vehiculos -->
@@ -3619,22 +3619,12 @@ function enterApp() {
     vehTab.onclick = () => switchTab('vehiculos');
     nav.appendChild(vehTab);
   }
-  // Módulo vehículos: construir checklist y aplicar RBAC
+  // Módulo vehículos: construir checklist y pre-llenar campos
   vehBuildForm();
-  var isAdmin = _user && _user.role === 'admin';
-  var vehHistSection  = document.getElementById('veh-historial-section');
-  var vehAdminTools   = document.getElementById('veh-admin-tools');
-  var vehColAcciones  = document.getElementById('veh-col-acciones');
-  if (vehHistSection) vehHistSection.style.display  = isAdmin ? '' : 'none';
-  if (vehAdminTools)  vehAdminTools.style.display    = isAdmin ? 'flex' : 'none';
-  if (vehColAcciones) vehColAcciones.style.display   = isAdmin ? '' : 'none';
-  // Pre-llenar conductor con el usuario actual
   var cInput = document.getElementById('vf-conductor');
   if (cInput && _user) cInput.value = _user.name;
-  // Pre-llenar firma con el usuario actual
   var fFirma = document.getElementById('vf-firma');
   if (fFirma && _user) fFirma.value = _user.name;
-  // Pre-llenar fecha de hoy y hora actual
   document.getElementById('vf-fecha').value = new Date().toISOString().slice(0,10);
   document.getElementById('vf-hora').value  = new Date().toTimeString().slice(0,5);
 
@@ -3714,7 +3704,6 @@ function switchTab(tab) {
   document.getElementById('tab-vehiculos').style.display = tab==='vehiculos'?'':'none';
   if (tab==='dashboard') loadDashboard();
   if (tab==='users') loadUsers();
-  if (tab==='vehiculos' && _user && _user.role === 'admin') vehLoadList();
   closeProfileMenu();
 }
 
@@ -4478,6 +4467,8 @@ async function loadDashboard() {
   // Cargar reporte de almuerzos
   initLunchReport();
   loadLunchReport();
+  // Cargar historial de inspecciones de vehículos
+  vehLoadList();
 }
 
 function initLunchReport() {
@@ -9255,7 +9246,6 @@ function vehSubmit() {
   .then(function(saved) {
     if (saved.error) throw new Error(saved.error);
     vehResetForm();
-    if (_user && _user.role === 'admin') vehLoadList();
     if (btn) { btn.textContent = '✅ Guardado'; setTimeout(function(){ btn.textContent = '💾 Guardar Inspección'; btn.disabled = false; }, 2500); }
   })
   .catch(function(err) {
