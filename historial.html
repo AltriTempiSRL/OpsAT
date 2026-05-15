@@ -95,7 +95,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* ── AUTOCOMPLETE ── */
 .ac-wrap{position:relative;flex:1;max-width:500px}
 .ac-wrap input{width:100%;max-width:none;flex:none}
-.ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;width:480px;max-width:90vw;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;max-height:min(600px,70vh);overflow-y:auto;display:none}
+.ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;width:480px;max-width:90vw;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:9999;overflow-y:auto;display:none}
 .ac-dropdown.open{display:block}
 .ac-item{padding:11px 16px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border-light);transition:background .1s}
 .ac-item:last-child{border-bottom:none}
@@ -8846,6 +8846,15 @@ async function loadAllReports(){
 var _acFocusIdx = -1;
 var _acDebounce = null;
 
+function _acFitHeight() {
+  var dd = document.getElementById('ac-dropdown');
+  var wrap = document.querySelector('.ac-wrap');
+  if (!dd || !wrap) return;
+  var rect = wrap.getBoundingClientRect();
+  var spaceBelow = window.innerHeight - rect.bottom - 12; // 12px margen inferior
+  dd.style.maxHeight = Math.max(spaceBelow, 120) + 'px';
+}
+
 function _acClose() {
   var d = document.getElementById('ac-dropdown');
   if (d) d.classList.remove('open');
@@ -8916,6 +8925,7 @@ function _acRender(q) {
 
   if (!results.length) {
     dd.innerHTML = '<div class="ac-empty">No se encontraron coincidencias</div>';
+    _acFitHeight();
     dd.classList.add('open');
     return;
   }
@@ -8944,6 +8954,7 @@ function _acRender(q) {
   });
 
   dd.innerHTML = html;
+  _acFitHeight();
   dd.classList.add('open');
   _acFocusIdx = -1;
 }
@@ -8996,6 +9007,16 @@ function _acSelect(el) {
       _acClose();
     }
   });
+
+  // Reajustar altura al redimensionar o hacer scroll
+  window.addEventListener('resize', function() {
+    var dd = document.getElementById('ac-dropdown');
+    if (dd && dd.classList.contains('open')) _acFitHeight();
+  });
+  document.addEventListener('scroll', function() {
+    var dd = document.getElementById('ac-dropdown');
+    if (dd && dd.classList.contains('open')) _acFitHeight();
+  }, true);
 
   // Cerrar al buscar (Buscar button)
   var btn = inp.closest('.search-bar-row') && inp.closest('.search-bar-row').querySelector('button');
