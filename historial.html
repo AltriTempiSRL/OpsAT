@@ -92,6 +92,20 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .search-bar-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(27,59,111,.1)}
 .search-bar-row button{padding:9px 20px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-weight:600;font-size:12px;cursor:pointer;letter-spacing:.2px;transition:background .15s}
 .search-bar-row button:hover{background:var(--accent-hover)}
+/* ── AUTOCOMPLETE ── */
+.ac-wrap{position:relative;flex:1;max-width:500px}
+.ac-wrap input{width:100%;max-width:none;flex:none}
+.ac-dropdown{position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 6px 24px rgba(0,0,0,.13);z-index:9999;max-height:300px;overflow-y:auto;display:none}
+.ac-dropdown.open{display:block}
+.ac-item{padding:8px 12px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border-light);transition:background .1s}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.focused{background:var(--accent-light)}
+.ac-item-icon{font-size:13px;flex-shrink:0;line-height:1}
+.ac-item-code{font-weight:700;color:var(--accent);font-size:12px;white-space:nowrap}
+.ac-item-sep{color:var(--text-muted);font-size:11px;margin:0 1px}
+.ac-item-detail{color:var(--text-secondary);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-empty{padding:14px 12px;font-size:12px;color:var(--text-muted);text-align:center;font-style:italic}
+.ac-hint{padding:5px 12px 3px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:var(--surface-2);border-bottom:1px solid var(--border-light)}
 .recent-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:18px}
 .tag{padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);cursor:pointer;transition:all .12s}
 .tag:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
@@ -1959,8 +1973,11 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">🪑 Artículo</button>
       </div>
       <div class="search-bar-row">
-        <input type="text" id="order-input" placeholder="Nº orden: 8949, S09059…"
-          maxlength="60" onkeydown="if(event.key==='Enter')buscarOrden()" autocomplete="off">
+        <div class="ac-wrap">
+          <input type="text" id="order-input" placeholder="Buscar orden, transferencia, artículo…"
+            maxlength="60" onkeydown="if(event.key==='Enter')buscarOrden()" autocomplete="off" spellcheck="false">
+          <div class="ac-dropdown" id="ac-dropdown" role="listbox" aria-label="Sugerencias"></div>
+        </div>
         <button onclick="buscarOrden()">Buscar</button>
       </div>
       <div class="recent-tags" id="recent-tags-row">
@@ -5723,6 +5740,7 @@ function setSearchMode(mode){
   var inp=document.getElementById('order-input');
   inp.placeholder=PLACEHOLDERS[mode]||'';
   inp.value='';
+  if(typeof _acClose==='function') _acClose();
   var tags=document.getElementById('recent-tags-row');
   if(tags) tags.style.display=(mode==='orden')?'':'none';
   document.getElementById('result-section').style.display='none';
@@ -8823,6 +8841,166 @@ async function loadAllReports(){
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+
+// ── AUTOCOMPLETE DEL BUSCADOR ────────────────────────────────────────────────
+var _acFocusIdx = -1;
+var _acDebounce = null;
+
+function _acClose() {
+  var d = document.getElementById('ac-dropdown');
+  if (d) d.classList.remove('open');
+  _acFocusIdx = -1;
+}
+
+function _acSetFocus(idx) {
+  _acFocusIdx = idx;
+  var items = document.querySelectorAll('#ac-dropdown .ac-item');
+  items.forEach(function(el, i) { el.classList.toggle('focused', i === idx); });
+  if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
+}
+
+function _acHighlight(text, q) {
+  var idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return escH(text);
+  return escH(text.slice(0, idx)) +
+    '<mark style="background:#fef08a;border-radius:2px;padding:0 1px;font-style:normal">' +
+    escH(text.slice(idx, idx + q.length)) + '</mark>' +
+    escH(text.slice(idx + q.length));
+}
+
+function _acCandidates(q) {
+  if (!q) return [];
+  var ql = q.toLowerCase();
+  var results = [], seen = {};
+
+  // 1. Órdenes y transferencias desde GS_CACHE / GS
+  var src = Object.keys(GS_CACHE).length > 0 ? GS_CACHE : GS;
+  Object.keys(src).forEach(function(num) {
+    if (results.length >= 14 || seen[num]) return;
+    var r = src[num];
+    var cliente = String(r.cliente || r.nombre || '');
+    if (String(num).toLowerCase().includes(ql) || cliente.toLowerCase().includes(ql)) {
+      seen[num] = 1;
+      var rtype = detectRefType(num);
+      results.push({
+        code: num,
+        detail: cliente,
+        icon: rtype === 'transferencia' ? '🔄' : rtype === 'compra' ? '🛒' : '📋',
+        group: rtype === 'transferencia' ? 'Transferencias' : rtype === 'compra' ? 'Compras' : 'Órdenes'
+      });
+    }
+  });
+
+  // 2. Artículos desde ARTICULOS
+  if (SEARCH_MODE === 'articulo' || results.length < 6) {
+    Object.keys(ARTICULOS).forEach(function(code) {
+      if (results.length >= 16 || seen[code]) return;
+      var a = ARTICULOS[code];
+      var nombre = String(a.nombre || '');
+      if (code.toLowerCase().includes(ql) || nombre.toLowerCase().includes(ql)) {
+        seen[code] = 1;
+        results.push({ code: code, detail: nombre, icon: '🪑', group: 'Artículos' });
+      }
+    });
+  }
+
+  return results.slice(0, 12);
+}
+
+function _acRender(q) {
+  var dd = document.getElementById('ac-dropdown');
+  if (!dd) return;
+  if (!q) { _acClose(); return; }
+
+  var results = _acCandidates(q);
+
+  if (!results.length) {
+    dd.innerHTML = '<div class="ac-empty">No se encontraron coincidencias</div>';
+    dd.classList.add('open');
+    return;
+  }
+
+  // Agrupar por tipo
+  var groups = {}, order = [];
+  results.forEach(function(r) {
+    if (!groups[r.group]) { groups[r.group] = []; order.push(r.group); }
+    groups[r.group].push(r);
+  });
+
+  var html = '';
+  var globalIdx = 0;
+  order.forEach(function(g) {
+    if (order.length > 1) html += '<div class="ac-hint">' + escH(g) + '</div>';
+    groups[g].forEach(function(r) {
+      var idx = globalIdx++;
+      html += '<div class="ac-item" data-code="' + escH(r.code) + '" role="option" ' +
+        'onclick="_acSelect(this)" onmouseenter="_acSetFocus(' + idx + ')">' +
+        '<span class="ac-item-icon">' + r.icon + '</span>' +
+        '<span class="ac-item-code">' + _acHighlight(r.code, q) + '</span>' +
+        (r.detail ? '<span class="ac-item-sep">·</span>' +
+          '<span class="ac-item-detail">' + _acHighlight(r.detail, q) + '</span>' : '') +
+        '</div>';
+    });
+  });
+
+  dd.innerHTML = html;
+  dd.classList.add('open');
+  _acFocusIdx = -1;
+}
+
+function _acSelect(el) {
+  var code = el.dataset.code;
+  document.getElementById('order-input').value = code;
+  _acClose();
+  buscarOrden();
+}
+
+// Inicializar cuando el DOM esté listo
+(function initAc() {
+  var inp = document.getElementById('order-input');
+  if (!inp) { setTimeout(initAc, 200); return; }
+
+  // Input: actualizar sugerencias mientras escribe
+  inp.addEventListener('input', function() {
+    clearTimeout(_acDebounce);
+    var q = this.value.trim();
+    if (!q) { _acClose(); return; }
+    _acDebounce = setTimeout(function() { _acRender(q); }, 100);
+  });
+
+  // Teclado: navegar con flechas, seleccionar con Enter, cerrar con Escape
+  inp.addEventListener('keydown', function(e) {
+    var dd = document.getElementById('ac-dropdown');
+    if (!dd || !dd.classList.contains('open')) return;
+    var items = dd.querySelectorAll('.ac-item');
+    if (!items.length) { if (e.key === 'Escape') _acClose(); return; }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _acSetFocus(Math.min(_acFocusIdx + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _acSetFocus(Math.max(_acFocusIdx - 1, -1));
+    } else if (e.key === 'Enter' && _acFocusIdx >= 0) {
+      e.preventDefault();
+      e.stopImmediatePropagation(); // impide que buscarOrden() se dispare por el onkeydown inline
+      _acSelect(items[_acFocusIdx]);
+    } else if (e.key === 'Escape') {
+      _acClose();
+    }
+  }, true); // captura antes del onkeydown inline del elemento
+
+  // Clic fuera: cerrar dropdown
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.ac-wrap') && !e.target.closest('#ac-dropdown')) {
+      _acClose();
+    }
+  });
+
+  // Cerrar al buscar (Buscar button)
+  var btn = inp.closest('.search-bar-row') && inp.closest('.search-bar-row').querySelector('button');
+  if (btn) btn.addEventListener('click', _acClose);
+})();
 
 </script>
 
