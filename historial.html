@@ -10745,10 +10745,11 @@ function empPickerFilter(q) {
 }
 
 function empInlineApplyMat(matId) {
-  empClosePicker();
+  // Capturar ANTES de cerrar el picker (empClosePicker resetea los valores a null)
   if (_empPickerCategId === null || _empPickerSlot === null) return;
   var categId = _empPickerCategId;
   var slot    = _empPickerSlot;
+  empClosePicker();
 
   // Obtener la regla actual o crear nueva
   var regla = _empReglas.find(function(r){ return r.categ_id === categId; });
