@@ -10445,6 +10445,15 @@ function impRenderGrid(results) {
 // ── MÓDULO EMPAQUE ───────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
+// Helper: authFetch + json parse, nunca rechaza (retorna {ok:false} en error)
+function apiFetch(url, opts) {
+  return authFetch(url, opts || {})
+    .then(function(r) {
+      return r.json().catch(function() { return { ok: false, status: r.status, error: 'Respuesta no-JSON del servidor' }; });
+    })
+    .catch(function(e) { return { ok: false, error: e.message }; });
+}
+
 var _empMateriales = [];      // catálogo completo
 var _empReglas = [];          // reglas por categoría
 var _empCategorias = [];      // árbol Odoo (cacheado)
@@ -10515,7 +10524,7 @@ function empRenderCategTree() {
   var container = document.getElementById('emp-regla-list');
   if (!container) return;
   if (!_empCategorias.length) {
-    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px">Cargando categorías de Odoo…</div>';
+    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px">⚠️ No se pudieron cargar las categorías de Odoo.<br><span style="font-size:11px">Verifica que el servidor esté reiniciado con los nuevos endpoints y que haya conexión con Odoo.</span><br><br><button onclick="empInit()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:12px;cursor:pointer">🔄 Reintentar</button></div>';
     return;
   }
 
