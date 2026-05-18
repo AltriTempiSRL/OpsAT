@@ -45,6 +45,20 @@ const WWP_ROLES_FILE  = path.join(__dirname, 'wwp-roles.json'); // { "oe_95": "a
 const WWP_FOTOS_DIR   = path.join(__dirname, 'wwp-fotos');
 const WWP_LUNCH_FILE  = path.join(__dirname, 'wwp-lunch-breaks.json');
 const VEHICULOS_FILE  = path.join(__dirname, 'vehiculos-inspecciones.json');
+const POLITICAS_FILE  = path.join(__dirname, 'politicas.json');
+
+function loadPoliticas() {
+  try { return JSON.parse(fs.readFileSync(POLITICAS_FILE,'utf-8')); } catch {
+    const defaults = [{
+      id:'POL-20260518-001', nombre:'Horario de Almuerzo', tipo:'lunch_duration',
+      descripcion:'Los empleados solo pueden tomar el tiempo de almuerzo asignado en su perfil de usuario.',
+      activa:true, parametros:{ toleranciaMinutos:5, aplicaA:'all' },
+      creadaEn:new Date().toISOString()
+    }];
+    savePoliticas(defaults); return defaults;
+  }
+}
+function savePoliticas(list) { fs.writeFileSync(POLITICAS_FILE, JSON.stringify(list,null,2),'utf-8'); }
 if (!fs.existsSync(WWP_FOTOS_DIR)) fs.mkdirSync(WWP_FOTOS_DIR, { recursive: true });
 
 function loadLunchBreaks() { try { return JSON.parse(fs.readFileSync(WWP_LUNCH_FILE,'utf-8')); } catch { return []; } }
@@ -1762,7 +1776,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,scheduleStart:u.scheduleStart||'08:00'}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -1896,9 +1910,10 @@ const server = http.createServer(async (req, res) => {
       if (d.password) users[idx].passwordHash = hashPassword(d.password);
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
+      if (d.scheduleStart   !== undefined) users[idx].scheduleStart    = d.scheduleStart || '08:00';
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60}}));
+      res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,scheduleStart:users[idx].scheduleStart||'08:00'}}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -2403,6 +2418,88 @@ const server = http.createServer(async (req, res) => {
     tasks[idx].updatedAt=new Date().toISOString();
     saveWwpTasks(tasks);
     broadcastWwpTasks('evidence_deleted', tasks[idx], { taskId:id, file:fname });
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true}));
+    return;
+  }
+
+  // ── POLÍTICAS DE EMPRESA ──────────────────────────────────────────────────
+
+  // GET /api/politicas — listar políticas [solo admin]
+  if (reqPath === '/api/politicas' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Solo admin'})); return; }
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify(loadPoliticas()));
+    return;
+  }
+
+  // POST /api/politicas — crear política [solo admin]
+  if (reqPath === '/api/politicas' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Solo admin'})); return; }
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const d = JSON.parse(body);
+        if (!d.nombre || !d.tipo) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'nombre y tipo requeridos'})); return; }
+        const list = loadPoliticas();
+        const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        const seq = String(list.length + 1).padStart(3,'0');
+        const politica = {
+          id: `POL-${dateStr}-${seq}`,
+          nombre: d.nombre.trim(),
+          tipo: d.tipo,
+          descripcion: (d.descripcion||'').trim(),
+          activa: d.activa !== false,
+          parametros: d.parametros || {},
+          creadaEn: new Date().toISOString(),
+          actualizadaEn: new Date().toISOString()
+        };
+        list.push(politica);
+        savePoliticas(list);
+        res.writeHead(201,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(politica));
+      } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'JSON inválido'})); }
+    });
+    return;
+  }
+
+  // PATCH /api/politicas/:id — editar política [solo admin]
+  if (reqPath.startsWith('/api/politicas/') && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Solo admin'})); return; }
+    const polId = decodeURIComponent(reqPath.slice('/api/politicas/'.length));
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const d = JSON.parse(body);
+        const list = loadPoliticas();
+        const idx = list.findIndex(p => p.id === polId);
+        if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Política no encontrada'})); return; }
+        if (d.nombre      !== undefined) list[idx].nombre      = d.nombre.trim();
+        if (d.descripcion !== undefined) list[idx].descripcion = d.descripcion.trim();
+        if (d.activa      !== undefined) list[idx].activa      = d.activa;
+        if (d.parametros  !== undefined) list[idx].parametros  = d.parametros;
+        list[idx].actualizadaEn = new Date().toISOString();
+        savePoliticas(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(list[idx]));
+      } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'JSON inválido'})); }
+    });
+    return;
+  }
+
+  // DELETE /api/politicas/:id — eliminar política [solo admin]
+  if (reqPath.startsWith('/api/politicas/') && req.method === 'DELETE') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'Solo admin'})); return; }
+    const polId = decodeURIComponent(reqPath.slice('/api/politicas/'.length));
+    const list = loadPoliticas();
+    const idx = list.findIndex(p => p.id === polId);
+    if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'No encontrada'})); return; }
+    list.splice(idx, 1);
+    savePoliticas(list);
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
     return;
