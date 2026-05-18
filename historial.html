@@ -383,6 +383,66 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .veh-apto-nd{background:var(--surface-2);color:var(--text-muted)}
 .veh-empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
 .veh-obs{font-size:12px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
+/* ── MÓDULO POLÍTICAS ── */
+.pol-page-hdr{margin-bottom:20px}
+.pol-page-hdr h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0 0 3px}
+.pol-page-hdr p{font-size:12px;color:var(--text-muted);margin:0}
+.pol-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden}
+.pol-card-hdr{padding:18px 22px 16px;border-bottom:1px solid var(--border-light)}
+.pol-card-meta{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pol-badge-active{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;background:#dcfce7;color:#15803d;border-radius:20px;font-size:11px;font-weight:700}
+.pol-num{font-size:11px;color:var(--text-muted);font-weight:700;font-family:monospace;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--border-light)}
+.pol-card-hdr h3{font-size:16px;font-weight:800;color:var(--text-primary);margin:0 0 8px}
+.pol-rule{background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.6;font-style:italic}
+.pol-section{padding:18px 22px;border-bottom:1px solid var(--border-light)}
+.pol-section:last-child{border-bottom:none}
+.pol-section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pol-section-hdr h4{font-size:12px;font-weight:800;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin:0;display:flex;align-items:center;gap:7px;flex:1}
+.pol-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;animation:pol-pulse 1.8s infinite}
+@keyframes pol-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.pol-refresh-info{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.pol-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.pol-kpi{background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:14px 16px;text-align:center}
+.pol-kpi-val{font-size:30px;font-weight:800;line-height:1;margin-bottom:5px}
+.pol-kpi-label{font-size:11px;color:var(--text-muted);font-weight:600}
+.pol-kpi.k-lunch .pol-kpi-val{color:#d97706}
+.pol-kpi.k-ok    .pol-kpi-val{color:#059669}
+.pol-kpi.k-fail  .pol-kpi-val{color:#dc2626}
+.pol-kpi.k-none  .pol-kpi-val{color:#9ca3af}
+.pol-emp-table{width:100%;border-collapse:collapse;font-size:13px}
+.pol-emp-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border);background:var(--surface-2)}
+.pol-emp-table td{padding:10px 12px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+.pol-emp-table tr:last-child td{border-bottom:none}
+.pol-emp-table tr:hover td{background:var(--surface-2)}
+.pol-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.pol-s-lunch{background:#fef3c7;color:#92400e}
+.pol-s-exceeding{background:#fee2e2;color:#b91c1c}
+.pol-s-ok{background:#dcfce7;color:#15803d}
+.pol-s-fail{background:#fee2e2;color:#b91c1c}
+.pol-s-none{background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-light)}
+.pol-progress-wrap{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:80px}
+.pol-progress-bar{height:100%;border-radius:3px;transition:width .4s}
+.pol-progress-ok{background:#059669}
+.pol-progress-warn{background:#d97706}
+.pol-progress-over{background:#dc2626}
+.pol-hist-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.pol-hist-toolbar label{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap}
+.pol-heatmap-wrap{overflow-x:auto}
+.pol-heatmap{width:100%;border-collapse:collapse;font-size:12px}
+.pol-heatmap th{padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;border-bottom:2px solid var(--border);background:var(--surface-2);white-space:nowrap}
+.pol-heatmap th:first-child{text-align:left;min-width:150px}
+.pol-heatmap td{padding:8px 10px;border-bottom:1px solid var(--border-light);text-align:center}
+.pol-heatmap td:first-child{text-align:left;font-weight:600;color:var(--text-primary)}
+.pol-heatmap tr:last-child td{border-bottom:none}
+.pol-heatmap tr:hover td{background:var(--surface-2)}
+.pol-hm-cell{display:inline-block;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700}
+.pol-hm-ok{background:#dcfce7;color:#15803d}
+.pol-hm-fail{background:#fee2e2;color:#b91c1c}
+.pol-hm-today{background:#fef9c3;color:#92400e}
+.pol-hm-none{background:var(--surface-2);color:var(--text-muted);font-weight:400}
+.pol-mock-notice{background:#fef9c3;border:1px solid #fcd34d;border-radius:10px;padding:10px 16px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:8px;margin-top:8px}
+.pol-mock-notice code{background:#fef08a;padding:1px 5px;border-radius:3px;font-size:11px}
+@media(max-width:700px){.pol-kpi-row{grid-template-columns:1fr 1fr}.pol-page-hdr{margin-bottom:14px}}
 @media(max-width:700px){
   .veh-check-hdr,.veh-check-row{grid-template-columns:1fr 44px 44px}
   .veh-check-hdr span:last-child,.veh-check-row .veh-obs-input{display:none}
@@ -2682,6 +2742,108 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     </div>
     <!-- /tab-vehiculos -->
 
+    <!-- ═══════════════ TAB POLÍTICAS ═══════════════ -->
+    <div id="tab-politicas" style="display:none">
+
+      <div class="pol-page-hdr">
+        <h2>📋 Políticas de la Empresa</h2>
+        <p>Reglas operativas con medición de cumplimiento en tiempo real</p>
+      </div>
+
+      <!-- POL-001 -->
+      <div class="pol-card">
+
+        <!-- Encabezado de la política -->
+        <div class="pol-card-hdr">
+          <div class="pol-card-meta">
+            <span class="pol-badge-active">● Activa</span>
+            <span class="pol-num">POL-001</span>
+          </div>
+          <h3>🍴 Política de Horario de Almuerzo</h3>
+          <div class="pol-rule">
+            "Los empleados solamente tienen permitido de almuerzo el horario asignado en Workforce Platform. El tiempo de almuerzo no debe exceder el <strong>Tiempo de almuerzo permitido</strong> configurado en su perfil de usuario."
+          </div>
+        </div>
+
+        <!-- Cumplimiento en vivo -->
+        <div class="pol-section">
+          <div class="pol-section-hdr">
+            <h4><span class="pol-live-dot"></span> Cumplimiento en Vivo — hoy</h4>
+            <span class="pol-refresh-info" id="pol-refresh-info">—</span>
+            <button class="btn-sm" onclick="polRefresh()">🔄 Actualizar</button>
+          </div>
+
+          <!-- KPIs -->
+          <div class="pol-kpi-row">
+            <div class="pol-kpi k-lunch">
+              <div class="pol-kpi-val" id="pol-k-lunch">—</div>
+              <div class="pol-kpi-label">🍴 En almuerzo</div>
+            </div>
+            <div class="pol-kpi k-ok">
+              <div class="pol-kpi-val" id="pol-k-ok">—</div>
+              <div class="pol-kpi-label">✅ Cumplieron hoy</div>
+            </div>
+            <div class="pol-kpi k-fail">
+              <div class="pol-kpi-val" id="pol-k-fail">—</div>
+              <div class="pol-kpi-label">🔴 Incumplieron hoy</div>
+            </div>
+            <div class="pol-kpi k-none">
+              <div class="pol-kpi-val" id="pol-k-none">—</div>
+              <div class="pol-kpi-label">⚪ Sin registrar</div>
+            </div>
+          </div>
+
+          <!-- Tabla de empleados -->
+          <div style="overflow-x:auto">
+            <table class="pol-emp-table">
+              <thead>
+                <tr>
+                  <th>Empleado</th>
+                  <th>Estado actual</th>
+                  <th>Inicio</th>
+                  <th>Fin</th>
+                  <th>Tiempo usado</th>
+                  <th>Permitido</th>
+                  <th>Progreso</th>
+                </tr>
+              </thead>
+              <tbody id="pol-live-tbody">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:28px">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Historial de cumplimiento -->
+        <div class="pol-section">
+          <div class="pol-section-hdr">
+            <h4>📅 Historial de Cumplimiento</h4>
+            <button class="btn-sm" onclick="polExportCSV()" title="Exportar a CSV">📥 Exportar CSV</button>
+          </div>
+          <div class="pol-hist-toolbar">
+            <label>DESDE</label>
+            <input type="date" id="pol-hist-from" class="veh-filter-select" style="font-size:12px">
+            <label>HASTA</label>
+            <input type="date" id="pol-hist-to" class="veh-filter-select" style="font-size:12px">
+            <button class="btn-sm" onclick="polLoadHistory()">Consultar</button>
+          </div>
+          <div class="pol-heatmap-wrap" id="pol-heatmap-wrap">
+            <div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px">
+              Selecciona un rango de fechas y presiona Consultar
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /pol-card -->
+
+      <!-- Aviso mock data -->
+      <div class="pol-mock-notice" id="pol-mock-notice">
+        ⚠️ <strong>Modo demo:</strong> Los datos mostrados son de prueba. Para usar datos reales cambia <code>POL_USE_MOCK = false</code> en el código.
+      </div>
+
+    </div>
+    <!-- /tab-politicas -->
+
   </div>
 </div>
 
@@ -2926,8 +3088,9 @@ function can(perm) {
 }
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
 function guardTab(tab) {
-  if (tab === 'dashboard' && !can('dashboard')) { switchTab('tasks'); return false; }
-  if (tab === 'users'     && !can('users_tab')) { switchTab('tasks'); return false; }
+  if (tab === 'dashboard'  && !can('dashboard')) { switchTab('tasks'); return false; }
+  if (tab === 'users'      && !can('users_tab')) { switchTab('tasks'); return false; }
+  if (tab === 'politicas'  && !can('dashboard')) { switchTab('tasks'); return false; }
   return true;
 }
 
@@ -3619,6 +3782,17 @@ function enterApp() {
     vehTab.onclick = () => switchTab('vehiculos');
     nav.appendChild(vehTab);
   }
+  // Políticas tab — solo admin
+  if (_user.role === 'admin') {
+    let polTab = nav.querySelector('[data-tab="politicas"]');
+    if (!polTab) {
+      polTab = document.createElement('button');
+      polTab.className = 'nav-tab'; polTab.dataset.tab = 'politicas';
+      polTab.innerHTML = '<span class="nav-tab-icon">📋</span> Políticas';
+      polTab.onclick = () => switchTab('politicas');
+      nav.appendChild(polTab);
+    }
+  }
   // Módulo vehículos: construir checklist y pre-llenar campos
   vehBuildForm();
   var cInput = document.getElementById('vf-conductor');
@@ -3698,12 +3872,15 @@ function switchTab(tab) {
   if (!guardTab(tab)) return;
   _currentTab = tab;
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-  document.getElementById('tab-tasks').style.display = tab==='tasks'?'':'none';
-  document.getElementById('tab-dashboard').style.display = tab==='dashboard'?'':'none';
-  document.getElementById('tab-users').style.display = tab==='users'?'':'none';
-  document.getElementById('tab-vehiculos').style.display = tab==='vehiculos'?'':'none';
+  document.getElementById('tab-tasks').style.display     = tab==='tasks'?'':'none';
+  document.getElementById('tab-dashboard').style.display  = tab==='dashboard'?'':'none';
+  document.getElementById('tab-users').style.display      = tab==='users'?'':'none';
+  document.getElementById('tab-vehiculos').style.display  = tab==='vehiculos'?'':'none';
+  document.getElementById('tab-politicas').style.display  = tab==='politicas'?'':'none';
   if (tab==='dashboard') loadDashboard();
   if (tab==='users') loadUsers();
+  if (tab==='politicas') { polStartRefresh(); polInitHistory(); }
+  else polStopRefresh();
   closeProfileMenu();
 }
 
@@ -9362,6 +9539,321 @@ function vehExportCSV() {
     a.click(); URL.revokeObjectURL(url);
   })
   .catch(function(){ alert('Error al exportar.'); });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── MÓDULO POLÍTICAS ─────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── MOCK DATA — eliminar bloque completo cuando POL_USE_MOCK = false ─────────
+var POL_USE_MOCK = true;
+
+var _POL_MOCK_EMPLOYEES = [
+  { id:'m1', name:'Carlos Méndez',    lunchTimeAllowed:30 },
+  { id:'m2', name:'Ana Rodríguez',    lunchTimeAllowed:60 },
+  { id:'m3', name:'Luis Pérez',       lunchTimeAllowed:45 },
+  { id:'m4', name:'María González',   lunchTimeAllowed:30 },
+  { id:'m5', name:'Roberto Díaz',     lunchTimeAllowed:60 },
+  { id:'m6', name:'Patricia Vargas',  lunchTimeAllowed:45 },
+];
+
+function _polMockLiveData() {
+  var now = new Date();
+  function todayAt(h, m) { return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m); }
+  // Escenario: Carlos en almuerzo (dentro del tiempo), Roberto excediendo,
+  //            Ana y Patricia cumplieron, Luis incumplió, María sin registrar
+  return [
+    { id:'m1', name:'Carlos Méndez',   lunchTimeAllowed:30, status:'lunch',     start:new Date(now.getTime()-18*60000), end:null },
+    { id:'m2', name:'Ana Rodríguez',   lunchTimeAllowed:60, status:'complied',  start:todayAt(12,0),  end:todayAt(12,55) },
+    { id:'m3', name:'Luis Pérez',      lunchTimeAllowed:45, status:'violated',  start:todayAt(13,0),  end:todayAt(13,50) },
+    { id:'m4', name:'María González',  lunchTimeAllowed:30, status:'none',      start:null,           end:null },
+    { id:'m5', name:'Roberto Díaz',    lunchTimeAllowed:60, status:'exceeding', start:new Date(now.getTime()-78*60000), end:null },
+    { id:'m6', name:'Patricia Vargas', lunchTimeAllowed:45, status:'complied',  start:todayAt(12,15), end:todayAt(12,58) },
+  ];
+}
+
+// Semilla de cumplimiento por empleado para el historial (0=incumplió, 1=cumplió)
+var _POL_MOCK_SEED = {
+  m1:[1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,0,1],
+  m2:[1,1,1,1,0,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1,1,1,0,1],
+  m3:[0,1,0,0,1,1,0,1,0,0,1,1,0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,0,0,1,0],
+  m4:[1,0,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1],
+  m5:[1,1,1,0,1,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,1],
+  m6:[1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0],
+};
+// ── FIN MOCK DATA ────────────────────────────────────────────────────────────
+
+// ── Estado ───────────────────────────────────────────────────────────────────
+var _polRefreshTimer    = null;
+var _polCountdownTimer  = null;
+var _polCountdown       = 0;
+
+// ── Auto-refresh ─────────────────────────────────────────────────────────────
+function polStartRefresh() {
+  polStopRefresh();
+  polRefresh();
+  _polRefreshTimer = setInterval(polRefresh, 30000);
+  _polTickCountdown();
+}
+
+function polStopRefresh() {
+  if (_polRefreshTimer)   { clearInterval(_polRefreshTimer);   _polRefreshTimer   = null; }
+  if (_polCountdownTimer) { clearInterval(_polCountdownTimer); _polCountdownTimer = null; }
+  var el = document.getElementById('pol-refresh-info');
+  if (el) el.textContent = '—';
+}
+
+function _polTickCountdown() {
+  _polCountdown = 30;
+  if (_polCountdownTimer) clearInterval(_polCountdownTimer);
+  _polCountdownTimer = setInterval(function() {
+    _polCountdown = Math.max(0, _polCountdown - 1);
+    var el = document.getElementById('pol-refresh-info');
+    if (el) el.textContent = 'Actualiza en ' + _polCountdown + 's';
+    if (_polCountdown === 0) _polCountdown = 30;
+  }, 1000);
+}
+
+// ── Refresco principal ───────────────────────────────────────────────────────
+function polRefresh() {
+  _polCountdown = 30;
+  if (POL_USE_MOCK) {
+    _polRenderLive(_polMockLiveData());
+    return;
+  }
+  // Datos reales: estado de presencia (_authUsers) + breaks del día
+  var today = new Date().toISOString().slice(0,10);
+  authFetch('/api/wwp/lunch/breaks?date=' + today)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var breaks = d.ok ? (d.breaks || []) : [];
+      var data = (_authUsers || []).filter(function(u){ return u.active !== false; }).map(function(u) {
+        var brk = breaks.find(function(b){ return b.userId === u.id; });
+        var status = 'none';
+        var start = null, end = null;
+        if (u.presenceStatus === 'lunch') {
+          start = new Date(u.presenceAt);
+          var elapsedMin = (Date.now() - start.getTime()) / 60000;
+          status = elapsedMin > (u.lunchTimeAllowed || 60) ? 'exceeding' : 'lunch';
+        } else if (brk && !brk.isOpen) {
+          start = brk.startTime ? new Date(brk.startTime) : null;
+          end   = brk.endTime   ? new Date(brk.endTime)   : null;
+          status = brk.compliant ? 'complied' : 'violated';
+        }
+        return { id:u.id, name:u.name, lunchTimeAllowed:u.lunchTimeAllowed||60, status:status, start:start, end:end };
+      });
+      _polRenderLive(data);
+    })
+    .catch(function(e) {
+      var tbody = document.getElementById('pol-live-tbody');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:28px">⚠️ Error: ' + escH(e.message) + '</td></tr>';
+    });
+}
+
+// ── Render panel en vivo ─────────────────────────────────────────────────────
+function _polRenderLive(data) {
+  var now = Date.now();
+  var kLunch=0, kOk=0, kFail=0, kNone=0;
+
+  var rows = data.map(function(emp) {
+    var allowedMin = emp.lunchTimeAllowed || 60;
+    var totalMin = null, pct = 0, progressClass = 'pol-progress-ok';
+    var statusLabel, statusClass;
+
+    if (emp.status === 'lunch') {
+      kLunch++;
+      totalMin = emp.start ? Math.round((now - emp.start.getTime()) / 60000) : 0;
+      pct = Math.min(100, Math.round(totalMin / allowedMin * 100));
+      progressClass = pct >= 90 ? 'pol-progress-warn' : 'pol-progress-ok';
+      statusLabel = '🍴 En almuerzo'; statusClass = 'pol-s-lunch';
+    } else if (emp.status === 'exceeding') {
+      kFail++;
+      totalMin = emp.start ? Math.round((now - emp.start.getTime()) / 60000) : 0;
+      pct = 100; progressClass = 'pol-progress-over';
+      statusLabel = '⚠️ Excediendo'; statusClass = 'pol-s-exceeding';
+    } else if (emp.status === 'complied') {
+      kOk++;
+      totalMin = (emp.start && emp.end) ? Math.round((emp.end.getTime() - emp.start.getTime()) / 60000) : 0;
+      pct = Math.min(100, Math.round(totalMin / allowedMin * 100));
+      statusLabel = '✅ Cumplió'; statusClass = 'pol-s-ok';
+    } else if (emp.status === 'violated') {
+      kFail++;
+      totalMin = (emp.start && emp.end) ? Math.round((emp.end.getTime() - emp.start.getTime()) / 60000) : 0;
+      pct = 100; progressClass = 'pol-progress-over';
+      statusLabel = '🔴 Incumplió'; statusClass = 'pol-s-fail';
+    } else {
+      kNone++;
+      statusLabel = '⚪ Sin registrar'; statusClass = 'pol-s-none';
+    }
+
+    var fmt = function(dt) { return dt ? dt.toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'}) : '—'; };
+    var startTxt = fmt(emp.start);
+    var endTxt   = (emp.status === 'lunch' || emp.status === 'exceeding') ? '⏳' : fmt(emp.end);
+    var usoTxt   = totalMin !== null ? totalMin + ' min' : '—';
+    var excTxt   = (emp.status === 'violated' || emp.status === 'exceeding') && totalMin !== null
+      ? ' <span style="color:#dc2626;font-size:11px">(+' + (totalMin - allowedMin) + ' min)</span>' : '';
+    var bar = totalMin !== null
+      ? '<div class="pol-progress-wrap"><div class="pol-progress-bar '+progressClass+'" style="width:'+pct+'%"></div></div>'
+      : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+
+    return '<tr>'
+      + '<td><strong>'+escH(emp.name)+'</strong></td>'
+      + '<td><span class="pol-status-pill '+statusClass+'">'+statusLabel+'</span></td>'
+      + '<td>'+startTxt+'</td>'
+      + '<td>'+endTxt+'</td>'
+      + '<td>'+usoTxt+excTxt+'</td>'
+      + '<td>'+allowedMin+' min</td>'
+      + '<td style="min-width:100px">'+bar+'</td>'
+      + '</tr>';
+  }).join('');
+
+  var tbody = document.getElementById('pol-live-tbody');
+  if (tbody) tbody.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:28px">Sin datos</td></tr>';
+
+  var setKpi = function(id, v) { var el=document.getElementById(id); if(el) el.textContent=v; };
+  setKpi('pol-k-lunch', kLunch);
+  setKpi('pol-k-ok',    kOk);
+  setKpi('pol-k-fail',  kFail);
+  setKpi('pol-k-none',  kNone);
+}
+
+// ── Historial ────────────────────────────────────────────────────────────────
+function polInitHistory() {
+  var today   = new Date().toISOString().slice(0,10);
+  var weekAgo = new Date(Date.now() - 6*24*60*60*1000).toISOString().slice(0,10);
+  var fromEl = document.getElementById('pol-hist-from');
+  var toEl   = document.getElementById('pol-hist-to');
+  if (fromEl && !fromEl.value) fromEl.value = weekAgo;
+  if (toEl   && !toEl.value)   toEl.value   = today;
+}
+
+function _polDateRange(from, to) {
+  var dates = [], d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+  while (d <= end) { dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  return dates;
+}
+
+function polLoadHistory() {
+  var from = (document.getElementById('pol-hist-from')||{}).value;
+  var to   = (document.getElementById('pol-hist-to')||{}).value;
+  if (!from || !to) { alert('Selecciona un rango de fechas.'); return; }
+  if (from > to)    { alert('La fecha inicio debe ser anterior a la fecha fin.'); return; }
+  var dates = _polDateRange(from, to);
+  if (dates.length > 31) { alert('El rango máximo es de 31 días.'); return; }
+
+  if (POL_USE_MOCK) {
+    _polRenderHistory(_polBuildMockHistory(dates), dates);
+    return;
+  }
+  // Datos reales: fetch por fecha
+  var wrap = document.getElementById('pol-heatmap-wrap');
+  if (wrap) wrap.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted)"><div class="spinner" style="width:20px;height:20px;margin:0 auto 8px"></div>Cargando…</div>';
+  Promise.all(dates.map(function(date) {
+    return authFetch('/api/wwp/lunch/breaks?date=' + date)
+      .then(function(r){ return r.json(); })
+      .then(function(d){ return { date:date, breaks: d.ok ? d.breaks : [] }; })
+      .catch(function(){ return { date:date, breaks:[] }; });
+  })).then(function(results) {
+    var today = new Date().toISOString().slice(0,10);
+    var empMap = {};
+    (_authUsers||[]).filter(function(u){ return u.active!==false; }).forEach(function(u){
+      empMap[u.id] = { id:u.id, name:u.name, days:{} };
+    });
+    results.forEach(function(r) {
+      (r.breaks||[]).forEach(function(b) {
+        if (!empMap[b.userId]) empMap[b.userId] = { id:b.userId, name:b.userName, days:{} };
+        if (b.isOpen && r.date === today)   empMap[b.userId].days[r.date] = 'active';
+        else if (!b.isOpen)                  empMap[b.userId].days[r.date] = b.compliant ? 'complied' : 'violated';
+      });
+    });
+    _polRenderHistory(Object.values(empMap), dates);
+  });
+}
+
+function _polBuildMockHistory(dates) {
+  var today = new Date().toISOString().slice(0,10);
+  return _POL_MOCK_EMPLOYEES.map(function(emp) {
+    var seed = _POL_MOCK_SEED[emp.id] || [];
+    var days = {};
+    dates.forEach(function(date, i) {
+      if (date === today)           days[date] = 'active';
+      else if (date > today)        days[date] = 'none';
+      else days[date] = seed[i % seed.length] ? 'complied' : 'violated';
+    });
+    return { id:emp.id, name:emp.name, days:days };
+  });
+}
+
+function _polRenderHistory(employees, dates) {
+  var today = new Date().toISOString().slice(0,10);
+  var thDates = dates.map(function(d) {
+    var dt = new Date(d + 'T00:00:00');
+    var lbl = dt.toLocaleDateString('es-DO',{weekday:'short',day:'numeric',month:'short'});
+    var isToday = d === today;
+    return '<th style="'+(isToday?'color:var(--accent);font-weight:800':'')+'">'+escH(lbl)+'</th>';
+  }).join('');
+
+  // Totals row
+  var totals = dates.map(function(date) {
+    var ok=0, fail=0;
+    employees.forEach(function(e) {
+      if (e.days[date]==='complied') ok++;
+      else if (e.days[date]==='violated') fail++;
+    });
+    return { ok:ok, fail:fail };
+  });
+
+  var rows = employees.map(function(emp) {
+    var cells = dates.map(function(d) {
+      var s = emp.days[d] || 'none';
+      if (s==='complied') return '<td><span class="pol-hm-cell pol-hm-ok">✓</span></td>';
+      if (s==='violated') return '<td><span class="pol-hm-cell pol-hm-fail">✗</span></td>';
+      if (s==='active')   return '<td><span class="pol-hm-cell pol-hm-today">⏳</span></td>';
+      return '<td><span class="pol-hm-cell pol-hm-none">—</span></td>';
+    }).join('');
+    return '<tr><td>'+escH(emp.name)+'</td>'+cells+'</tr>';
+  }).join('');
+
+  var totalRow = '<tr style="border-top:2px solid var(--border)">'
+    + '<td style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px">Cumplimiento</td>'
+    + totals.map(function(t) {
+        var total = t.ok + t.fail;
+        var pct = total > 0 ? Math.round(t.ok/total*100) : null;
+        if (pct === null) return '<td><span style="color:var(--text-muted);font-size:11px">—</span></td>';
+        var color = pct >= 80 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
+        return '<td><span style="font-size:11px;font-weight:700;color:'+color+'">'+pct+'%</span></td>';
+      }).join('')
+    + '</tr>';
+
+  var wrap = document.getElementById('pol-heatmap-wrap');
+  if (wrap) wrap.innerHTML = '<div class="pol-heatmap-wrap" style="overflow-x:auto">'
+    + '<table class="pol-heatmap"><thead><tr><th>Empleado</th>'+thDates+'</tr></thead>'
+    + '<tbody>'+rows+totalRow+'</tbody></table></div>';
+}
+
+// ── Exportar historial ───────────────────────────────────────────────────────
+function polExportCSV() {
+  var from = (document.getElementById('pol-hist-from')||{}).value;
+  var to   = (document.getElementById('pol-hist-to')||{}).value;
+  if (!from || !to) { alert('Consulta primero un rango de fechas.'); return; }
+  var dates = _polDateRange(from, to);
+  var data  = POL_USE_MOCK ? _polBuildMockHistory(dates) : [];
+  if (!data.length) { alert('Sin datos para exportar.'); return; }
+
+  var statusLabel = function(s) {
+    return s==='complied'?'Cumplió': s==='violated'?'Incumplió': s==='active'?'En proceso':'Sin registro';
+  };
+  var headers = ['Empleado'].concat(dates);
+  var rows = data.map(function(emp) {
+    return [emp.name].concat(dates.map(function(d){ return statusLabel(emp.days[d]||'none'); }))
+      .map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(',');
+  });
+  var csv = '﻿' + headers.map(function(v){ return '"'+v+'"'; }).join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a'); a.href=url;
+  a.download = 'politica_almuerzo_'+from+'_'+to+'.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── AUTOCOMPLETE DEL BUSCADOR ────────────────────────────────────────────────
