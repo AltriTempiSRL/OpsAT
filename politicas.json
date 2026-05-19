@@ -1,0 +1,14 @@
+[
+  {
+    "id": "POL-20260518-001",
+    "nombre": "Horario de Almuerzo",
+    "tipo": "lunch_duration",
+    "descripcion": "Los empleados solo pueden tomar el tiempo de almuerzo asignado en su perfil de usuario.",
+    "activa": true,
+    "parametros": {
+      "toleranciaMinutos": 5,
+      "aplicaA": "all"
+    },
+    "creadaEn": "2026-05-18T19:14:36.794Z"
+  }
+]

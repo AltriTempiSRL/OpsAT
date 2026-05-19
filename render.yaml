@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: dashboard-despachos
+    runtime: node
+    plan: starter          # $7/month — never sleeps, needed for workforce platform
+    buildCommand: echo "No build step required"
+    startCommand: node proxy.js
+    healthCheckPath: /api/health
+
+    # Variables de entorno — los valores reales se configuran en el dashboard de Render
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false   # Render lo asigna automáticamente
+      - key: DATA_DIR
+        value: /data
+      - key: ODOO_URL
+        sync: false            # Se configura manualmente en Render dashboard
+      - key: ODOO_DB
+        sync: false
+      - key: ODOO_USER
+        sync: false
+      - key: ODOO_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true    # Render lo genera automáticamente (seguro)
+      - key: COMPANY_NAME
+        value: Altri Tempi
+
+    # Disco persistente — almacena fotos y datos en tiempo real
+    disk:
+      name: datos-dashboard
+      mountPath: /data
+      sizeGB: 10             # 10 GB = $2.50/month

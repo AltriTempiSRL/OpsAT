@@ -9,7 +9,9 @@ const path   = require('path');
 const url    = require('url');
 const crypto = require('crypto');
 
-// ── Leer credenciales desde .env.txt ────────────────────────────────────────
+// ── Leer credenciales desde .env.txt o variables de entorno ─────────────────
+// En producción (Render, Railway, etc.) se usan process.env directamente.
+// En desarrollo local se usa .env.txt como fallback.
 function loadEnv(filename) {
   const candidates = [filename, path.join(__dirname, filename)];
   for (const f of candidates) {
@@ -23,37 +25,74 @@ function loadEnv(filename) {
       return env;
     }
   }
-  throw new Error('No se encontró .env.txt');
+  // Sin .env.txt — usamos process.env (entorno de producción)
+  return process.env;
 }
 
-// ── Archivo de persistencia de averías ───────────────────────────────────────
-const AVERIAS_FILE  = path.join(__dirname, 'averias.json');
-const AV_FOTOS_DIR  = path.join(__dirname, 'av-fotos');
-if (!fs.existsSync(AV_FOTOS_DIR)) fs.mkdirSync(AV_FOTOS_DIR, { recursive: true });
+// ── Directorio de datos persistentes ─────────────────────────────────────────
+// En producción: apunta al disco persistente (DATA_DIR=/data en Render).
+// En desarrollo: usa el mismo directorio del proyecto.
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : __dirname;
+if (DATA_DIR !== __dirname && !fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// ── Escritura atómica — previene corrupción si el servidor falla a mitad ─────
+// En lugar de sobrescribir directo, escribe en .tmp y luego renombra.
+// Si el servidor muere durante la escritura, el .tmp se descarta y el original queda intacto.
+function atomicWrite(filePath, data) {
+  const tmp = filePath + '.tmp';
+  try {
+    fs.writeFileSync(tmp, data, 'utf-8');
+    fs.renameSync(tmp, filePath);
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw e;
+  }
+}
+
+// ── Validación de longitud de entradas ────────────────────────────────────────
+// Devuelve un string de error si algún campo supera su límite, o null si todo está bien.
+function validateLengths(obj, rules) {
+  for (const [field, max] of Object.entries(rules)) {
+    const val = obj[field];
+    if (val != null && typeof val === 'string' && val.length > max) {
+      return `El campo '${field}' no puede superar ${max} caracteres (actual: ${val.length})`;
+    }
+  }
+  return null;
+}
+
+// ── Rutas de archivos de datos (todas apuntan a DATA_DIR) ────────────────────
+const AVERIAS_FILE        = path.join(DATA_DIR, 'averias.json');
+const AV_FOTOS_DIR        = path.join(DATA_DIR, 'av-fotos');
+const WWP_TASKS_FILE      = path.join(DATA_DIR, 'wwp-tasks.json');
+const WWP_ROLES_FILE      = path.join(DATA_DIR, 'wwp-roles.json');
+const WWP_FOTOS_DIR       = path.join(DATA_DIR, 'wwp-fotos');
+const WWP_LUNCH_FILE      = path.join(DATA_DIR, 'wwp-lunch-breaks.json');
+const VEHICULOS_FILE      = path.join(DATA_DIR, 'vehiculos-inspecciones.json');
+const POLITICAS_FILE      = path.join(DATA_DIR, 'politicas.json');
+const EMP_MATERIALES_FILE = path.join(DATA_DIR, 'empaque-materiales.json');
+const EMP_REGLAS_FILE     = path.join(DATA_DIR, 'empaque-reglas.json');
+const EMP_FOTOS_DIR       = path.join(DATA_DIR, 'empaque-fotos');
+
+// Crear directorios de fotos si no existen
+if (!fs.existsSync(AV_FOTOS_DIR))  fs.mkdirSync(AV_FOTOS_DIR,  { recursive: true });
 
 function loadAverias() {
   if (!fs.existsSync(AVERIAS_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(AVERIAS_FILE, 'utf-8')); } catch(e) { return []; }
 }
 function saveAverias(list) {
-  fs.writeFileSync(AVERIAS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  atomicWrite(AVERIAS_FILE, JSON.stringify(list, null, 2));
 }
 
-// ── WWP (Warehouse Workforce Platform) — persistencia ────────────────────────
-const WWP_TASKS_FILE  = path.join(__dirname, 'wwp-tasks.json');
-const WWP_ROLES_FILE  = path.join(__dirname, 'wwp-roles.json'); // { "oe_95": "admin", ... }
-const WWP_FOTOS_DIR   = path.join(__dirname, 'wwp-fotos');
-const WWP_LUNCH_FILE  = path.join(__dirname, 'wwp-lunch-breaks.json');
-const VEHICULOS_FILE  = path.join(__dirname, 'vehiculos-inspecciones.json');
-const POLITICAS_FILE      = path.join(__dirname, 'politicas.json');
-const EMP_MATERIALES_FILE = path.join(__dirname, 'empaque-materiales.json');
-const EMP_REGLAS_FILE     = path.join(__dirname, 'empaque-reglas.json');
-const EMP_FOTOS_DIR       = path.join(__dirname, 'empaque-fotos');
-
 function loadEmpaqueMateria() { try { return JSON.parse(fs.readFileSync(EMP_MATERIALES_FILE,'utf-8')); } catch { return []; } }
-function saveEmpaqueMateria(l) { fs.writeFileSync(EMP_MATERIALES_FILE, JSON.stringify(l,null,2),'utf-8'); }
+function saveEmpaqueMateria(l) { atomicWrite(EMP_MATERIALES_FILE, JSON.stringify(l,null,2)); }
 function loadEmpaqueReglas() { try { return JSON.parse(fs.readFileSync(EMP_REGLAS_FILE,'utf-8')); } catch { return []; } }
-function saveEmpaqueReglas(l) { fs.writeFileSync(EMP_REGLAS_FILE, JSON.stringify(l,null,2),'utf-8'); }
+function saveEmpaqueReglas(l) { atomicWrite(EMP_REGLAS_FILE, JSON.stringify(l,null,2)); }
 
 // ── Caché de categorías Odoo (5 min TTL) ─────────────────────────────────────
 let _categCache = null;
@@ -101,22 +140,22 @@ function loadPoliticas() {
     savePoliticas(defaults); return defaults;
   }
 }
-function savePoliticas(list) { fs.writeFileSync(POLITICAS_FILE, JSON.stringify(list,null,2),'utf-8'); }
+function savePoliticas(list) { atomicWrite(POLITICAS_FILE, JSON.stringify(list,null,2)); }
 if (!fs.existsSync(WWP_FOTOS_DIR))  fs.mkdirSync(WWP_FOTOS_DIR,  { recursive: true });
 if (!fs.existsSync(EMP_FOTOS_DIR))  fs.mkdirSync(EMP_FOTOS_DIR,  { recursive: true });
 
 function loadLunchBreaks() { try { return JSON.parse(fs.readFileSync(WWP_LUNCH_FILE,'utf-8')); } catch { return []; } }
-function saveLunchBreaks(b) { fs.writeFileSync(WWP_LUNCH_FILE, JSON.stringify(b, null, 2), 'utf-8'); }
+function saveLunchBreaks(b) { atomicWrite(WWP_LUNCH_FILE, JSON.stringify(b, null, 2)); }
 
 function loadInspecciones() { try { return JSON.parse(fs.readFileSync(VEHICULOS_FILE,'utf-8')); } catch { return []; } }
-function saveInspecciones(list) { fs.writeFileSync(VEHICULOS_FILE, JSON.stringify(list, null, 2), 'utf-8'); }
+function saveInspecciones(list) { atomicWrite(VEHICULOS_FILE, JSON.stringify(list, null, 2)); }
 
 function loadWwpTasks() {
   if (!fs.existsSync(WWP_TASKS_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(WWP_TASKS_FILE, 'utf-8')); } catch(e) { return []; }
 }
 function saveWwpTasks(list) {
-  fs.writeFileSync(WWP_TASKS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  atomicWrite(WWP_TASKS_FILE, JSON.stringify(list, null, 2));
 }
 // roles: objeto { "oe_<id>": "admin"|"manager"|"assistant" }
 function loadWwpRoles() {
@@ -124,22 +163,24 @@ function loadWwpRoles() {
   try { return JSON.parse(fs.readFileSync(WWP_ROLES_FILE, 'utf-8')); } catch(e) { return {}; }
 }
 function saveWwpRoles(obj) {
-  fs.writeFileSync(WWP_ROLES_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  atomicWrite(WWP_ROLES_FILE, JSON.stringify(obj, null, 2));
 }
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
-const WWP_AUTH_FILE     = path.join(__dirname, 'wwp-users-auth.json');
-const WWP_SESSIONS_FILE = path.join(__dirname, 'wwp-sessions.json');
+const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
+const WWP_SESSIONS_FILE = path.join(DATA_DIR, 'wwp-sessions.json');
 
-// Secreto JWT persistente
+// Secreto JWT — se lee de variable de entorno en producción,
+// o de archivo local en desarrollo. Si no existe, se genera y persiste.
 const JWT_SECRET = (() => {
-  const secretFile = path.join(__dirname, '.jwt-secret');
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const secretFile = path.join(DATA_DIR, '.jwt-secret');
   if (fs.existsSync(secretFile)) return fs.readFileSync(secretFile,'utf-8').trim();
   const s = crypto.randomBytes(32).toString('hex');
-  fs.writeFileSync(secretFile, s, 'utf-8');
+  try { fs.writeFileSync(secretFile, s, 'utf-8'); } catch {}
   return s;
 })();
 
@@ -185,13 +226,13 @@ function loadAuthUsers() {
   if (!fs.existsSync(WWP_AUTH_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(WWP_AUTH_FILE,'utf-8')); } catch { return []; }
 }
-function saveAuthUsers(u) { fs.writeFileSync(WWP_AUTH_FILE, JSON.stringify(u,null,2),'utf-8'); }
+function saveAuthUsers(u) { atomicWrite(WWP_AUTH_FILE, JSON.stringify(u,null,2)); }
 
 function loadSessions() {
   if (!fs.existsSync(WWP_SESSIONS_FILE)) return [];
   try { return JSON.parse(fs.readFileSync(WWP_SESSIONS_FILE,'utf-8')); } catch { return []; }
 }
-function saveSessions(s) { fs.writeFileSync(WWP_SESSIONS_FILE, JSON.stringify(s,null,2),'utf-8'); }
+function saveSessions(s) { atomicWrite(WWP_SESSIONS_FILE, JSON.stringify(s,null,2)); }
 
 // Middleware de autenticación JWT (lanza 401 si falla)
 function requireJwt(req, res) {
@@ -275,7 +316,7 @@ const lunchTimerMap = new Map();
 
 const WWP_NOTIF_FILE = path.join(__dirname, 'wwp-notifications.json');
 function loadNotifications()    { try { return JSON.parse(fs.readFileSync(WWP_NOTIF_FILE,'utf-8')); } catch { return []; } }
-function saveNotifications(arr) { fs.writeFileSync(WWP_NOTIF_FILE, JSON.stringify(arr)); }
+function saveNotifications(arr) { atomicWrite(WWP_NOTIF_FILE, JSON.stringify(arr)); }
 
 function wsEncodeFrame(payload) {
   const data = Buffer.from(JSON.stringify(payload));
@@ -1833,6 +1874,9 @@ const server = http.createServer(async (req, res) => {
       const d = await readBody(req);
       const { name, email, password, role, odooId } = d;
       if (!name||!email||!password) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'name, email y password son requeridos'})); return; }
+      const _userLenErr = validateLengths(d, { name:150, email:254, password:200 });
+      if (_userLenErr) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_userLenErr})); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Formato de correo inválido'})); return; }
       const users = loadAuthUsers();
       if (users.find(u => u.email === email.toLowerCase().trim())) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El correo ya está registrado'})); return; }
       const newUser = {id:wwpId('au'),name,email:email.toLowerCase().trim(),passwordHash:hashPassword(password),role:role||'assistant',odooId:odooId||null,active:true,lastLogin:null,resetToken:null,resetTokenExpiry:null,createdAt:new Date().toISOString()};
@@ -2058,6 +2102,12 @@ const server = http.createServer(async (req, res) => {
   if (reqPath.match(/^\/api\/wwp\/tasks\/wt_[a-z0-9]+\/messages$/) && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     const taskId = reqPath.split('/')[4];
+    // Leer el body ANTES de cargar las tareas — previene race condition donde dos
+    // mensajes simultáneos cargan el mismo snapshot y uno sobreescribe al otro.
+    const d = await readBody(req);
+    if (!d.text||!d.text.trim()) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Mensaje vacío'})); return; }
+    if (d.text.length > 2000) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El mensaje no puede superar 2000 caracteres'})); return; }
+    // Cargar tareas después del await — garantiza el snapshot más reciente
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -2066,8 +2116,6 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ok:false,error:'No tienes permiso para escribir en este chat'}));
       return;
     }
-    const d = await readBody(req);
-    if (!d.text||!d.text.trim()) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Mensaje vacío'})); return; }
     const msg = {
       id: wwpId('msg'),
       fromId: jp.userId,
@@ -2110,6 +2158,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const d = await readBody(req);
       if (!d.title||!d.type) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Faltan campos'})); return; }
+      const _taskLenErr = validateLengths(d, { title:200, description:2000, odooRef:100, location:200 });
+      if (_taskLenErr) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_taskLenErr})); return; }
       const now = new Date().toISOString();
       const isSubtask = !!(d.parentId);
       const task = {
@@ -2596,6 +2646,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const d = await readBody(req);
       if (!d.nombre) throw new Error('nombre es requerido');
+      const _matLenErr = validateLengths(d, { nombre:100, descripcion:500 });
+      if (_matLenErr) throw new Error(_matLenErr);
       const list = loadEmpaqueMateria();
       const mat = {
         id: 'mat_' + Date.now(),
@@ -3019,13 +3071,16 @@ const server = http.createServer(async (req, res) => {
       // ── 3. Intentar como ARTÍCULO (product.product por ref/código/nombre) ──
       const prods = await odooCall('product.product','search_read',
         [['|','|','|',['default_code','=',ref],['default_code','ilike',ref],['barcode','=',ref],['name','ilike',ref]]],
-        {fields:['id','name','default_code','barcode','image_128'],limit:5});
+        {fields:['id','name','default_code','barcode','image_128','categ_id'],limit:5});
       if (prods && prods.length) {
         const p=prods[0];
         const stockMap = await fetchStockMap([p.id]);
         const locations = stockMap[p.id]||[];
+        const categ = p.categ_id && Array.isArray(p.categ_id) ? p.categ_id : null;
         const item = {
           item_id:'art_'+p.id, odoo_line_id:null, odoo_product_id:p.id,
+          odoo_categ_id: categ ? categ[0] : null,
+          odoo_categ_nombre: categ ? categ[1] : null,
           sku:p.default_code||p.barcode||'', product_name:p.name||'',
           quantity:1, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
           locations, selected_location:locations.length===1?0:null,

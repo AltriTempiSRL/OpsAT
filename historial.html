@@ -15,6 +15,7 @@
 <meta name="apple-mobile-web-app-title" content="WWP">
 <link rel="apple-touch-icon" href="/icon-192.svg">
 <meta name="description" content="Plataforma de gestión operativa — Altritempi">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════
    DESIGN TOKENS (merged: historial + wwp)
@@ -38,9 +39,9 @@
   --accent-hover:#142d56;
   --accent-light:#e8eef7;
   --link:#1b5bbf;
-  --brand:#000000;
+  --brand:#0f2340;
   --brand-light:#062465;
-  --brand-dark:#0f2340;
+  --brand-dark:#071a2e;
   --green:#059669;
   --amber:#d97706;
   --red:#dc2626;
@@ -52,12 +53,12 @@
   --purple-bg:#f3eff8;--purple-text:#522d7a;--purple-dot:#7c3aed;
   --sky-bg:#e8f4fd;--sky-text:#0e5282;--sky-dot:#0284c7;
   --orange-bg:#fef3eb;--orange-text:#7c3410;--orange-dot:#c4510d;
-  --radius-sm:4px;--radius:6px;--radius-lg:8px;
-  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --radius-sm:6px;--radius:12px;--radius-lg:16px;
+  --shadow:0 2px 8px rgba(0,0,0,.08),0 1px 3px rgba(0,0,0,.05);
   --font:'Inter',system-ui,-apple-system,sans-serif;
 }
-*{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text-primary);font-size:13px;line-height:1.5}
+*{box-sizing:border-box;font-family:inherit}
+body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text-primary);font-size:13px;line-height:1.5}
 
 /* ── Header ── */
 .hdr{background:var(--accent);color:#fff;padding:14px 24px;border-bottom:3px solid #0e2347}
@@ -80,7 +81,11 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,san
 .nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px 8px 16px;font-size:12px;font-weight:500;color:rgba(255,255,255,.65);cursor:pointer;transition:all .12s;border-left:3px solid transparent;text-decoration:none;user-select:none;line-height:1.35}
 .nav-item:hover{background:rgba(255,255,255,.1);color:rgba(255,255,255,.95)}
 .nav-item.active{background:rgba(255,255,255,.14);color:#fff;border-left-color:#5ba3ff;font-weight:700}
-.nav-icon{font-size:13px;width:18px;text-align:center;flex-shrink:0;opacity:.9}
+.nav-icon{width:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.9}
+.nav-icon svg{width:14px;height:14px;stroke:currentColor;display:block;flex-shrink:0}
+.nav-tab-icon svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:1px}
+.app-header-icon svg{width:22px;height:22px;stroke:currentColor;display:block}
+.login-logo-icon svg{width:26px;height:26px;stroke:currentColor;color:#fff}
 .sidebar-spacer{flex:1}
 .sidebar-footer{padding:12px 14px;border-top:1px solid rgba(255,255,255,.1);font-size:10px;color:rgba(255,255,255,.3)}
 main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
@@ -100,7 +105,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .ac-item{padding:11px 16px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border-light);transition:background .1s}
 .ac-item:last-child{border-bottom:none}
 .ac-item:hover,.ac-item.focused{background:var(--accent-light)}
-.ac-item-icon{font-size:16px;flex-shrink:0;line-height:1}
+.ac-item-icon{width:18px;height:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .ac-item-code{font-weight:700;color:var(--accent);font-size:14px;white-space:nowrap}
 .ac-item-sep{color:var(--text-muted);font-size:13px;margin:0 3px}
 .ac-item-detail{color:var(--text-secondary);font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -514,15 +519,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .emp-mat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
 .emp-mat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
 .emp-mat-foto{width:100%;height:130px;object-fit:cover;background:#f1f5f9;display:block}
-.emp-mat-foto-empty{width:100%;height:130px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:32px;color:#cbd5e1}
+.emp-mat-foto-empty{width:100%;height:130px;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-bottom:1px solid var(--border-light)}
+.emp-mat-foto-empty::before{content:'📷';font-size:26px;opacity:.35}
+.emp-mat-foto-empty::after{content:'Sin foto';font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px}
 .emp-mat-body{padding:12px;flex:1;display:flex;flex-direction:column;gap:4px}
 .emp-mat-name{font-size:13px;font-weight:700;color:var(--text-primary)}
 .emp-mat-desc{font-size:11px;color:var(--text-muted);line-height:1.4;flex:1}
 .emp-mat-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border-light)}
-.emp-mat-btn{flex:1;padding:5px 8px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;transition:opacity .15s}
-.emp-mat-btn.edit{background:#eff6ff;color:#1d4ed8}
-.emp-mat-btn.del{background:#fff1f2;color:#be123c}
-.emp-mat-btn:hover{opacity:.8}
+.emp-mat-btn{padding:5px 10px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.emp-mat-btn.edit{flex:1;background:#eff6ff;color:#1d4ed8}
+.emp-mat-btn.edit:hover{background:#dbeafe}
+.emp-mat-btn.del{flex:none;background:transparent;color:#94a3b8;padding:5px 8px;font-size:13px}
+.emp-mat-btn.del:hover{background:#fff1f2;color:#be123c}
 /* Árbol de reglas por familia */
 .emp-tree-search-wrap{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .emp-tree-search{flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;outline:none}
@@ -847,7 +855,19 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .val-search-box{position:relative;max-width:520px}
 .val-search-input{width:100%;box-sizing:border-box;padding:10px 14px 10px 38px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface-2);color:var(--text-primary);outline:none;transition:border-color .15s}
 .val-search-input:focus{border-color:var(--text-secondary);background:var(--surface)}
-.val-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none}
+.val-search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;display:flex;align-items:center}
+.val-search-icon svg{width:16px;height:16px;stroke:currentColor;display:block}
+.pw-toggle svg{width:16px;height:16px;stroke:currentColor;display:block}
+.notif-btn svg{width:18px;height:18px;stroke:currentColor;display:block}
+.av-bar-btn svg{width:16px;height:16px;stroke:currentColor;display:block}
+.pm-item svg{width:15px;height:15px;stroke:currentColor;flex-shrink:0}
+#lunch-timer-wrap svg{width:14px;height:14px;stroke:currentColor;display:block}
+.av-fotos-file-btn svg{width:14px;height:14px;stroke:currentColor;display:block}
+.notif-panel-title svg{width:15px;height:15px;stroke:currentColor;vertical-align:-2px;margin-right:4px}
+.btn-search svg{width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px}
+.items-panel-title svg{width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px}
+.av-register-btn svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px}
+.veh-apto-btn svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px}
 .val-results-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:280px;overflow-y:auto;display:none}
 .val-result-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:10px}
 .val-result-item:last-child{border-bottom:none}
@@ -1341,7 +1361,13 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
   border-radius:var(--radius);font-size:13px;color:var(--text);background:var(--surface);outline:none;
 }
 .search-box input:focus{border-color:var(--border-focus)}
-.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:14px}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:14px;display:flex;align-items:center}
+.search-icon svg{width:15px;height:15px;stroke:currentColor;display:block}
+/* Lucide icons inside content sections */
+.sec-hdr-icon{display:inline-block;width:13px;height:13px;stroke:currentColor;vertical-align:-2px;margin-right:5px;opacity:.8}
+.tab-h2-icon{display:inline-block;width:20px;height:20px;stroke:currentColor;vertical-align:-4px;margin-right:8px}
+.tab-h3-icon{display:inline-block;width:15px;height:15px;stroke:currentColor;vertical-align:-3px;margin-right:6px}
+.emp-sec-icon{display:inline-block;width:14px;height:14px;stroke:currentColor;vertical-align:-2px;margin-right:5px;opacity:.85}
 .filter-sel{
   padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
   font-size:13px;color:var(--text);background:var(--surface);outline:none;cursor:pointer;
@@ -1932,7 +1958,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     border-top-color:var(--brand-light);
     border-bottom-color:transparent;
   }
-  .nav-tab-icon{font-size:20px;line-height:1}
+  .nav-tab-icon svg{width:18px;height:18px}
 
   /* — Main content — */
   .app-body{
@@ -2093,7 +2119,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 <div id="screen-login">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-logo-icon">🏭</div>
+      <div class="login-logo-icon"><i data-lucide="building-2"></i></div>
       <div class="login-logo-text">
         <h1>Workforce Platform</h1>
         <p>Altritempi · Operaciones</p>
@@ -2110,7 +2136,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <label class="form-label">Contraseña</label>
       <div class="pw-wrap">
         <input id="f-password" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password">
-        <button class="pw-toggle" onclick="togglePw('f-password',this)" type="button">👁️</button>
+        <button class="pw-toggle" onclick="togglePw('f-password',this)" type="button"><i data-lucide="eye"></i></button>
       </div>
     </div>
     <div class="login-options">
@@ -2152,7 +2178,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <label class="form-label">Nueva contraseña</label>
       <div class="pw-wrap">
         <input id="f-new-pw" type="password" class="form-input" placeholder="Mínimo 6 caracteres">
-        <button class="pw-toggle" onclick="togglePw('f-new-pw',this)" type="button">👁️</button>
+        <button class="pw-toggle" onclick="togglePw('f-new-pw',this)" type="button"><i data-lucide="eye"></i></button>
       </div>
     </div>
     <div class="form-group">
@@ -2179,9 +2205,9 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <span class="sim-notice" id="sheets-status"><span class="sim-dot"></span>Sheets verificando…</span>
         <span class="sim-notice" id="odoo-status"><span class="sim-dot"></span>Odoo verificando…</span>
         <a href="index.html" class="btn-back">← Dashboard</a>
-        <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none">📖 Guía</a>
+        <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Guía</a>
         <span id="hist-user-info" style="font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.2px"></span>
-        <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none">🚪 Salir</button>
+        <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none"><i data-lucide="log-out" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Salir</button>
       </div>
     </div>
   </div>
@@ -2198,49 +2224,49 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
     <div class="sidebar-group">Consultar</div>
     <a class="nav-item active" id="nav-buscar" href="#sec-buscar" onclick="navTo('buscar');return false;">
-      <span class="nav-icon">🔍</span>Buscador
+      <span class="nav-icon"><i data-lucide="search"></i></span>Buscador
     </a>
 
     <div class="sidebar-group">Reportes</div>
     <a class="nav-item" id="nav-reportes" href="#" onclick="navTo('reportes');return false;">
-      <span class="nav-icon">📊</span>Reportes
+      <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>Reportes
     </a>
 
     <div class="sidebar-group">Análisis Operacional</div>
     <a class="nav-item" id="nav-devoluciones" href="#sec-devoluciones" onclick="navTo('devoluciones');return false;">
-      <span class="nav-icon">↩️</span>Devoluciones
+      <span class="nav-icon"><i data-lucide="rotate-ccw"></i></span>Devoluciones
     </a>
     <a class="nav-item" id="nav-validacion" href="#sec-validacion" onclick="navTo('validacion');return false;">
-      <span class="nav-icon">🔎</span>Validación Escaneo
+      <span class="nav-icon"><i data-lucide="scan-line"></i></span>Validación Escaneo
     </a>
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
-      <span class="nav-icon">⚠️</span>Artículos Averiados
+      <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
     </a>
 
     <div class="sidebar-group">Plataforma</div>
     <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
-      <span class="nav-icon">🏭</span>Workforce Labor
+      <span class="nav-icon"><i data-lucide="factory"></i></span>Workforce Labor
     </a>
 
     <div class="sidebar-group">Compras</div>
     <a class="nav-item" id="nav-contenedores" href="#sec-contenedores" onclick="navTo('contenedores');return false;">
-      <span class="nav-icon">🚢</span>Contenedores
+      <span class="nav-icon"><i data-lucide="ship"></i></span>Contenedores
     </a>
 
     <div class="sidebar-group">Tiempo Real</div>
     <a class="nav-item" id="nav-pendientes" href="#sec-pendientes" onclick="navTo('pendientes');return false;">
-      <span class="nav-icon">⏳</span>Pendientes
+      <span class="nav-icon"><i data-lucide="clock"></i></span>Pendientes
     </a>
     <a class="nav-item" id="nav-ordenes" href="#sec-ordenes" onclick="navTo('ordenes');return false;">
-      <span class="nav-icon">📋</span>Órdenes Activas
+      <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Órdenes Activas
     </a>
 
     <div class="sidebar-group">Despachos</div>
     <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
-      <span class="nav-icon">📎</span>Sin Comprobante
+      <span class="nav-icon"><i data-lucide="paperclip"></i></span>Sin Comprobante
     </a>
     <a class="nav-item" id="nav-pendientes-out" href="#sec-pendientes-out" onclick="navTo('pendientes-out');return false;">
-      <span class="nav-icon">🚚</span>Pendientes Out
+      <span class="nav-icon"><i data-lucide="truck"></i></span>Pendientes Out
     </a>
 
     <div class="sidebar-spacer"></div>
@@ -2255,9 +2281,9 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <div id="sec-buscar" style="padding:18px 0 0">
       <p class="section-title">Consultar</p>
       <div class="search-type-toggle">
-        <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">📋 Orden</button>
-        <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">🔄 Transferencia</button>
-        <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">🪑 Artículo</button>
+        <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">Orden</button>
+        <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
+        <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">Artículo</button>
       </div>
       <div class="search-bar-row">
         <div class="ac-wrap">
@@ -2268,12 +2294,12 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <button onclick="buscarOrden()">Buscar</button>
       </div>
       <div class="recent-tags" id="recent-tags-row">
-        <span class="tag" onclick="buscarDirecta('8949')">📦 8949 · Lissette Polanco</span>
-        <span class="tag" onclick="buscarDirecta('9115')">📦 9115 · Andrea Hormazabal</span>
-        <span class="tag" onclick="buscarDirecta('9003')">📦 9003 · Carlos Matamoros</span>
-        <span class="tag" onclick="buscarDirecta('8946')">📦 8946 · Dianne Bisono</span>
-        <span class="tag" onclick="buscarDirecta('S09059')">📦 S09059 · CBELL EVENT</span>
-        <span class="tag" onclick="buscarDirecta('8867')">📦 8867 · ZUNIFLOR</span>
+        <span class="tag" onclick="buscarDirecta('8949')">8949 · Lissette Polanco</span>
+        <span class="tag" onclick="buscarDirecta('9115')">9115 · Andrea Hormazabal</span>
+        <span class="tag" onclick="buscarDirecta('9003')">9003 · Carlos Matamoros</span>
+        <span class="tag" onclick="buscarDirecta('8946')">8946 · Dianne Bisono</span>
+        <span class="tag" onclick="buscarDirecta('S09059')">S09059 · CBELL EVENT</span>
+        <span class="tag" onclick="buscarDirecta('8867')">8867 · ZUNIFLOR</span>
       </div>
     </div>
 
@@ -2322,7 +2348,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <h3 style="margin:0 0 10px;font-size:14px">Validación de Escaneo en Transferencias</h3>
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Escribe el nombre de una transferencia de Odoo (ej: <strong>WH/INT/00123</strong>) para ver si las cantidades fueron registradas con escáner o teclado.</div>
         <div class="val-search-box" id="val-search-box">
-          <span class="val-search-icon">🔎</span>
+          <span class="val-search-icon"><i data-lucide="search"></i></span>
           <input id="val-search-input" class="val-search-input"
                  placeholder="Buscar transferencia — WH/INT/, WH/OUT/…"
                  autocomplete="off"
@@ -2356,7 +2382,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
                 oninput="avBarcodeInput(this.value)">
               <!-- dropdown movido a body por JS para evitar clipping -->
             </div>
-            <button class="av-bar-btn" onclick="avLookup()">🔍</button>
+            <button class="av-bar-btn" onclick="avLookup()" title="Buscar"><i data-lucide="search"></i></button>
           </div>
           <div id="av-lookup-msg" class="av-lookup-msg"></div>
 
@@ -2396,14 +2422,14 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
             <label class="av-lbl">Fotos del daño</label>
             <div class="av-fotos-upload-wrap">
               <label class="av-fotos-file-btn">
-                📷 Seleccionar fotos
+                <i data-lucide="camera"></i>Seleccionar fotos
                 <input type="file" class="av-fotos-file-input" id="av-fotos-input" accept="image/*" multiple onchange="avFotosPreview(this)">
               </label>
               <span id="av-fotos-count" class="av-fotos-count"></span>
             </div>
             <div id="av-fotos-preview" class="av-fotos-preview"></div>
           </div>
-          <button class="av-register-btn" onclick="avRegistrar()">⚠️ Registrar Artículo Averiado</button>
+          <button class="av-register-btn" onclick="avRegistrar()"><i data-lucide="alert-triangle"></i>Registrar Artículo Averiado</button>
         </div>
       </div>
     </div>
@@ -2449,7 +2475,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <h3 style="margin:0">Control de Contenedores</h3>
         <button class="btn-consultar" onclick="cargarContenedores()" style="padding:4px 12px;font-size:10px">↻ Actualizar</button>
       </div>
-      <div class="cont-subtitle" id="cont-subtitle">🔄 Cargando datos en vivo…</div>
+      <div class="cont-subtitle" id="cont-subtitle">Cargando datos en vivo…</div>
       <div class="cont-stats" id="cont-stats"></div>
       <div class="mv-wrap">
         <table class="cont-table">
@@ -2487,7 +2513,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
     <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
       <div class="rpt-filter-bar">
-        <span style="font-size:12px;font-weight:700;color:var(--text-primary)">📎 Transferencias OUT sin adjunto</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:5px"><i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor"></i>Transferencias OUT sin adjunto</span>
         <div class="rpt-filter-sep"></div>
         <label>Desde</label>
         <input type="date" id="desp-from" autocomplete="off">
@@ -2516,7 +2542,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
     <div class="card" style="margin-bottom:24px;padding:0;overflow:hidden">
       <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border-light);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <span style="font-size:12px;font-weight:700;color:var(--text-primary)">🚚 Órdenes OUT en proceso de despacho</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:5px"><i data-lucide="truck" style="width:13px;height:13px;stroke:currentColor"></i>Órdenes OUT en proceso de despacho</span>
         <div style="display:flex;gap:10px;align-items:center">
           <span id="pend-out-count" style="font-size:11px;color:var(--text-muted)"></span>
           <button class="btn-consultar" onclick="cargarPendientesOut()" style="padding:4px 12px;font-size:10px">↻ Actualizar</button>
@@ -2530,7 +2556,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
             <th>Estado</th><th>Responsable</th>
           </tr></thead>
           <tbody id="pend-out-tbody">
-            <tr><td colspan="6" class="desp-empty">🔄 Cargando…</td></tr>
+            <tr><td colspan="6" class="desp-empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -2544,7 +2570,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
       <div class="rpt-page-hdr">
         <div>
-          <h2 class="rpt-page-title">📊 Reportes Operacionales</h2>
+          <h2 class="rpt-page-title"><i data-lucide="bar-chart-2" class="tab-h2-icon"></i>Reportes Operacionales</h2>
           <p class="rpt-page-sub">Análisis automático en tiempo real — Odoo ERP · Google Sheets · Sistema WWP</p>
         </div>
         <div class="rpt-controls">
@@ -2554,14 +2580,14 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
             <option value="90">Últimos 3 meses</option>
             <option value="365">Este año completo</option>
           </select>
-          <button class="rpt-refresh-btn" onclick="loadAllReports()">🔄 Actualizar</button>
+          <button class="rpt-refresh-btn" onclick="loadAllReports()"><i data-lucide="refresh-cw" class="sec-hdr-icon"></i>Actualizar</button>
         </div>
       </div>
 
       <!-- ── R1: Cumplimiento de Despachos ─────────────── -->
       <div class="rpt-card" id="rpt-card-cumplimiento">
         <div class="rpt-card-header">
-          <h3 class="rpt-card-title">📦 Reporte de Cumplimiento de Despachos</h3>
+          <h3 class="rpt-card-title"><i data-lucide="package-check" class="tab-h3-icon"></i>Reporte de Cumplimiento de Despachos</h3>
           <span class="rpt-card-badge" id="rpt-cumplimiento-badge">—</span>
         </div>
         <p class="rpt-card-obj">Mide el porcentaje de órdenes entregadas a tiempo frente a las despachadas con retraso, desglosado por vendedor, almacén de origen y tipo de transporte. Permite identificar patrones de incumplimiento y las variables operacionales que los generan para tomar acciones correctivas informadas.</p>
@@ -2572,7 +2598,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- ── R2: Tiempo de Ciclo ────────────────────────── -->
       <div class="rpt-card" id="rpt-card-ciclo">
         <div class="rpt-card-header">
-          <h3 class="rpt-card-title">⏱️ Análisis de Tiempo de Ciclo por Etapa</h3>
+          <h3 class="rpt-card-title"><i data-lucide="timer" class="tab-h3-icon"></i>Análisis de Tiempo de Ciclo por Etapa</h3>
           <span class="rpt-card-badge" id="rpt-ciclo-badge">—</span>
         </div>
         <p class="rpt-card-obj">Desglosa cuántos días consume cada etapa del proceso de despacho — desde la solicitud hasta la preparación en almacén y la entrega final al cliente. Identifica dónde se concentran los cuellos de botella, el impacto de la instalación en los tiempos y qué segmentos de órdenes presentan los ciclos más largos.</p>
@@ -2583,7 +2609,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- ── R4: Transferencias Internas ───────────────── -->
       <div class="rpt-card" id="rpt-card-transferencias">
         <div class="rpt-card-header">
-          <h3 class="rpt-card-title">🔄 Resumen de Transferencias Internas</h3>
+          <h3 class="rpt-card-title"><i data-lucide="arrow-left-right" class="tab-h3-icon"></i>Resumen de Transferencias Internas</h3>
           <span class="rpt-card-badge" id="rpt-transferencias-badge">—</span>
         </div>
         <p class="rpt-card-obj">Muestra el volumen y estado de todas las transferencias de inventario registradas en Odoo por tipo de movimiento — recepciones, despachos, traslados internos y fabricación — con tiempos de procesamiento promedio. Permite supervisar la actividad real del almacén sin acceder directamente al ERP.</p>
@@ -2594,7 +2620,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- ── R7: Productividad WWP ──────────────────────── -->
       <div class="rpt-card" id="rpt-card-wwp">
         <div class="rpt-card-header">
-          <h3 class="rpt-card-title">👷 Productividad del Equipo de Almacén</h3>
+          <h3 class="rpt-card-title"><i data-lucide="users" class="tab-h3-icon"></i>Productividad del Equipo de Almacén</h3>
           <span class="rpt-card-badge" id="rpt-wwp-badge">—</span>
         </div>
         <p class="rpt-card-obj">Analiza el rendimiento individual de cada colaborador del equipo operativo: tareas asignadas, completadas y validadas por persona, distribución por estado y registro de pausas de almuerzo. Sirve como herramienta de gestión de equipo basada en datos objetivos del sistema de tareas WWP, sin requerir supervisión presencial.</p>
@@ -2605,7 +2631,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- ── R9: Vehículos y Ruta ───────────────────────── -->
       <div class="rpt-card" id="rpt-card-vehiculos">
         <div class="rpt-card-header">
-          <h3 class="rpt-card-title">🚛 Análisis de Despachos por Vehículo y Ruta</h3>
+          <h3 class="rpt-card-title"><i data-lucide="truck" class="tab-h3-icon"></i>Análisis de Despachos por Vehículo y Ruta</h3>
           <span class="rpt-card-badge" id="rpt-vehiculos-badge">—</span>
         </div>
         <p class="rpt-card-obj">Consolida la distribución de entregas por vehículo asignado, tipo de transporte (flota propia vs. alquilada), turno horario (AM/PM), almacén de origen y requerimiento de instalación. Apoya la toma de decisiones sobre asignación de flota y permite cuantificar la dependencia del transporte externo en el período analizado.</p>
@@ -2624,7 +2650,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 <div id="screen-app">
   <header class="app-header">
     <div class="app-header-left">
-      <span class="app-header-icon">🏭</span>
+      <span class="app-header-icon"><i data-lucide="building-2"></i></span>
       <div>
         <div class="app-header-title">Workforce Platform</div>
         <div class="app-header-sub">Altritempi · Operaciones</div>
@@ -2634,10 +2660,10 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- Botón Historial (visible solo para admin) -->
       <button id="btn-back-historial" onclick="goBackToHistorial()" style="display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.22);padding:6px 13px;border-radius:8px;font-weight:600;cursor:pointer;font-size:11px;margin-right:4px">← Historial</button>
       <!-- Botón Guía de Usuario — URL dinámica según rol, se actualiza en enterApp() -->
-      <a id="btn-guide" href="wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'">📖 Guía</a>
+      <a id="btn-guide" href="wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>Guía</a>
       <!-- Timer de almuerzo (visible solo cuando status=lunch) -->
       <span id="lunch-timer-wrap" title="Tiempo en almuerzo">
-        🍴 <span id="lunch-timer-display">00:00</span>
+        <i data-lucide="utensils"></i><span id="lunch-timer-display">00:00</span>
       </span>
       <!-- Botón de presencia con dropdown de 4 estados -->
       <div style="position:relative" id="presence-wrap">
@@ -2647,18 +2673,18 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         </button>
         <div class="presence-menu" id="presence-menu">
           <div class="presence-option" onclick="setPresence('active')">
-            <span class="p-opt-dot" style="background:#059669"></span> 🟢 Disponible
+            <span class="p-opt-dot" style="background:#059669"></span> Disponible
           </div>
           <div class="presence-option" onclick="setPresence('lunch')">
-            <span class="p-opt-dot" style="background:#d97706"></span> 🍴 En Almuerzo
+            <span class="p-opt-dot" style="background:#d97706"></span> <i data-lucide="utensils" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>En Almuerzo
           </div>
           <div class="presence-option" onclick="setPresence('offline')">
-            <span class="p-opt-dot" style="background:#9ca3af"></span> ⚫ Fuera de Línea
+            <span class="p-opt-dot" style="background:#9ca3af"></span> Fuera de Línea
           </div>
         </div>
       </div>
       <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
-        🔔<span class="notif-badge" id="notif-badge"></span>
+        <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge"></span>
       </button>
       <div class="user-pill" onclick="toggleProfileMenu()" id="user-pill">
         <div class="user-avatar" id="user-avatar"></div>
@@ -2672,7 +2698,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
   <!-- Notification panel -->
   <div class="notif-panel" id="notif-panel">
     <div class="notif-panel-hdr">
-      <span class="notif-panel-title">🔔 Notificaciones</span>
+      <span class="notif-panel-title"><i data-lucide="bell"></i>Notificaciones</span>
       <div class="notif-panel-actions">
         <button class="notif-panel-btn" onclick="markAllRead()">Marcar leídas</button>
         <button class="notif-panel-btn" onclick="clearReadNotifs()" style="color:var(--text-3)">Limpiar</button>
@@ -2687,14 +2713,14 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <div class="pm-name" id="pm-name"></div>
       <div class="pm-email" id="pm-email"></div>
     </div>
-    <div class="pm-item" onclick="showChangePassword()">🔑 Cambiar contraseña</div>
-    <div class="pm-item" id="btn-install-pwa" onclick="installPWA();closeProfileMenu()" style="display:none">📲 Instalar como app</div>
+    <div class="pm-item" onclick="showChangePassword()"><i data-lucide="key"></i>Cambiar contraseña</div>
+    <div class="pm-item" id="btn-install-pwa" onclick="installPWA();closeProfileMenu()" style="display:none"><i data-lucide="smartphone"></i>Instalar como app</div>
     <div class="pm-sep"></div>
-    <div class="pm-item danger" onclick="doLogout()">🚪 Cerrar sesión</div>
+    <div class="pm-item danger" onclick="doLogout()"><i data-lucide="log-out"></i>Cerrar sesión</div>
   </div>
 
   <nav class="app-nav" id="app-nav">
-    <button class="nav-tab active" data-tab="tasks" onclick="switchTab('tasks')"><span class="nav-tab-icon">📋</span> Tareas</button>
+    <button class="nav-tab active" data-tab="tasks" onclick="switchTab('tasks')"><span class="nav-tab-icon"><i data-lucide="clipboard-list"></i></span> Tareas</button>
     <!-- Dashboard y Usuarios se añaden dinámicamente en enterApp() según el rol -->
   </nav>
 
@@ -2703,7 +2729,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <div id="tab-tasks">
       <div class="tasks-toolbar">
         <div class="search-box">
-          <span class="search-icon">🔍</span>
+          <span class="search-icon"><i data-lucide="search"></i></span>
           <input id="task-search" type="text" placeholder="Buscar tarea, orden…" oninput="filterTasks()" autocomplete="off" autocorrect="off">
         </div>
         <div class="filter-row">
@@ -2736,17 +2762,17 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <!-- DASHBOARD TAB -->
     <div id="tab-dashboard" style="display:none">
       <!-- KPIs de tareas -->
-      <div class="sec-header" style="margin-bottom:12px">📊 RESUMEN DE TAREAS</div>
+      <div class="sec-header" style="margin-bottom:12px"><i data-lucide="bar-chart-2" class="sec-hdr-icon"></i>RESUMEN DE TAREAS</div>
       <div class="kpi-grid" id="kpi-grid"><div class="loading"><div class="spinner"></div><br>Cargando…</div></div>
 
       <!-- Reporte de almuerzos -->
-      <div class="sec-header" style="margin:24px 0 12px">🍴 CONTROL DE ALMUERZOS</div>
+      <div class="sec-header" style="margin:24px 0 12px"><i data-lucide="utensils" class="sec-hdr-icon"></i>CONTROL DE ALMUERZOS</div>
       <div class="lunch-report-hdr">
         <input type="date" id="lunch-filter-date" class="lunch-filter" onchange="loadLunchReport()">
         <select id="lunch-filter-user" class="lunch-filter" onchange="loadLunchReport()">
           <option value="">Todos los usuarios</option>
         </select>
-        <button class="btn-sm" onclick="loadLunchReport()" style="margin-left:auto">🔄 Actualizar</button>
+        <button class="btn-sm" onclick="loadLunchReport()" style="margin-left:auto">Actualizar</button>
       </div>
       <!-- KPI widgets de almuerzos -->
       <div class="kpi-lunch-grid" id="lunch-kpi-grid">
@@ -2776,7 +2802,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       </div>
 
       <!-- Historial de inspecciones de vehículos -->
-      <div class="sec-header" style="margin:28px 0 12px">🚗 INSPECCIONES DE VEHÍCULOS</div>
+      <div class="sec-header" style="margin:28px 0 12px"><i data-lucide="car" class="sec-hdr-icon"></i>INSPECCIONES DE VEHÍCULOS</div>
       <div id="veh-historial-section">
         <div class="veh-insp-toolbar">
           <select class="veh-filter-select" id="veh-filter-vehiculo" onchange="vehLoadList()">
@@ -2791,8 +2817,8 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
             <option value="si">Aptos</option>
             <option value="no">No aptos</option>
           </select>
-          <button class="btn-sm" onclick="vehLoadList()" title="Actualizar">🔄</button>
-          <button class="btn-sm" onclick="vehExportCSV()" title="Exportar a CSV" style="margin-left:auto">📥 Exportar CSV</button>
+          <button class="btn-sm" onclick="vehLoadList()" title="Actualizar"><i data-lucide="refresh-cw" class="sec-hdr-icon" style="margin:0"></i></button>
+          <button class="btn-sm" onclick="vehExportCSV()" title="Exportar a CSV" style="margin-left:auto"><i data-lucide="download" class="sec-hdr-icon"></i>Exportar CSV</button>
         </div>
         <div style="overflow-x:auto">
           <table class="veh-insp-table" id="veh-insp-table">
@@ -2829,7 +2855,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <!-- Header -->
       <div class="veh-header">
         <div class="veh-header-left">
-          <h2>🚗 Inspección de Vehículos</h2>
+          <h2><i data-lucide="car" class="tab-h2-icon"></i>Inspección de Vehículos</h2>
           <p>Formulario diario de inspección antes de cada salida</p>
         </div>
         <div id="veh-admin-tools" style="display:none"></div>
@@ -2840,16 +2866,16 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
         <!-- 1. Información General -->
         <div class="veh-form-card">
-          <h3>📋 Información General</h3>
+          <h3><i data-lucide="info" class="tab-h3-icon"></i>Información General</h3>
           <div class="veh-form-grid">
             <div class="veh-field">
               <label>Vehículo *</label>
               <select id="vf-vehiculo" onchange="vehUpdatePlaca()">
                 <option value="">— Seleccionar —</option>
-                <option value="Camión Hyundai">🚛 Camión Hyundai</option>
-                <option value="Furgoneta Citroën">🚐 Furgoneta Citroën</option>
-                <option value="Camión Grande">🚚 Camión Grande</option>
-                <option value="Pick-up Toyota">🛻 Pick-up Toyota</option>
+                <option value="Camión Hyundai">Camión Hyundai</option>
+                <option value="Furgoneta Citroën">Furgoneta Citroën</option>
+                <option value="Camión Grande">Camión Grande</option>
+                <option value="Pick-up Toyota">Pick-up Toyota</option>
               </select>
             </div>
             <div class="veh-field">
@@ -2880,12 +2906,12 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
         <!-- Cierre -->
         <div class="veh-form-card">
-          <h3>✅ Cierre de Inspección</h3>
+          <h3><i data-lucide="check-circle-2" class="tab-h3-icon"></i>Cierre de Inspección</h3>
           <div class="veh-field" style="margin-bottom:16px">
             <label>¿El vehículo está apto para operar?</label>
             <div class="veh-apto-btns" id="vf-apto-btns">
-              <button type="button" class="veh-apto-btn" data-apto="si" onclick="vehSetApto('si')">✅ Sí, está apto</button>
-              <button type="button" class="veh-apto-btn" data-apto="no" onclick="vehSetApto('no')">🚫 No está apto</button>
+              <button type="button" class="veh-apto-btn" data-apto="si" onclick="vehSetApto('si')"><i data-lucide="check-circle"></i>Sí, está apto</button>
+              <button type="button" class="veh-apto-btn" data-apto="no" onclick="vehSetApto('no')"><i data-lucide="x-circle"></i>No está apto</button>
             </div>
             <input type="hidden" id="vf-apto" value="">
           </div>
@@ -2900,8 +2926,8 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
             </div>
           </div>
           <div class="veh-form-actions">
-            <button class="btn-cancel" onclick="vehResetForm()">🗑 Limpiar</button>
-            <button class="btn-primary" id="veh-submit-btn" onclick="vehSubmit()">💾 Guardar Inspección</button>
+            <button class="btn-cancel" onclick="vehResetForm()">Limpiar</button>
+            <button class="btn-primary" id="veh-submit-btn" onclick="vehSubmit()">Guardar Inspección</button>
           </div>
         </div>
       </div>
@@ -2914,7 +2940,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <div id="tab-politicas" style="display:none">
       <div class="pol-page-hdr" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
         <div>
-          <h2>📋 Políticas de la Empresa</h2>
+          <h2><i data-lucide="shield-check" class="tab-h2-icon"></i>Políticas de la Empresa</h2>
           <p>Reglas operativas con medición de cumplimiento individual en tiempo real</p>
         </div>
         <button class="btn-primary" onclick="polOpenEditor(null)" style="font-size:12px;padding:8px 16px">+ Nueva Política</button>
@@ -2923,7 +2949,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <div class="pol-empty-state" style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">Cargando políticas…</div>
       </div>
       <div class="pol-mock-notice" id="pol-mock-notice">
-        ⚠️ <strong>Modo demo:</strong> Datos de empleados simulados. Cambia <code>POL_USE_MOCK = false</code> para usar datos reales.
+        <i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i><strong>Modo demo:</strong> Datos de empleados simulados. Cambia <code>POL_USE_MOCK = false</code> para usar datos reales.
       </div>
     </div>
     <!-- /tab-politicas -->
@@ -2932,20 +2958,20 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <div id="tab-impacto" style="display:none">
       <div class="imp-page-hdr">
         <div>
-          <h2>⚡ Impacto en Flujo de Trabajo</h2>
+          <h2><i data-lucide="zap" class="tab-h2-icon"></i>Impacto en Flujo de Trabajo</h2>
           <p>Efecto acumulado de todas las políticas sobre la ejecución de tareas</p>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <label style="font-size:11px;font-weight:700;color:var(--text-muted)">FECHA</label>
           <input type="date" id="imp-date" class="veh-filter-select">
-          <button class="btn-sm" onclick="impRefresh()">🔄 Actualizar</button>
+          <button class="btn-sm" onclick="impRefresh()">Actualizar</button>
         </div>
       </div>
       <div class="imp-kpi-row">
-        <div class="imp-kpi k-ninguno"><div class="imp-kpi-val" id="imp-k-ninguno">—</div><div class="imp-kpi-label">✅ Sin impacto</div></div>
-        <div class="imp-kpi k-leve">   <div class="imp-kpi-val" id="imp-k-leve">—</div>   <div class="imp-kpi-label">🟡 Impacto leve</div></div>
-        <div class="imp-kpi k-mod">    <div class="imp-kpi-val" id="imp-k-mod">—</div>    <div class="imp-kpi-label">🟠 Moderado</div></div>
-        <div class="imp-kpi k-crit">   <div class="imp-kpi-val" id="imp-k-crit">—</div>   <div class="imp-kpi-label">🔴 Crítico</div></div>
+        <div class="imp-kpi k-ninguno"><div class="imp-kpi-val" id="imp-k-ninguno">—</div><div class="imp-kpi-label"><i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Sin impacto</div></div>
+        <div class="imp-kpi k-leve">   <div class="imp-kpi-val" id="imp-k-leve">—</div>   <div class="imp-kpi-label"><i data-lucide="minus-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Impacto leve</div></div>
+        <div class="imp-kpi k-mod">    <div class="imp-kpi-val" id="imp-k-mod">—</div>    <div class="imp-kpi-label"><i data-lucide="alert-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Moderado</div></div>
+        <div class="imp-kpi k-crit">   <div class="imp-kpi-val" id="imp-k-crit">—</div>   <div class="imp-kpi-label"><i data-lucide="alert-octagon" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Crítico</div></div>
       </div>
       <div class="imp-emp-grid" id="imp-emp-grid">
         <div class="imp-empty">Selecciona una fecha y presiona Actualizar</div>
@@ -2957,14 +2983,14 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
     <div id="tab-empaque" style="display:none">
       <div class="emp-page-hdr">
         <div>
-          <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0">📦 Materiales de Empaque</h2>
+          <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0"><i data-lucide="package" class="tab-h2-icon"></i>Materiales de Empaque</h2>
           <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0">Configura el catálogo de materiales y asígnalos por familia de artículos</p>
         </div>
       </div>
 
       <!-- Sub-sección 1: Catálogo de materiales -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div class="emp-section-title" style="margin:0">🗂 Catálogo de Materiales</div>
+        <div class="emp-section-title" style="margin:0"><i data-lucide="layers" class="emp-sec-icon"></i>Catálogo de Materiales</div>
         <button class="btn-primary" onclick="empOpenMatEditor(null)" style="font-size:12px;padding:7px 14px">+ Nuevo Material</button>
       </div>
       <div class="emp-mat-grid" id="emp-mat-grid">
@@ -2973,10 +2999,10 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
 
       <!-- Sub-sección 2: Reglas por familia -->
       <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:12px">
-        <div class="emp-section-title" style="margin:0 0 4px">🔗 Reglas por Familia de Artículos</div>
+        <div class="emp-section-title" style="margin:0 0 4px"><i data-lucide="link-2" class="emp-sec-icon"></i>Reglas por Familia de Artículos</div>
         <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Haz clic en cualquier celda para asignar un material. El orden de columnas (1°→4°) es el orden de aplicación. La regla más específica de la jerarquía tiene prioridad.</p>
         <div class="emp-tree-search-wrap">
-          <input type="text" class="emp-tree-search" id="emp-tree-search" placeholder="🔍 Filtrar familias: Alfombra, Sala, Mesas…" oninput="empFilterTree(this.value)">
+          <input type="text" class="emp-tree-search" id="emp-tree-search" placeholder="Filtrar familias: Alfombra, Sala, Mesas…" oninput="empFilterTree(this.value)">
           <button onclick="empFilterTree('');document.getElementById('emp-tree-search').value=''" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:11px;cursor:pointer">✕ Limpiar</button>
         </div>
       </div>
@@ -3014,7 +3040,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <img id="emp-mat-foto-preview" src="" alt="preview" style="height:90px;border-radius:8px;object-fit:cover;border:1px solid var(--border)">
       </div>
       <div class="form-group">
-        <label class="form-label">📷 Foto del material</label>
+        <label class="form-label"><i data-lucide="camera" class="tab-h3-icon"></i>Foto del material</label>
         <input type="file" id="emp-mat-foto-file" accept="image/*" onchange="empPreviewFoto(this)" style="font-size:12px">
         <p style="font-size:10px;color:var(--text-muted);margin:4px 0 0">Desde PC o cámara del teléfono. JPG/PNG/WebP recomendado.</p>
       </div>
@@ -3044,7 +3070,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
   <div class="drawer-header">
     <button class="drawer-back" id="drawer-back-btn" onclick="closeDrawer()">← Volver</button>
     <span class="drawer-title" id="drawer-title">—</span>
-    <button class="btn-sm" onclick="openEditTaskModal()" id="drawer-edit-btn" style="display:none">✏️ Editar</button>
+    <button class="btn-sm" onclick="openEditTaskModal()" id="drawer-edit-btn" style="display:none"><i data-lucide="pen" class="sec-hdr-icon"></i>Editar</button>
   </div>
   <div class="drawer-body" id="drawer-body"></div>
 </div>
@@ -3066,20 +3092,20 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <div class="form-group">
           <label class="form-label">Tipo *</label>
           <select id="mf-type" class="form-select" onchange="onTypeChange()">
-            <option value="dispatch_order">🚚 Orden de Despacho</option>
-            <option value="packaging">📦 Embalaje</option>
-            <option value="item_pickup">🔍 Recogida de Artículos</option>
-            <option value="truck_loading">🚛 Carga en Camión</option>
-            <option value="warehouse_move">📦 Movimiento de Almacén</option>
-            <option value="general">📌 General</option>
+            <option value="dispatch_order">Orden de Despacho</option>
+            <option value="packaging">Embalaje</option>
+            <option value="item_pickup">Recogida de Artículos</option>
+            <option value="truck_loading">Carga en Camión</option>
+            <option value="warehouse_move">Movimiento de Almacén</option>
+            <option value="general">General</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Prioridad</label>
           <select id="mf-priority" class="form-select">
-            <option value="low">🟢 Baja</option>
-            <option value="medium" selected>🟡 Media</option>
-            <option value="high">🔴 Alta</option>
+            <option value="low">Baja</option>
+            <option value="medium" selected>Media</option>
+            <option value="high">Alta</option>
           </select>
         </div>
       </div>
@@ -3088,12 +3114,12 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <label class="form-label">Referencia Odoo <span style="font-size:10px;font-weight:400;color:var(--text-3)">orden · transferencia · artículo</span></label>
         <div class="odoo-search-row">
           <input id="mf-odoo-ref" class="odoo-search-input" placeholder="Ej: S09115, ALVEN/OUT/00146, YH.PALERMO…" oninput="clearOrderItems()">
-          <button class="btn-search" onclick="fetchOrderItems()">🔍 Buscar</button>
+          <button class="btn-search" onclick="fetchOrderItems()"><i data-lucide="search"></i>Buscar</button>
         </div>
         <div id="mf-odoo-client" class="odoo-client"></div>
         <div id="mf-items-panel" class="items-panel" style="display:none">
           <div class="items-panel-hdr">
-            <span class="items-panel-title" id="mf-items-panel-title">📦 Artículos</span>
+            <span class="items-panel-title" id="mf-items-panel-title"><i data-lucide="package"></i>Artículos</span>
             <button class="sel-all-btn" onclick="toggleAllItems()">Seleccionar todos</button>
           </div>
           <div id="mf-items-list"></div>
@@ -3138,11 +3164,11 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       <div class="login-error" id="pw-modal-error"></div>
       <div class="form-group">
         <label class="form-label">Contraseña actual</label>
-        <div class="pw-wrap"><input id="pm-current" type="password" class="form-input" placeholder="Contraseña actual"><button class="pw-toggle" onclick="togglePw('pm-current',this)" type="button">👁️</button></div>
+        <div class="pw-wrap"><input id="pm-current" type="password" class="form-input" placeholder="Contraseña actual"><button class="pw-toggle" onclick="togglePw('pm-current',this)" type="button"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-group">
         <label class="form-label">Nueva contraseña</label>
-        <div class="pw-wrap"><input id="pm-new" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('pm-new',this)" type="button">👁️</button></div>
+        <div class="pw-wrap"><input id="pm-new" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('pm-new',this)" type="button"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-group">
         <label class="form-label">Confirmar nueva contraseña</label>
@@ -3186,7 +3212,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
       </div>
       <div class="form-group" id="uf-pw-wrap">
         <label class="form-label">Contraseña</label>
-        <div class="pw-wrap"><input id="uf-password" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('uf-password',this)" type="button">👁️</button></div>
+        <div class="pw-wrap"><input id="uf-password" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('uf-password',this)" type="button"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -3202,7 +3228,7 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">🕗 Hora de entrada asignada</label>
+          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de entrada asignada</label>
           <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
         </div>
       </div>
@@ -3234,10 +3260,10 @@ body{font-family:var(--font);background:var(--brand-dark);min-height:100dvh;colo
         <label>Tipo de política *</label>
         <select id="pe-tipo" onchange="polEditorUpdateParams()">
           <option value="">— Seleccionar tipo —</option>
-          <option value="lunch_duration">🍴 Duración de almuerzo</option>
-          <option value="arrival_time">🕗 Hora de llegada</option>
-          <option value="task_completion">✅ Completitud de tareas</option>
-          <option value="vehicle_inspection">🚗 Inspección vehicular diaria</option>
+          <option value="lunch_duration">Duración de almuerzo</option>
+          <option value="arrival_time">Hora de llegada</option>
+          <option value="task_completion">Completitud de tareas</option>
+          <option value="vehicle_inspection">Inspección vehicular diaria</option>
         </select>
       </div>
       <div class="pol-editor-field">
@@ -3555,7 +3581,7 @@ async function doReset() {
     const r = await fetch('/api/wwp/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:_resetToken,password:pw})});
     const d = await r.json();
     if (!d.ok) { showErr(errEl,d.error); return; }
-    toast('✅ Contraseña actualizada. Inicia sesión.');
+    toast('Contraseña actualizada. Inicia sesión.');
     history.replaceState({},'',location.pathname);
     showScreen('screen-login');
   } catch { showErr(errEl,'Error de conexión'); }
@@ -3579,7 +3605,7 @@ async function doChangePassword() {
     const d = await r.json();
     if (!d.ok) { showErr(errEl,d.error); return; }
     closePasswordModal();
-    toast('✅ Contraseña actualizada correctamente');
+    toast('Contraseña actualizada correctamente');
   } catch(e) { showErr(errEl,'Error: '+e.message); }
 }
 
@@ -3588,9 +3614,9 @@ async function doChangePassword() {
 // ═══════════════════════════════════════════════════════════════════════
 // ─── Configuración de estados de presencia ────────────────────────────────
 const PRESENCE_CONFIG = {
-  active:  { label:'Disponible',    icon:'🟢', dot:'#059669' },
-  lunch:   { label:'En Almuerzo',   icon:'🍴', dot:'#d97706' },
-  offline: { label:'Fuera de Línea',icon:'⚫', dot:'#9ca3af' },
+  active:  { label:'Disponible',    icon:'', dot:'#059669' },
+  lunch:   { label:'En Almuerzo',   icon:'', dot:'#d97706' },
+  offline: { label:'Fuera de Línea',icon:'', dot:'#9ca3af' },
 };
 
 // ─── Timer de almuerzo ─────────────────────────────────────────────────────
@@ -3603,7 +3629,7 @@ function startLunchTimer() {
   function tick() {
     const elapsed = Date.now() - new Date(_user.presenceAt).getTime();
     if (elapsed > allowed && elapsed - allowed < 2000) {
-      toast('⚠️ Tiempo de almuerzo excedido');
+      toast('Tiempo de almuerzo excedido');
     }
   }
   tick();
@@ -3666,8 +3692,8 @@ async function setPresence(status) {
         _authUsers[idx].presenceAt     = d.presenceAt;
       }
       renderPresenceBtn();
-    } else { toast('❌ ' + (d.error||'Error al cambiar estado')); }
-  } catch(e) { toast('❌ Error al cambiar estado'); }
+    } else { toast((d.error||'Error al cambiar estado')); }
+  } catch(e) { toast('Error al cambiar estado'); }
   finally { const b = document.getElementById('presence-btn'); if (b) b.style.opacity = ''; }
 }
 
@@ -3758,11 +3784,11 @@ function connectSSE() {
         if (data.lunchEnded) {
           if (data.userId === _user.id) {
             // Al propio usuario: toast + sonido
-            toast('🍴 Tu tiempo de almuerzo terminó. Ya estás marcado como Disponible.');
+            toast('Tu tiempo de almuerzo terminó. Ya estás marcado como Disponible.');
           } else {
             // A encargados/admins: toast informativo
             const firstName = (data.name||'').split(' ')[0];
-            toast(`🍴 Almuerzo de ${firstName} ha finalizado`);
+            toast(`Almuerzo de ${firstName} ha finalizado`);
           }
         }
       }
@@ -3857,12 +3883,13 @@ function renderNotifications() {
     return;
   }
   const NOTIF_ICONS = {
-    task_assigned:'📋', subtask_assigned:'📎', status_changed:'🔄',
-    task_overdue:'⚠️', task_completed:'✅', task_validated:'🏆',
-    task_rejected:'❌', comment_new:'💬', lunch_ended:'🍴'
+    task_assigned:'clipboard-list', subtask_assigned:'paperclip', status_changed:'refresh-cw',
+    task_overdue:'alert-triangle', task_completed:'check-circle', task_validated:'award',
+    task_rejected:'x-circle', comment_new:'message-square', lunch_ended:'utensils'
   };
   list.innerHTML = _notifications.slice(0, 50).map(n => {
-    const icon = NOTIF_ICONS[n.type] || '🔔';
+    const iconName = NOTIF_ICONS[n.type] || 'bell';
+    const icon = `<i data-lucide="${iconName}" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px;flex-shrink:0"></i>`;
     const time = n.createdAt ? timeSince(n.createdAt) : '';
     const unreadClass = n.readAt ? '' : ' unread';
     const dotClass = n.readAt ? ' read' : '';
@@ -3870,12 +3897,13 @@ function renderNotifications() {
     return `<div class="notif-item${unreadClass}" data-notif-id="${n.id}" onclick="openNotificationById(this)">
       <div class="notif-dot${dotClass}"></div>
       <div class="notif-body">
-        <div class="notif-title">${icon} ${esc(n.title||n.type)}</div>
+        <div class="notif-title">${icon}${esc(n.title||n.type)}</div>
         <div class="notif-msg">${esc(n.message||'')}</div>
         <div class="notif-time">${time}</div>
       </div>
     </div>`;
   }).join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 function updateNotifBadge() {
@@ -3995,7 +4023,7 @@ function enterApp() {
     if (!dashTab) {
       dashTab = document.createElement('button');
       dashTab.className = 'nav-tab'; dashTab.dataset.tab = 'dashboard';
-      dashTab.innerHTML = '<span class="nav-tab-icon">📊</span> Dashboard';
+      dashTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="bar-chart-2"></i></span> Dashboard';
       dashTab.onclick = () => switchTab('dashboard');
       // Insertar después de Tareas (primer tab)
       const tasksTab = nav.querySelector('[data-tab="tasks"]');
@@ -4012,7 +4040,7 @@ function enterApp() {
     if (!usersTab) {
       usersTab = document.createElement('button');
       usersTab.className = 'nav-tab'; usersTab.dataset.tab = 'users';
-      usersTab.innerHTML = '<span class="nav-tab-icon">👥</span> Usuarios';
+      usersTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="users"></i></span> Usuarios';
       usersTab.onclick = () => switchTab('users');
       nav.appendChild(usersTab);
     }
@@ -4026,17 +4054,17 @@ function enterApp() {
   if (!vehTab) {
     vehTab = document.createElement('button');
     vehTab.className = 'nav-tab'; vehTab.dataset.tab = 'vehiculos';
-    vehTab.innerHTML = '<span class="nav-tab-icon">🚗</span> Vehículos';
+    vehTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="car"></i></span> Vehículos';
     vehTab.onclick = () => switchTab('vehiculos');
     nav.appendChild(vehTab);
   }
   // Políticas + Impacto + Empaque tabs — solo admin
   if (_user.role === 'admin') {
-    [{key:'politicas',icon:'📋',label:'Políticas'},{key:'impacto',icon:'⚡',label:'Impacto'},{key:'empaque',icon:'📦',label:'Empaque'}].forEach(function(t) {
+    [{key:'politicas',icon:'shield-check',label:'Políticas'},{key:'impacto',icon:'zap',label:'Impacto'},{key:'empaque',icon:'package',label:'Empaque'}].forEach(function(t) {
       if (!nav.querySelector('[data-tab="'+t.key+'"]')) {
         const btn = document.createElement('button');
         btn.className = 'nav-tab'; btn.dataset.tab = t.key;
-        btn.innerHTML = '<span class="nav-tab-icon">'+t.icon+'</span> '+t.label;
+        btn.innerHTML = '<span class="nav-tab-icon"><i data-lucide="'+t.icon+'"></i></span> '+t.label;
         btn.onclick = () => switchTab(t.key);
         nav.appendChild(btn);
       }
@@ -4073,6 +4101,8 @@ function enterApp() {
   if ('Notification' in window && Notification.permission === 'default') {
     setTimeout(() => Notification.requestPermission(), 3000);
   }
+  // Render Lucide icons (nav tabs are created dynamically above)
+  if (window.lucide) lucide.createIcons();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -4171,8 +4201,9 @@ function filterTasks() {
     return true;
   });
   const el = document.getElementById('tasks-list');
-  if (!visible.length) { el.innerHTML='<div class="task-empty">😶 No hay tareas que mostrar</div>'; return; }
+  if (!visible.length) { el.innerHTML='<div class="task-empty">No hay tareas que mostrar</div>'; return; }
   el.innerHTML = visible.map(renderTaskCard).join('');
+  if(window.lucide) lucide.createIcons();
 }
 function renderTasks() { filterTasks(); }
 
@@ -4252,7 +4283,8 @@ function renderTaskCard(t) {
   const subs = _tasks.filter(s=>s.parentId===t.id);
   const doneSubs = subs.filter(s=>s.status==='completed'||s.status==='validated').length;
   const progPct = subs.length ? Math.round(doneSubs/subs.length*100) : (t.status==='completed'||t.status==='validated'?100:0);
-  const typeEmoji = {dispatch_order:'🚚',packaging:'📦',item_pickup:'🔍',truck_loading:'🚛',warehouse_move:'📦',general:'📌'}[t.type]||'📌';
+  const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot'}[t.type]||'circle-dot';
+  const typeIcon = `<i data-lucide="${typeEmoji}" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
   const today = new Date().toISOString().slice(0,10);
   const overdue = t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status);
   const mgr = t.managerId ? (_authUsers||[]).find(u=>u.id===t.managerId) : null;
@@ -4264,22 +4296,22 @@ function renderTaskCard(t) {
 
   // Campos opcionales del grid
   const fields = [];
-  if (t.odooRef)  fields.push(`<div class="tc-field"><span class="tc-label">Orden Odoo</span><span class="tc-value">📋 ${esc(t.odooRef)}</span></div>`);
+  if (t.odooRef)  fields.push(`<div class="tc-field"><span class="tc-label">Orden Odoo</span><span class="tc-value"><i data-lucide="clipboard-list" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(t.odooRef)}</span></div>`);
   if (mgr)        fields.push(`<div class="tc-field"><span class="tc-label">Responsable</span><div class="tc-user">${avatarHtml(mgr,20)}<span>${esc(mgr.name.split(' ')[0])}</span></div></div>`);
-  else if (t.assignedTo) fields.push(`<div class="tc-field"><span class="tc-label">Responsable</span><span class="tc-value">👷 ${userName(t.assignedTo)}</span></div>`);
-  if (t.dueDate)  fields.push(`<div class="tc-field"><span class="tc-label">Fecha Límite</span><span class="tc-value${overdue?' tc-overdue-val':''}">📅 ${t.dueDate}</span></div>`);
-  if (t.location) fields.push(`<div class="tc-field"><span class="tc-label">Localidad</span><span class="tc-value">📍 ${esc(t.location)}</span></div>`);
-  if (subs.length) fields.push(`<div class="tc-field"><span class="tc-label">Subtareas</span><span class="tc-value">📑 ${doneSubs}/${subs.length}</span></div>`);
+  else if (t.assignedTo) fields.push(`<div class="tc-field"><span class="tc-label">Responsable</span><span class="tc-value"><i data-lucide="user-round" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${userName(t.assignedTo)}</span></div>`);
+  if (t.dueDate)  fields.push(`<div class="tc-field"><span class="tc-label">Fecha Límite</span><span class="tc-value${overdue?' tc-overdue-val':''}"><i data-lucide="calendar" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${t.dueDate}</span></div>`);
+  if (t.location) fields.push(`<div class="tc-field"><span class="tc-label">Localidad</span><span class="tc-value"><i data-lucide="map-pin" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(t.location)}</span></div>`);
+  if (subs.length) fields.push(`<div class="tc-field"><span class="tc-label">Subtareas</span><span class="tc-value"><i data-lucide="list-checks" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${doneSubs}/${subs.length}</span></div>`);
   const auxIds = taskAuxiliaryIds(t);
   if (auxIds.length) {
     const aNames = auxIds.map(id => { const u=(_authUsers||[]).find(u=>u.id===id); return u?u.name.split(' ')[0]:'?'; }).join(', ');
-    fields.push(`<div class="tc-field tc-field-full"><span class="tc-label">Auxiliares</span><span class="tc-value">👤 ${esc(aNames)}</span></div>`);
+    fields.push(`<div class="tc-field tc-field-full"><span class="tc-label">Auxiliares</span><span class="tc-value"><i data-lucide="users" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(aNames)}</span></div>`);
   }
 
   return `<div class="task-card" data-status="${t.status}" onclick="openDrawer('${t.id}')">
     <div class="tc-header">
       <div class="tc-title">${esc(t.title)}</div>
-      ${overdue ? '<span class="tc-overdue-pill">⚠️ Vencida</span>' : ''}
+      ${overdue ? '<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Vencida</span>' : ''}
     </div>
     ${subs.length ? `<div class="tc-progress"><div class="tc-progress-bar" style="width:${progPct}%"></div></div>` : ''}
     <div class="tc-grid">
@@ -4293,7 +4325,7 @@ function renderTaskCard(t) {
       </div>
       <div class="tc-field">
         <span class="tc-label">Tipo</span>
-        <span class="tc-value">${typeEmoji} ${TYPE_LABELS[t.type]||t.type}</span>
+        <span class="tc-value">${typeIcon}${TYPE_LABELS[t.type]||t.type}</span>
       </div>
       ${fields.join('')}
     </div>
@@ -4321,6 +4353,14 @@ async function openDrawer(taskId) {
         const od = await sr.json();
         (od.items||[]).forEach(oi => {
           if (oi.odoo_product_id) _drawerStockMap[oi.odoo_product_id] = oi.locations || [];
+          // Enriquecer items de la tarea con categ_id fresco de Odoo (resuelve tareas antiguas y artículos directos)
+          if (oi.odoo_categ_id && oi.odoo_product_id) {
+            const taskItem = t.items ? t.items.find(it => it.odoo_product_id === oi.odoo_product_id) : null;
+            if (taskItem && !taskItem.odoo_categ_id) {
+              taskItem.odoo_categ_id = oi.odoo_categ_id;
+              taskItem.odoo_categ_nombre = oi.odoo_categ_nombre || null;
+            }
+          }
         });
       }
     } catch {}
@@ -4399,9 +4439,9 @@ function renderDrawer(t) {
     const missingEv = selItems.filter(i=>!i.evidence_images||!i.evidence_images.length);
     const missingGeneralEv = !selItems.length && !(t.evidence||[]).length;
     if (selItems.length&&missingEv.length) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:#9ca3af;cursor:not-allowed">🔒 Completar (faltan ${missingEv.length} foto${missingEv.length>1?'s':''})</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:#9ca3af;cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (faltan ${missingEv.length} foto${missingEv.length>1?'s':''})</button></div>`;
     } else if (missingGeneralEv) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:#9ca3af;cursor:not-allowed">🔒 Completar (falta evidencia fotográfica)</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:#9ca3af;cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (falta evidencia fotográfica)</button></div>`;
     } else {
       actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">✓ Marcar Completado</button></div>`;
     }
@@ -4422,45 +4462,45 @@ function renderDrawer(t) {
   let itemsHtml = '';
   if (items.length) {
     const missing = items.filter(i=>!i.evidence_images||!i.evidence_images.length).length;
-    if (missing>0) itemsHtml += `<div class="items-alert">⚠️ Faltan fotos de evidencia en ${missing} artículo(s). La tarea no puede cerrarse hasta completar todas las evidencias.</div>`;
-    itemsHtml = `<div class="sec-header">ARTÍCULOS <span style="color:${missing?'#d97706':'#059669'};float:right;font-size:10px">${missing?'⚠️ '+missing+' SIN EVIDENCIA':'✅ Todos con evidencia'}</span><span style="float:right;margin-right:8px;font-size:10px">${items.length-missing}/${items.length}</span></div>
-    ${missing?`<div class="items-alert">⚠️ Faltan fotos de evidencia en ${missing} artículo(s). La tarea no puede cerrarse hasta completar todas las evidencias.</div>`:''}
+    if (missing>0) itemsHtml += `<div class="items-alert"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Faltan fotos de evidencia en ${missing} artículo(s). La tarea no puede cerrarse hasta completar todas las evidencias.</div>`;
+    itemsHtml = `<div class="sec-header">ARTÍCULOS <span style="color:${missing?'#d97706':'#059669'};float:right;font-size:10px">${missing?missing+' SIN EVIDENCIA':'Todos con evidencia'}</span><span style="float:right;margin-right:8px;font-size:10px">${items.length-missing}/${items.length}</span></div>
+    ${missing?`<div class="items-alert"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Faltan fotos de evidencia en ${missing} artículo(s). La tarea no puede cerrarse hasta completar todas las evidencias.</div>`:''}
     ${items.map(it=>{
       const evs = it.evidence_images||[];
       const canUpload = _user.role!=='assistant' || (t.executors||[]).includes(myId) || taskAuxiliaryIds(t).includes(_user.id);
       return `<div class="item-card">
         <div class="item-header">
           ${it.image?`<img class="item-thumb" src="${it.image}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:''}
-          <div class="item-thumb-ph" style="${it.image?'display:none':''}">📦</div>
+          <div class="item-thumb-ph" style="${it.image?'display:none':''}"><i data-lucide="package" style="width:22px;height:22px;stroke:currentColor;opacity:.4"></i></div>
           <div style="flex:1;min-width:0">
             <div class="item-name">${esc(it.product_name||it.sku||'')}</div>
             <div class="item-sku">SKU: ${esc(it.sku||'')} · Cant: ${it.quantity||1}</div>
             ${(()=>{
               // Priority: saved selection → live single loc → live multi
               if (it.selected_location_name) {
-                return `<div class="item-loc-tag">📍 ${esc(it.selected_location_name)}</div>`;
+                return `<div class="item-loc-tag"><i data-lucide="map-pin" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(it.selected_location_name)}</div>`;
               }
               const locs = _drawerStockMap[it.odoo_product_id] || [];
               if (locs.length === 1) {
-                return `<div class="item-loc-tag">📍 ${esc(locs[0].location_name)} <span style="opacity:.65;font-weight:400">· ${locs[0].available} disp.</span></div>`;
+                return `<div class="item-loc-tag"><i data-lucide="map-pin" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(locs[0].location_name)} <span style="opacity:.65;font-weight:400">· ${locs[0].available} disp.</span></div>`;
               }
               if (locs.length > 1) {
                 const total = locs.reduce((s,l)=>s+l.available,0);
-                return `<div class="item-loc-tag item-loc-multi-tag">🏭 ${locs.length} ubicaciones · ${total} disp.<br><span style="font-size:10px;opacity:.75">${locs.map(l=>l.location_name).join(' · ')}</span></div>`;
+                return `<div class="item-loc-tag item-loc-multi-tag"><i data-lucide="building-2" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${locs.length} ubicaciones · ${total} disp.<br><span style="font-size:10px;opacity:.75">${locs.map(l=>l.location_name).join(' · ')}</span></div>`;
               }
               return '';
             })()}
           </div>
-          <span class="${evs.length?'item-badge-ok':'item-badge-pend'}">${evs.length?'✅ '+evs.length+' foto'+(evs.length>1?'s':''):'⚠️ Sin fotos'}</span>
+          <span class="${evs.length?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):'Sin fotos'}</span>
         </div>
         ${evs.length?`<div class="ev-grid">${evs.map(e=>`<div class="ev-wrap"><img class="ev-img" src="${mediaUrl(e.url)}" onerror="this.src='data:image/svg+xml,<svg/>'"><button class="ev-del" onclick="deleteItemEvidence('${t.id}','${it.item_id}','${e.id}')">✕</button></div>`).join('')}</div>`:''}
-        ${canUpload?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')">📷 Agregar foto</button>`:''}
+        ${canUpload?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Agregar foto</button>`:''}
         ${it.odoo_categ_id?`<div class="task-emp-section" id="emp-item-${it.item_id}"><div style="color:var(--text-muted);font-size:11px;padding:4px">Cargando materiales de empaque…</div></div>`:''}
       </div>`;
     }).join('')}`;
   }
   if (!items.length && !(t.evidence||[]).length) {
-    itemsHtml += `<div class="items-alert">⚠️ Debes subir al menos una foto de evidencia antes de completar la tarea.</div>`;
+    itemsHtml += `<div class="items-alert"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Debes subir al menos una foto de evidencia antes de completar la tarea.</div>`;
   }
 
   // Subtareas
@@ -4479,7 +4519,7 @@ function renderDrawer(t) {
   const evHtml = `<div class="sec-header">EVIDENCIA FOTOGRÁFICA</div>
     <div class="evidence-grid">${evList.map(e=>`<div class="ev-wrap"><img class="ev-img" src="${mediaUrl(e.url)}"><button class="ev-del" onclick="deleteEvidence('${t.id}','${e.name||e.url.split('/').pop()}')">✕</button></div>`).join('')}</div>
     ${evList.length===0?'<div style="color:var(--text-3);font-size:13px;padding:4px 0 12px">Sin fotos de evidencia.</div>':''}
-    <button class="btn-add-photo" onclick="uploadEvidence('${t.id}')">📷 Agregar Fotos</button>`;
+    <button class="btn-add-photo" onclick="uploadEvidence('${t.id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Agregar Fotos</button>`;
 
   // History
   const histHtml = `<div class="sec-header" style="margin-top:20px">HISTORIAL DE ESTADO</div>${(t.statusHistory||[]).map(h=>`<div class="hist-item"><div class="hist-dot"></div><div class="hist-content"><div class="hist-status">${STATUS_LABELS[h.status]||h.status}</div><div class="hist-meta">${fmtDate(h.date)} · ${h.by||'—'}${h.note?' — '+h.note:''}</div></div></div>`).join('')}`;
@@ -4489,7 +4529,7 @@ function renderDrawer(t) {
     <div class="info-grid">
       <div class="info-cell"><div class="info-cell-label">Estado</div><div class="info-cell-val"><span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span></div></div>
       <div class="info-cell"><div class="info-cell-label">Tipo</div><div class="info-cell-val">${TYPE_LABELS[t.type]||t.type}</div></div>
-      <div class="info-cell"><div class="info-cell-label">Prioridad</div><div class="info-cell-val">${t.priority==='high'?'🔴 Alta':t.priority==='low'?'🟢 Baja':'🟡 Media'}</div></div>
+      <div class="info-cell"><div class="info-cell-label">Prioridad</div><div class="info-cell-val">${t.priority==='high'?'<span style="color:#dc2626">●</span> Alta':t.priority==='low'?'<span style="color:#16a34a">●</span> Baja':'<span style="color:#d97706">●</span> Media'}</div></div>
       <div class="info-cell"><div class="info-cell-label">Responsable</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px">${(()=>{ const mgr=t.managerId?(_authUsers||[]).find(u=>u.id===t.managerId):null; return mgr?avatarHtml(mgr,24)+`<span>${esc(mgr.name.split(' ').slice(0,2).join(' '))}</span>`:(t.assignedTo?userName(t.assignedTo):'—'); })()}</div></div>
       ${taskAuxiliaryIds(t).length?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Auxiliares</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${taskAuxiliaryIds(t).map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?'<span style="display:flex;align-items:center;gap:4px;margin-right:4px">'+avatarHtml(u,22)+'<span style="font-size:12px">'+esc(u.name.split(' ').slice(0,2).join(' '))+'</span></span>':'';}).join('')}</div></div>`:''}
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
@@ -4504,7 +4544,7 @@ function renderDrawer(t) {
     ${histHtml}
     <div class="chat-section">
       <div class="chat-hdr">
-        <span class="chat-hdr-title">💬 Chat</span>
+        <span class="chat-hdr-title"><i data-lucide="message-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Chat</span>
       </div>
       <div class="chat-messages" id="dr-chat-messages"></div>
       <div class="chat-input-row">
@@ -4516,6 +4556,8 @@ function renderDrawer(t) {
       </div>
     </div>
   `;
+  // Procesar íconos Lucide en el drawer
+  if(window.lucide) lucide.createIcons();
   // Cargar mensajes de forma asíncrona para no bloquear render
   loadChatMessages(t.id);
   // Enriquecer artículos con materiales de empaque
@@ -4571,7 +4613,7 @@ async function sendChatMessage(taskId) {
     });
     const d = await r.json();
     if (d.ok) await loadChatMessages(taskId);
-  } catch(e) { toast('❌ Error al enviar mensaje'); inp.value = text; }
+  } catch(e) { toast('Error al enviar mensaje'); inp.value = text; }
 }
 
 function toggleAssignRow(label) {
@@ -4592,7 +4634,7 @@ async function assignManager(taskId) {
   const list = document.getElementById('dr-assign-list');
   if (!list) return;
   const checked = [...list.querySelectorAll('input[type=checkbox]:checked')];
-  if (!checked.length) { toast(_user.role==='manager' ? '⚠️ Selecciona al menos un auxiliar' : '⚠️ Selecciona al menos un encargado'); return; }
+  if (!checked.length) { toast(_user.role==='manager' ? 'Selecciona al menos un auxiliar' : 'Selecciona al menos un encargado'); return; }
 
   const assignees = checked.map(c => c.value);
   const names = checked.map(c => c.dataset.name||'').filter(Boolean);
@@ -4627,25 +4669,25 @@ async function assignManager(taskId) {
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId, {method:'PATCH', body:JSON.stringify(payload)});
     const d = await r.json();
-    if (!d.ok && !d.task) { toast('❌ Error al asignar'); return; }
-    toast('✅ Asignado' + (names.length ? ': ' + names.slice(0,2).join(', ') + (names.length>2?' +'+( names.length-2):'') : ''));
+    if (!d.ok && !d.task) { toast('Error al asignar'); return; }
+    toast('Asignado' + (names.length ? ': ' + names.slice(0,2).join(', ') + (names.length>2?' +'+( names.length-2):'') : ''));
     openDrawer(taskId);
-  } catch(e) { toast('❌ Error: '+e.message); }
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 async function changeStatus(taskId, status) {
   // RBAC: validar solo para admin|manager
   if (status === 'validated' && !can('validate_task')) {
-    toast('⛔ Sin permiso para validar tareas'); return;
+    toast('Sin permiso para validar tareas'); return;
   }
-  if (!can('update_status')) { toast('⛔ Sin permiso'); return; }
+  if (!can('update_status')) { toast('Sin permiso'); return; }
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify({status,by:_user.name,byUserId:_user.id})});
     const d = await r.json();
-    if (!d.ok) { toast('❌ '+(d.error||'Error')); return; }
-    toast('✅ Estado actualizado');
+    if (!d.ok) { toast((d.error||'Error')); return; }
+    toast('Estado actualizado');
     openDrawer(taskId);
-  } catch(e) { toast('❌ Error: '+e.message); }
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 async function uploadEvidence(taskId) {
@@ -4656,7 +4698,7 @@ async function uploadEvidence(taskId) {
       const ext = file.name.split('.').pop()||'jpg';
       await authFetch('/api/wwp/tasks/'+taskId+'/evidence',{method:'POST',body:JSON.stringify({fotos:[{data:b64,ext,caption:''}],by:_user.name})});
     }
-    toast('✅ Fotos subidas');
+    toast('Fotos subidas');
     openDrawer(taskId);
   };
   inp.click();
@@ -4665,8 +4707,8 @@ async function uploadEvidence(taskId) {
 async function deleteEvidence(taskId, fname) {
   try {
     await authFetch('/api/wwp/tasks/'+taskId+'/evidence/'+encodeURIComponent(fname),{method:'DELETE',body:JSON.stringify({by:_user.name})});
-    toast('🗑 Foto eliminada'); openDrawer(taskId);
-  } catch(e) { toast('❌ '+e.message); }
+    toast('Foto eliminada'); openDrawer(taskId);
+  } catch(e) { toast(e.message); }
 }
 
 async function uploadItemEvidence(taskId, itemId) {
@@ -4677,9 +4719,9 @@ async function uploadItemEvidence(taskId, itemId) {
     try {
       const r = await authFetch('/api/wwp/tasks/'+taskId+'/items/'+itemId+'/evidence',{method:'POST',body:JSON.stringify({fotos,by:_user.name})});
       const d = await r.json();
-      if (!d.ok) { toast('❌ '+(d.error||'Error')); return; }
-      toast('✅ Fotos subidas'); openDrawer(taskId);
-    } catch(e) { toast('❌ '+e.message); }
+      if (!d.ok) { toast((d.error||'Error')); return; }
+      toast('Fotos subidas'); openDrawer(taskId);
+    } catch(e) { toast(e.message); }
   };
   inp.click();
 }
@@ -4687,8 +4729,8 @@ async function uploadItemEvidence(taskId, itemId) {
 async function deleteItemEvidence(taskId, itemId, evId) {
   try {
     await authFetch('/api/wwp/tasks/'+taskId+'/items/'+itemId+'/evidence/'+evId,{method:'DELETE',body:JSON.stringify({by:_user.name})});
-    toast('🗑 Foto eliminada'); openDrawer(taskId);
-  } catch(e) { toast('❌ '+e.message); }
+    toast('Foto eliminada'); openDrawer(taskId);
+  } catch(e) { toast(e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -4737,28 +4779,36 @@ function clearOrderItems() { _modalItems=[]; document.getElementById('mf-items-p
 async function fetchOrderItems() {
   const ref = document.getElementById('mf-odoo-ref').value.trim();
   if (!ref) return;
-  document.getElementById('mf-odoo-client').innerHTML='⏳ Buscando en Odoo…';
+  document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--text-muted)">Buscando en Odoo…</span>';
   document.getElementById('mf-items-panel').style.display='none';
   try {
     const r = await authFetch('/api/wwp/odoo-order/'+encodeURIComponent(ref));
     const d = await r.json();
-    if (!d.ok) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)">❌ '+esc(d.error)+'</span>'; return; }
+    if (!d.ok) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'+esc(d.error)+'</span>'; if(window.lucide) lucide.createIcons(); return; }
     // Icono y etiqueta según tipo encontrado
-    const typeIcon  = d.type==='order'?'📋':d.type==='transfer'?'🔄':d.type==='article'?'🪑':'📦';
+    const _tIconMap = {order:'clipboard-list',transfer:'refresh-cw',article:'box'};
+    const typeIconName = _tIconMap[d.type]||'package';
+    const typeIcon = `<i data-lucide="${typeIconName}" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
     const typeLabel = d.type==='order'?'Orden de Venta':d.type==='transfer'?'Transferencia'+(d.transferType?' · '+d.transferType:''):d.type==='article'?'Artículo':'—';
     document.getElementById('mf-odoo-client').innerHTML=
       `<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span style="font-size:10px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--text-2)">${typeIcon} ${esc(typeLabel)}</span>
-        <span>👤 ${esc(d.client)}</span>
+        <span style="font-size:10px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--text-2)">${typeIcon}${esc(typeLabel)}</span>
+        <span><i data-lucide="user" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(d.client)}</span>
         ${d.origin?'<span style="font-size:11px;color:var(--text-3)">· Origen: '+esc(d.origin)+'</span>':''}
       </span>`;
+    if(window.lucide) lucide.createIcons();
     // Actualizar título del panel
     const panelTitle = document.getElementById('mf-items-panel-title');
-    if (panelTitle) panelTitle.textContent = d.type==='transfer'?'🔄 Artículos de la Transferencia':d.type==='article'?'🪑 Artículo':'📦 Artículos de la Orden';
+    if (panelTitle) {
+      const _panIcon = d.type==='transfer'?'refresh-cw':d.type==='article'?'box':'package';
+      const _panText = d.type==='transfer'?'Artículos de la Transferencia':d.type==='article'?'Artículo':'Artículos de la Orden';
+      panelTitle.innerHTML = `<i data-lucide="${_panIcon}" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${_panText}`;
+      if(window.lucide) lucide.createIcons();
+    }
     _modalItems = d.items||[];
     renderModalItems();
     document.getElementById('mf-items-panel').style.display=_modalItems.length?'':'none';
-  } catch(e) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)">❌ Error: '+esc(e.message)+'</span>'; }
+  } catch(e) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Error: '+esc(e.message)+'</span>'; if(window.lucide) lucide.createIcons(); }
 }
 
 function renderModalItems() {
@@ -4772,8 +4822,8 @@ function renderModalItems() {
       stockSummary = '<div class="item-loc-none">Sin stock registrado en Odoo</div>';
     } else {
       const txt = locs.length===1
-        ? `📍 ${esc(locs[0].location_name)}`
-        : `🏭 ${locs.length} ubicaciones`;
+        ? `<i data-lucide="map-pin" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(locs[0].location_name)}`
+        : `<i data-lucide="building-2" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${locs.length} ubicaciones`;
       stockSummary = `<div class="item-loc-summary">${txt} · <strong>${totalAvail}</strong> disp.</div>`;
     }
 
@@ -4783,7 +4833,7 @@ function renderModalItems() {
       if (locs.length === 1) {
         const cls = locs[0].available < (it.quantity||1) ? ' loc-low' : '';
         locationPicker = `<div class="item-loc-single" onclick="event.stopPropagation()">
-          📍 ${esc(locs[0].location_name)} &nbsp;·&nbsp; ${locs[0].available} disponible${locs[0].available!==1?'s':''}
+          <i data-lucide="map-pin" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(locs[0].location_name)} &nbsp;·&nbsp; ${locs[0].available} disponible${locs[0].available!==1?'s':''}
         </div>`;
       } else if (locs.length > 1) {
         locationPicker = `<div class="item-loc-multi" onclick="event.stopPropagation()">
@@ -4803,7 +4853,7 @@ function renderModalItems() {
     }
 
     return `<div class="item-row-modal ${it.selected?'sel':''}" onclick="toggleItem(${i})">
-      ${it.image?`<img class="item-thumb-sm" src="${it.image}" onerror="this.style.display='none'">`:`<div class="item-ph-sm">📦</div>`}
+      ${it.image?`<img class="item-thumb-sm" src="${it.image}" onerror="this.style.display='none'">`:`<div class="item-ph-sm"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>`}
       <div class="item-info-sm" style="flex:1;min-width:0">
         <div class="item-name-sm">${esc(it.product_name||it.sku)}</div>
         <div class="item-sku-sm">SKU: ${esc(it.sku||'')}</div>
@@ -4842,7 +4892,7 @@ function toggleAllItems() {
 
 async function saveTask() {
   const title = document.getElementById('mf-title').value.trim();
-  if (!title) { toast('⚠️ El título es requerido'); return; }
+  if (!title) { toast('El título es requerido'); return; }
   const managerId = document.getElementById('mf-manager').value||null;
   const managerUser = managerId ? (_authUsers||[]).find(u=>u.id===managerId) : null;
   const previousManagerId = _editingTask?.managerId || null;
@@ -4870,16 +4920,16 @@ async function saveTask() {
       r = await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(body)});
       d = await r.json();
     }
-    if (!d.ok&&!d.task) { toast('❌ Error al guardar'); return; }
+    if (!d.ok&&!d.task) { toast('Error al guardar'); return; }
     const taskId = d.task?.id||_editingTask?.id;
     if (taskId && _modalItems.length) {
       await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'PUT',body:JSON.stringify({items:_modalItems})});
     }
     closeTaskModal();
-    toast('✅ Tarea guardada');
+    toast('Tarea guardada');
     await loadTasks();
     if (taskId) openDrawer(taskId);
-  } catch(e) { toast('❌ Error: '+e.message); }
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -4947,15 +4997,15 @@ async function loadLunchReport() {
       const mins       = b.currentMinutes ?? b.totalMinutes ?? 0;
       const exceeded   = b.currentExceeded ?? b.exceededMinutes ?? 0;
       const diffTxt    = b.isOpen
-        ? `<span style="color:#92400e">⏳ ${mins} min</span>`
+        ? `<span style="color:#92400e">${mins} min</span>`
         : exceeded > 0
           ? `<span style="color:#dc2626">+${exceeded} min</span>`
           : `<span style="color:#059669">-${b.allowedMinutes - (b.totalMinutes||0)} min</span>`;
       const badge = b.isOpen
         ? `<span class="c-open">En almuerzo</span>`
         : b.compliant
-          ? `<span class="c-ok">✅ Cumplió</span>`
-          : `<span class="c-over">⚠️ Excedió</span>`;
+          ? `<span class="c-ok">✓ Cumplió</span>`
+          : `<span class="c-over">Excedió</span>`;
       const rowClass = b.isOpen ? 'lunch-row-open' : (!b.compliant ? 'lunch-row-exceeded' : '');
       return `<tr class="${rowClass}">
         <td><strong>${esc(b.userName)}</strong></td>
@@ -4969,7 +5019,7 @@ async function loadLunchReport() {
     }).join('');
   } catch(e) {
     const msg = e.message.includes('JSON') ? 'Reinicia el servidor para activar el módulo de almuerzos' : e.message;
-    document.getElementById('lunch-table-body').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-2);padding:20px">⚠️ ${msg}</td></tr>`;
+    document.getElementById('lunch-table-body').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-2);padding:20px">${msg}</td></tr>`;
     ['lk-total','lk-compliant','lk-exceeded','lk-avg'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent='—'; });
   }
 }
@@ -5000,10 +5050,10 @@ async function loadUsers() {
         </div>
         <span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>
         <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
-        <span style="font-size:11px;color:var(--text-2);white-space:nowrap">⏱ ${lunchLabel}</span>
+        <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
         ${u.active?'':'<span class="badge" style="background:#fef2f2;color:#dc2626">Inactivo</span>'}
         <div class="user-row-actions">
-          <button class="btn-sm" onclick="openEditUserModal('${u.id}')">✏️ Editar</button>
+          <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
         </div>
       </div>`;
     }).join('');
@@ -5101,7 +5151,7 @@ async function saveUser() {
     if (!d.ok&&!d.user) { showErr(errEl,d.error||'Error al guardar'); return; }
     // If editing own user, update header
     if (_editingUser?.id === _user?.id) { _user.name = body.name; setHeaderAvatar(_user); saveSession(!!localStorage.getItem('wwp_auth')); }
-    closeUserModal(); toast('✅ Usuario guardado'); loadUsers(); loadAuthUsersForDropdown();
+    closeUserModal(); toast('Usuario guardado'); loadUsers(); loadAuthUsersForDropdown();
   } catch(e) { showErr(errEl,'Error: '+e.message); }
 }
 
@@ -5120,7 +5170,7 @@ function closePasswordModal() { document.getElementById('modal-password').classL
 // ═══════════════════════════════════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function showErr(el, msg){ el.textContent=msg; el.classList.add('show'); }
-function togglePw(id, btn){ const el=document.getElementById(id); el.type=el.type==='password'?'text':'password'; btn.textContent=el.type==='password'?'👁️':'🙈'; }
+function togglePw(id, btn){ const el=document.getElementById(id); const isHidden=el.type==='password'; el.type=isHidden?'text':'password'; btn.innerHTML='<i data-lucide="'+(isHidden?'eye-off':'eye')+'"></i>'; if(window.lucide) lucide.createIcons(); }
 function fmtDate(iso){ try{ return new Date(iso).toLocaleString('es-DO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{return iso||'';} }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 function toBase64(file){ return new Promise(r=>{ const fr=new FileReader(); fr.onload=e=>r(e.target.result); fr.readAsDataURL(file); }); }
@@ -5383,7 +5433,7 @@ async function checkSheetsConnection(){
       SHEETS_LIVE=true;
       var n=Object.keys(GS_CACHE).length;
       if(el) el.innerHTML='<span class="sim-dot" style="background:var(--green-dot)"></span><span style="color:var(--green-text)">Sheets en vivo</span>';
-      console.log('📊 Sheets cargado — '+n+' entradas');
+      console.log('[Sheets] Cargado — '+n+' entradas');
     } else {
       throw new Error(data.error||'sin datos');
     }
@@ -5396,6 +5446,7 @@ async function checkSheetsConnection(){
 
 
 window.addEventListener('DOMContentLoaded',function(){
+  if (window.lucide) lucide.createIcons();
   renderDevoluciones();
   renderPendientes();
   renderOrdenesActivas();
@@ -5693,7 +5744,7 @@ var DEVOLUCIONES=[
 
 /* ── Pendientes por departamento ── */
 var PENDIENTES=[
-  {dept:'Compras',color:'#f59e0b',bg:'#fffbeb',icon:'🛒',items:[
+  {dept:'Compras',color:'#f59e0b',bg:'#fffbeb',icon:'shopping-cart',items:[
     {ref:'EX202604BRA02', desc:'ESSENZA/IT.ESTOFADOS — en tránsito, ETA 15/05 (9 días restantes)',  orden:'—',dias:9},
     {ref:'EX202605AS09',  desc:'FREE MARKET — ETA vencida ayer, sin confirmar llegada',              orden:'—',dias:-1},
     {ref:'BTC III',       desc:'ALF DAFRE – LOTEKA — ETA vencida 03/05, pendiente aduana',          orden:'—',dias:-3},
@@ -5701,12 +5752,12 @@ var PENDIENTES=[
     {ref:'BTC II',        desc:'CONS.ASIA 9 SUPP — llegó al país, pendiente cita de entrega',        orden:'—',dias:0},
     {ref:'EX202604AS05',  desc:'EURO MOOD — llegó al país, pendiente pago de impuestos',             orden:'—',dias:0},
   ]},
-  {dept:'Almacén',color:'#0f9d58',bg:'#f0fdf4',icon:'📦',items:[
+  {dept:'Almacén',color:'#0f9d58',bg:'#f0fdf4',icon:'package',items:[
     {ref:'REC-2026-1210',desc:'Recepción parcial — faltan 2 piezas por verificar',orden:'9114',dias:1},
     {ref:'DEV-REC-8820',desc:'Artículo devuelto en revisión — reportar estado a proveedor',orden:'8820',dias:5},
     {ref:'REC-DEV-8951',desc:'Devolución física pendiente de recibir en almacén',orden:'8951',dias:-13},
   ]},
-  {dept:'Operaciones',color:'#714b67',bg:'#fdf4ff',icon:'🚚',items:[
+  {dept:'Operaciones',color:'#714b67',bg:'#fdf4ff',icon:'truck',items:[
     {ref:'DEL-2026-9003',desc:'Despacho programado 08/05 — alfombra lista en CDP',orden:'9003',dias:3},
     {ref:'DEL-2026-9114',desc:'Preparando entrega set sala 4 piezas — confirmar horario',orden:'9114',dias:4},
     {ref:'DEL-2026-9059',desc:'En espera de confirmación cliente para ejecutar despacho',orden:'S09059',dias:-7},
@@ -5817,12 +5868,12 @@ function devItemHtml(it){
   var artsHtml='';
   if(it.articulos&&it.articulos.length){
     artsHtml='<div class="dev-arts">'
-      +'<div class="dev-arts-head">📦 Artículos devueltos ('+it.articulos.length+')</div>';
+      +'<div class="dev-arts-head"><i data-lucide="package" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Artículos devueltos ('+it.articulos.length+')</div>';
     it.articulos.forEach(function(a){
       var imgId='devart-'+a.ref.replace(/[^a-zA-Z0-9]/g,'-');
       var thumbSrc=a.imagen
-        ?'<img src="'+a.imagen+'" alt="'+a.ref+'" onerror="this.parentNode.innerHTML=\'📦\'">'
-        :'📦';
+        ?'<img src="'+a.imagen+'" alt="'+a.ref+'" onerror="this.style.display=\'none\'">'
+        :'<i data-lucide="package" style="width:24px;height:24px;stroke:currentColor"></i>';
       artsHtml+='<div class="dev-art-row">'
         +'<div class="dev-art-thumb" id="'+imgId+'">'+thumbSrc+'</div>'
         +'<div class="dev-art-body">'
@@ -5848,7 +5899,7 @@ function devItemHtml(it){
     +'</div>'
     +'<div class="dev-card-head-right">'
     +(it.valor?'<span class="dev-valor-chip">'+fmtMoney(it.valor)+'</span>':'')
-    +'<span class="'+(esAplicada?'dev-status-ap':'dev-status-pend')+'">'+(esAplicada?'✓ Aplicada':'⏳ Pendiente')+'</span>'
+    +'<span class="'+(esAplicada?'dev-status-ap':'dev-status-pend')+'">'+(esAplicada?'Aplicada':'Pendiente')+'</span>'
     +'</div>'
     +'</div>'
 
@@ -6083,7 +6134,9 @@ function devFilterClick(mes){
 // ════════════════════════════════════════════════════
 var _WWP_TYPE_LABELS  = {dispatch_order:'Orden de Despacho',packaging:'Embalaje',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General'};
 var _WWP_TYPE_COLORS  = {dispatch_order:'#2563eb',packaging:'#7c3aed',item_pickup:'#0891b2',truck_loading:'#d97706',warehouse_move:'#059669',general:'#6b7280'};
-var _WWP_TYPE_ICONS   = {dispatch_order:'🚚',packaging:'📦',item_pickup:'🔍',truck_loading:'🚛',warehouse_move:'📦',general:'📌'};
+var _WWP_TYPE_ICON_NAMES = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot'};
+function _wwpTypeIcon(type,sz){ var n=_WWP_TYPE_ICON_NAMES[type]||'circle-dot'; sz=sz||12; return '<i data-lucide="'+n+'" style="width:'+sz+'px;height:'+sz+'px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'; }
+var _WWP_TYPE_ICONS   = _WWP_TYPE_ICON_NAMES; // alias kept for compatibility
 var _WWP_TYPE_BG      = {dispatch_order:'#eff6ff',packaging:'#f3eff8',item_pickup:'#e8f4fd',truck_loading:'#fffbeb',warehouse_move:'#f0fdf4',general:'#f3f4f6'};
 var _WWP_STATUS_COLORS= {pending:'#6b7280',assigned:'#2563eb',in_progress:'#d97706',completed:'#059669',validated:'#7c3aed'};
 var _WWP_STATUS_LABELS= {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado'};
@@ -6108,13 +6161,13 @@ function wwpFetchTasks(){
 
 async function renderPendientes(){
   var el=document.getElementById('dept-cards');
-  el.innerHTML='<div style="padding:20px;color:var(--text-muted);font-size:13px">⏳ Cargando tareas en vivo…</div>';
+  el.innerHTML='<div style="padding:20px;color:var(--text-muted);font-size:13px">Cargando tareas en vivo…</div>';
   try{
     var tasks=await wwpFetchTasks();
     var today=new Date().toISOString().slice(0,10);
     var active=tasks.filter(function(t){return !['completed','validated'].includes(t.status);});
     if(!active.length){
-      el.innerHTML='<div style="padding:20px;color:var(--text-muted);font-size:13px;text-align:center">✅ No hay tareas pendientes actualmente</div>';
+      el.innerHTML='<div style="padding:20px;color:var(--text-muted);font-size:13px;text-align:center">No hay tareas pendientes actualmente</div>';
       return;
     }
     var groups={};
@@ -6125,13 +6178,13 @@ async function renderPendientes(){
       var vencidos=items.filter(function(t){return t.dueDate&&t.dueDate<today;}).length;
       var color=_WWP_TYPE_COLORS[type]||'#6b7280';
       var bg=_WWP_TYPE_BG[type]||'#f3f4f6';
-      var icon=_WWP_TYPE_ICONS[type]||'📌';
+      var icon=_wwpTypeIcon(type,14);
       var label=_WWP_TYPE_LABELS[type]||type;
       html+='<div class="dept-card" style="border-top:3px solid '+color+'">'
         +'<div class="dept-hdr" onclick="toggleDept(this)" style="background:'+bg+';cursor:pointer">'
         +'<div class="dept-hdr-top">'
         +'<span class="dept-icon">'+icon+'</span>'
-        +'<span class="dept-badge" style="background:'+(vencidos?'#fee2e2':'#f3f4f6')+';color:'+(vencidos?'#991b1b':'#6b7280')+'">'+items.length+(vencidos?' ⚠'+vencidos:'')+'</span>'
+        +'<span class="dept-badge" style="background:'+(vencidos?'#fee2e2':'#f3f4f6')+';color:'+(vencidos?'#991b1b':'#6b7280')+'">'+items.length+(vencidos?' <i data-lucide="alert-triangle" style="width:9px;height:9px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>'+vencidos:'')+'</span>'
         +'</div>'
         +'<div class="dept-name">'+label+'</div>'
         +'<div style="text-align:right;margin-top:2px"><span class="dept-chevron">▾</span></div>'
@@ -6157,8 +6210,9 @@ async function renderPendientes(){
       html+='</div></div>';
     });
     el.innerHTML=html;
+    if(window.lucide) lucide.createIcons();
   }catch(e){
-    el.innerHTML='<div style="padding:20px;color:var(--red-text);font-size:13px">❌ Error al cargar tareas: '+escH(e.message)+'</div>';
+    el.innerHTML='<div style="padding:20px;color:var(--red-text);font-size:13px">Error al cargar tareas: '+escH(e.message)+'</div>';
   }
 }
 
@@ -6168,9 +6222,9 @@ async function renderPendientes(){
 
 async function cargarContenedores(){
   var subtitle=document.getElementById('cont-subtitle');
-  if(subtitle) subtitle.textContent='🔄 Cargando datos en vivo…';
+  if(subtitle) subtitle.textContent='Cargando datos en vivo…';
   document.getElementById('cont-stats').innerHTML='';
-  document.getElementById('cont-tbody').innerHTML='<tr><td colspan="15" class="desp-empty">🔄 Cargando…</td></tr>';
+  document.getElementById('cont-tbody').innerHTML='<tr><td colspan="15" class="desp-empty">Cargando…</td></tr>';
   try{
     var res=await fetch('/api/sheets/contenedores');
     var text=await res.text();
@@ -6178,9 +6232,9 @@ async function cargarContenedores(){
     try{ data=JSON.parse(text); }
     catch(parseErr){
       // El servidor devolvió texto plano → no fue reiniciado con la versión nueva
-      if(subtitle) subtitle.innerHTML='⚠️ Reinicia el servidor: cierra la ventana y vuelve a ejecutar <strong>start-server.bat</strong>';
+      if(subtitle) subtitle.innerHTML='Reinicia el servidor: cierra la ventana y vuelve a ejecutar <strong>start-server.bat</strong>';
       document.getElementById('cont-tbody').innerHTML='<tr><td colspan="15" style="padding:24px;text-align:center">'
-        +'<div style="font-size:13px;font-weight:700;color:var(--amber-text);margin-bottom:6px">⚠️ Servidor desactualizado</div>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--amber-text);margin-bottom:6px">Servidor desactualizado</div>'
         +'<div style="font-size:11px;color:var(--text-muted)">Cierra la ventana del servidor (Ctrl+C) y vuelve a ejecutar <strong>start-server.bat</strong></div>'
         +'</td></tr>';
       CONT_LOADED=false; // permitir reintento
@@ -6192,7 +6246,7 @@ async function cargarContenedores(){
     CONT_LOADED=true;
     var ts=new Date(data.ts);
     var hm=ts.getHours()+':'+(ts.getMinutes()+'').padStart(2,'0');
-    if(subtitle) subtitle.textContent='📊 En vivo · Actualizado '+hm+' · '+CONTENEDORES.length+' registros';
+    if(subtitle) subtitle.textContent='En vivo · Actualizado '+hm+' · '+CONTENEDORES.length+' registros';
   }catch(e){
     CONT_LIVE=false;
     CONT_LOADED=true;
@@ -6201,7 +6255,7 @@ async function cargarContenedores(){
       ?'Para activar datos coloca <strong>contenedores.csv</strong> en la carpeta del servidor, '
        +'o agrega <code>CONT_SHEETS_ID=tu_id</code> en <strong>.env.txt</strong>'
       :msg;
-    if(subtitle) subtitle.innerHTML='⚠️ '+msgHtml;
+    if(subtitle) subtitle.innerHTML=msgHtml;
     document.getElementById('cont-tbody').innerHTML='<tr><td colspan="15" style="padding:24px;text-align:center">'
       +'<div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:8px">Sin datos</div>'
       +'<div style="font-size:11px;color:var(--text-muted);max-width:520px;margin:0 auto;line-height:1.7">'+msgHtml+'</div>'
@@ -6307,13 +6361,13 @@ function toggleDept(el){
 // ════════════════════════════════════════════════════
 async function renderOrdenesActivas(){
   var tbody=document.getElementById('active-tbody');
-  tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">⏳ Cargando tareas en vivo…</td></tr>';
+  tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">Cargando tareas en vivo…</td></tr>';
   try{
     var tasks=await wwpFetchTasks();
     var today=new Date().toISOString().slice(0,10);
     var active=tasks.filter(function(t){return !['completed','validated'].includes(t.status);});
     if(!active.length){
-      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">✅ No hay tareas activas</td></tr>';
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">No hay tareas activas</td></tr>';
       return;
     }
     tbody.innerHTML=active.map(function(t){
@@ -6322,7 +6376,7 @@ async function renderOrdenesActivas(){
       var dlabel=dias===null?'—':dias<0?Math.abs(dias)+'d vencido':dias===0?'Hoy':'+'+dias+'d';
       var sc=_WWP_STATUS_COLORS[t.status]||'#6b7280';
       var sl=_WWP_STATUS_LABELS[t.status]||t.status;
-      var typeIcon=_WWP_TYPE_ICONS[t.type]||'📌';
+      var typeIcon=_wwpTypeIcon(t.type);
       var typeLabel=_WWP_TYPE_LABELS[t.type]||t.type||'—';
       var ordenLink=t.odooRef
         ?'<a href="#" onclick="setSearchMode(\'orden\');buscarDirecta(\''+escH(t.odooRef)+'\');return false;" style="color:#0078d4;font-weight:700;text-decoration:none">'+escH(t.odooRef)+'</a>'
@@ -6339,7 +6393,7 @@ async function renderOrdenesActivas(){
         +'</tr>';
     }).join('');
   }catch(e){
-    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--red-text)">❌ Error: '+escH(e.message)+'</td></tr>';
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--red-text)">Error: '+escH(e.message)+'</td></tr>';
   }
 }
 
@@ -6439,7 +6493,7 @@ async function buscarTransferencia(name){
   }
 
   document.getElementById('r-badge').innerHTML='<span style="font-size:11px;color:var(--text-muted)">Consultando Odoo y WWP…</span>';
-  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">🔄 Buscando transferencia en Odoo…</div>';
+  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">Buscando transferencia en Odoo…</div>';
 
   try{
     var odooPickPromise=odooSearch('stock.picking',
@@ -6461,6 +6515,7 @@ async function buscarTransferencia(name){
         _evsTrans.forEach(function(ev){_hTrans+=rptEventHtml(ev);});
         _hTrans+='</div>';
         document.getElementById('r-report').innerHTML=_hTrans;
+        if(window.lucide) lucide.createIcons();
         return;
       }
       rBanner.className='banner error';
@@ -6504,13 +6559,13 @@ function pickingStateBadge(state){
 }
 function pickingTypeBadge(code,tipo){
   var map={
-    incoming:      {icon:'📥',bg:'#e0f2fe',fg:'#0369a1'},
-    outgoing:      {icon:'📤',bg:'#fef3c7',fg:'#92400e'},
-    internal:      {icon:'🔄',bg:'#ede9fe',fg:'#5b21b6'},
-    mrp_operation: {icon:'⚙️',bg:'#d1fae5',fg:'#065f46'}
+    incoming:      {icon:'package-check',bg:'#e0f2fe',fg:'#0369a1'},
+    outgoing:      {icon:'send',         bg:'#fef3c7',fg:'#92400e'},
+    internal:      {icon:'refresh-cw',   bg:'#ede9fe',fg:'#5b21b6'},
+    mrp_operation: {icon:'settings',     bg:'#d1fae5',fg:'#065f46'}
   };
-  var s=map[code]||{icon:'📋',bg:'#f3f4f6',fg:'#374151'};
-  return '<span style="padding:2px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;background:'+s.bg+';color:'+s.fg+';margin-right:5px">'+s.icon+' '+tipo+'</span>';
+  var s=map[code]||{icon:'clipboard-list',bg:'#f3f4f6',fg:'#374151'};
+  return '<span style="padding:2px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;background:'+s.bg+';color:'+s.fg+';margin-right:5px;display:inline-flex;align-items:center;gap:3px"><i data-lucide="'+s.icon+'" style="width:10px;height:10px;stroke:currentColor"></i>'+tipo+'</span>';
 }
 
 function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
@@ -6540,7 +6595,7 @@ function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
   var html='';
 
   // Banda fuente
-  html+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)">✅ <strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
+  html+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)"><i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i><strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
 
   // Fila info principal
   html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--surface-2);border-bottom:1px solid var(--border-light)">';
@@ -6574,7 +6629,7 @@ function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
   var _tTransRef=(p.name||'').replace(/'/g,"\\'");
   var _tTitle=(_tTransRef?'Transferencia '+_tTransRef:'').replace(/'/g,"\\'");
   var _tType='warehouse_move';
-  dataCells.push('<div style="margin-left:auto;align-self:center"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\''+_tTransRef+'\',\''+_tTitle+'\',\'\',\''+_tType+'\');return false;">➕ Nueva Tarea WWP</button></div>');
+  dataCells.push('<div style="margin-left:auto;align-self:center"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\''+_tTransRef+'\',\''+_tTitle+'\',\'\',\''+_tType+'\');return false;">+ Nueva Tarea WWP</button></div>');
   html+='<div style="display:flex;gap:24px;padding:10px 16px;border-bottom:1px solid var(--border-light);flex-wrap:wrap;align-items:center">'+dataCells.join('')+'</div>';
 
   // Tabla de productos
@@ -6637,13 +6692,15 @@ function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
 
   document.getElementById('r-report').innerHTML=html;
   document.getElementById('r-banner').style.display='none';
+  if(window.lucide) lucide.createIcons();
 }
 
 // ════════════════════════════════════════════════════
 //  RENDER — Reporte unificado (orden)
 // ════════════════════════════════════════════════════
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-var ICONS={'Orden de Compra':'🛒','Recepción Almacén':'📦','Recepción':'📥','Recepción Villa':'📥','Orden de Venta':'📋','Traslado Interno':'🔄','Traslado Interno (Demo)':'🔄','Preparación Almacén':'📋','Preparación':'📋','Despacho':'🚚','Despacho Demo':'🚚','Despacho Parcial':'🚚','Despacho c/Instalación':'🔧','Despacho (Cambio tope)':'🔄','Despacho (Pendiente)':'⏳','Devolución':'↩️','Solicitud Devolución':'↩️','Devolución Odoo':'💳','Consignación':'📑','Dropship':'🌐','Fabricación':'⚙️','Transferencia Directa':'⚡','Procesado en Operaciones':'⚙️','Cierre de despacho':'✅'};
+var ICONS={'Orden de Compra':'shopping-cart','Recepción Almacén':'package','Recepción':'package-check','Recepción Villa':'package-check','Orden de Venta':'clipboard-list','Traslado Interno':'arrow-left-right','Traslado Interno (Demo)':'arrow-left-right','Preparación Almacén':'clipboard-list','Preparación':'clipboard-list','Despacho':'truck','Despacho Demo':'truck','Despacho Parcial':'truck','Despacho c/Instalación':'wrench','Despacho (Cambio tope)':'arrow-left-right','Despacho (Pendiente)':'clock','Devolución':'corner-up-left','Solicitud Devolución':'corner-up-left','Devolución Odoo':'credit-card','Consignación':'file-text','Dropship':'globe','Fabricación':'settings','Transferencia Directa':'zap','Procesado en Operaciones':'settings','Cierre de despacho':'check-circle'};
+function _rptIcon(n){ return '<i data-lucide="'+n+'" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>'; }
 var SRC_CLS={sp:'sb-sp',sheets:'sb-sheets',odoo:'sb-odoo',dev:'sb-sp',wwp:'sb-wwp'};
 var SRC_LBL={sp:'SharePoint',sheets:'Sheets',odoo:'Odoo',dev:'Devolución',wwp:'WWP'};
 
@@ -6662,8 +6719,8 @@ function wwpTasksToEvents(tasks){
     var items=(t.items||[]).filter(function(i){return i.selected;});
     var partes=[];
     if(t.title) partes.push(escH(t.title));
-    if(items.length) partes.push('📦 '+items.slice(0,4).map(function(i){return escH(i.sku||i.product_name||'');}).join(', ')+(items.length>4?'…':''));
-    if(t.location) partes.push('📍 '+escH(t.location));
+    if(items.length) partes.push(items.slice(0,4).map(function(i){return escH(i.sku||i.product_name||'');}).join(', ')+(items.length>4?'…':''));
+    if(t.location) partes.push(escH(t.location));
     // Recolectar fotos: evidencia general + por artículo
     var fotos=[];
     (t.evidence||[]).forEach(function(e){if(e.url) fotos.push({url:e.url,cap:e.caption||''});});
@@ -6685,11 +6742,11 @@ function wwpTasksToEvents(tasks){
 function wwpTasksBlockHtml(tasks){
   if(!tasks||!tasks.length) return '';
   var html='<div class="wwp-tasks-block">'
-    +'<div class="wwp-tasks-hdr">🛠 Tareas Workforce Labor <span style="font-size:10px;font-weight:500;opacity:.7;margin-left:5px">('+tasks.length+' tarea'+(tasks.length>1?'s':'')+' en vivo)</span></div>';
+    +'<div class="wwp-tasks-hdr"><i data-lucide="wrench" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Tareas Workforce Labor <span style="font-size:10px;font-weight:500;opacity:.7;margin-left:5px">('+tasks.length+' tarea'+(tasks.length>1?'s':'')+' en vivo)</span></div>';
   tasks.forEach(function(t){
     var sc=_WWP_STATUS_COLORS[t.status]||'#6b7280';
     var sl=_WWP_STATUS_LABELS[t.status]||t.status;
-    var typeIcon=_WWP_TYPE_ICONS[t.type]||'📌';
+    var typeIcon=_wwpTypeIcon(t.type);
     var mgr=t.managerName||'Sin encargado';
     var items=(t.items||[]).filter(function(i){return i.selected;});
     var evLast=(t.statusHistory||[]).slice(-1)[0];
@@ -6699,8 +6756,8 @@ function wwpTasksBlockHtml(tasks){
       +'<div><span class="wwp-task-status" style="background:'+sc+'22;color:'+sc+'">'+sl+'</span></div>'
       +'<div style="flex:1;min-width:0">'
       +'<div class="wwp-task-title">'+typeIcon+' '+escH(t.title)+ref+'</div>'
-      +'<div class="wwp-task-meta">'+escH(mgr)+(t.location?' · 📍'+escH(t.location):'')+(t.dueDate?' · 📅 '+t.dueDate:'')+'</div>'
-      +(items.length?'<div class="wwp-task-meta">📦 '+items.length+' artículo'+(items.length>1?'s':'')+': '+items.slice(0,3).map(function(i){return escH(i.sku||i.product_name||'');}).join(', ')+(items.length>3?'…':'')+'</div>':'')
+      +'<div class="wwp-task-meta">'+escH(mgr)+(t.location?' · <i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:1px"></i>'+escH(t.location):'')+(t.dueDate?' · <i data-lucide="calendar" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:1px"></i>'+t.dueDate:'')+'</div>'
+      +(items.length?'<div class="wwp-task-meta"><i data-lucide="package" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>'+items.length+' artículo'+(items.length>1?'s':'')+': '+items.slice(0,3).map(function(i){return escH(i.sku||i.product_name||'');}).join(', ')+(items.length>3?'…':'')+'</div>':'')
       +'</div>'
       +'<div style="text-align:right;flex-shrink:0">'
       +'<span class="src-badge sb-wwp">WWP</span>'
@@ -6757,7 +6814,8 @@ function rptEventHtml(ev){
       +'<div class="rpt-event-right"><span class="rpt-missing-badge">Sin registro</span></div>'
       +'</div>';
   }
-  var icon=ICONS[ev.tipo]||(_WWP_TYPE_ICONS&&_WWP_TYPE_ICONS[Object.keys(_WWP_TYPE_LABELS||{}).find(function(k){return _WWP_TYPE_LABELS[k]===ev.tipo;})])||'•';
+  var _iconName=ICONS[ev.tipo]||(_WWP_TYPE_ICON_NAMES&&_WWP_TYPE_ICON_NAMES[Object.keys(_WWP_TYPE_LABELS||{}).find(function(k){return _WWP_TYPE_LABELS[k]===ev.tipo;})||''])||'';
+  var icon=_iconName?_rptIcon(_iconName):'•';
   var ref=ev.ref?'<span class="rpt-event-ref">'+ev.ref+'</span>':'';
   var src='<span class="src-badge '+(SRC_CLS[ev.src]||'sb-odoo')+'">'+(SRC_LBL[ev.src]||ev.src)+'</span>';
   // Íconos de adjuntos: 📷 imágenes (lightbox con nav) · 📎 documentos (nueva pestaña)
@@ -6772,7 +6830,7 @@ function rptEventHtml(ev){
       fotosHtml+='<span onclick="avLightboxOpenGroup(\''+_gId+'\','+fi+')" '
         +'title="'+safeCap+'" '
         +'style="cursor:pointer;font-size:13px;margin-left:3px;opacity:.75;transition:opacity .15s" '
-        +'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">📷</span>';
+        +'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75"><i data-lucide="camera" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i></span>';
     });
   }
   if(ev._docs&&ev._docs.length){
@@ -6782,7 +6840,7 @@ function rptEventHtml(ev){
       fotosHtml+='<span onclick="window.open(\''+safeUrl+'\',\'_blank\')" '
         +'title="'+safeCap+'" '
         +'style="cursor:pointer;font-size:13px;margin-left:3px;opacity:.75;transition:opacity .15s" '
-        +'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">📎</span>';
+        +'onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75"><i data-lucide="paperclip" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i></span>';
     });
   }
   return '<div class="rpt-event">'
@@ -6962,7 +7020,7 @@ function renderReport(sp,gs,od,devs,wwpTasks){
     var _safCli=(cliente||'').replace(/'/g,"\\'");
     html+='<div class="rpt-info-cell" style="align-self:center;margin-left:auto">'
       +'<button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\''+_safRef+'\',\'\',\'\');return false;">'
-      +'➕ Nueva Tarea WWP'
+      +'+ Nueva Tarea WWP'
       +'</button></div>';
   }
   html+='</div>';
@@ -6970,11 +7028,11 @@ function renderReport(sp,gs,od,devs,wwpTasks){
   // ── Aviso fuentes de datos
   var srcBanners=[];
   if(od) srcBanners.push(od._live
-    ?'✅ <strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com'
-    :'⚠ Odoo ERP sin conexión · usando datos históricos locales');
+    ?'<i data-lucide="check-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i><strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com'
+    :'Odoo ERP sin conexión · usando datos históricos locales');
   if(gs) srcBanners.push(SHEETS_LIVE
-    ?'📊 <strong>Google Sheets</strong> en tiempo real · Controles de Operaciones'
-    :'⚠ Google Sheets sin conexión · usando datos históricos locales');
+    ?'<i data-lucide="bar-chart-2" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i><strong>Google Sheets</strong> en tiempo real · Controles de Operaciones'
+    :'Google Sheets sin conexión · usando datos históricos locales');
   if(srcBanners.length){
     var allLive=(od&&od._live)&&(gs?SHEETS_LIVE:true);
     html+='<div class="rpt-sim-notice" style="'+(allLive?'background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)':'')+'">'+srcBanners.join(' &nbsp;·&nbsp; ')+'</div>';
@@ -7002,10 +7060,10 @@ function renderReport(sp,gs,od,devs,wwpTasks){
   var alerts=detectAlerts(sp,gs,od,devs);
   if(alerts.length){
     html+='<div class="rpt-alerts">';
-    html+='<div class="rpt-alerts-title"><span>⚠</span> Pasos faltantes en el flujo ('+alerts.length+')</div>';
+    html+='<div class="rpt-alerts-title"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Pasos faltantes en el flujo ('+alerts.length+')</div>';
     alerts.forEach(function(al){
       html+='<div class="rpt-alert-row al-'+(al.t==='err'?'err':'warn')+'">'
-        +'<span class="rpt-alert-icon">'+(al.t==='err'?'🔴':'🟡')+'</span>'
+        +'<span class="rpt-alert-icon"><i data-lucide="'+(al.t==='err'?'x-circle':'alert-circle')+'" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i></span>'
         +'<div><div class="rpt-alert-msg">'+al.msg+'</div>'
         +'<div class="rpt-alert-detail">'+al.detail+'</div></div>'
         +'</div>';
@@ -7022,6 +7080,7 @@ function renderReport(sp,gs,od,devs,wwpTasks){
 
   html+='</div>';
   document.getElementById('r-report').innerHTML=html;
+  if(window.lucide) lucide.createIcons();
 }
 
 // ════════════════════════════════════════════════════
@@ -7046,7 +7105,7 @@ async function toggleArticuloInline(ref,linkEl){
 
   // Insertar estado "Consultando…" mientras carga
   var prodRow=linkEl?linkEl.closest('.rpt-prod-row'):null;
-  var loadHtml='<div id="'+panelId+'-loading" style="padding:10px 16px;font-size:11px;color:var(--text-muted);background:var(--surface-alt);border-bottom:1px solid var(--border-light)">⏳ Consultando historial del artículo...</div>';
+  var loadHtml='<div id="'+panelId+'-loading" style="padding:10px 16px;font-size:11px;color:var(--text-muted);background:var(--surface-alt);border-bottom:1px solid var(--border-light)">Consultando historial del artículo...</div>';
   if(prodRow) prodRow.insertAdjacentHTML('afterend',loadHtml);
 
   // Odoo live tiene prioridad; mock solo como fallback si Odoo no devuelve nada
@@ -7211,7 +7270,7 @@ async function buscarArticulo(ref){
     document.getElementById('r-banner').style.display='none';
     document.getElementById('r-titulo').textContent=ref;
     document.getElementById('r-badge').innerHTML='<span style="font-size:11px;color:var(--text-muted)">Consultando Odoo y WWP…</span>';
-    document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">🔄 Buscando artículo en Odoo…</div>';
+    document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">Buscando artículo en Odoo…</div>';
     var _artRes=await Promise.all([
       fetchOdooProductHistory(ref).catch(function(e){console.warn('fetchOdooProductHistory:',e.message);return null;}),
       wwpArtPromise
@@ -7227,6 +7286,7 @@ async function buscarArticulo(ref){
         _evsArt.forEach(function(ev){_hArt+=rptEventHtml(ev);});
         _hArt+='</div>';
         document.getElementById('r-report').innerHTML=_hArt;
+        if(window.lucide) lucide.createIcons();
         return;
       }
       var b=document.getElementById('r-banner');
@@ -7242,7 +7302,7 @@ async function buscarArticulo(ref){
     document.getElementById('r-badge').innerHTML='<span class="src-badge sb-odoo" style="font-size:11px">'+ref+'</span>';
     var averiasA=await avGetForProduct(art.odooRef||ref);
     var htmlA='<div class="rpt-card">';
-    htmlA+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)">✅ <strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
+    htmlA+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)"><i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i><strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
     htmlA+='<div class="rpt-info">';
     if(art.imagen) htmlA+='<div class="rpt-info-cell rpt-prod-img-cell"><img src="data:image/png;base64,'+art.imagen+'" alt="Imagen del artículo" class="rpt-prod-img"></div>';
     if(art.odooRef) htmlA+='<div class="rpt-info-cell"><div class="rpt-info-lbl">Referencia</div><div class="rpt-info-val" style="font-family:monospace;font-size:11px;color:var(--accent)">'+art.odooRef+'</div></div>';
@@ -7251,7 +7311,7 @@ async function buscarArticulo(ref){
     if(art.precio&&art.precio!=='—') htmlA+='<div class="rpt-info-cell"><div class="rpt-info-lbl">Precio venta</div><div class="rpt-info-val" style="color:var(--green-text)">'+art.precio+'</div></div>';
     if(art.stock&&art.stock.ubicacion&&art.stock.ubicacion!=='—') htmlA+='<div class="rpt-info-cell"><div class="rpt-info-lbl">Ubicación</div><div class="rpt-info-val">'+art.stock.almacen+' · '+art.stock.ubicacion+'</div></div>';
     var _aRef=(art.odooRef||ref).replace(/'/g,"\\'");
-    htmlA+='<div class="rpt-info-cell" style="align-self:center;margin-left:auto"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\'\',\'Recogida: '+_aRef+'\',\'\',\'item_pickup\');return false;">➕ Nueva Tarea WWP</button></div>';
+    htmlA+='<div class="rpt-info-cell" style="align-self:center;margin-left:auto"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\'\',\'Recogida: '+_aRef+'\',\'\',\'item_pickup\');return false;">+ Nueva Tarea WWP</button></div>';
     htmlA+='</div>';
     htmlA+=avSearchBlock(averiasA);
     htmlA+='<div class="rpt-tl-hdr"><span>Fecha</span><span>Evento · Usuario · Detalle</span><span>Fuente · Estado</span></div>';
@@ -7264,6 +7324,7 @@ async function buscarArticulo(ref){
     if(!evsA.length) htmlA+='<div class="empty">Sin movimientos registrados en Odoo.</div>';
     htmlA+='</div>';
     document.getElementById('r-report').innerHTML=htmlA;
+    if(window.lucide) lucide.createIcons();
     return;
   }
 
@@ -7287,9 +7348,9 @@ async function buscarArticulo(ref){
   html+='<div class="rpt-info-cell"><div class="rpt-info-lbl">Precio venta</div><div class="rpt-info-val" style="color:var(--green-text)">'+art.precio+'</div></div>';
   html+='<div class="rpt-info-cell"><div class="rpt-info-lbl">Ubicación actual</div><div class="rpt-info-val">'+art.stock.almacen+' · '+art.stock.ubicacion+'</div></div>';
   var _laRef=(art.odooRef||ref).replace(/'/g,"\\'");
-  html+='<div class="rpt-info-cell" style="align-self:center;margin-left:auto"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\'\',\'Recogida: '+_laRef+'\',\'\',\'item_pickup\');return false;">➕ Nueva Tarea WWP</button></div>';
+  html+='<div class="rpt-info-cell" style="align-self:center;margin-left:auto"><button class="btn-nueva-wwp" onclick="abrirNuevaTareaWWP(\'\',\'Recogida: '+_laRef+'\',\'\',\'item_pickup\');return false;">+ Nueva Tarea WWP</button></div>';
   html+='</div>';
-  html+='<div class="rpt-sim-notice">⚠ Datos históricos locales · Odoo en vivo no devolvió este artículo</div>';
+  html+='<div class="rpt-sim-notice">Datos históricos locales · Odoo en vivo no devolvió este artículo</div>';
   html+=avSearchBlock(averiasL);
   html+='<div class="rpt-tl-hdr"><span>Fecha</span><span>Evento · Usuario · Detalle</span><span>Fuente · Estado</span></div>';
   var evsL=art.movimientos.map(function(mv){
@@ -7301,6 +7362,7 @@ async function buscarArticulo(ref){
   if(!evsL.length) html+='<div class="empty">Sin movimientos.</div>';
   html+='</div>';
   document.getElementById('r-report').innerHTML=html;
+  if(window.lucide) lucide.createIcons();
 }
 
 // ════════════════════════════════════════════════════
@@ -7373,7 +7435,7 @@ async function buscarDirecta(num){
   document.getElementById('r-titulo').textContent='Orden #'+num;
   document.getElementById('r-badge').innerHTML='<span style="font-size:11px;color:var(--text-muted)">Consultando…</span>';
   document.getElementById('r-banner').style.display='none';
-  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">🔄 Consultando Odoo y WWP…</div>';
+  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">Consultando Odoo y WWP…</div>';
 
   // Consultas en paralelo: Odoo live + WWP tasks
   var wwpTasks=[];
@@ -7425,7 +7487,7 @@ async function buscarOrdenCompra(num){
   rs.style.display='';
   document.getElementById('r-titulo').textContent='Orden de Compra '+num;
   document.getElementById('r-badge').innerHTML='';
-  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">🔄 Consultando Odoo…</div>';
+  document.getElementById('r-report').innerHTML='<div class="empty" style="padding:20px">Consultando Odoo…</div>';
   rBanner.style.display='none';
 
   if(!ODOO_LIVE){
@@ -7473,7 +7535,7 @@ async function buscarOrdenCompra(num){
     var stLabel=stMap[po.state]||po.state;
     var stBadge='<span style="padding:2px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;background:'+(stBg[po.state]||'#f3f4f6')+';color:'+(stFg[po.state]||'#374151')+'">'+stLabel+'</span>';
     document.getElementById('r-badge').innerHTML=
-      '<span style="padding:2px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;margin-right:5px">🛒 Orden de Compra</span>'
+      '<span style="padding:2px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;background:#d1fae5;color:#065f46;margin-right:5px;display:inline-flex;align-items:center;gap:3px"><i data-lucide="shopping-cart" style="width:10px;height:10px;stroke:currentColor"></i>Orden de Compra</span>'
       +stBadge;
 
     renderPurchaseReport(po, lines, picks, atts);
@@ -7494,7 +7556,7 @@ function renderPurchaseReport(po, lines, picks, atts){
   var fPlanned=fmtOdooDate(po.date_planned);
   var html='';
 
-  html+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)">✅ <strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
+  html+='<div class="rpt-sim-notice" style="background:var(--green-bg);border-bottom-color:#b7dfc4;color:var(--green-text)"><i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i><strong>Odoo ERP</strong> en tiempo real · altritempi.odoo.com</div>';
 
   // Info principal
   html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--surface-2);border-bottom:1px solid var(--border-light)">';
@@ -7527,8 +7589,8 @@ function renderPurchaseReport(po, lines, picks, atts){
     var docs=atts.filter(function(a){return !a.mimetype||!a.mimetype.startsWith('image/');});
     html+='<div style="padding:8px 16px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
     html+='<span style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Adjuntos:</span>';
-    imgs.forEach(function(a){ html+='<span onclick="avLightboxOpen(null,null,[{url:\''+mediaUrl('/api/odoo/attachment/'+a.id)+'\',cap:\''+escH(a.name)+'\'}],0)" title="'+escH(a.name)+'" style="cursor:pointer;font-size:14px;opacity:.8">📷</span>'; });
-    docs.forEach(function(a){ html+='<span onclick="window.open(\''+mediaUrl('/api/odoo/attachment/'+a.id)+'\',\'_blank\')" title="'+escH(a.name)+'" style="cursor:pointer;font-size:14px;opacity:.8">📎</span>'; });
+    imgs.forEach(function(a){ html+='<span onclick="avLightboxOpen(null,null,[{url:\''+mediaUrl('/api/odoo/attachment/'+a.id)+'\',cap:\''+escH(a.name)+'\'}],0)" title="'+escH(a.name)+'" style="cursor:pointer;opacity:.8"><i data-lucide="camera" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></span>'; });
+    docs.forEach(function(a){ html+='<span onclick="window.open(\''+mediaUrl('/api/odoo/attachment/'+a.id)+'\',\'_blank\')" title="'+escH(a.name)+'" style="cursor:pointer;opacity:.8"><i data-lucide="paperclip" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></span>'; });
     html+='</div>';
   }
 
@@ -7595,6 +7657,7 @@ function renderPurchaseReport(po, lines, picks, atts){
 
   document.getElementById('r-report').innerHTML=html;
   document.getElementById('r-banner').style.display='none';
+  if(window.lucide) lucide.createIcons();
 }
 
 // ════════════════════════════════════════════════════
@@ -7620,7 +7683,7 @@ async function cargarSinAdjuntos(){
   var wrapEl  =document.getElementById('sin-adj-wrap');
 
   if(!ODOO_LIVE){
-    emptyEl.textContent='⚠ Esta sección requiere conexión activa con Odoo ERP.';
+    emptyEl.textContent='Esta sección requiere conexión activa con Odoo ERP.';
     emptyEl.style.display='';
     wrapEl.style.display='none';
     statsEl.style.display='none';
@@ -7630,8 +7693,8 @@ async function cargarSinAdjuntos(){
   var from=document.getElementById('desp-from').value;
   var to  =document.getElementById('desp-to').value;
 
-  statusEl.textContent='🔄 Consultando…';
-  emptyEl.textContent='🔄 Buscando transferencias OUT completadas…';
+  statusEl.textContent='Consultando…';
+  emptyEl.textContent='Buscando transferencias OUT completadas…';
   emptyEl.style.display='';
   wrapEl.style.display='none';
   statsEl.style.display='none';
@@ -7670,7 +7733,7 @@ async function cargarSinAdjuntos(){
     statsEl.style.display='';
 
     if(!noAtt.length){
-      emptyEl.textContent='✅ Todos los despachos del período tienen comprobante adjunto.';
+      emptyEl.textContent='Todos los despachos del período tienen comprobante adjunto.';
       emptyEl.style.display='';
       wrapEl.style.display='none';
       return;
@@ -7724,11 +7787,11 @@ async function cargarPendientesOut(){
   countEl.textContent='';
 
   if(!ODOO_LIVE){
-    tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">⚠ Esta sección requiere conexión activa con Odoo ERP.</td></tr>';
+    tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">Esta sección requiere conexión activa con Odoo ERP.</td></tr>';
     return;
   }
 
-  tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">🔄 Consultando Odoo…</td></tr>';
+  tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">Consultando Odoo…</td></tr>';
 
   try{
     var picks=await odooSearch('stock.picking',
@@ -7736,7 +7799,7 @@ async function cargarPendientesOut(){
       ['name','state','partner_id','origin','sale_id','scheduled_date','date','user_id','write_uid'],300);
 
     if(!picks||!picks.length){
-      tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">✅ No hay transferencias de salida pendientes en este momento.</td></tr>';
+      tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">No hay transferencias de salida pendientes en este momento.</td></tr>';
       countEl.textContent='0 pendientes';
       return;
     }
@@ -7756,7 +7819,7 @@ async function cargarPendientesOut(){
     }
 
     if(!picks.length){
-      tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">✅ No hay transferencias pendientes con solicitud de despacho registrada.'
+      tbodyEl.innerHTML='<tr><td colspan="6" class="desp-empty">No hay transferencias pendientes con solicitud de despacho registrada.'
         +(totalAntes?' ('+totalAntes+' pendientes en Odoo sin solicitud en Sheets)':'')+'</td></tr>';
       countEl.textContent='0 con solicitud de despacho';
       return;
@@ -7815,7 +7878,7 @@ async function cargarPendientesOut(){
 
     var assigned=picks.filter(function(p){return p.state==='assigned';}).length;
     var countTxt=picks.length+' con solicitud de despacho · '+assigned+' listo'+(assigned!==1?'s':'');
-    if(sinFiltro) countTxt+=' · ⚠ Sheets no disponible, sin filtrar';
+    if(sinFiltro) countTxt+=' · Sheets no disponible, sin filtrar';
     else if(totalAntes>picks.length) countTxt+=' ('+totalAntes+' totales en Odoo)';
     countEl.textContent=countTxt;
 
@@ -8014,7 +8077,7 @@ function avSuggestHighlight(items){
 async function avSuggestSearch(q){
   var drop=_avDrop;
   avPositionDrop();
-  drop.innerHTML='<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">🔄 Buscando…</div>';
+  drop.innerHTML='<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">Buscando…</div>';
   drop.style.display='block';
   try{
     var r=await fetch('/api/averias/search?q='+encodeURIComponent(q));
@@ -8026,7 +8089,7 @@ async function avSuggestSearch(q){
     drop.innerHTML=d.results.map(function(p){
       var thumb=p.image
         ?'<img class="av-suggest-thumb" src="data:image/png;base64,'+p.image+'" alt="">'
-        :'<div class="av-suggest-ph">📦</div>';
+        :'<div class="av-suggest-ph"><i data-lucide="package" style="width:16px;height:16px;stroke:currentColor;opacity:.45"></i></div>';
       var refHtml=avHighlight(p.ref||'',q);
       var barHtml=p.barcode?avHighlight(p.barcode,q):'';
       var nameHtml=avHighlight(p.name||'',q);
@@ -8035,7 +8098,7 @@ async function avSuggestSearch(q){
         +'<div style="min-width:0;flex:1">'
           +'<div class="av-suggest-ref">'+refHtml+'</div>'
           +'<div class="av-suggest-name">'+nameHtml+'</div>'
-          +(barHtml?'<div class="av-suggest-bar">🔖 '+barHtml+'</div>':'')
+          +(barHtml?'<div class="av-suggest-bar"><i data-lucide="tag" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>'+barHtml+'</div>':'')
         +'</div></div>';
     }).join('');
     avPositionDrop(); // reposicionar tras renderizar
@@ -8055,7 +8118,7 @@ async function avSuggestSelect(p){
   document.getElementById('av-barcode-input').value=p.barcode||p.ref;
   // Lookup completo para obtener ubicación y stock
   var msg=document.getElementById('av-lookup-msg');
-  msg.className='av-lookup-msg'; msg.textContent='⏳ Obteniendo ubicación…';
+  msg.className='av-lookup-msg'; msg.textContent='Obteniendo ubicación…';
   document.getElementById('av-product-card').style.display='none';
   document.getElementById('av-col-fields').style.display='none';
   try{
@@ -8064,7 +8127,7 @@ async function avSuggestSelect(p){
     var d=await r.json();
     if(!d.ok) throw new Error(d.error);
     avFillProductCard(d.product);
-  }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='❌ Error: '+e.message; }
+  }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='Error: '+e.message; }
 }
 
 function avCloseSuggest(){
@@ -8104,11 +8167,11 @@ function avFillProductCard(p){
   document.getElementById('av-prod-ref').textContent=p.ref||'—';
   document.getElementById('av-prod-name').textContent=p.name;
   var locTxt=p.quants&&p.quants.length?p.quants.map(function(q){return q.loc+' ('+q.qty+')';}).join(' · '):(p.location||'—');
-  document.getElementById('av-prod-loc').textContent='📍 '+locTxt;
+  document.getElementById('av-prod-loc').textContent=locTxt;
   document.getElementById('av-product-card').style.display='flex';
   document.getElementById('av-col-fields').style.display='';
   var msg=document.getElementById('av-lookup-msg');
-  msg.className='av-lookup-msg ok'; msg.textContent='✅ Artículo encontrado';
+  msg.className='av-lookup-msg ok'; msg.textContent='Artículo encontrado';
 }
 
 /* Buscar producto por barcode / referencia (botón 🔍 o Enter sin sugerencia) */
@@ -8117,15 +8180,15 @@ async function avLookup(){
   if(!q) return;
   avCloseSuggest();
   var msg=document.getElementById('av-lookup-msg');
-  msg.className='av-lookup-msg'; msg.textContent='⏳ Buscando…';
+  msg.className='av-lookup-msg'; msg.textContent='Buscando…';
   document.getElementById('av-product-card').style.display='none';
   document.getElementById('av-col-fields').style.display='none';
   try{
     var r=await fetch('/api/averias/lookup?q='+encodeURIComponent(q));
     var d=await r.json();
-    if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent='❌ '+d.error; _avCurrentProduct=null; return; }
+    if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent=d.error; _avCurrentProduct=null; return; }
     avFillProductCard(d.product);
-  }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='❌ Error: '+e.message; _avCurrentProduct=null; }
+  }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='Error: '+e.message; _avCurrentProduct=null; }
 }
 
 /* ── Fotos: preview al seleccionar archivos ── */
@@ -8202,7 +8265,7 @@ async function avRegistrar(){
     _avCurrentProduct=null; _avPendingFotos=[];
     avLoadList();
   }catch(e){ alert('Error: '+e.message); }
-  finally{ btn.disabled=false; btn.textContent='⚠️ Registrar Artículo Averiado'; }
+  finally{ btn.disabled=false; btn.innerHTML='<i data-lucide="alert-triangle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Registrar Artículo Averiado'; if(window.lucide) lucide.createIcons(); }
 }
 
 /* Cambiar filtro de la lista */
@@ -8218,7 +8281,7 @@ function avSetFilter(status){
 /* Cargar y renderizar la lista */
 async function avLoadList(){
   var body=document.getElementById('av-list-body');
-  body.innerHTML='<div class="empty" style="padding:20px">⏳ Cargando…</div>';
+  body.innerHTML='<div class="empty" style="padding:20px">Cargando…</div>';
   try{
     var r=await fetch('/api/averias');
     var d=await r.json();
@@ -8226,6 +8289,7 @@ async function avLoadList(){
     if(_avFilter) list=list.filter(function(a){return a.status===_avFilter;});
     if(!list.length){ body.innerHTML='<div class="empty" style="padding:24px">Sin registros'+(_avFilter?' con estatus "'+_avFilter+'"':'')+'.</div>'; return; }
     body.innerHTML=list.map(avItemHtml).join('');
+    if(window.lucide) lucide.createIcons();
   }catch(e){ body.innerHTML='<div class="empty" style="padding:20px;color:var(--red-text,#dc2626)">Error: '+e.message+'</div>'; }
 }
 
@@ -8311,7 +8375,7 @@ function avGalleryHtml(a){
       +'loading="lazy" onerror="'+esc('avPhotoOnError(this,'+JSON.stringify(f.url)+')')+'" '
       +'onclick="'+esc('avLightboxOpenGroup('+JSON.stringify(_gId)+','+fi+')')+'">';
   }).join('');
-  var addBtn='<label class="av-gallery-add" title="Agregar fotos">📷'
+  var addBtn='<label class="av-gallery-add" title="Agregar fotos"><i data-lucide="camera" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>'
     +'<input type="file" accept="image/*" multiple style="display:none" onchange="avAddFotosToItem(\''+a.id+'\',this)">'
     +'</label>';
   return fotos.length||true
@@ -8322,7 +8386,7 @@ function avGalleryHtml(a){
 function avItemHtml(a){
   var thumb=a.image
     ?'<img class="av-item-img" src="data:image/png;base64,'+a.image+'" alt="">'
-    :'<div class="av-item-ph">📦</div>';
+    :'<div class="av-item-ph"><i data-lucide="package" style="width:22px;height:22px;stroke:currentColor;opacity:.45"></i></div>';
   var dateStr=a.createdAt?new Date(a.createdAt).toLocaleDateString('es-DO',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
   var STATUSES=['Recibido','En Taller','Reparado','Descartado'];
   var statusBtns=STATUSES.map(function(s){
@@ -8343,11 +8407,11 @@ function avItemHtml(a){
       +'<div class="av-item-body">'
         +'<div class="av-item-ref">'+(a.ref||a.barcode||'—')+'</div>'
         +'<div class="av-item-name">'+(a.name||'—')+'</div>'
-        +'<div class="av-item-meta">📍 '+(a.location||'—')+'</div>'
+        +'<div class="av-item-meta"><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'+(a.location||'—')+'</div>'
         +(a.comentario?'<div class="av-item-comment">'+a.comentario+'</div>':'')
         +avGalleryHtml(a)
         +'<div class="av-item-actions" style="margin-top:6px">'+statusBtns
-          +'<button class="av-hist-toggle" onclick="avToggleHist(\''+a.id+'\')">📋 historial</button>'
+          +'<button class="av-hist-toggle" onclick="avToggleHist(\''+a.id+'\')"><i data-lucide="clock" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>historial</button>'
         +'</div>'
       +'</div>'
       +'<div class="av-item-right">'
@@ -8380,7 +8444,7 @@ async function avAddFotosToItem(id, input){
   if(!input.files||!input.files.length) return;
   var prog=document.createElement('div');
   prog.style.cssText='font-size:11px;color:var(--text-muted);padding:4px 14px';
-  prog.textContent='📤 Subiendo '+input.files.length+' foto'+(input.files.length>1?'s':'')+'…';
+  prog.textContent='Subiendo '+input.files.length+' foto'+(input.files.length>1?'s':'')+'…';
   var gallery=input.closest('.av-gallery');
   if(gallery) gallery.parentNode.insertBefore(prog,gallery.nextSibling);
   var fotos=[];
@@ -8612,7 +8676,7 @@ function avSearchBlock(averias){
       +'</div></div>';
   }).join('');
   return '<div class="av-search-block">'
-    +'<div class="av-search-block-title">⚠️ Artículos Averiados ('+averias.length+')</div>'
+    +'<div class="av-search-block-title"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Artículos Averiados ('+averias.length+')</div>'
     +rows+'</div>';
 }
 
@@ -8668,21 +8732,22 @@ async function valSelect(id,name){
   document.getElementById('val-search-input').value=name;
   var detail=document.getElementById('val-detail');
   detail.style.display='block';
-  detail.innerHTML='<div class="ca-loading">⏳ Cargando transferencia '+name+'…<br><span style="font-size:11px">Analizando movimientos de stock</span></div>';
+  detail.innerHTML='<div class="ca-loading">Cargando transferencia '+name+'…<br><span style="font-size:11px">Analizando movimientos de stock</span></div>';
   try{
     var r=await fetch('/api/transfer/detail?id='+id);
     var d=await r.json();
     if(!d.ok) throw new Error(d.error);
     detail.innerHTML=valRender(d);
+    if(window.lucide) lucide.createIcons();
   }catch(e){
-    detail.innerHTML='<div class="ca-empty" style="color:var(--amber-text)">❌ '+e.message+'</div>';
+    detail.innerHTML='<div class="ca-empty" style="color:var(--amber-text)">'+e.message+'</div>';
   }
 }
 
 function valRender(d){
   var p=d.picking; var lines=d.lines;
   var stMap={done:'val-state-done',assigned:'val-state-assigned',waiting:'val-state-draft',confirmed:'val-state-draft',draft:'val-state-draft',cancel:'val-state-cancel'};
-  var stLabel={done:'✅ Hecho',assigned:'✓ Listo para procesar',waiting:'⏳ Esperando',confirmed:'Confirmado',draft:'Borrador',cancel:'✗ Cancelado'};
+  var stLabel={done:'Hecho',assigned:'Listo para procesar',waiting:'Esperando',confirmed:'Confirmado',draft:'Borrador',cancel:'Cancelado'};
   var stCls=stMap[p.state]||'val-state-draft';
   var stLbl=stLabel[p.state]||p.state;
 
@@ -8710,10 +8775,10 @@ function valRender(d){
   var cntAmb=lines.filter(function(l){return l.method==='ambiguo';}).length;
   var cntPen=lines.filter(function(l){return l.method==='pendiente';}).length;
   h+='<div class="val-summary-bar">';
-  h+='<div class="val-sum-chip chip-escaner"><div class="num">'+cntEsc+'</div><div class="lbl">🔍 Escáner</div></div>';
-  h+='<div class="val-sum-chip chip-teclado"><div class="num">'+cntTec+'</div><div class="lbl">⌨️ Teclado</div></div>';
-  h+='<div class="val-sum-chip chip-ambiguo"><div class="num">'+cntAmb+'</div><div class="lbl">❓ Indeterminado</div></div>';
-  if(cntPen) h+='<div class="val-sum-chip chip-pendiente"><div class="num">'+cntPen+'</div><div class="lbl">⏸ Pendiente</div></div>';
+  h+='<div class="val-sum-chip chip-escaner"><div class="num">'+cntEsc+'</div><div class="lbl"><i data-lucide="scan-line" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Escáner</div></div>';
+  h+='<div class="val-sum-chip chip-teclado"><div class="num">'+cntTec+'</div><div class="lbl"><i data-lucide="keyboard" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Teclado</div></div>';
+  h+='<div class="val-sum-chip chip-ambiguo"><div class="num">'+cntAmb+'</div><div class="lbl"><i data-lucide="help-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Indeterminado</div></div>';
+  if(cntPen) h+='<div class="val-sum-chip chip-pendiente"><div class="num">'+cntPen+'</div><div class="lbl"><i data-lucide="pause-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Pendiente</div></div>';
   h+='</div>';
   h+='<div style="margin:8px 0 12px;padding:9px 12px;border:1px solid var(--border-light);background:var(--surface-2);border-radius:8px;font-size:11px;line-height:1.45;color:var(--text-muted)">'
     +'Modo de prueba: para transferencias pasadas el método es una <strong>estimación por patrón</strong>. Varias líneas con qty=1 sugieren escáner; una sola línea con varias unidades sugiere teclado/manual. No es evidencia definitiva hasta guardar el origen real en Odoo.'
@@ -8731,12 +8796,12 @@ function valRender(d){
   lines.forEach(function(l){
     var thumb=l.image
       ?'<img class="val-thumb" src="data:image/png;base64,'+l.image+'" alt="" onerror="this.style.display=\'none\'">'
-      :'<div class="val-thumb-ph">📦</div>';
+      :'<div class="val-thumb-ph"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>';
     var badge,badgeCls;
-    if(l.method==='escaner'){badge='🔍 Escáner';badgeCls='vb-escaner';}
-    else if(l.method==='teclado'){badge='⌨️ Teclado';badgeCls='vb-teclado';}
-    else if(l.method==='pendiente'){badge='⏸ Pendiente';badgeCls='vb-pendiente';}
-    else{badge='❓ Indet.';badgeCls='vb-ambiguo';}
+    if(l.method==='escaner'){badge='<i data-lucide="scan-line" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Escáner';badgeCls='vb-escaner';}
+    else if(l.method==='teclado'){badge='<i data-lucide="keyboard" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Teclado';badgeCls='vb-teclado';}
+    else if(l.method==='pendiente'){badge='<i data-lucide="pause-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Pendiente';badgeCls='vb-pendiente';}
+    else{badge='<i data-lucide="help-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Indet.';badgeCls='vb-ambiguo';}
     var diff=l.diff;
     var diffHtml=diff===0
       ?'<span class="val-diff-ok">✓</span>'
@@ -8798,7 +8863,7 @@ function closeContAnalysis(){
 
 async function loadCaLocalities(){
   var sel=document.getElementById('ca-location-select');
-  sel.innerHTML='<option value="">⏳ Cargando ubicaciones de Odoo…</option>';
+  sel.innerHTML='<option value="">Cargando ubicaciones de Odoo…</option>';
   try{
     var r=await fetch('/api/analysis/localities');
     var d=await r.json();
@@ -8835,8 +8900,9 @@ async function runContAnalysis(){
   }
 
   var locName=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:'';
-  document.getElementById('ca-body').innerHTML='<div class="ca-loading">🔍 Consultando Odoo…<br>'
+  document.getElementById('ca-body').innerHTML='<div class="ca-loading"><i data-lucide="search" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Consultando Odoo…<br>'
     +'<span style="font-size:11px;color:var(--text-muted)">Verificando movimientos de stock hacia <strong>'+locName+'</strong></span></div>';
+  if(window.lucide) lucide.createIcons();
 
   try{
     var res=await fetch('/api/analysis/container',{
@@ -8848,7 +8914,8 @@ async function runContAnalysis(){
     if(!data.ok) throw new Error(data.error);
     renderContAnalysis(data);
   }catch(e){
-    document.getElementById('ca-body').innerHTML='<div class="ca-empty" style="color:var(--amber-text)">❌ '+e.message+'</div>';
+    document.getElementById('ca-body').innerHTML='<div class="ca-empty" style="color:var(--amber-text)"><i data-lucide="x-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>'+e.message+'</div>';
+    if(window.lucide) lucide.createIcons();
   }
 }
 
@@ -8880,17 +8947,18 @@ function renderContAnalysis(data){
 
   // ── No han llegado a esta ubicación ──────────────────────────────────────
   if(data.notSent.length){
-    h+='<div class="ca-sec-head ca-sec-warn">⚠️ Sin movimiento a '+loc+' ('+data.notSent.length+')</div>';
+    h+='<div class="ca-sec-head ca-sec-warn"><i data-lucide="alert-triangle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Sin movimiento a '+loc+' ('+data.notSent.length+')</div>';
     h+=caTable(data.notSent,'');
   }
 
   // ── Ya tienen movimiento a esta ubicación ─────────────────────────────────
   if(data.sent.length){
-    h+='<div class="ca-sec-head ca-sec-ok">✅ Con movimiento a '+loc+' ('+data.sent.length+')</div>';
+    h+='<div class="ca-sec-head ca-sec-ok"><i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Con movimiento a '+loc+' ('+data.sent.length+')</div>';
     h+=caTable(data.sent,'row-sent');
   }
 
   document.getElementById('ca-body').innerHTML=h;
+  if(window.lucide) lucide.createIcons();
 }
 
 function caTable(items,rowClass){
@@ -8901,7 +8969,7 @@ function caTable(items,rowClass){
   items.forEach(function(p){
     var thumb=p.image
       ?'<img src="data:image/png;base64,'+p.image+'" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:4px;display:block" onerror="this.style.display=\'none\'">'
-      :'<div style="width:44px;height:44px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--border)">📦</div>';
+      :'<div style="width:44px;height:44px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;color:var(--border)"><i data-lucide="package" style="width:20px;height:20px;stroke:currentColor;opacity:.45"></i></div>';
     h+='<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
       +'<td style="padding:5px 6px;width:52px">'+thumb+'</td>'
       +'<td class="td-ref">'+(p.ref||'—')+'</td>'
@@ -9501,7 +9569,7 @@ var VEH_PLACAS = {
 // Definición de secciones y preguntas del formulario
 var VEH_SECTIONS = [
   {
-    card: '🔍 Inspección Exterior',
+    card: 'Inspección Exterior',
     groups: [
       { title: '2. Estado General del Vehículo', key: 'ext', items: [
         '¿El vehículo presenta golpes o daños visibles?',
@@ -9526,7 +9594,7 @@ var VEH_SECTIONS = [
     ]
   },
   {
-    card: '🪑 Inspección Interior',
+    card: 'Inspección Interior',
     groups: [
       { title: '5. Seguridad y Equipamiento', key: 'seg', items: [
         '¿Los cinturones de seguridad funcionan correctamente?',
@@ -9552,7 +9620,7 @@ var VEH_SECTIONS = [
     ]
   },
   {
-    card: '📄 Documentación',
+    card: 'Documentación',
     groups: [
       { title: '8. Documentos Obligatorios', key: 'doc', items: [
         'Matrícula vigente',
@@ -9685,11 +9753,11 @@ function vehSubmit() {
   .then(function(saved) {
     if (saved.error) throw new Error(saved.error);
     vehResetForm();
-    if (btn) { btn.textContent = '✅ Guardado'; setTimeout(function(){ btn.textContent = '💾 Guardar Inspección'; btn.disabled = false; }, 2500); }
+    if (btn) { btn.textContent = '✓ Guardado'; setTimeout(function(){ btn.textContent = 'Guardar Inspección'; btn.disabled = false; }, 2500); }
   })
   .catch(function(err) {
     alert('Error al guardar: ' + err.message);
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar Inspección'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar Inspección'; }
   });
 }
 
@@ -9714,8 +9782,8 @@ function vehLoadList() {
     }
     tbody.innerHTML = list.map(function(i) {
       var aptoClass = i.apto === 'si' ? 'veh-apto-si' : i.apto === 'no' ? 'veh-apto-no' : 'veh-apto-nd';
-      var aptoLabel = i.apto === 'si' ? '✅ Apto' : i.apto === 'no' ? '🚫 No apto' : '— Sin registrar';
-      var accionCell = '<td><button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">🗑️</button></td>';
+      var aptoLabel = i.apto === 'si' ? '✓ Apto' : i.apto === 'no' ? '✗ No apto' : '— Sin registrar';
+      var accionCell = '<td><button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">✕</button></td>';
       return '<tr>'
         + '<td><strong>' + escH(i.fecha) + '</strong>'
         + (i.hora ? '<br><span style="font-size:11px;color:var(--text-muted)">'+escH(i.hora)+'</span>' : '') + '</td>'
@@ -9903,11 +9971,12 @@ function polRefreshAllLive() {
 // ════════ RENDER DE CARDS ════════════════════════════════════════════════════
 
 var POL_TYPE_META = {
-  lunch_duration:     { label:'Duración de almuerzo',   badge:'pol-type-lunch',   icon:'🍴' },
-  arrival_time:       { label:'Hora de llegada',         badge:'pol-type-arrival', icon:'🕗' },
-  task_completion:    { label:'Completitud de tareas',   badge:'pol-type-task',    icon:'✅' },
-  vehicle_inspection: { label:'Inspección vehicular',    badge:'pol-type-vehicle', icon:'🚗' },
+  lunch_duration:     { label:'Duración de almuerzo',   badge:'pol-type-lunch',   icon:'utensils' },
+  arrival_time:       { label:'Hora de llegada',         badge:'pol-type-arrival', icon:'clock' },
+  task_completion:    { label:'Completitud de tareas',   badge:'pol-type-task',    icon:'clipboard-check' },
+  vehicle_inspection: { label:'Inspección vehicular',    badge:'pol-type-vehicle', icon:'car' },
 };
+function _polIcon(name){ return '<i data-lucide="'+name+'" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'; }
 
 function polRenderAllCards() {
   var container = document.getElementById('pol-cards-container');
@@ -9917,25 +9986,27 @@ function polRenderAllCards() {
     return;
   }
   container.innerHTML = _polPolicies.map(function(pol) {
-    var meta = POL_TYPE_META[pol.tipo] || { label:pol.tipo, badge:'pol-type-lunch', icon:'📋' };
+    var meta = POL_TYPE_META[pol.tipo] || { label:pol.tipo, badge:'pol-type-lunch', icon:'clipboard-list' };
+    var mIcon = _polIcon(meta.icon);
     return '<div class="pol-card" id="pol-card-'+escH(pol.id)+'">'
       + '<div class="pol-card-hdr">'
       + '<div class="pol-card-meta">'
       + (pol.activa ? '<span class="pol-badge-active">● Activa</span>' : '<span style="background:#f3f4f6;color:#6b7280;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">○ Pausada</span>')
       + '<span class="pol-num">'+escH(pol.id)+'</span>'
-      + '<span class="pol-type-badge '+meta.badge+'">'+meta.icon+' '+meta.label+'</span>'
+      + '<span class="pol-type-badge '+meta.badge+'">'+mIcon+meta.label+'</span>'
       + '<span style="margin-left:auto;display:flex;gap:6px">'
-      + '<button class="btn-sm" onclick="polOpenEditor(\''+escH(pol.id)+'\')">✏️ Editar</button>'
-      + '<button class="btn-sm" onclick="polToggleActive(\''+escH(pol.id)+'\')" style="'+(pol.activa?'color:#92400e':'color:#059669')+'">'+( pol.activa?'⏸ Pausar':'▶ Activar')+'</button>'
-      + '<button class="btn-sm" onclick="polDeletePolicy(\''+escH(pol.id)+'\')" style="color:#dc2626">🗑</button>'
+      + '<button class="btn-sm" onclick="polOpenEditor(\''+escH(pol.id)+'\')">Editar</button>'
+      + '<button class="btn-sm" onclick="polToggleActive(\''+escH(pol.id)+'\')" style="'+(pol.activa?'color:#92400e':'color:#059669')+'">'+( pol.activa?'Pausar':'Activar')+'</button>'
+      + '<button class="btn-sm" onclick="polDeletePolicy(\''+escH(pol.id)+'\')" style="color:#dc2626">✕</button>'
       + '</span></div>'
-      + '<h3>'+meta.icon+' '+escH(pol.nombre)+'</h3>'
+      + '<h3>'+mIcon+escH(pol.nombre)+'</h3>'
       + (pol.descripcion ? '<div class="pol-rule">'+escH(pol.descripcion)+'</div>' : '')
       + '</div>'
       + (pol.activa ? _polBuildLiveSection(pol) : '<div style="padding:18px 22px;color:var(--text-muted);font-size:13px;font-style:italic">Esta política está pausada.</div>')
       + _polBuildHistSection(pol)
       + '</div>';
   }).join('');
+  if(window.lucide) lucide.createIcons();
 }
 
 function _polBuildLiveSection(pol) {
@@ -9943,12 +10014,12 @@ function _polBuildLiveSection(pol) {
   return '<div class="pol-section">'
     + '<div class="pol-section-hdr"><h4><span class="pol-live-dot"></span> Cumplimiento en Vivo — hoy</h4>'
     + '<span class="pol-refresh-info" id="pol-ri-'+pid+'">—</span>'
-    + '<button class="btn-sm" onclick="polRefreshCard(_polPolicies.find(function(p){return p.id===\''+escH(pol.id)+'\'}))">🔄</button></div>'
+    + '<button class="btn-sm" onclick="polRefreshCard(_polPolicies.find(function(p){return p.id===\''+escH(pol.id)+'\'}))">↻</button></div>'
     + '<div class="pol-kpi-row">'
-    + '<div class="pol-kpi k-lunch"><div class="pol-kpi-val" id="pol-kl-'+pid+'">—</div><div class="pol-kpi-label">🔄 En proceso</div></div>'
-    + '<div class="pol-kpi k-ok">   <div class="pol-kpi-val" id="pol-ko-'+pid+'">—</div><div class="pol-kpi-label">✅ Cumplieron</div></div>'
-    + '<div class="pol-kpi k-fail"> <div class="pol-kpi-val" id="pol-kf-'+pid+'">—</div><div class="pol-kpi-label">🔴 Incumplieron</div></div>'
-    + '<div class="pol-kpi k-none"> <div class="pol-kpi-val" id="pol-kn-'+pid+'">—</div><div class="pol-kpi-label">⚪ Sin datos</div></div>'
+    + '<div class="pol-kpi k-lunch"><div class="pol-kpi-val" id="pol-kl-'+pid+'">—</div><div class="pol-kpi-label">En proceso</div></div>'
+    + '<div class="pol-kpi k-ok">   <div class="pol-kpi-val" id="pol-ko-'+pid+'">—</div><div class="pol-kpi-label">Cumplieron</div></div>'
+    + '<div class="pol-kpi k-fail"> <div class="pol-kpi-val" id="pol-kf-'+pid+'">—</div><div class="pol-kpi-label">Incumplieron</div></div>'
+    + '<div class="pol-kpi k-none"> <div class="pol-kpi-val" id="pol-kn-'+pid+'">—</div><div class="pol-kpi-label">Sin datos</div></div>'
     + '</div>'
     + '<div style="overflow-x:auto"><table class="pol-emp-table">'
     + '<thead><tr><th>Empleado</th><th>Estado</th><th>Detalle</th><th>Impacto</th><th>Progreso</th></tr></thead>'
@@ -9961,8 +10032,8 @@ function _polBuildHistSection(pol) {
   var today   = new Date().toISOString().slice(0,10);
   var weekAgo = new Date(Date.now()-6*24*60*60*1000).toISOString().slice(0,10);
   return '<div class="pol-section">'
-    + '<div class="pol-section-hdr"><h4>📅 Historial de Cumplimiento</h4>'
-    + '<button class="btn-sm" onclick="polExportCSV(\''+escH(pol.id)+'\')">📥 CSV</button></div>'
+    + '<div class="pol-section-hdr"><h4><i data-lucide="calendar" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Historial de Cumplimiento</h4>'
+    + '<button class="btn-sm" onclick="polExportCSV(\''+escH(pol.id)+'\')"><i data-lucide="download" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>CSV</button></div>'
     + '<div class="pol-hist-toolbar">'
     + '<label>DESDE</label><input type="date" id="pol-hf-'+pid+'" class="veh-filter-select" style="font-size:12px" value="'+weekAgo+'">'
     + '<label>HASTA</label><input type="date" id="pol-ht-'+pid+'" class="veh-filter-select" style="font-size:12px" value="'+today+'">'
@@ -10107,10 +10178,10 @@ function polRefreshCard(policy) {
       : res.status==='violated'  ? 'pol-s-fail'
       : res.status==='lunch'     ? 'pol-s-lunch'
       : 'pol-s-none';
-    var pillLabel = res.status==='complied' ? '✅ Cumplió'
-      : res.status==='violated' ? '🔴 Incumplió'
-      : res.status==='lunch'    ? '🔄 En proceso'
-      : '⚪ Sin datos';
+    var pillLabel = res.status==='complied' ? '<i data-lucide="check-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Cumplió'
+      : res.status==='violated' ? '<i data-lucide="x-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Incumplió'
+      : res.status==='lunch'    ? '<i data-lucide="refresh-cw" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>En proceso'
+      : '<i data-lucide="minus-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Sin datos';
     var bar = res.pct > 0
       ? '<div class="pol-progress-wrap"><div class="pol-progress-bar '+(res.pct>=100?'pol-progress-over':res.pct>=80?'pol-progress-warn':'pol-progress-ok')+'" style="width:'+res.pct+'%"></div></div>'
       : '<span style="color:var(--text-muted);font-size:11px">—</span>';
@@ -10126,7 +10197,7 @@ function polRefreshCard(policy) {
   }).filter(Boolean).join('');
 
   var tbody = document.getElementById('pol-tb-'+pid);
-  if (tbody) tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos para esta política</td></tr>';
+  if (tbody) { tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos para esta política</td></tr>'; if(window.lucide) lucide.createIcons(); }
   var s = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
   s('pol-kl-'+pid, kL); s('pol-ko-'+pid, kO); s('pol-kf-'+pid, kF); s('pol-kn-'+pid, kN);
   var ri = document.getElementById('pol-ri-'+pid);
@@ -10178,7 +10249,7 @@ function _polRenderHeatmap(wrapperId, employees, dates) {
       var s = emp.days[d]||'none';
       if(s==='complied') return '<td><span class="pol-hm-cell pol-hm-ok">✓</span></td>';
       if(s==='violated') return '<td><span class="pol-hm-cell pol-hm-fail">✗</span></td>';
-      if(s==='active')   return '<td><span class="pol-hm-cell pol-hm-today">⏳</span></td>';
+      if(s==='active')   return '<td><span class="pol-hm-cell pol-hm-today">•</span></td>';
       return '<td><span class="pol-hm-cell pol-hm-none">—</span></td>';
     }).join('');
     return '<tr><td>'+escH(emp.name)+'</td>'+cells+'</tr>';
@@ -10338,7 +10409,7 @@ function impCompute(date) {
 
   var results = emps.map(function(emp) {
     var polBreakdown = activePols.map(function(pol) {
-      var meta = POL_TYPE_META[pol.tipo] || { label:pol.tipo, icon:'📋' };
+      var meta = POL_TYPE_META[pol.tipo] || { label:pol.tipo, icon:'clipboard-list' };
       var res  = _polEval(pol, emp);
       return { pol:pol, meta:meta, res:res };
     });
@@ -10389,10 +10460,10 @@ function impRenderGrid(results) {
   s('imp-k-ninguno',kNinguno); s('imp-k-leve',kLeve); s('imp-k-mod',kMod); s('imp-k-crit',kCrit);
 
   var riesgoMeta = {
-    ninguno:{ label:'✅ A tiempo', cls:'imp-riesgo-ok' },
-    bajo:   { label:'🟡 Riesgo bajo', cls:'imp-riesgo-bajo' },
-    medio:  { label:'🟠 Riesgo medio', cls:'imp-riesgo-medio' },
-    alto:   { label:'🔴 Riesgo alto', cls:'imp-riesgo-alto' },
+    ninguno:{ label:'A tiempo', cls:'imp-riesgo-ok' },
+    bajo:   { label:'Riesgo bajo', cls:'imp-riesgo-bajo' },
+    medio:  { label:'Riesgo medio', cls:'imp-riesgo-medio' },
+    alto:   { label:'Riesgo alto', cls:'imp-riesgo-alto' },
   };
   var nivelMeta = {
     ninguno:  { label:'Sin impacto',   cls:'imp-nivel-ninguno' },
@@ -10407,7 +10478,7 @@ function impRenderGrid(results) {
       var min = pb.res.minImpacto || 0;
       var cls = min > 0 ? 'rojo' : (pb.res.status==='complied' ? 'verde' : 'gris');
       return '<div class="imp-breakdown-row">'
-        + '<span class="imp-breakdown-pol">'+pb.meta.icon+' '+escH(pb.pol.nombre)+'</span>'
+        + '<span class="imp-breakdown-pol">'+_polIcon(pb.meta.icon)+escH(pb.pol.nombre)+'</span>'
         + '<span class="imp-breakdown-min '+cls+'">'+(min>0?'-'+min+' min':pb.res.status==='complied'?'✓ OK':'—')+'</span>'
         + '</div>';
     }).join('');
@@ -10438,7 +10509,7 @@ function impRenderGrid(results) {
   }).join('');
 
   var grid = document.getElementById('imp-emp-grid');
-  if (grid) grid.innerHTML = cards || '<div class="imp-empty">Sin empleados activos</div>';
+  if (grid) { grid.innerHTML = cards || '<div class="imp-empty">Sin empleados activos</div>'; if(window.lucide) lucide.createIcons(); }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -10497,7 +10568,7 @@ function empRenderMatGrid() {
   grid.innerHTML = _empMateriales.map(function(m) {
     var fotoHtml = m.foto_url
       ? '<img class="emp-mat-foto" src="' + m.foto_url + '" alt="' + esc(m.nombre) + '" onclick="empOpenLightbox(\'' + esc(m.foto_url) + '\')">'
-      : '<div class="emp-mat-foto-empty">📦</div>';
+      : '<div class="emp-mat-foto-empty"></div>';
     return '<div class="emp-mat-card">' +
       fotoHtml +
       '<div class="emp-mat-body">' +
@@ -10505,8 +10576,8 @@ function empRenderMatGrid() {
         '<div class="emp-mat-desc">' + esc(m.descripcion || '—') + '</div>' +
       '</div>' +
       '<div class="emp-mat-actions">' +
-        '<button class="emp-mat-btn edit" onclick="empOpenMatEditor(\'' + m.id + '\')">✏️ Editar</button>' +
-        '<button class="emp-mat-btn del" onclick="empDeleteMat(\'' + m.id + '\', this)">🗑</button>' +
+        '<button class="emp-mat-btn edit" onclick="empOpenMatEditor(\'' + m.id + '\')">Editar</button>' +
+        '<button class="emp-mat-btn del" title="Eliminar material" onclick="if(confirm(\'¿Eliminar \'+\'' + esc(m.nombre) + '\'+\'? Esta acción no se puede deshacer.\'))empDeleteMat(\'' + m.id + '\', this)">✕</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -10524,7 +10595,8 @@ function empRenderCategTree() {
   var container = document.getElementById('emp-regla-list');
   if (!container) return;
   if (!_empCategorias.length) {
-    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px">⚠️ No se pudieron cargar las categorías de Odoo.<br><span style="font-size:11px">Verifica que el servidor esté reiniciado con los nuevos endpoints y que haya conexión con Odoo.</span><br><br><button onclick="empInit()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:12px;cursor:pointer">🔄 Reintentar</button></div>';
+    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px"><i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-3px;margin-right:5px"></i>No se pudieron cargar las categorías de Odoo.<br><span style="font-size:11px">Verifica que el servidor esté reiniciado con los nuevos endpoints y que haya conexión con Odoo.</span><br><br><button onclick="empInit()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:12px;cursor:pointer"><i data-lucide="refresh-cw" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Reintentar</button></div>';
+    if(window.lucide) lucide.createIcons();
     return;
   }
 
@@ -10617,9 +10689,9 @@ function _empRenderTable() {
     } else {
       html += '<span style="width:16px;display:inline-block;flex-shrink:0"></span>';
     }
-    if (row.level === 0) html += '<span style="margin-right:3px">📁</span>';
-    else if (row.hasChildren) html += '<span style="margin-right:3px">📂</span>';
-    else html += '<span style="margin-right:3px">📄</span>';
+    if (row.level === 0) html += '<i data-lucide="folder" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
+    else if (row.hasChildren) html += '<i data-lucide="folder-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
+    else html += '<i data-lucide="file" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
     html += '<span style="font-size:' + (row.level === 0 ? '13' : row.level === 1 ? '12' : '11') + 'px">' + esc(cat.name) + '</span>';
     html += '</div></td>';
 
@@ -10633,7 +10705,7 @@ function _empRenderTable() {
         if (mat.foto_url) {
           html += '<img class="emp-tree-mat-chip-thumb" src="' + esc(mat.foto_url) + '" onerror="this.style.display=\'none\'">';
         } else {
-          html += '<span style="width:22px;height:22px;background:#bae6fd;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">📦</span>';
+          html += '<span style="width:22px;height:22px;background:#bae6fd;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="package" style="width:13px;height:13px;stroke:currentColor"></i></span>';
         }
         html += '<span class="emp-tree-mat-chip-name" title="' + esc(mat.nombre) + '">' + esc(mat.nombre) + '</span>';
         html += '<button class="emp-tree-mat-chip-rm" onclick="event.stopPropagation();empInlineClearMat(' + cat.id + ',' + slot + ')">×</button>';
@@ -10649,6 +10721,7 @@ function _empRenderTable() {
 
   html += '</tbody></table>';
   container.innerHTML = html;
+  if(window.lucide) lucide.createIcons();
 }
 
 // Toggle expand/collapse de un nodo del árbol
@@ -10736,12 +10809,13 @@ function empPickerFilter(q) {
   list.innerHTML = filtered.map(function(m) {
     var thumbHtml = m.foto_url
       ? '<img class="emp-inline-picker-thumb" src="' + esc(m.foto_url) + '" onerror="this.style.display=\'none\'">'
-      : '<div class="emp-inline-picker-thumb">📦</div>';
+      : '<div class="emp-inline-picker-thumb"><i data-lucide="package" style="width:14px;height:14px;stroke:currentColor;opacity:.5"></i></div>';
     return '<div class="emp-inline-picker-item" onclick="empInlineApplyMat(\'' + m.id + '\')">' +
       thumbHtml +
       '<span class="emp-inline-picker-name">' + esc(m.nombre) + '</span>' +
     '</div>';
   }).join('');
+  if(window.lucide) lucide.createIcons();
 }
 
 function empInlineApplyMat(matId) {
@@ -10971,7 +11045,7 @@ function empRenderItemSection(container, item, materiales) {
   var matsHtml = materiales.map(function(mat, i) {
     var thumbHtml = mat.foto_url
       ? '<img class="task-emp-mat-thumb" src="' + mat.foto_url + '" alt="" onclick="empOpenLightbox(\'' + esc(mat.foto_url) + '\')" title="Ver foto">'
-      : '<div class="task-emp-mat-thumb-empty">📦</div>';
+      : '<div class="task-emp-mat-thumb-empty"><i data-lucide="package" style="width:16px;height:16px;stroke:currentColor;opacity:.4"></i></div>';
     return '<div class="task-emp-mat-row">' +
       '<div class="task-emp-mat-num">' + (i+1) + '</div>' +
       thumbHtml +
@@ -10984,13 +11058,13 @@ function empRenderItemSection(container, item, materiales) {
 
   var statusHtml = '';
   if (isConfirmed) {
-    statusHtml = '<div class="task-emp-confirmed">✅ Empaque confirmado' + (conf.by ? ' por ' + esc(conf.by) : '') + '</div>';
+    statusHtml = '<div class="task-emp-confirmed"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Empaque confirmado' + (conf.by ? ' por ' + esc(conf.by) : '') + '</div>';
   } else if (isPartial) {
-    statusHtml = '<div class="task-emp-partial">⚠️ Parcial: ' + esc(conf.justificacion || '') + '</div>';
+    statusHtml = '<div class="task-emp-partial"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Parcial: ' + esc(conf.justificacion || '') + '</div>';
   } else {
     statusHtml = '<div class="task-emp-confirm-row">' +
-      '<button class="task-emp-btn-ok" onclick="empConfirmItem(\'' + item.item_id + '\',\'confirmed\',this)">✅ Usé todos los materiales</button>' +
-      '<button class="task-emp-btn-partial" onclick="empShowPartialForm(\'' + item.item_id + '\')">⚠️ Faltó material</button>' +
+      '<button class="task-emp-btn-ok" onclick="empConfirmItem(\'' + item.item_id + '\',\'confirmed\',this)"><i data-lucide="check-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Usé todos los materiales</button>' +
+      '<button class="task-emp-btn-partial" onclick="empShowPartialForm(\'' + item.item_id + '\')"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Faltó material</button>' +
     '</div>' +
     '<div class="task-emp-just-wrap" id="just-wrap-' + item.item_id + '">' +
       '<textarea class="task-emp-just-area" id="just-txt-' + item.item_id + '" placeholder="Explica cuál material faltó y el motivo…"></textarea>' +
@@ -10999,9 +11073,10 @@ function empRenderItemSection(container, item, materiales) {
   }
 
   container.innerHTML =
-    '<div class="task-emp-title">📦 Materiales de empaque requeridos</div>' +
+    '<div class="task-emp-title"><i data-lucide="package" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Materiales de empaque requeridos</div>' +
     '<div class="task-emp-mat-list">' + matsHtml + '</div>' +
     statusHtml;
+  if(window.lucide) lucide.createIcons();
 }
 
 function empShowPartialForm(itemId) {
@@ -11026,7 +11101,7 @@ function empConfirmItem(itemId, status, btn) {
     if (!r.ok) { btn.textContent = orig; btn.disabled = false; showToast(r.error || 'Error', 'error'); return; }
     // Recargar la tarea para reflejar el cambio
     if (window._refreshCurrentTask) window._refreshCurrentTask();
-    showToast(status === 'confirmed' ? 'Empaque confirmado ✅' : 'Justificación registrada', 'success');
+    showToast(status === 'confirmed' ? 'Empaque confirmado' : 'Justificación registrada', 'success');
   });
 }
 
@@ -11082,7 +11157,7 @@ function _acCandidates(q) {
       results.push({
         code: num,
         detail: cliente,
-        icon: rtype === 'transferencia' ? '🔄' : rtype === 'compra' ? '🛒' : '📋',
+        icon: rtype === 'transferencia' ? '<i data-lucide="refresh-cw" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>' : rtype === 'compra' ? '<i data-lucide="shopping-cart" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>' : '<i data-lucide="clipboard-list" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>',
         group: rtype === 'transferencia' ? 'Transferencias' : rtype === 'compra' ? 'Compras' : 'Órdenes'
       });
     }
@@ -11096,7 +11171,7 @@ function _acCandidates(q) {
       var nombre = String(a.nombre || '');
       if (code.toLowerCase().includes(ql) || nombre.toLowerCase().includes(ql)) {
         seen[code] = 1;
-        results.push({ code: code, detail: nombre, icon: '🪑', group: 'Artículos' });
+        results.push({ code: code, detail: nombre, icon: '<i data-lucide="armchair" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>', group: 'Artículos' });
       }
     });
   }
@@ -11142,6 +11217,7 @@ function _acRender(q) {
   });
 
   dd.innerHTML = html;
+  if(window.lucide) lucide.createIcons();
   _acFitHeight();
   dd.classList.add('open');
   _acFocusIdx = -1;
@@ -11222,13 +11298,13 @@ function _acSelect(el) {
     <div class="ca-sub"   id="ca-sub"></div>
     <div class="ca-po-chips" id="ca-po-chips"></div>
   </div>
-  <div class="ca-hint">🔎 Selecciona una ubicación de Odoo para ver qué artículos de este contenedor tienen (o no) movimientos de stock hacia allá.</div>
+  <div class="ca-hint"><i data-lucide="info" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Selecciona una ubicación de Odoo para ver qué artículos de este contenedor tienen (o no) movimientos de stock hacia allá.</div>
   <div class="ca-locality-bar">
-    <label>📦 Ubicación:</label>
+    <label><i data-lucide="map-pin" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Ubicación:</label>
     <select id="ca-location-select" class="ca-locality-input" style="cursor:pointer">
-      <option value="">⏳ Cargando…</option>
+      <option value="">Cargando…</option>
     </select>
-    <button class="ca-btn-run" onclick="runContAnalysis()">🔍 Analizar</button>
+    <button class="ca-btn-run" onclick="runContAnalysis()"><i data-lucide="search" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Analizar</button>
   </div>
   <div class="ca-body" id="ca-body">
     <div class="ca-empty">Selecciona la localidad y haz clic en Analizar.</div>

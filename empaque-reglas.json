@@ -1,0 +1,15 @@
+[
+  {
+    "id": "reg_1779129756478",
+    "categ_id": 91,
+    "categ_nombre": "Muebles / Decoracion / Espejos",
+    "materiales": [
+      {
+        "materialId": "mat_1779129616097",
+        "orden": 1
+      }
+    ],
+    "creadoEn": "2026-05-18T18:42:36.478Z",
+    "actualizadoEn": "2026-05-18T18:42:36.478Z"
+  }
+]

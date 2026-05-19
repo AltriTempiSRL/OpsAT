@@ -1,6 +1,35 @@
+# ── Secretos y credenciales ──────────────────────────────────────────────────
 .env.txt
+.env.local
+.jwt-secret
+*.key
+*.pem
+
+# ── Datos en tiempo de ejecución (PII / datos del negocio) ───────────────────
+wwp-users-auth.json
+wwp-sessions.json
+wwp-tasks.json
+wwp-notifications.json
+wwp-lunch-breaks.json
+wwp-roles.json
+vehiculos-inspecciones.json
 averias.json
-av-fotos/
-node_modules/
 contenedores.csv
+
+# ── Fotos subidas por usuarios ───────────────────────────────────────────────
+av-fotos/
+wwp-fotos/
+empaque-fotos/
+
+# ── Archivos temporales ───────────────────────────────────────────────────────
+*.tmp
+*.log
+*.backup-*.html
+temp_*.html
+
+# ── Dependencias ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Herramientas de desarrollo ────────────────────────────────────────────────
 .claude/worktrees/
+.netlify/

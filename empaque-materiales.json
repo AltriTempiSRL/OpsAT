@@ -1,0 +1,16 @@
+[
+  {
+    "id": "mat_1779129568692",
+    "nombre": "Cinta de embalaje",
+    "descripcion": "Para sellar las cajas durante el transporte",
+    "foto_url": null,
+    "creadoEn": "2026-05-18T18:39:28.692Z"
+  },
+  {
+    "id": "mat_1779129616097",
+    "nombre": "Papel Foam",
+    "descripcion": "Evita rayaduras y maltrato en superficies delicadas.",
+    "foto_url": "/empaque-fotos/mat_1779129616097_1779129616169.jpg",
+    "creadoEn": "2026-05-18T18:40:16.097Z"
+  }
+]

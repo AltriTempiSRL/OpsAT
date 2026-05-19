@@ -1,0 +1,34 @@
+{
+  "name": "dashboard-despachos",
+  "version": "1.0.0",
+  "description": "Dashboard de despachos y gestión de tareas para Altri Tempi — integración Odoo + Google Sheets",
+  "main": "proxy.js",
+  "scripts": {
+    "start": "node proxy.js",
+    "test": "node test-smoke.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Gabriel Ramirez / Altri Tempi",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {},
+  "notes": {
+    "setup": "1. Copia .env.txt con las credenciales de Odoo. 2. Ejecuta: node proxy.js. 3. Abre http://localhost:3000",
+    "dataFiles": [
+      "wwp-tasks.json — Tareas y subtareas",
+      "wwp-users-auth.json — Usuarios del sistema",
+      "wwp-sessions.json — Sesiones activas",
+      "wwp-notifications.json — Historial de notificaciones",
+      "wwp-lunch-breaks.json — Registros de almuerzo",
+      "empaque-materiales.json — Catálogo de materiales de empaque",
+      "empaque-reglas.json — Reglas de empaque por familia de artículo",
+      "politicas.json — Políticas del sistema",
+      "averias.json — Reportes de daños",
+      "vehiculos-inspecciones.json — Inspecciones de vehículos"
+    ],
+    "env": "Copiar .env.txt con: ODOO_URL, ODOO_DB, ODOO_USER, ODOO_API_KEY, COMPANY_NAME"
+  }
+}
