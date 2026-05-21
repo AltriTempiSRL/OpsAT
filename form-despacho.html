@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solicitud de Despacho · Altri Tempi</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:linear-gradient(135deg,#dce8f5 0%,#e8e0f0 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px 60px}
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.10);width:100%;max-width:680px;overflow:hidden}
+
+/* Header */
+.form-header{padding:28px 32px 24px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:16px}
+.form-logo{width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0}
+.form-logo-placeholder{width:56px;height:56px;border-radius:8px;background:#3d3d3d;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.form-logo-placeholder svg{width:40px;height:40px}
+.form-title{font-size:22px;font-weight:700;color:#1f2937}
+.form-notice{font-size:12.5px;color:#6b7280;margin-top:4px;line-height:1.5}
+
+/* Body */
+.form-body{padding:28px 32px 32px}
+.field{margin-bottom:22px}
+.field label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px}
+.field label .req{color:#d92121;margin-left:2px}
+.field .hint{font-size:11.5px;color:#6b7280;margin-bottom:6px;font-style:italic}
+.field input[type="text"],
+.field input[type="tel"],
+.field input[type="date"],
+.field select,
+.field textarea{width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:13.5px;font-family:inherit;color:#1f2937;background:#f9fafb;transition:border .15s,background .15s;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#2563eb;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+.field input.error,.field select.error,.field textarea.error{border-color:#dc2626;background:#fff5f5}
+.field textarea{min-height:90px;resize:vertical;line-height:1.5}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;cursor:pointer}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:520px){.field-row{grid-template-columns:1fr}}
+
+/* Checkbox field */
+.checkbox-wrap{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #d1d5db;border-radius:7px;background:#f9fafb;cursor:pointer;transition:border .15s}
+.checkbox-wrap:hover{border-color:#2563eb;background:#eff6ff}
+.checkbox-wrap input[type="checkbox"]{width:17px;height:17px;cursor:pointer;accent-color:#2563eb;flex-shrink:0}
+.checkbox-wrap span{font-size:13.5px;color:#374151}
+
+/* Divider */
+.divider{border:none;border-top:1px solid #f0f0f0;margin:6px 0 22px}
+
+/* Submit */
+.btn-submit{width:100%;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.3px;transition:background .15s;margin-top:8px}
+.btn-submit:hover{background:#1d4ed8}
+.btn-submit:disabled{background:#93c5fd;cursor:wait}
+
+/* Messages */
+.msg{padding:14px 18px;border-radius:8px;font-size:13px;margin-bottom:20px;display:none;line-height:1.5}
+.msg.success{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;display:block}
+.msg.error-msg{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;display:block}
+
+@keyframes uiViewEnter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.ui-view-enter{animation:uiViewEnter .22s cubic-bezier(.2,0,0,1) both}
+@media (prefers-reduced-motion:reduce){.ui-view-enter{animation:none!important}}
+
+/* Footer */
+.form-footer{padding:16px 32px;border-top:1px solid #f0f0f0;font-size:11.5px;color:#9ca3af;display:flex;align-items:center;gap:6px}
+.form-footer a{color:#6b7280;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <!-- Header -->
+  <div class="form-header">
+    <img src="./descarga.png" alt="Altri Tempi" class="form-logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <div class="form-logo-placeholder" style="display:none">
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <rect width="200" height="200" fill="#3d3d3d"/>
+        <text x="100" y="95" font-family="Georgia,serif" font-size="38" font-weight="700" fill="white" text-anchor="middle" letter-spacing="4">ALTRI</text>
+        <text x="100" y="140" font-family="Georgia,serif" font-size="38" font-weight="700" fill="white" text-anchor="middle" letter-spacing="4">TEMPI</text>
+      </svg>
+    </div>
+    <div>
+      <div class="form-title">Solicitud de Despacho</div>
+      <div class="form-notice">Al enviar este formulario, la información se registrará automáticamente en el sistema.</div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="form-body">
+    <div class="msg" id="msgSuccess">
+      ✅ <strong>Solicitud enviada correctamente.</strong> La información ha sido registrada en el sistema. Puedes enviar otra solicitud si lo necesitas.
+      <br><a href="javascript:void(0)" onclick="resetForm()" style="color:#065f46;font-weight:600">← Enviar otra solicitud</a>
+    </div>
+    <div class="msg error-msg" id="msgError"></div>
+
+    <form id="despForm" novalidate>
+
+      <!-- Tipo de Solicitud -->
+      <div class="field">
+        <label>Tipo de Solicitud<span class="req">*</span></label>
+        <select id="tipoSolicitud" name="tipoSolicitud" required>
+          <option value="">— Seleccionar —</option>
+          <option value="Entrega">Entrega</option>
+          <option value="Devolucion">Devolucion</option>
+          <option value="Retiro de mercancía en proyecto">Retiro de mercancía en proyecto</option>
+          <option value="Traslado interno de mercancía">Traslado interno de mercancía</option>
+        </select>
+      </div>
+
+      <!-- No. Orden -->
+      <div class="field">
+        <label>No. Orden a Despachar<span class="req">*</span></label>
+        <div class="hint">Para Solicitud de Traslado interno colocar: INT</div>
+        <input type="text" id="noOrden" name="noOrden" placeholder="Ej: S09115 o INT" required>
+      </div>
+
+      <!-- Observación -->
+      <div class="field">
+        <label>Observación sobre la mercancía</label>
+        <textarea id="observacion" name="observacion" placeholder="Describe cualquier observación relevante sobre la mercancía..."></textarea>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Cliente + Ciudad -->
+      <div class="field-row">
+        <div class="field">
+          <label>Nombre del cliente / empresa<span class="req">*</span></label>
+          <input type="text" id="nombreCliente" name="nombreCliente" placeholder="Nombre completo" required>
+        </div>
+        <div class="field">
+          <label>Ciudad de Entrega<span class="req">*</span></label>
+          <input type="text" id="ciudadEntrega" name="ciudadEntrega" placeholder="Ej: Santo Domingo" required>
+        </div>
+      </div>
+
+      <!-- Dirección -->
+      <div class="field">
+        <label>Dirección de entrega<span class="req">*</span></label>
+        <input type="text" id="direccionEntrega" name="direccionEntrega" placeholder="Calle, No., Sector, Referencia" required>
+      </div>
+
+      <!-- Costo transporte -->
+      <div class="field">
+        <label>¿El costo del transporte está incluido en la orden?<span class="req">*</span></label>
+        <label class="checkbox-wrap">
+          <input type="checkbox" id="costoIncluido" name="costoIncluido">
+          <span>Sí, el costo de transporte está incluido en la orden</span>
+        </label>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Fecha + Vendedor -->
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha deseada de entrega<span class="req">*</span></label>
+          <input type="date" id="fechaEntrega" name="fechaEntrega" required>
+        </div>
+        <div class="field">
+          <label>Vendedor/a<span class="req">*</span></label>
+          <select id="vendedor" name="vendedor" required>
+            <option value="">— Seleccionar —</option>
+            <option value="Heidy Nuñez">Heidy Nuñez</option>
+            <option value="Daniela Castillo">Daniela Castillo</option>
+            <option value="Jhonathan Martinez">Jhonathan Martinez</option>
+            <option value="Evelyn Espinal">Evelyn Espinal</option>
+            <option value="Denisse Guzmán">Denisse Guzmán</option>
+          </select>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Quien recibe -->
+      <div class="field">
+        <label>Nombre de persona quien recibirá la mercancía</label>
+        <input type="text" id="nombreRecibe" name="nombreRecibe" placeholder="Nombre completo de quien recibe">
+      </div>
+
+      <div class="field">
+        <label>Contacto de persona que recibe<span class="req">*</span></label>
+        <input type="tel" id="contactoRecibe" name="contactoRecibe" placeholder="Teléfono o celular" required>
+      </div>
+
+      <button type="submit" class="btn-submit" id="submitBtn">Enviar Solicitud</button>
+    </form>
+  </div>
+
+  <!-- Footer -->
+  <div class="form-footer">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    Los datos enviados se guardarán de forma segura en Google Sheets · Altri Tempi
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+//  CONFIGURACIÓN  — pega aquí la URL de tu Google Apps Script Web App
+//  después de desplegarlo. Ver instrucciones en apps-script.gs
+// ─────────────────────────────────────────────────────────────────
+const APPS_SCRIPT_URL = 'REEMPLAZAR_CON_TU_URL_DE_APPS_SCRIPT';
+// ─────────────────────────────────────────────────────────────────
+
+const form = document.getElementById('despForm');
+const submitBtn = document.getElementById('submitBtn');
+const msgSuccess = document.getElementById('msgSuccess');
+const msgError = document.getElementById('msgError');
+
+function playEnter(el) {
+  if (!el || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+  el.classList.remove('ui-view-enter');
+  void el.offsetWidth;
+  el.classList.add('ui-view-enter');
+}
+
+// Validación visual
+function markField(id, valid) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('error', !valid);
+}
+
+function validateForm() {
+  let ok = true;
+  const req = [
+    { id: 'tipoSolicitud', check: v => v !== '' },
+    { id: 'noOrden',       check: v => v.trim() !== '' },
+    { id: 'nombreCliente', check: v => v.trim() !== '' },
+    { id: 'ciudadEntrega', check: v => v.trim() !== '' },
+    { id: 'direccionEntrega', check: v => v.trim() !== '' },
+    { id: 'fechaEntrega',  check: v => v !== '' },
+    { id: 'vendedor',      check: v => v !== '' },
+    { id: 'contactoRecibe', check: v => v.trim() !== '' },
+  ];
+  req.forEach(({ id, check }) => {
+    const el = document.getElementById(id);
+    const valid = check(el ? el.value : '');
+    markField(id, valid);
+    if (!valid) ok = false;
+  });
+  return ok;
+}
+
+// Limpiar error al escribir
+document.querySelectorAll('input, select, textarea').forEach(el => {
+  el.addEventListener('input', () => el.classList.remove('error'));
+  el.addEventListener('change', () => el.classList.remove('error'));
+});
+
+// Submit
+form.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  msgError.style.display = 'none';
+
+  if (!validateForm()) {
+    msgError.textContent = '⚠️ Por favor completa todos los campos obligatorios (marcados con *).';
+    msgError.style.display = 'block';
+    playEnter(msgError);
+    msgError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+
+  if (APPS_SCRIPT_URL === 'REEMPLAZAR_CON_TU_URL_DE_APPS_SCRIPT') {
+    msgError.innerHTML = '⚠️ <strong>Configuración pendiente:</strong> Sigue las instrucciones en el archivo <code>apps-script.gs</code> para conectar el formulario con Google Sheets, luego reemplaza la URL en este archivo.';
+    msgError.style.display = 'block';
+    playEnter(msgError);
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Enviando…';
+
+  const payload = {
+    tipoSolicitud:    document.getElementById('tipoSolicitud').value,
+    noOrden:          document.getElementById('noOrden').value.trim().toUpperCase(),
+    observacion:      document.getElementById('observacion').value.trim(),
+    nombreCliente:    document.getElementById('nombreCliente').value.trim(),
+    ciudadEntrega:    document.getElementById('ciudadEntrega').value.trim(),
+    costoIncluido:    document.getElementById('costoIncluido').checked ? 'Sí' : 'No',
+    direccionEntrega: document.getElementById('direccionEntrega').value.trim(),
+    fechaEntrega:     document.getElementById('fechaEntrega').value,
+    vendedor:         document.getElementById('vendedor').value,
+    nombreRecibe:     document.getElementById('nombreRecibe').value.trim(),
+    contactoRecibe:   document.getElementById('contactoRecibe').value.trim(),
+    timestamp:        new Date().toISOString()
+  };
+
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+    if (result.status === 'ok') {
+      form.style.display = 'none';
+      msgSuccess.style.display = 'block';
+      playEnter(msgSuccess);
+      msgSuccess.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      throw new Error(result.message || 'Error del servidor');
+    }
+  } catch (err) {
+    msgError.textContent = '❌ No se pudo enviar la solicitud: ' + err.message + '. Verifica tu conexión e intenta de nuevo.';
+    msgError.style.display = 'block';
+    playEnter(msgError);
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Enviar Solicitud';
+  }
+});
+
+function resetForm() {
+  form.reset();
+  form.style.display = 'block';
+  msgSuccess.style.display = 'none';
+  playEnter(form);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Fecha mínima = hoy
+document.getElementById('fechaEntrega').min = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
