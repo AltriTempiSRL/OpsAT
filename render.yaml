@@ -11,8 +11,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        generateValue: false   # Render lo asigna automáticamente
       - key: DATA_DIR
         value: /data
       - key: ODOO_URL
