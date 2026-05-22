@@ -17,6 +17,7 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 
 - `historial.backup-20260518.html` — backup original, solo lectura
 - `.claude/worktrees/` — worktrees anteriores, ignorar
+- `wwp.html` — DEPRECADO. Nunca editar para implementar funcionalidades de la plataforma. Toda la lógica de Workforce Platform vive en `historial.html`. Si algo hay que arreglar o agregar en WWP, el archivo correcto es SIEMPRE `historial.html`.
 
 ## Servidor
 
