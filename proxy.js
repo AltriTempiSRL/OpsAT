@@ -1069,7 +1069,9 @@ const server = http.createServer(async (req, res) => {
 
     health.allOk = health.odoo.ok && health.sheets.ok && health.contenedores.ok;
 
-    res.writeHead(health.allOk ? 200 : 502, {'Content-Type': 'application/json'});
+    // Siempre 200 — Render usa este endpoint para health check y un 502 aquí
+    // haría que Render considere el servicio caído aunque el servidor esté corriendo.
+    res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify(health));
     return;
   }
