@@ -2176,7 +2176,9 @@ const server = http.createServer(async (req, res) => {
         t.managerId   === uid ||
         t.createdBy   === uid ||
         odooStrToAuthId(t.assignedTo) === uid ||
-        (t.executors||[]).some(e => odooStrToAuthId(e) === uid) ||
+        // executors: puede ser oe_XXX (odoo) o auth user ID directo (sin odoo)
+        (t.executors||[]).some(e => e === uid || odooStrToAuthId(e) === uid) ||
+        // assignees: auth user IDs de auxiliares (guardados desde auxiliaryAssignees)
         (t.assignees||[]).includes(uid)
       );
     }
@@ -2363,7 +2365,8 @@ const server = http.createServer(async (req, res) => {
         const myOdooStr = 'oe_' + jp.odooId;
         const isParticipant = task.managerId === myAuthId ||
                               task.assignedTo === myOdooStr ||
-                              (task.executors||[]).some(e => e === myOdooStr || e === myAuthId);
+                              (task.executors||[]).some(e => e === myOdooStr || e === myAuthId) ||
+                              (task.assignees||[]).includes(myAuthId);
         if (!isParticipant) {
           res.writeHead(403,{'Content-Type':'application/json'});
           res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'}));
@@ -2422,7 +2425,9 @@ const server = http.createServer(async (req, res) => {
       if (d.managerId!==undefined) tasks[idx].managerId=d.managerId;
       if (d.managerName!==undefined) tasks[idx].managerName=d.managerName;
       if (d.executors!==undefined) tasks[idx].executors=Array.isArray(d.executors)?d.executors:[];
-      if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
+      // auxiliaryAssignees: auth user IDs de auxiliares (enviados por el frontend cuando role=manager asigna)
+      if (d.auxiliaryAssignees!==undefined) tasks[idx].assignees=Array.isArray(d.auxiliaryAssignees)?d.auxiliaryAssignees:[];
+      else if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
       if (d.title!==undefined) tasks[idx].title=d.title.trim();
       if (d.description!==undefined) tasks[idx].description=d.description;
       if (d.priority!==undefined) tasks[idx].priority=d.priority;
