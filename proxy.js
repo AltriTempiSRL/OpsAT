@@ -927,6 +927,7 @@ function parseContCSV(csv) {
 
 const LOCAL_CSV          = path.join(__dirname, 'contenedores.csv');
 const LOCAL_CSV_PROYECTO = path.join(__dirname, '..', '..', '..', 'contenedores.csv');
+const LOCAL_CSV_DATA     = path.join(DATA_DIR, 'contenedores.csv');   // disco persistente Render
 
 async function getContainerData() {
   const now = Date.now();
@@ -945,13 +946,19 @@ async function getContainerData() {
     }
   }
 
-  // 2️⃣  Archivo local contenedores.csv (worktree)
+  // 2️⃣  Disco persistente Render (/data/contenedores.csv) — sobrevive deploys
+  if (!csv && fs.existsSync(LOCAL_CSV_DATA)) {
+    csv    = fs.readFileSync(LOCAL_CSV_DATA, 'utf-8');
+    source = 'contenedores.csv (disco persistente)';
+  }
+
+  // 3️⃣  Archivo local junto al servidor (dev)
   if (!csv && fs.existsSync(LOCAL_CSV)) {
     csv    = fs.readFileSync(LOCAL_CSV, 'utf-8');
     source = 'contenedores.csv (local)';
   }
 
-  // 3️⃣  Fallback: contenedores.csv en la carpeta raíz del proyecto
+  // 4️⃣  Fallback: contenedores.csv en la carpeta raíz del proyecto
   if (!csv && fs.existsSync(LOCAL_CSV_PROYECTO)) {
     csv    = fs.readFileSync(LOCAL_CSV_PROYECTO, 'utf-8');
     source = 'contenedores.csv (proyecto)';
@@ -961,7 +968,7 @@ async function getContainerData() {
     throw new Error(
       'No hay fuente de datos configurada. ' +
       'Opciones: (A) agrega CONT_SHEETS_ID en .env.txt, ' +
-      'o (B) coloca contenedores.csv en la carpeta del servidor.'
+      'o (B) sube contenedores.csv al disco persistente (/data/) vía Render Shell.'
     );
   }
 
