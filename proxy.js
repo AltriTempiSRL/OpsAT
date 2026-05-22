@@ -1545,125 +1545,155 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── GET /api/report/dev-cdp — devoluciones de tiendas (no-CDP) recibidas en CDP ──
-  // Busca: stock.picking con picking_type_id=18 (CDP Devoluciones) state=done
-  // Scope: TODOS los OUT de cualquier tienda (PTN, STI, OUTLET, OUT27, ALVEN…)
-  // que hayan sido devueltos a CDP en vez de regresar a su tienda de origen.
+  // ── GET /api/report/dev-cdp — devoluciones de tiendas recibidas en CDP ──────
+  // Lógica correcta (verificada contra Odoo real):
+  //   Las devoluciones de clientes a CDP usan picking_type_id=6 (ALMACEN VENTAS: Returns)
+  //   con location_dest_id=691 (A-CDP/DEVOLUCION).
+  //   Para saber si venía de tienda (vs venta CDP), rastreamos:
+  //     RET picking → origin → OUT picking → group_id → PICK picking → move.lines → location
   if (reqPath === '/api/report/dev-cdp' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
 
-    // Mapa de prefijos conocidos → etiqueta de tienda
-    const STORE_PREFIXES = [
-      { re: /^PTN\/OUT\//i,    label: 'PTN' },
-      { re: /^STI\/OUT\//i,    label: 'STI' },
-      { re: /^NAC\/OUT\//i,    label: 'OUTLET' },
-      { re: /^OUTLE\/OUT\//i,  label: 'OUTLET' },
-      { re: /^OUT27\/OUT\//i,  label: 'OUT27' },
-      { re: /^ALVEN\/OUT\//i,  label: 'ALVEN' },
+    // Detecta tienda a partir del complete_name de la ubicación del PICK
+    const STORE_LOC_PATTERNS = [
+      { re: /D-PTN/i,         label: 'PTN' },
+      { re: /B-STI/i,         label: 'STI' },
+      { re: /NAC|OUTLET/i,    label: 'OUTLET' },
+      { re: /OUT27/i,         label: 'OUT27' },
+      { re: /A-CDP/i,         label: null },   // venta CDP → excluir
     ];
-
-    function detectStore(origin) {
-      if (!origin) return null;
-      for (const p of STORE_PREFIXES) {
-        if (p.re.test(origin)) return p.label;
+    function storeFromLoc(completeName) {
+      if (!completeName) return undefined;
+      for (const p of STORE_LOC_PATTERNS) {
+        if (p.re.test(completeName)) return p.label; // null = CDP, string = tienda
       }
-      // Genérico: si contiene /OUT/ es una salida de algún almacén
-      if (/\/OUT\//i.test(origin)) return origin.split('/')[0].toUpperCase();
-      return null;
+      return undefined; // desconocido
     }
 
     try {
-      const sinceParam = parsed.query.since || '';
-      const storeFilter = parsed.query.store || '';   // filtro opcional por tienda
+      const sinceParam  = parsed.query.since  || '';
+      const storeFilter = parsed.query.store  || '';
 
-      const baseFilter = [
-        ['picking_type_id', '=', 18],  // CDP Devoluciones
-        ['state', '=', 'done']
-      ];
-      if (sinceParam) baseFilter.push(['date_done', '>=', sinceParam + ' 00:00:00']);
+      // ── Paso 1: RET pickings que llegaron a A-CDP/DEVOLUCION (id=691) ────────
+      const retFilter = [['location_dest_id', '=', 691], ['state', '=', 'done']];
+      if (sinceParam) retFilter.push(['date_done', '>=', sinceParam + ' 00:00:00']);
 
-      // 1. Obtener los pickings de CDP Devoluciones
-      const pickings = await odooCall('stock.picking', 'search_read',
-        [baseFilter],
-        { fields: ['id','name','origin','location_id','location_dest_id','date_done','partner_id'], limit: 500, order: 'date_done desc' }
-      );
+      const rets = await odooCall('stock.picking', 'search_read', [retFilter],
+        { fields: ['id','name','origin','date_done','partner_id'], limit: 500, order: 'date_done desc' });
 
-      if (!pickings.length) {
+      if (!rets.length) {
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok: true, rows: [], total: 0, byStore: {}, pickingCount: 0 }));
+        res.end(JSON.stringify({ ok:true, rows:[], total:0, byStore:{}, retCount:0 }));
         return;
       }
 
-      // 2. Obtener líneas de movimiento
-      const pickingIds = pickings.map(p => p.id);
-      const moveLines = await odooCall('stock.move.line', 'search_read',
-        [[['picking_id', 'in', pickingIds], ['state', '=', 'done']]],
-        { fields: ['id','picking_id','product_id','qty_done','lot_name','lot_id'], limit: 2000 }
-      );
+      // ── Paso 2: Extraer referencia OUT del campo origin ─────────────────────
+      // origin típico: "Retorno de ALVEN/OUT/06996"
+      const retToOutRef = {};
+      const outNamesSet = new Set();
+      rets.forEach(r => {
+        const m = (r.origin || '').match(/ALVEN\/(?:OUT|RET)\/\d+/);
+        if (m) { retToOutRef[r.id] = m[0]; outNamesSet.add(m[0]); }
+      });
 
-      // 3. Info de productos
-      const prodIds = [...new Set(moveLines.map(l => l.product_id[0]))];
+      // ── Paso 3: OUT pickings → group_id ────────────────────────────────────
+      const outNames = [...outNamesSet];
+      const outs = outNames.length ? await odooCall('stock.picking', 'search_read',
+        [[['name', 'in', outNames]]],
+        { fields: ['id','name','group_id'], limit: 500 }) : [];
+
+      const outNameToGroup = {};
+      const groupIds = new Set();
+      outs.forEach(o => {
+        if (o.group_id) { outNameToGroup[o.name] = o.group_id[0]; groupIds.add(o.group_id[0]); }
+      });
+
+      // ── Paso 4: PICK pickings por group_id ─────────────────────────────────
+      const picks = groupIds.size ? await odooCall('stock.picking', 'search_read',
+        [[['group_id', 'in', [...groupIds]], ['name', 'like', 'ALVEN/PICK/']]],
+        { fields: ['id','name','group_id'], limit: 2000 }) : [];
+
+      const pickToGroup = {};
+      picks.forEach(p => { if (p.group_id) pickToGroup[p.id] = p.group_id[0]; });
+
+      // ── Paso 5: Move lines del PICK → ubicación de origen (tienda) ──────────
+      const pickIds = picks.map(p => p.id);
+      const pickMoveLines = pickIds.length ? await odooCall('stock.move.line', 'search_read',
+        [[['picking_id', 'in', pickIds], ['state', '=', 'done']]],
+        { fields: ['id','picking_id','location_id'], limit: 5000 }) : [];
+
+      // ── Paso 6: Nombres completos de ubicaciones ────────────────────────────
+      const locIds = [...new Set(pickMoveLines.map(ml => ml.location_id[0]))];
+      const locs = locIds.length ? await odooCall('stock.location', 'search_read',
+        [[['id', 'in', locIds]]],
+        { fields: ['id','complete_name'], limit: 500 }) : [];
+      const locMap = {};
+      locs.forEach(l => locMap[l.id] = l.complete_name);
+
+      // ── Paso 7: group_id → tienda ───────────────────────────────────────────
+      const groupToStore = {};
+      pickMoveLines.forEach(ml => {
+        const gid = pickToGroup[ml.picking_id[0]];
+        if (gid === undefined || gid in groupToStore) return;
+        const s = storeFromLoc(locMap[ml.location_id[0]]);
+        if (s !== undefined) groupToStore[gid] = s;   // null = CDP, string = tienda
+      });
+
+      // ── Paso 8: Move lines del RET → detalle de productos ──────────────────
+      const retIds = rets.map(r => r.id);
+      const retMoveLines = await odooCall('stock.move.line', 'search_read',
+        [[['picking_id', 'in', retIds], ['state', '=', 'done']]],
+        { fields: ['id','picking_id','product_id','qty_done'], limit: 2000 });
+
+      const prodIds = [...new Set(retMoveLines.map(ml => ml.product_id[0]))];
       const prods = prodIds.length ? await odooCall('product.product', 'search_read',
         [[['id', 'in', prodIds]]],
-        { fields: ['id','default_code','name','barcode'], limit: prodIds.length }
-      ) : [];
+        { fields: ['id','default_code','name'], limit: prodIds.length }) : [];
       const prodMap = {};
       prods.forEach(p => prodMap[p.id] = p);
 
-      // 4. Agrupar líneas por picking
-      const linesByPicking = {};
-      moveLines.forEach(l => {
-        const pid = l.picking_id[0];
-        if (!linesByPicking[pid]) linesByPicking[pid] = [];
-        linesByPicking[pid].push(l);
+      const mlByRet = {};
+      retMoveLines.forEach(ml => {
+        if (!mlByRet[ml.picking_id[0]]) mlByRet[ml.picking_id[0]] = [];
+        mlByRet[ml.picking_id[0]].push(ml);
       });
 
-      // 5. Construir filas
+      // ── Paso 9: Construir filas — solo devoluciones de tienda (no CDP) ──────
       const rows = [];
-      pickings.forEach(pk => {
-        const lines = linesByPicking[pk.id] || [];
-        const store = detectStore(pk.origin);           // 'PTN' | 'STI' | 'OUTLET' | null
-        // Si se pide filtrar por tienda específica
+      const byStore = {};
+
+      rets.forEach(ret => {
+        const outRef  = retToOutRef[ret.id];
+        const groupId = outRef ? outNameToGroup[outRef] : undefined;
+        const store   = groupId !== undefined ? groupToStore[groupId] : undefined;
+
+        // store === null → venta CDP (excluir)
+        // store === undefined → no se pudo determinar (excluir)
+        if (!store) return;
         if (storeFilter && store !== storeFilter) return;
-        lines.forEach(l => {
-          const prod = prodMap[l.product_id[0]] || {};
+
+        const lines = mlByRet[ret.id] || [];
+        lines.forEach(ml => {
+          const prod = prodMap[ml.product_id[0]] || {};
           rows.push({
-            pickingId:   pk.id,
-            devRef:      pk.name,
-            origin:      pk.origin || '',
-            store:       store,                          // tienda de origen detectada
-            dateDone:    pk.date_done || '',
-            partner:     pk.partner_id ? pk.partner_id[1] : '',
-            locationSrc: pk.location_id ? pk.location_id[1] : '',
-            locationDst: pk.location_dest_id ? pk.location_dest_id[1] : '',
-            productId:   prod.id || l.product_id[0],
+            retRef:      ret.name,            // ALVEN/RET/XXXXX
+            outRef:      outRef || '',        // ALVEN/OUT/XXXXX (venta original)
+            store,                            // PTN | STI | OUTLET | OUT27
+            dateDone:    ret.date_done || '',
+            partner:     ret.partner_id ? ret.partner_id[1] : '',
             productRef:  prod.default_code || '',
-            productName: prod.name || l.product_id[1] || '',
-            barcode:     prod.barcode || '',
-            qty:         l.qty_done || 0,
-            lot:         l.lot_name || (l.lot_id ? l.lot_id[1] : '')
+            productName: prod.name || ml.product_id[1] || '',
+            qty:         ml.qty_done || 0
           });
+          byStore[store] = (byStore[store] || 0) + 1;
         });
       });
 
-      // 6. Conteo por tienda
-      const byStore = {};
-      rows.forEach(r => {
-        const k = r.store || 'Sin origen';
-        byStore[k] = (byStore[k] || 0) + 1;
-      });
-
       res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({
-        ok: true,
-        rows,
-        total:        rows.length,
-        byStore,
-        pickingCount: pickings.length
-      }));
+      res.end(JSON.stringify({ ok:true, rows, total:rows.length, byStore, retCount:rets.length }));
     } catch(e) {
       res.writeHead(502, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok: false, error: e.message }));
+      res.end(JSON.stringify({ ok:false, error:e.message }));
     }
     return;
   }

@@ -9022,8 +9022,8 @@ async function loadDevCdpReport() {
         '<div style="font-size:11px;color:var(--text-3)">unidades totales</div>' +
       '</div>' +
       '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:110px">' +
-        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + (d.pickingCount||0) + '</div>' +
-        '<div style="font-size:11px;color:var(--text-3)">devoluciones CDP</div>' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + (d.retCount||0) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">devol. recibidas CDP</div>' +
       '</div>';
 
     // Un chip por tienda identificada
@@ -9070,7 +9070,7 @@ function renderDevCdpTable() {
     else if (originF === 'none') { if (r.store) return false; }
     else { if (r.store !== originF) return false; }
     if (filterTxt) {
-      var hay = (r.productName + r.productRef + r.barcode + r.origin + r.devRef + r.partner + (r.store||'')).toLowerCase();
+      var hay = (r.productName + r.productRef + r.outRef + r.retRef + r.partner + (r.store||'')).toLowerCase();
       if (!hay.includes(filterTxt)) return false;
     }
     return true;
@@ -9084,29 +9084,27 @@ function renderDevCdpTable() {
   }
 
   var html = '';
-  rows.forEach(function(r) {
-    var selKey = r.pickingId + '_' + r.productId;
+  rows.forEach(function(r, idx) {
+    var selKey  = String(idx);
     var checked = _devCdpSel.has(selKey);
-    var rowBg   = r.store ? 'background:rgba(245,158,11,.04)' : '';
     var storeBadge = r.store
       ? '<span style="font-size:10px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);padding:2px 7px;border-radius:4px;margin-right:5px">' + esc(r.store) + '</span>'
       : '';
-    var originBadge = storeBadge + (r.origin
-      ? '<span style="font-size:11px;color:var(--text-2)">' + esc(r.origin) + '</span>'
-      : '<span style="font-size:11px;color:var(--text-3);font-style:italic">sin origen</span>');
+    var outBadge = storeBadge + (r.outRef
+      ? '<span style="font-size:11px;color:var(--text-2)">' + esc(r.outRef) + '</span>'
+      : '');
     var fecha = r.dateDone ? r.dateDone.slice(0,10) : '—';
     html +=
-      '<tr style="border-bottom:1px solid var(--border);' + rowBg + '" data-sel-key="' + esc(selKey) + '">' +
+      '<tr style="border-bottom:1px solid var(--border)" data-sel-key="' + esc(selKey) + '">' +
         '<td style="padding:9px 12px;white-space:nowrap">' +
           '<label style="display:flex;align-items:center;gap:7px;cursor:pointer">' +
             '<input type="checkbox" ' + (checked?'checked':'') + ' onchange="devCdpToggleSel(\'' + selKey + '\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">' +
-            '<span style="font-size:12px;font-weight:600;color:var(--accent)">' + esc(r.devRef) + '</span>' +
+            '<span style="font-size:12px;font-weight:600;color:var(--accent)">' + esc(r.retRef) + '</span>' +
           '</label>' +
         '</td>' +
-        '<td style="padding:9px 12px">' + originBadge + '</td>' +
+        '<td style="padding:9px 12px">' + outBadge + '</td>' +
         '<td style="padding:9px 12px;max-width:220px">' +
           '<div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.productName) + '">' + esc(r.productName) + '</div>' +
-          (r.lot ? '<div style="font-size:10px;color:var(--text-3)">Lote: ' + esc(r.lot) + '</div>' : '') +
         '</td>' +
         '<td style="padding:9px 12px;font-size:12px;color:var(--text-2);white-space:nowrap">' + esc(r.productRef || '—') + '</td>' +
         '<td style="padding:9px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--text)">' + (r.qty||0).toFixed(0) + '</td>' +
@@ -9142,11 +9140,8 @@ function devCdpClearSel() {
 }
 
 function _devCdpRowByKey(key) {
-  var parts = key.split('_'); // pickingId_productId — puede tener más partes
-  // pickingId puede ser numérico, productId también. Clave: último segment es productId
-  var productId = parseInt(parts[parts.length-1]);
-  var pickingId = parseInt(parts[0]);
-  return _devCdpRows.find(function(r){ return r.pickingId===pickingId && r.productId===productId; });
+  // Clave = índice numérico en _devCdpRows
+  return _devCdpRows[parseInt(key, 10)] || null;
 }
 
 function devCdpCrearTarea(selKey) {
@@ -9155,7 +9150,7 @@ function devCdpCrearTarea(selKey) {
   var dest   = row.store || 'Tienda';
   var titulo = 'Devolver a ' + dest + ': ' + (row.productRef || row.productName.slice(0,40));
   var desc   = 'Artículo devuelto en CDP en vez de ' + dest + '.\n' +
-               'Devolución: ' + row.devRef + (row.origin ? ' (origen: ' + row.origin + ')' : '') + '\n' +
+               'Devolución: ' + row.retRef + (row.outRef ? ' (venta original: ' + row.outRef + ')' : '') + '\n' +
                'Artículo: ' + row.productName + '\n' +
                'Cantidad: ' + (row.qty||0).toFixed(0);
   goToWWP();
@@ -9169,7 +9164,7 @@ function devCdpCrearTarea(selKey) {
     document.getElementById('mf-title').value = titulo;
     document.getElementById('mf-desc').value  = desc;
     document.getElementById('mf-location').value = 'CDP → ' + dest;
-    if (row.origin) document.getElementById('mf-odoo-ref').value = row.origin;
+    if (row.outRef) document.getElementById('mf-odoo-ref').value = row.outRef;
     document.getElementById('mf-accion-note').value = 'Trasladar de A-CDP/DEVOLUCION a ' + dest + '/DEVOLUCION';
     document.getElementById('modal-task').classList.add('open');
     var mc = document.querySelector('#modal-task .modal-card');
@@ -9180,7 +9175,7 @@ function devCdpCrearTarea(selKey) {
 function devCdpCrearTareaSeleccion() {
   if (!_devCdpSel.size) return;
   var rows  = Array.from(_devCdpSel).map(_devCdpRowByKey).filter(Boolean);
-  var refs  = [...new Set(rows.map(function(r){ return r.origin||r.devRef; }))].slice(0,5).join(', ');
+  var refs  = [...new Set(rows.map(function(r){ return r.retRef||r.outRef; }))].slice(0,5).join(', ');
   var items = rows.map(function(r){ return (r.productRef||'') + ' ' + r.productName + ' ×' + (r.qty||0).toFixed(0); }).join('\n');
   // Detectar tiendas únicas en la selección
   var stores = [...new Set(rows.map(function(r){ return r.store; }).filter(Boolean))];
