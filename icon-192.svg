@@ -1,11 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="36" fill="#1e3a5f"/>
-  <rect x="24" y="100" width="144" height="68" rx="8" fill="#2563eb"/>
-  <rect x="56" y="68" width="32" height="48" rx="4" fill="#2563eb"/>
-  <rect x="104" y="68" width="32" height="48" rx="4" fill="#2563eb"/>
-  <rect x="72" y="120" width="48" height="48" rx="4" fill="#1e3a5f"/>
-  <rect x="16" y="96" width="160" height="8" rx="4" fill="#60a5fa"/>
-  <circle cx="96" cy="52" r="20" fill="#60a5fa"/>
-  <rect x="88" y="44" width="4" height="16" rx="2" fill="#1e3a5f"/>
-  <rect x="88" y="44" width="16" height="4" rx="2" fill="#1e3a5f"/>
+  <!-- Fondo con esquinas redondeadas (maskable safe zone: 192×192) -->
+  <rect width="192" height="192" rx="38" fill="#2d2d2d"/>
+  <!-- Línea decorativa superior -->
+  <rect x="32" y="58" width="128" height="3" rx="1.5" fill="#888"/>
+  <!-- ALTRI -->
+  <text x="96" y="106"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="40" font-weight="700"
+    fill="white" text-anchor="middle" letter-spacing="5">ALTRI</text>
+  <!-- TEMPI -->
+  <text x="96" y="148"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="40" font-weight="700"
+    fill="white" text-anchor="middle" letter-spacing="5">TEMPI</text>
+  <!-- Línea decorativa inferior -->
+  <rect x="32" y="158" width="128" height="3" rx="1.5" fill="#888"/>
 </svg>
