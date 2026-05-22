@@ -1538,6 +1538,103 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── GET /api/report/dev-cdp — devoluciones que llegaron a CDP en vez de PTN ──
+  // Busca: stock.picking con picking_type_id=18 (CDP Devoluciones) state=done
+  // Cuyo origin contiene "PTN/OUT/" → salida de tienda devuelta al almacén por error
+  // Si no hay origin PTN/OUT, devuelve TODOS los CDP Devoluciones (origin cualquiera)
+  // para que el usuario vea el panorama completo.
+  if (reqPath === '/api/report/dev-cdp' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const sinceParam = parsed.query.since || '';   // YYYY-MM-DD opcional
+      const baseFilter = [
+        ['picking_type_id', '=', 18],  // CDP Devoluciones
+        ['state', '=', 'done']
+      ];
+      if (sinceParam) baseFilter.push(['date_done', '>=', sinceParam + ' 00:00:00']);
+
+      // 1. Obtener los pickings de CDP Devoluciones
+      const pickings = await odooCall('stock.picking', 'search_read',
+        [baseFilter],
+        { fields: ['id','name','origin','location_id','location_dest_id','date_done','partner_id'], limit: 500, order: 'date_done desc' }
+      );
+
+      if (!pickings.length) {
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok: true, rows: [], total: 0 }));
+        return;
+      }
+
+      // 2. Obtener líneas de movimiento para todos esos pickings
+      const pickingIds = pickings.map(p => p.id);
+      const moveLines = await odooCall('stock.move.line', 'search_read',
+        [[['picking_id', 'in', pickingIds], ['state', '=', 'done']]],
+        { fields: ['id','picking_id','product_id','qty_done','lot_name','lot_id'], limit: 2000 }
+      );
+
+      // 3. Obtener info de productos
+      const prodIds = [...new Set(moveLines.map(l => l.product_id[0]))];
+      const prods = prodIds.length ? await odooCall('product.product', 'search_read',
+        [[['id', 'in', prodIds]]],
+        { fields: ['id','default_code','name','barcode'], limit: prodIds.length }
+      ) : [];
+      const prodMap = {};
+      prods.forEach(p => prodMap[p.id] = p);
+
+      // 4. Agrupar líneas por picking
+      const linesByPicking = {};
+      moveLines.forEach(l => {
+        const pid = l.picking_id[0];
+        if (!linesByPicking[pid]) linesByPicking[pid] = [];
+        linesByPicking[pid].push(l);
+      });
+
+      // 5. Construir filas del reporte
+      const rows = [];
+      pickings.forEach(pk => {
+        const lines = linesByPicking[pk.id] || [];
+        const isPtnOrigin = pk.origin && /PTN\/OUT\//i.test(pk.origin);
+        lines.forEach(l => {
+          const prod = prodMap[l.product_id[0]] || {};
+          rows.push({
+            pickingId:   pk.id,
+            devRef:      pk.name,                        // CDP/IN/XXXXX
+            origin:      pk.origin || '',                // PTN/OUT/XXXXX o vacío
+            isPtnOrigin: isPtnOrigin,
+            dateDone:    pk.date_done || '',
+            partner:     pk.partner_id ? pk.partner_id[1] : '',
+            locationSrc: pk.location_id ? pk.location_id[1] : '',
+            locationDst: pk.location_dest_id ? pk.location_dest_id[1] : '',
+            productId:   prod.id || l.product_id[0],
+            productRef:  prod.default_code || '',
+            productName: prod.name || l.product_id[1] || '',
+            barcode:     prod.barcode || '',
+            qty:         l.qty_done || 0,
+            lot:         l.lot_name || (l.lot_id ? l.lot_id[1] : '')
+          });
+        });
+      });
+
+      // 6. Estadísticas
+      const ptnRows   = rows.filter(r => r.isPtnOrigin);
+      const otherRows = rows.filter(r => !r.isPtnOrigin);
+
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({
+        ok: true,
+        rows,
+        total:      rows.length,
+        ptnCount:   ptnRows.length,
+        otherCount: otherRows.length,
+        pickingCount: pickings.length
+      }));
+    } catch(e) {
+      res.writeHead(502, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
   // ── GET /api/averias — lista todas las averías ───────────────────────────
   if (reqPath === '/api/averias' && req.method === 'GET') {
     res.writeHead(200,{'Content-Type':'application/json'});

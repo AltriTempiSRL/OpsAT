@@ -2772,6 +2772,9 @@ body{font-family:var(--font);min-height:100dvh}
     <a class="nav-item" id="nav-pendientes-out" href="#sec-pendientes-out" onclick="navTo('pendientes-out');return false;">
       <span class="nav-icon"><i data-lucide="truck"></i></span>Pendientes Out
     </a>
+    <a class="nav-item" id="nav-dev-cdp" href="#sec-dev-cdp" onclick="navTo('dev-cdp');return false;">
+      <span class="nav-icon"><i data-lucide="arrow-left-right"></i></span>Dev→CDP
+    </a>
 
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
@@ -2797,6 +2800,7 @@ body{font-family:var(--font);min-height:100dvh}
     <button class="mob-nav-btn"        id="mob-nav-ordenes"       onclick="navTo('ordenes')"><i data-lucide="clipboard-list"></i>Órdenes</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
     <button class="mob-nav-btn"        id="mob-nav-pendientes-out" onclick="navTo('pendientes-out')"><i data-lucide="truck"></i>Pend. Out</button>
+    <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
   </div>
 
   <main>
@@ -3086,6 +3090,83 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
     </div>
     </div><!-- /section-pendientes-out -->
+
+    <!-- ══════════════════════════════════════════════════
+         DEV → CDP  (Devoluciones PTN en almacén)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-dev-cdp" class="page-section" style="display:none">
+    <div id="sec-dev-cdp" class="divider"><div class="divider-line"></div><span class="divider-label">DEVOLUCIONES PTN EN CDP</span><div class="divider-line"></div></div>
+
+    <div style="padding:18px 0 0">
+
+      <!-- Header + controles -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div>
+          <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text)">
+            <i data-lucide="arrow-left-right" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
+            Devoluciones de tienda (PTN) recibidas en almacén (CDP)
+          </h2>
+          <p style="margin:0;font-size:12px;color:var(--text-3)">
+            Artículos que salieron por <strong>PTN/OUT</strong> y cuya devolución fue registrada en <strong>A-CDP/DEVOLUCION</strong> en vez de D-PTN/DEVOLUCION
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:12px;color:var(--text-3)">Desde:</label>
+          <input type="date" id="devcdp-since" class="form-select" style="width:140px;font-size:12px"
+            onchange="loadDevCdpReport()">
+          <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="loadDevCdpReport()">
+            <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div id="devcdp-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+      <!-- Filtros de tabla -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <input type="text" id="devcdp-filter" class="form-input" placeholder="Filtrar por artículo, ref, orden…"
+          style="max-width:260px;font-size:12px;padding:6px 10px"
+          oninput="renderDevCdpTable()">
+        <select id="devcdp-origin-filter" class="form-select" style="font-size:12px;padding:6px 10px" onchange="renderDevCdpTable()">
+          <option value="all">Todos los orígenes</option>
+          <option value="ptn">Solo PTN/OUT</option>
+          <option value="other">Otros orígenes</option>
+        </select>
+        <span id="devcdp-count" style="font-size:12px;color:var(--text-3);margin-left:4px"></span>
+      </div>
+
+      <!-- Tabla -->
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Devolución CDP</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Origen (salida PTN)</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2)">Artículo</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2)">Ref.</th>
+              <th style="padding:10px 8px;text-align:center;font-weight:600;color:var(--text-2)">Qty</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Fecha</th>
+              <th style="padding:10px 12px;text-align:center;font-weight:600;color:var(--text-2)">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="devcdp-tbody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Selección múltiple + crear tarea -->
+      <div id="devcdp-bulk-bar" style="display:none;margin-top:14px;padding:12px 16px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="devcdp-sel-count" style="font-size:13px;font-weight:600;color:var(--text)"></span>
+        <button class="btn-primary" style="font-size:12px;padding:7px 14px;background:var(--accent)" onclick="devCdpCrearTareaSeleccion()">
+          <i data-lucide="plus-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Crear tarea WWP con selección
+        </button>
+        <button onclick="devCdpClearSel()" style="font-size:12px;color:var(--text-3);background:none;border:none;cursor:pointer;text-decoration:underline">Limpiar selección</button>
+      </div>
+
+    </div>
+    </div><!-- /section-dev-cdp -->
 
     <!-- ══════════════════════════════════════════════════
          REPORTES OPERACIONALES
@@ -6385,6 +6466,14 @@ window.addEventListener('DOMContentLoaded',function(){
   renderPendientes();
   renderOrdenesActivas();
   initDespFiltro();
+  // Fecha default del reporte Dev→CDP: último mes
+  (function(){
+    var el = document.getElementById('devcdp-since');
+    if (el && !el.value) {
+      var d = new Date(); d.setDate(d.getDate()-30);
+      el.value = d.toISOString().slice(0,10);
+    }
+  })();
   checkOdooConnection().then(function(){
     cargarPendientesOut();
     cargarSinAdjuntos();
@@ -8828,7 +8917,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','pendientes','sin-adjuntos','pendientes-out','validacion','averias','reportes'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','pendientes','sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -8841,7 +8930,8 @@ var NAV_SECTION_MAP={
   'pendientes-out':  'pendientes-out',
   'validacion':      'validacion',
   'averias':         'averias',
-  'reportes':        'reportes'
+  'reportes':        'reportes',
+  'dev-cdp':         'dev-cdp'
 };
 
 var CURRENT_SECTION='buscar';
@@ -8858,6 +8948,201 @@ function showSection(sectionId){
 }
 
 /** Navega a una sección desde el sidebar */
+// ═══════════════════════════════════════════════════════════════════════
+// DEV → CDP  — Devoluciones de PTN recibidas en almacén CDP
+// ═══════════════════════════════════════════════════════════════════════
+var _devCdpRows    = [];   // todos los rows del reporte
+var _devCdpSel     = new Set(); // pickingId+productId seleccionados
+
+async function loadDevCdpReport() {
+  const tbody   = document.getElementById('devcdp-tbody');
+  const kpiZone = document.getElementById('devcdp-kpis');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)"><div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
+  kpiZone.innerHTML = '';
+  _devCdpRows = [];
+  _devCdpSel.clear();
+  document.getElementById('devcdp-bulk-bar').style.display = 'none';
+
+  const since = document.getElementById('devcdp-since').value || '';
+  try {
+    const r = await authFetch('/api/report/dev-cdp' + (since ? '?since=' + since : ''));
+    const d = await r.json();
+    if (!d.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">' + esc(d.error||'Error al cargar') + '</td></tr>'; return; }
+
+    _devCdpRows = d.rows || [];
+
+    // KPIs
+    const ptnCount   = d.ptnCount   || 0;
+    const otherCount = d.otherCount || 0;
+    const totalQty   = _devCdpRows.reduce(function(s,r){ return s + (r.qty||0); }, 0);
+    kpiZone.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;min-width:140px">' +
+        '<i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:var(--amber-text);flex-shrink:0"></i>' +
+        '<div><div style="font-size:20px;font-weight:800;color:var(--amber-text)">' + ptnCount + '</div>' +
+        '<div style="font-size:11px;color:var(--amber-text);font-weight:600">artículos PTN/OUT→CDP</div></div>' +
+      '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + totalQty.toFixed(0) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">unidades totales</div>' +
+      '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + d.pickingCount + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">devoluciones CDP</div>' +
+      '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text-3)">' + otherCount + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">origen no PTN</div>' +
+      '</div>';
+    if (window.lucide) lucide.createIcons();
+
+    renderDevCdpTable();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderDevCdpTable() {
+  const tbody     = document.getElementById('devcdp-tbody');
+  const filterTxt = (document.getElementById('devcdp-filter').value || '').toLowerCase().trim();
+  const originF   = document.getElementById('devcdp-origin-filter').value;
+  const countEl   = document.getElementById('devcdp-count');
+
+  var rows = _devCdpRows.filter(function(r) {
+    if (originF === 'ptn'   && !r.isPtnOrigin)  return false;
+    if (originF === 'other' &&  r.isPtnOrigin)  return false;
+    if (filterTxt) {
+      var hay = (r.productName + r.productRef + r.barcode + r.origin + r.devRef + r.partner).toLowerCase();
+      if (!hay.includes(filterTxt)) return false;
+    }
+    return true;
+  });
+
+  countEl.textContent = rows.length + ' fila' + (rows.length!==1?'s':'');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Sin resultados para este filtro.</td></tr>';
+    return;
+  }
+
+  var html = '';
+  rows.forEach(function(r) {
+    var selKey = r.pickingId + '_' + r.productId;
+    var checked = _devCdpSel.has(selKey);
+    var rowBg   = r.isPtnOrigin ? 'background:rgba(245,158,11,.05)' : '';
+    var originBadge = r.origin
+      ? (r.isPtnOrigin
+          ? '<span style="font-size:11px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);padding:2px 6px;border-radius:4px">' + esc(r.origin) + '</span>'
+          : '<span style="font-size:11px;color:var(--text-3)">' + esc(r.origin) + '</span>')
+      : '<span style="font-size:11px;color:var(--text-3);font-style:italic">sin origen</span>';
+    var fecha = r.dateDone ? r.dateDone.slice(0,10) : '—';
+    html +=
+      '<tr style="border-bottom:1px solid var(--border);' + rowBg + '" data-sel-key="' + esc(selKey) + '">' +
+        '<td style="padding:9px 12px;white-space:nowrap">' +
+          '<label style="display:flex;align-items:center;gap:7px;cursor:pointer">' +
+            '<input type="checkbox" ' + (checked?'checked':'') + ' onchange="devCdpToggleSel(\'' + selKey + '\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">' +
+            '<span style="font-size:12px;font-weight:600;color:var(--accent)">' + esc(r.devRef) + '</span>' +
+          '</label>' +
+        '</td>' +
+        '<td style="padding:9px 12px">' + originBadge + '</td>' +
+        '<td style="padding:9px 12px;max-width:220px">' +
+          '<div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.productName) + '">' + esc(r.productName) + '</div>' +
+          (r.lot ? '<div style="font-size:10px;color:var(--text-3)">Lote: ' + esc(r.lot) + '</div>' : '') +
+        '</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--text-2);white-space:nowrap">' + esc(r.productRef || '—') + '</td>' +
+        '<td style="padding:9px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--text)">' + (r.qty||0).toFixed(0) + '</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--text-3);white-space:nowrap">' + fecha + '</td>' +
+        '<td style="padding:9px 12px;text-align:center">' +
+          '<button onclick="devCdpCrearTarea(\'' + esc(selKey) + '\')" title="Crear tarea WWP" ' +
+            'style="padding:5px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap">' +
+            '<i data-lucide="plus-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Tarea' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  });
+  tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function devCdpToggleSel(key, checked) {
+  if (checked) _devCdpSel.add(key); else _devCdpSel.delete(key);
+  var bar  = document.getElementById('devcdp-bulk-bar');
+  var span = document.getElementById('devcdp-sel-count');
+  if (_devCdpSel.size > 0) {
+    bar.style.display = 'flex';
+    span.textContent  = _devCdpSel.size + ' artículo' + (_devCdpSel.size!==1?'s':'') + ' seleccionado' + (_devCdpSel.size!==1?'s':'');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function devCdpClearSel() {
+  _devCdpSel.clear();
+  document.getElementById('devcdp-bulk-bar').style.display = 'none';
+  document.querySelectorAll('#devcdp-tbody input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+}
+
+function _devCdpRowByKey(key) {
+  var parts = key.split('_'); // pickingId_productId — puede tener más partes
+  // pickingId puede ser numérico, productId también. Clave: último segment es productId
+  var productId = parseInt(parts[parts.length-1]);
+  var pickingId = parseInt(parts[0]);
+  return _devCdpRows.find(function(r){ return r.pickingId===pickingId && r.productId===productId; });
+}
+
+function devCdpCrearTarea(selKey) {
+  var row = _devCdpRowByKey(selKey);
+  if (!row) return;
+  var titulo = 'Devolver a PTN: ' + (row.productRef || row.productName.slice(0,40));
+  var desc   = 'Artículo devuelto en CDP en vez de PTN.\n' +
+               'Devolución: ' + row.devRef + (row.origin ? ' (origen: ' + row.origin + ')' : '') + '\n' +
+               'Artículo: ' + row.productName + '\n' +
+               'Cantidad: ' + (row.qty||0).toFixed(0);
+  goToWWP();
+  setTimeout(function() {
+    if (!can('create_task')) return;
+    _editingTask = null;
+    resetTaskModal();
+    document.getElementById('modal-task-title').textContent = 'Nueva Tarea';
+    document.getElementById('mf-type').value = 'warehouse_move';
+    onTypeChange();
+    document.getElementById('mf-title').value = titulo;
+    document.getElementById('mf-desc').value  = desc;
+    document.getElementById('mf-location').value = 'CDP → PTN';
+    if (row.origin) document.getElementById('mf-odoo-ref').value = row.origin;
+    document.getElementById('mf-accion-note').value = 'Trasladar de A-CDP/DEVOLUCION a D-PTN/DEVOLUCION';
+    document.getElementById('modal-task').classList.add('open');
+    var mc = document.querySelector('#modal-task .modal-card');
+    if (mc) mc.scrollTop = 0;
+  }, 350);
+}
+
+function devCdpCrearTareaSeleccion() {
+  if (!_devCdpSel.size) return;
+  var rows  = Array.from(_devCdpSel).map(_devCdpRowByKey).filter(Boolean);
+  var refs  = [...new Set(rows.map(function(r){ return r.origin||r.devRef; }))].slice(0,5).join(', ');
+  var items = rows.map(function(r){ return (r.productRef||'') + ' ' + r.productName + ' ×' + (r.qty||0).toFixed(0); }).join('\n');
+  var titulo = 'Devolver a PTN (' + rows.length + ' artículo' + (rows.length!==1?'s':'') + ')';
+  var desc   = 'Artículos devueltos en CDP que deben trasladarse a PTN.\n' +
+               'Referencias: ' + refs + '\n\n' + items;
+  goToWWP();
+  setTimeout(function() {
+    if (!can('create_task')) return;
+    _editingTask = null;
+    resetTaskModal();
+    document.getElementById('modal-task-title').textContent = 'Nueva Tarea';
+    document.getElementById('mf-type').value = 'warehouse_move';
+    onTypeChange();
+    document.getElementById('mf-title').value = titulo;
+    document.getElementById('mf-desc').value  = desc;
+    document.getElementById('mf-location').value = 'CDP → PTN';
+    document.getElementById('mf-accion-note').value = 'Trasladar artículos de A-CDP/DEVOLUCION a D-PTN/DEVOLUCION';
+    document.getElementById('modal-task').classList.add('open');
+    var mc = document.querySelector('#modal-task .modal-card');
+    if (mc) mc.scrollTop = 0;
+  }, 350);
+}
+
 function navTo(section){
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
@@ -8865,6 +9150,7 @@ function navTo(section){
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
   if(target==='pendientes'){renderPendientes();renderOrdenesActivas();}
   if(target==='reportes') loadAllReports();
+  if(target==='dev-cdp') loadDevCdpReport();
 }
 
 function setNavActive(section){
