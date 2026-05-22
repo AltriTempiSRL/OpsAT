@@ -3092,7 +3092,7 @@ body{font-family:var(--font);min-height:100dvh}
     </div><!-- /section-pendientes-out -->
 
     <!-- ══════════════════════════════════════════════════
-         DEV → CDP  (Devoluciones PTN en almacén)
+         DEV → CDP  (Devoluciones de tiendas en almacén)
          ══════════════════════════════════════════════════ -->
     <div id="section-dev-cdp" class="page-section" style="display:none">
     <div id="sec-dev-cdp" class="divider"><div class="divider-line"></div><span class="divider-label">DEVOLUCIONES PTN EN CDP</span><div class="divider-line"></div></div>
@@ -3104,10 +3104,10 @@ body{font-family:var(--font);min-height:100dvh}
         <div>
           <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text)">
             <i data-lucide="arrow-left-right" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
-            Devoluciones de tienda (PTN) recibidas en almacén (CDP)
+            Devoluciones de tiendas recibidas en almacén (CDP)
           </h2>
           <p style="margin:0;font-size:12px;color:var(--text-3)">
-            Artículos que salieron por <strong>PTN/OUT</strong> y cuya devolución fue registrada en <strong>A-CDP/DEVOLUCION</strong> en vez de D-PTN/DEVOLUCION
+            Artículos que salieron por <strong>OUT</strong> desde cualquier tienda (PTN, STI, OUTLET, OUT27…) y cuya devolución fue registrada en <strong>A-CDP/DEVOLUCION</strong> en vez de regresar a su tienda de origen
           </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -3129,9 +3129,13 @@ body{font-family:var(--font);min-height:100dvh}
           style="max-width:260px;font-size:12px;padding:6px 10px"
           oninput="renderDevCdpTable()">
         <select id="devcdp-origin-filter" class="form-select" style="font-size:12px;padding:6px 10px" onchange="renderDevCdpTable()">
-          <option value="all">Todos los orígenes</option>
-          <option value="ptn">Solo PTN/OUT</option>
-          <option value="other">Otros orígenes</option>
+          <option value="all">Todas las tiendas</option>
+          <option value="PTN">PTN</option>
+          <option value="STI">STI</option>
+          <option value="OUTLET">OUTLET</option>
+          <option value="OUT27">OUT27</option>
+          <option value="ALVEN">ALVEN</option>
+          <option value="none">Sin origen identificado</option>
         </select>
         <span id="devcdp-count" style="font-size:12px;color:var(--text-3);margin-left:4px"></span>
       </div>
@@ -9001,29 +9005,53 @@ async function loadDevCdpReport() {
 
     _devCdpRows = d.rows || [];
 
-    // KPIs
-    const ptnCount   = d.ptnCount   || 0;
-    const otherCount = d.otherCount || 0;
-    const totalQty   = _devCdpRows.reduce(function(s,r){ return s + (r.qty||0); }, 0);
-    kpiZone.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;min-width:140px">' +
+    // KPIs — total + desglose por tienda
+    const totalQty  = _devCdpRows.reduce(function(s,r){ return s + (r.qty||0); }, 0);
+    const byStore   = d.byStore || {};
+    const storeKeys = Object.keys(byStore).sort();
+
+    // Chip total
+    var kpiHtml =
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;min-width:130px">' +
         '<i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:var(--amber-text);flex-shrink:0"></i>' +
-        '<div><div style="font-size:20px;font-weight:800;color:var(--amber-text)">' + ptnCount + '</div>' +
-        '<div style="font-size:11px;color:var(--amber-text);font-weight:600">artículos PTN/OUT→CDP</div></div>' +
+        '<div><div style="font-size:20px;font-weight:800;color:var(--amber-text)">' + _devCdpRows.length + '</div>' +
+        '<div style="font-size:11px;color:var(--amber-text);font-weight:600">artículos en CDP</div></div>' +
       '</div>' +
-      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:110px">' +
         '<div style="font-size:20px;font-weight:800;color:var(--text)">' + totalQty.toFixed(0) + '</div>' +
         '<div style="font-size:11px;color:var(--text-3)">unidades totales</div>' +
       '</div>' +
-      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
-        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + d.pickingCount + '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:110px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + (d.pickingCount||0) + '</div>' +
         '<div style="font-size:11px;color:var(--text-3)">devoluciones CDP</div>' +
-      '</div>' +
-      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:120px">' +
-        '<div style="font-size:20px;font-weight:800;color:var(--text-3)">' + otherCount + '</div>' +
-        '<div style="font-size:11px;color:var(--text-3)">origen no PTN</div>' +
       '</div>';
+
+    // Un chip por tienda identificada
+    storeKeys.forEach(function(k) {
+      var isNone = (k === 'Sin origen');
+      kpiHtml +=
+        '<div style="padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:90px;cursor:pointer" ' +
+          'onclick="document.getElementById(\'devcdp-origin-filter\').value=\'' + (isNone?'none':k) + '\';renderDevCdpTable()" ' +
+          'title="Filtrar por ' + k + '">' +
+          '<div style="font-size:18px;font-weight:800;color:var(--text)">' + byStore[k] + '</div>' +
+          '<div style="font-size:11px;color:var(--text-3)">' + k + '</div>' +
+        '</div>';
+    });
+
+    kpiZone.innerHTML = kpiHtml;
     if (window.lucide) lucide.createIcons();
+
+    // Actualizar opciones del select con tiendas reales detectadas
+    var sel = document.getElementById('devcdp-origin-filter');
+    var currentVal = sel.value;
+    sel.innerHTML = '<option value="all">Todas las tiendas</option>';
+    storeKeys.forEach(function(k) {
+      var opt = document.createElement('option');
+      opt.value = k === 'Sin origen' ? 'none' : k;
+      opt.textContent = k;
+      sel.appendChild(opt);
+    });
+    if ([...sel.options].some(function(o){ return o.value===currentVal; })) sel.value = currentVal;
 
     renderDevCdpTable();
   } catch(e) {
@@ -9038,10 +9066,11 @@ function renderDevCdpTable() {
   const countEl   = document.getElementById('devcdp-count');
 
   var rows = _devCdpRows.filter(function(r) {
-    if (originF === 'ptn'   && !r.isPtnOrigin)  return false;
-    if (originF === 'other' &&  r.isPtnOrigin)  return false;
+    if (originF === 'all')  { /* sin filtro */ }
+    else if (originF === 'none') { if (r.store) return false; }
+    else { if (r.store !== originF) return false; }
     if (filterTxt) {
-      var hay = (r.productName + r.productRef + r.barcode + r.origin + r.devRef + r.partner).toLowerCase();
+      var hay = (r.productName + r.productRef + r.barcode + r.origin + r.devRef + r.partner + (r.store||'')).toLowerCase();
       if (!hay.includes(filterTxt)) return false;
     }
     return true;
@@ -9058,12 +9087,13 @@ function renderDevCdpTable() {
   rows.forEach(function(r) {
     var selKey = r.pickingId + '_' + r.productId;
     var checked = _devCdpSel.has(selKey);
-    var rowBg   = r.isPtnOrigin ? 'background:rgba(245,158,11,.05)' : '';
-    var originBadge = r.origin
-      ? (r.isPtnOrigin
-          ? '<span style="font-size:11px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);padding:2px 6px;border-radius:4px">' + esc(r.origin) + '</span>'
-          : '<span style="font-size:11px;color:var(--text-3)">' + esc(r.origin) + '</span>')
-      : '<span style="font-size:11px;color:var(--text-3);font-style:italic">sin origen</span>';
+    var rowBg   = r.store ? 'background:rgba(245,158,11,.04)' : '';
+    var storeBadge = r.store
+      ? '<span style="font-size:10px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);padding:2px 7px;border-radius:4px;margin-right:5px">' + esc(r.store) + '</span>'
+      : '';
+    var originBadge = storeBadge + (r.origin
+      ? '<span style="font-size:11px;color:var(--text-2)">' + esc(r.origin) + '</span>'
+      : '<span style="font-size:11px;color:var(--text-3);font-style:italic">sin origen</span>');
     var fecha = r.dateDone ? r.dateDone.slice(0,10) : '—';
     html +=
       '<tr style="border-bottom:1px solid var(--border);' + rowBg + '" data-sel-key="' + esc(selKey) + '">' +
@@ -9122,8 +9152,9 @@ function _devCdpRowByKey(key) {
 function devCdpCrearTarea(selKey) {
   var row = _devCdpRowByKey(selKey);
   if (!row) return;
-  var titulo = 'Devolver a PTN: ' + (row.productRef || row.productName.slice(0,40));
-  var desc   = 'Artículo devuelto en CDP en vez de PTN.\n' +
+  var dest   = row.store || 'Tienda';
+  var titulo = 'Devolver a ' + dest + ': ' + (row.productRef || row.productName.slice(0,40));
+  var desc   = 'Artículo devuelto en CDP en vez de ' + dest + '.\n' +
                'Devolución: ' + row.devRef + (row.origin ? ' (origen: ' + row.origin + ')' : '') + '\n' +
                'Artículo: ' + row.productName + '\n' +
                'Cantidad: ' + (row.qty||0).toFixed(0);
@@ -9137,9 +9168,9 @@ function devCdpCrearTarea(selKey) {
     onTypeChange();
     document.getElementById('mf-title').value = titulo;
     document.getElementById('mf-desc').value  = desc;
-    document.getElementById('mf-location').value = 'CDP → PTN';
+    document.getElementById('mf-location').value = 'CDP → ' + dest;
     if (row.origin) document.getElementById('mf-odoo-ref').value = row.origin;
-    document.getElementById('mf-accion-note').value = 'Trasladar de A-CDP/DEVOLUCION a D-PTN/DEVOLUCION';
+    document.getElementById('mf-accion-note').value = 'Trasladar de A-CDP/DEVOLUCION a ' + dest + '/DEVOLUCION';
     document.getElementById('modal-task').classList.add('open');
     var mc = document.querySelector('#modal-task .modal-card');
     if (mc) mc.scrollTop = 0;
@@ -9151,8 +9182,12 @@ function devCdpCrearTareaSeleccion() {
   var rows  = Array.from(_devCdpSel).map(_devCdpRowByKey).filter(Boolean);
   var refs  = [...new Set(rows.map(function(r){ return r.origin||r.devRef; }))].slice(0,5).join(', ');
   var items = rows.map(function(r){ return (r.productRef||'') + ' ' + r.productName + ' ×' + (r.qty||0).toFixed(0); }).join('\n');
-  var titulo = 'Devolver a PTN (' + rows.length + ' artículo' + (rows.length!==1?'s':'') + ')';
-  var desc   = 'Artículos devueltos en CDP que deben trasladarse a PTN.\n' +
+  // Detectar tiendas únicas en la selección
+  var stores = [...new Set(rows.map(function(r){ return r.store; }).filter(Boolean))];
+  var destLabel = stores.length === 1 ? stores[0] : (stores.length ? stores.join('/') : 'Tienda');
+  var titulo = 'Devolver a ' + destLabel + ' (' + rows.length + ' artículo' + (rows.length!==1?'s':'') + ')';
+  var desc   = 'Artículos devueltos en CDP que deben trasladarse a ' + destLabel + '.\n' +
+               'Tiendas: ' + (stores.join(', ')||'—') + '\n' +
                'Referencias: ' + refs + '\n\n' + items;
   goToWWP();
   setTimeout(function() {
@@ -9164,8 +9199,8 @@ function devCdpCrearTareaSeleccion() {
     onTypeChange();
     document.getElementById('mf-title').value = titulo;
     document.getElementById('mf-desc').value  = desc;
-    document.getElementById('mf-location').value = 'CDP → PTN';
-    document.getElementById('mf-accion-note').value = 'Trasladar artículos de A-CDP/DEVOLUCION a D-PTN/DEVOLUCION';
+    document.getElementById('mf-location').value = 'CDP → ' + destLabel;
+    document.getElementById('mf-accion-note').value = 'Trasladar artículos de A-CDP/DEVOLUCION a ' + destLabel + '/DEVOLUCION';
     document.getElementById('modal-task').classList.add('open');
     var mc = document.querySelector('#modal-task .modal-card');
     if (mc) mc.scrollTop = 0;

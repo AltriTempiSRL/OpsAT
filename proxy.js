@@ -1538,15 +1538,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── GET /api/report/dev-cdp — devoluciones que llegaron a CDP en vez de PTN ──
+  // ── GET /api/report/dev-cdp — devoluciones de tiendas (no-CDP) recibidas en CDP ──
   // Busca: stock.picking con picking_type_id=18 (CDP Devoluciones) state=done
-  // Cuyo origin contiene "PTN/OUT/" → salida de tienda devuelta al almacén por error
-  // Si no hay origin PTN/OUT, devuelve TODOS los CDP Devoluciones (origin cualquiera)
-  // para que el usuario vea el panorama completo.
+  // Scope: TODOS los OUT de cualquier tienda (PTN, STI, OUTLET, OUT27, ALVEN…)
+  // que hayan sido devueltos a CDP en vez de regresar a su tienda de origen.
   if (reqPath === '/api/report/dev-cdp' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
+
+    // Mapa de prefijos conocidos → etiqueta de tienda
+    const STORE_PREFIXES = [
+      { re: /^PTN\/OUT\//i,    label: 'PTN' },
+      { re: /^STI\/OUT\//i,    label: 'STI' },
+      { re: /^NAC\/OUT\//i,    label: 'OUTLET' },
+      { re: /^OUTLE\/OUT\//i,  label: 'OUTLET' },
+      { re: /^OUT27\/OUT\//i,  label: 'OUT27' },
+      { re: /^ALVEN\/OUT\//i,  label: 'ALVEN' },
+    ];
+
+    function detectStore(origin) {
+      if (!origin) return null;
+      for (const p of STORE_PREFIXES) {
+        if (p.re.test(origin)) return p.label;
+      }
+      // Genérico: si contiene /OUT/ es una salida de algún almacén
+      if (/\/OUT\//i.test(origin)) return origin.split('/')[0].toUpperCase();
+      return null;
+    }
+
     try {
-      const sinceParam = parsed.query.since || '';   // YYYY-MM-DD opcional
+      const sinceParam = parsed.query.since || '';
+      const storeFilter = parsed.query.store || '';   // filtro opcional por tienda
+
       const baseFilter = [
         ['picking_type_id', '=', 18],  // CDP Devoluciones
         ['state', '=', 'done']
@@ -1561,18 +1583,18 @@ const server = http.createServer(async (req, res) => {
 
       if (!pickings.length) {
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok: true, rows: [], total: 0 }));
+        res.end(JSON.stringify({ ok: true, rows: [], total: 0, byStore: {}, pickingCount: 0 }));
         return;
       }
 
-      // 2. Obtener líneas de movimiento para todos esos pickings
+      // 2. Obtener líneas de movimiento
       const pickingIds = pickings.map(p => p.id);
       const moveLines = await odooCall('stock.move.line', 'search_read',
         [[['picking_id', 'in', pickingIds], ['state', '=', 'done']]],
         { fields: ['id','picking_id','product_id','qty_done','lot_name','lot_id'], limit: 2000 }
       );
 
-      // 3. Obtener info de productos
+      // 3. Info de productos
       const prodIds = [...new Set(moveLines.map(l => l.product_id[0]))];
       const prods = prodIds.length ? await odooCall('product.product', 'search_read',
         [[['id', 'in', prodIds]]],
@@ -1589,18 +1611,20 @@ const server = http.createServer(async (req, res) => {
         linesByPicking[pid].push(l);
       });
 
-      // 5. Construir filas del reporte
+      // 5. Construir filas
       const rows = [];
       pickings.forEach(pk => {
         const lines = linesByPicking[pk.id] || [];
-        const isPtnOrigin = pk.origin && /PTN\/OUT\//i.test(pk.origin);
+        const store = detectStore(pk.origin);           // 'PTN' | 'STI' | 'OUTLET' | null
+        // Si se pide filtrar por tienda específica
+        if (storeFilter && store !== storeFilter) return;
         lines.forEach(l => {
           const prod = prodMap[l.product_id[0]] || {};
           rows.push({
             pickingId:   pk.id,
-            devRef:      pk.name,                        // CDP/IN/XXXXX
-            origin:      pk.origin || '',                // PTN/OUT/XXXXX o vacío
-            isPtnOrigin: isPtnOrigin,
+            devRef:      pk.name,
+            origin:      pk.origin || '',
+            store:       store,                          // tienda de origen detectada
             dateDone:    pk.date_done || '',
             partner:     pk.partner_id ? pk.partner_id[1] : '',
             locationSrc: pk.location_id ? pk.location_id[1] : '',
@@ -1615,17 +1639,19 @@ const server = http.createServer(async (req, res) => {
         });
       });
 
-      // 6. Estadísticas
-      const ptnRows   = rows.filter(r => r.isPtnOrigin);
-      const otherRows = rows.filter(r => !r.isPtnOrigin);
+      // 6. Conteo por tienda
+      const byStore = {};
+      rows.forEach(r => {
+        const k = r.store || 'Sin origen';
+        byStore[k] = (byStore[k] || 0) + 1;
+      });
 
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({
         ok: true,
         rows,
-        total:      rows.length,
-        ptnCount:   ptnRows.length,
-        otherCount: otherRows.length,
+        total:        rows.length,
+        byStore,
         pickingCount: pickings.length
       }));
     } catch(e) {
