@@ -1823,6 +1823,47 @@ body{font-family:var(--font);min-height:100dvh}
 .task-progress-bar{height:100%;background:var(--brand-light);border-radius:2px;transition:width .3s}
 .task-empty{text-align:center;padding:60px 20px;color:var(--text-3);font-size:14px}
 
+/* ── View toggle bar ─────────────────────────────────────────────────── */
+.tasks-view-bar{display:flex;gap:4px;margin-bottom:12px}
+.tv-btn{padding:5px 10px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;transition:background .12s,color .12s,border-color .12s}
+.tv-btn:hover{background:var(--surface-2);color:var(--text)}
+.tv-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tv-btn svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px}
+
+/* ── Vista Lista (compact rows) ─────────────────────────────────────── */
+.task-list-row{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s;border-left:3px solid transparent}
+.task-list-row:first-child{border-top:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0}
+.task-list-row:last-child{border-bottom:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius)}
+.task-list-row:hover{background:var(--surface-2)}
+.task-list-row[data-status="pending"]    {border-left-color:#94a3b8}
+.task-list-row[data-status="assigned"]   {border-left-color:var(--brand-light)}
+.task-list-row[data-status="in_progress"]{border-left-color:#f59e0b}
+.task-list-row[data-status="completed"]  {border-left-color:#10b981}
+.task-list-row[data-status="validated"]  {border-left-color:#8b5cf6}
+.task-list-main{flex:1;min-width:0;overflow:hidden}
+.task-list-title{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.task-list-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow:hidden;margin-top:1px}
+.task-list-sep{color:var(--border);flex-shrink:0}
+.task-list-badges{display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+/* ── Vista Kanban ────────────────────────────────────────────────────── */
+.task-kanban{display:flex;gap:10px;overflow-x:auto;padding-bottom:14px;align-items:flex-start}
+.kanban-col{min-width:200px;flex:1;background:var(--surface-2);border-radius:var(--radius);display:flex;flex-direction:column;max-height:calc(100vh - 260px)}
+.kanban-col-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.kanban-count{font-size:11px;font-weight:700;color:var(--text-muted);background:var(--surface-3);padding:1px 7px;border-radius:10px}
+.kanban-col-body{padding:8px;flex:1;display:flex;flex-direction:column;gap:7px;overflow-y:auto}
+.kanban-mini-card{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:9px 11px;cursor:pointer;transition:box-shadow .12s,border-color .12s}
+.kanban-mini-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.1);border-color:var(--accent)}
+.kanban-mini-title{font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px;line-height:1.35}
+.kanban-mini-meta{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);flex-wrap:wrap}
+.kanban-empty{font-size:12px;color:var(--text-muted);text-align:center;padding:20px 0;opacity:.6}
+
+/* ── Vista Por persona ───────────────────────────────────────────────── */
+.task-person-group{margin-bottom:20px}
+.task-person-hdr{display:flex;align-items:center;gap:10px;padding:6px 0 8px;border-bottom:2px solid var(--border);margin-bottom:2px}
+.task-person-name{font-size:13px;font-weight:700;color:var(--text);flex:1}
+.task-person-count{font-size:11px;color:var(--text-muted);font-weight:600}
+
 /* ── DRAWER ─────────────────────────────────────────────────────── */
 #wwp-drawer-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;
@@ -3372,6 +3413,20 @@ body{font-family:var(--font);min-height:100dvh}
           </select>
         </div>
         <button class="btn-new" id="btn-new-task" onclick="openNewTaskModal()" style="display:none">+ Nueva Tarea</button>
+      </div>
+      <div class="tasks-view-bar">
+        <button class="tv-btn active" data-view="list" onclick="setTaskView('list')" title="Lista">
+          <i data-lucide="list"></i> Lista
+        </button>
+        <button class="tv-btn" data-view="cards" onclick="setTaskView('cards')" title="Tarjetas">
+          <i data-lucide="layout-grid"></i> Tarjetas
+        </button>
+        <button class="tv-btn" data-view="kanban" onclick="setTaskView('kanban')" title="Kanban">
+          <i data-lucide="columns-3"></i> Kanban
+        </button>
+        <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona">
+          <i data-lucide="users"></i> Por persona
+        </button>
       </div>
       <div id="tasks-list"><div class="loading"><div class="spinner"></div><br>Cargando tareas…</div></div>
     </div>
@@ -4952,7 +5007,12 @@ function filterTasks() {
   });
   const el = document.getElementById('tasks-list');
   if (!visible.length) { el.innerHTML='<div class="task-empty">No hay tareas que mostrar</div>'; return; }
-  el.innerHTML = visible.map(renderTaskCard).join('');
+  switch (_taskView) {
+    case 'cards':  el.innerHTML = visible.map(renderTaskCard).join(''); break;
+    case 'kanban': el.innerHTML = renderKanbanView(visible); break;
+    case 'person': el.innerHTML = renderPersonView(visible); break;
+    default:       el.innerHTML = visible.map(renderListRow).join(''); break;
+  }
   if(window.lucide) lucide.createIcons();
 }
 function renderTasks() { filterTasks(); }
@@ -5027,6 +5087,110 @@ function populateTaskUserFilter() {
 
 function canViewAnyTaskForUser(userId) {
   return (_tasks||[]).some(t => !t.parentId && canViewTaskLocal(t, _user?.id) && taskParticipantIds(t).has(userId));
+}
+
+// ── Task view ──────────────────────────────────────────────────────────────
+var _taskView = 'list';
+function setTaskView(v) {
+  _taskView = v;
+  document.querySelectorAll('.tv-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  filterTasks();
+}
+
+/* Vista Lista — fila compacta, mismo tamaño de fuente */
+function renderListRow(t) {
+  const today = new Date().toISOString().slice(0,10);
+  const overdue = t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status);
+  const mgr = t.managerId ? (_authUsers||[]).find(u=>u.id===t.managerId) : null;
+  const subs = _tasks.filter(s=>s.parentId===t.id);
+  const doneSubs = subs.filter(s=>['completed','validated'].includes(s.status)).length;
+  const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot'}[t.type]||'circle-dot';
+  const priorityColor = {high:'#dc2626',medium:'#f59e0b',low:'#10b981'}[t.priority||'medium']||'#f59e0b';
+  const meta = [];
+  if (mgr) meta.push(`<span style="display:flex;align-items:center;gap:3px">${avatarHtml(mgr,15)}<span>${esc(mgr.name.split(' ')[0])}</span></span>`);
+  if (t.odooRef) meta.push(`<span>${esc(t.odooRef)}</span>`);
+  if (t.dueDate) meta.push(`<span class="${overdue?'tc-overdue-val':''}">${t.dueDate}</span>`);
+  if (subs.length) meta.push(`<span>${doneSubs}/${subs.length} sub</span>`);
+  if (t.location) meta.push(`<span>${esc(t.location)}</span>`);
+  return `<div class="task-list-row" data-status="${t.status}" onclick="openDrawer('${t.id}')">
+    <span style="width:8px;height:8px;border-radius:50%;background:${priorityColor};flex-shrink:0;display:inline-block"></span>
+    <div class="task-list-main">
+      <span class="task-list-title">${esc(t.title)}</span>
+      ${meta.length?`<div class="task-list-meta">${meta.join('<span class="task-list-sep">·</span>')}</div>`:''}
+    </div>
+    <div class="task-list-badges">
+      ${overdue?'<span class="badge b-high" style="font-size:9px">Vencida</span>':''}
+      <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
+      <i data-lucide="${typeEmoji}" style="width:13px;height:13px;stroke:var(--text-muted);display:inline-block;vertical-align:-2px;flex-shrink:0"></i>
+    </div>
+  </div>`;
+}
+
+/* Vista Kanban — columnas por estado */
+function renderKanbanView(tasks) {
+  const cols = [
+    {key:'pending',    label:'Pendiente',  css:'b-pending'},
+    {key:'assigned',   label:'Asignado',   css:'b-assigned'},
+    {key:'in_progress',label:'En Progreso',css:'b-inprogress'},
+    {key:'completed',  label:'Completado', css:'b-completed'},
+    {key:'validated',  label:'Validado',   css:'b-validated'},
+  ];
+  return `<div class="task-kanban">${cols.map(col=>{
+    const ct = tasks.filter(t=>t.status===col.key);
+    const today = new Date().toISOString().slice(0,10);
+    const cards = ct.map(t=>{
+      const mgr = t.managerId?(_authUsers||[]).find(u=>u.id===t.managerId):null;
+      const overdue = t.dueDate&&t.dueDate<today&&!['completed','validated'].includes(t.status);
+      return `<div class="kanban-mini-card" onclick="openDrawer('${t.id}')">
+        <div class="kanban-mini-title">${esc(t.title)}</div>
+        <div class="kanban-mini-meta">
+          ${mgr?avatarHtml(mgr,17)+'<span>'+esc(mgr.name.split(' ')[0])+'</span>':''}
+          ${overdue?'<span style="color:#dc2626;font-size:10px;font-weight:700">⚠ Vencida</span>':''}
+          ${t.dueDate&&!overdue?`<span style="margin-left:auto">${t.dueDate}</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="kanban-col">
+      <div class="kanban-col-hdr">
+        <span class="badge ${col.css}">${col.label}</span>
+        <span class="kanban-count">${ct.length}</span>
+      </div>
+      <div class="kanban-col-body">${cards||'<div class="kanban-empty">Sin tareas</div>'}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* Vista Por persona — agrupado por encargado asignado */
+function renderPersonView(tasks) {
+  const groups = {};
+  const unassigned = [];
+  tasks.forEach(t=>{
+    if (t.managerId) { (groups[t.managerId]=groups[t.managerId]||[]).push(t); }
+    else unassigned.push(t);
+  });
+  let html = '';
+  Object.entries(groups).forEach(([uid,gt])=>{
+    const u=(_authUsers||[]).find(x=>x.id===uid);
+    html+=`<div class="task-person-group">
+      <div class="task-person-hdr">
+        ${u?avatarHtml(u,28):'<span style="width:28px;height:28px;border-radius:50%;background:var(--surface-3);display:inline-flex;align-items:center;justify-content:center;font-size:14px">?</span>'}
+        <span class="task-person-name">${esc(u?u.name.split(' ').slice(0,2).join(' '):uid)}</span>
+        <span class="task-person-count">${gt.length} tarea${gt.length!==1?'s':''}</span>
+      </div>
+      ${gt.map(renderListRow).join('')}
+    </div>`;
+  });
+  if (unassigned.length) {
+    html+=`<div class="task-person-group">
+      <div class="task-person-hdr">
+        <span style="width:28px;height:28px;border-radius:50%;background:var(--surface-3);display:inline-flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-muted)">—</span>
+        <span class="task-person-name">Sin asignar</span>
+        <span class="task-person-count">${unassigned.length} tarea${unassigned.length!==1?'s':''}</span>
+      </div>
+      ${unassigned.map(renderListRow).join('')}
+    </div>`;
+  }
+  return html||'<div class="task-empty">No hay tareas que mostrar</div>';
 }
 
 function renderTaskCard(t) {
