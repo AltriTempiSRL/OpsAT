@@ -1936,6 +1936,9 @@ body{font-family:var(--font);min-height:100dvh}
 .modal-body{padding:20px 24px}
 .modal-footer{padding:0 24px 20px;display:flex;gap:10px;justify-content:flex-end}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+.perm-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0}
+.perm-check input[type=checkbox]{accent-color:var(--brand);width:14px;height:14px;cursor:pointer}
 .form-select{
   width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
   font-size:13px;color:var(--text);background:var(--surface-2);outline:none;
@@ -3858,6 +3861,39 @@ body{font-family:var(--font);min-height:100dvh}
           <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
         </div>
       </div>
+      <!-- Permisos por sección (solo visible si rol ≠ admin) -->
+      <div id="uf-perms-wrap" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Permisos de acceso — el admin siempre tiene acceso completo</p>
+        <!-- Secciones del historial -->
+        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:0 0 6px">Secciones del historial</p>
+        <div class="perm-grid" id="uf-perms-sections">
+          <label class="perm-check"><input type="checkbox" data-perm="buscar"> Buscar artículos</label>
+          <label class="perm-check"><input type="checkbox" data-perm="devoluciones"> Devoluciones</label>
+          <label class="perm-check"><input type="checkbox" data-perm="contenedores"> Contenedores</label>
+          <label class="perm-check"><input type="checkbox" data-perm="pendientes"> Pendientes</label>
+          <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
+          <label class="perm-check"><input type="checkbox" data-perm="pendientes-out"> Pendientes OUT</label>
+          <label class="perm-check"><input type="checkbox" data-perm="dev-cdp"> Dev→CDP</label>
+          <label class="perm-check"><input type="checkbox" data-perm="validacion"> Validación</label>
+          <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
+          <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
+        </div>
+        <!-- Workforce — pestañas -->
+        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
+        <div class="perm-grid">
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.dashboard"> Dashboard</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.usuarios"> Usuarios</label>
+        </div>
+        <!-- Workforce — acciones de tarea -->
+        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — acciones</p>
+        <div class="perm-grid">
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.crear_tarea"> Crear tarea</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.editar_tarea"> Editar tarea</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.eliminar_tarea"> Eliminar tarea</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.validar_tarea"> Validar tarea</label>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-primary" style="background:#6b7280" onclick="closeUserModal()">Cancelar</button>
@@ -3968,21 +4004,55 @@ function mediaUrl(u) {
 // ═══════════════════════════════════════════════════════════════════════
 // RBAC — Permisos por módulo (única fuente de verdad en el frontend)
 // ═══════════════════════════════════════════════════════════════════════
+
+// Mapa de sectionPerms → clave interna can()
+const _PERM_SP_MAP = {
+  'create_task':   'wwp.crear_tarea',
+  'edit_task':     'wwp.editar_tarea',
+  'delete_task':   'wwp.eliminar_tarea',
+  'validate_task': 'wwp.validar_tarea',
+  'dashboard':     'wwp.dashboard',
+  'users_tab':     'wwp.usuarios',
+};
+// Permisos que siempre son por rol (sin granularidad por usuario)
 const PERMISSIONS = {
-  dashboard:     ['admin'],
-  users_tab:     ['admin'],
-  users_view:    ['admin','manager'],   // dropdown asignación
-  create_task:   ['admin','manager'],
-  edit_task:     ['admin','manager'],
-  delete_task:   ['admin','manager'],
-  validate_task: ['admin','manager'],
+  users_view:    ['admin','manager'],
   assign_task:   ['admin','manager'],
   update_status: ['admin','manager','assistant'],
   evidence:      ['admin','manager','assistant'],
 };
-/** Devuelve true si el usuario actual tiene el permiso indicado */
+
+/** Devuelve true si el usuario actual tiene el permiso de acción indicado */
 function can(perm) {
-  return !!(PERMISSIONS[perm]||[]).includes(_user && _user.role);
+  if (!_user) return false;
+  if (_user.role === 'admin') return true;  // admin siempre puede todo
+  // Permisos mapeados a sectionPerms
+  if (_PERM_SP_MAP[perm]) return !!(_user.sectionPerms||{})[_PERM_SP_MAP[perm]];
+  // Fallback a permisos por rol
+  return !!(PERMISSIONS[perm]||[]).includes(_user.role);
+}
+
+/** Devuelve true si el usuario puede ver la sección del historial indicada */
+function canSection(key) {
+  if (!_user) return false;
+  if (_user.role === 'admin') return true;
+  return !!(_user.sectionPerms||{})[key];
+}
+
+/** Oculta / muestra ítems de nav según sectionPerms del usuario */
+function applyNavPerms() {
+  var sections = [
+    'buscar','devoluciones','contenedores','pendientes',
+    'sin-adjuntos','pendientes-out','dev-cdp',
+    'validacion','averias','reportes','wwp'
+  ];
+  sections.forEach(function(s) {
+    var show = canSection(s);
+    var nav = document.getElementById('nav-' + s);
+    if (nav) nav.style.display = show ? '' : 'none';
+    var mob = document.getElementById('mob-nav-' + s);
+    if (mob) mob.style.display = show ? '' : 'none';
+  });
 }
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
 function guardTab(tab) {
@@ -4754,6 +4824,8 @@ function enterApp() {
   }
   // Render Lucide icons (nav tabs are created dynamically above)
   if (window.lucide) lucide.createIcons();
+  // Aplicar permisos de sección del historial
+  applyNavPerms();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -6131,6 +6203,14 @@ async function loadAuthUsersForDropdown() {
   } catch {}
 }
 
+function _resetPermChecks(sectionPerms) {
+  document.querySelectorAll('#uf-perms-wrap input[data-perm]').forEach(function(cb) {
+    cb.checked = !!(sectionPerms||{})[cb.dataset.perm];
+  });
+}
+function _updatePermsVisibility(role) {
+  document.getElementById('uf-perms-wrap').style.display = (role === 'admin') ? 'none' : '';
+}
 function openNewUserModal() {
   _editingUser=null;
   document.getElementById('modal-user-title').textContent='Nuevo Usuario';
@@ -6145,8 +6225,14 @@ function openNewUserModal() {
   document.getElementById('user-modal-error').classList.remove('show');
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { prev.textContent = '?'; prev.style.background = 'var(--brand-light)'; }
+  _resetPermChecks({});
+  _updatePermsVisibility('assistant');
   document.getElementById('modal-user').classList.add('open');
 }
+// Actualizar visibilidad del panel de permisos al cambiar el rol
+document.getElementById('uf-role') && document.getElementById('uf-role').addEventListener('change', function() {
+  _updatePermsVisibility(this.value);
+});
 function openEditUserModal(uid) {
   const u = _authUsers.find(x=>x.id===uid); if(!u) return;
   _editingUser=u;
@@ -6166,6 +6252,9 @@ function openEditUserModal(uid) {
   // Update avatar preview
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { prev.textContent = initials(u.name)||'?'; prev.style.background = avatarColor(u.name); }
+  // Permisos por sección
+  _resetPermChecks(u.sectionPerms||{});
+  _updatePermsVisibility(u.role||'assistant');
   document.getElementById('modal-user').classList.add('open');
 }
 function closeUserModal() { document.getElementById('modal-user').classList.remove('open'); _editingUser=null; }
@@ -6181,7 +6270,14 @@ async function saveUser() {
   if (!name||!email) { showErr(errEl,'Nombre y correo son requeridos'); return; }
   const lunchTimeAllowed = parseInt(document.getElementById('uf-lunch-allowed').value) || 60;
   const scheduleStart    = document.getElementById('uf-schedule-start').value || '08:00';
-  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart};
+  // Recoger sectionPerms desde checkboxes (solo si no es admin)
+  const sectionPerms = {};
+  if (role !== 'admin') {
+    document.querySelectorAll('#uf-perms-wrap input[data-perm]').forEach(function(cb) {
+      if (cb.checked) sectionPerms[cb.dataset.perm] = true;
+    });
+  }
+  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,sectionPerms};
   if (password) body.password=password;
   try {
     let r;
@@ -9203,6 +9299,8 @@ function devCdpCrearTareaSeleccion() {
 }
 
 function navTo(section){
+  // Bloquear acceso directo a secciones sin permiso
+  if (!canSection(section)) { toast('Sin acceso a esta sección'); return; }
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
   setNavActive(section);
