@@ -68,6 +68,31 @@ function saveWwpTasks(list) { saveJson(WWP_TASKS_FILE, list); }
 // roles: objeto { "oe_<id>": "admin"|"manager"|"assistant" }
 function loadWwpRoles() { return loadJson(WWP_ROLES_FILE, {}); }
 function saveWwpRoles(obj) { saveJson(WWP_ROLES_FILE, obj); }
+
+// ── Role Definitions — permisos viven en el rol, no en el usuario ─────────
+const WWP_ROLE_DEFS_FILE = path.join(DATA_DIR, 'wwp-role-defs.json');
+const BUILTIN_ROLE_DEFS = [
+  { id:'admin',     name:'Admin',     isBuiltin:true, sectionPerms:null },
+  { id:'manager',   name:'Encargado', isBuiltin:true, sectionPerms:{} },
+  { id:'assistant', name:'Auxiliar',  isBuiltin:true, sectionPerms:{} },
+];
+function loadRoleDefs() {
+  let defs;
+  try { defs = fs.existsSync(WWP_ROLE_DEFS_FILE) ? JSON.parse(fs.readFileSync(WWP_ROLE_DEFS_FILE,'utf-8')) : null; }
+  catch { defs = null; }
+  if (!defs) defs = BUILTIN_ROLE_DEFS.map(r=>({...r}));
+  else { BUILTIN_ROLE_DEFS.forEach(br=>{ if(!defs.find(r=>r.id===br.id)) defs.unshift({...br}); }); }
+  return defs;
+}
+function saveRoleDefs(defs) { fs.writeFileSync(WWP_ROLE_DEFS_FILE, JSON.stringify(defs,null,2)); }
+/** Devuelve sectionPerms para un roleId. Admin → {} (bypassed en frontend). */
+function getRoleDefPerms(roleId) {
+  if (roleId === 'admin') return {};
+  const defs = loadRoleDefs();
+  const def = defs.find(r => r.id === roleId);
+  return def ? (def.sectionPerms || {}) : {};
+}
+
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
@@ -1927,7 +1952,7 @@ const server = http.createServer(async (req, res) => {
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, accessToken, refreshToken, sessionId,
-        user:{id:user.id,name:user.name,email:user.email,role:user.role,odooId:user.odooId,presenceStatus:user.presenceStatus||'active',sectionPerms:user.sectionPerms||{}}}));
+        user:{id:user.id,name:user.name,email:user.email,role:user.role,odooId:user.odooId,presenceStatus:user.presenceStatus||'active',sectionPerms:getRoleDefPerms(user.role)}}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -1946,7 +1971,7 @@ const server = http.createServer(async (req, res) => {
       session.lastActivity = new Date().toISOString();
       saveSessions(sessions);
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, accessToken, user:{id:user.id,name:user.name,email:user.email,role:user.role,odooId:user.odooId,presenceStatus:user.presenceStatus||'active',sectionPerms:user.sectionPerms||{}}}));
+      res.end(JSON.stringify({ok:true, accessToken, user:{id:user.id,name:user.name,email:user.email,role:user.role,odooId:user.odooId,presenceStatus:user.presenceStatus||'active',sectionPerms:getRoleDefPerms(user.role)}}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -2033,8 +2058,68 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,sectionPerms:u.sectionPerms||{}}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
+    return;
+  }
+
+  // ── GET /api/wwp/role-defs — listar definiciones de roles ─────────────────
+  if (reqPath === '/api/wwp/role-defs' && req.method === 'GET') {
+    const _jpRd = requireJwt(req, res); if (!_jpRd) return;
+    if (_jpRd.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(loadRoleDefs())); return;
+  }
+
+  // ── POST /api/wwp/role-defs — crear rol personalizado ────────────────────
+  if (reqPath === '/api/wwp/role-defs' && req.method === 'POST') {
+    const _jpRd = requireJwt(req, res); if (!_jpRd) return;
+    if (_jpRd.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    try {
+      const d = await readBody(req);
+      if (!d.name||!d.name.trim()) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Nombre requerido'})); return; }
+      const defs = loadRoleDefs();
+      const newRole = { id:'role_'+Date.now().toString(36), name:d.name.trim(), isBuiltin:false, sectionPerms:d.sectionPerms||{} };
+      defs.push(newRole);
+      saveRoleDefs(defs);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,role:newRole}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── PATCH /api/wwp/role-defs/:id — editar rol ────────────────────────────
+  if (reqPath.match(/^\/api\/wwp\/role-defs\/[^/]+$/) && req.method === 'PATCH') {
+    const _jpRd = requireJwt(req, res); if (!_jpRd) return;
+    if (_jpRd.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    try {
+      const roleId = reqPath.split('/').pop();
+      if (roleId === 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No se puede modificar el rol admin'})); return; }
+      const d = await readBody(req);
+      const defs = loadRoleDefs();
+      const idx = defs.findIndex(r=>r.id===roleId);
+      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Rol no encontrado'})); return; }
+      if (!defs[idx].isBuiltin && d.name && d.name.trim()) defs[idx].name = d.name.trim();
+      if (d.sectionPerms!==undefined && typeof d.sectionPerms==='object') defs[idx].sectionPerms = d.sectionPerms;
+      saveRoleDefs(defs);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,role:defs[idx]}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── DELETE /api/wwp/role-defs/:id — eliminar rol personalizado ────────────
+  if (reqPath.match(/^\/api\/wwp\/role-defs\/[^/]+$/) && req.method === 'DELETE') {
+    const _jpRd = requireJwt(req, res); if (!_jpRd) return;
+    if (_jpRd.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    try {
+      const roleId = reqPath.split('/').pop();
+      const defs = loadRoleDefs();
+      const def = defs.find(r=>r.id===roleId);
+      if (!def) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Rol no encontrado'})); return; }
+      if (def.isBuiltin) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No se pueden eliminar roles predeterminados'})); return; }
+      const inUse = loadAuthUsers().some(u=>u.role===roleId);
+      if (inUse) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El rol está asignado a uno o más usuarios'})); return; }
+      saveRoleDefs(defs.filter(r=>r.id!==roleId));
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
 
@@ -2157,6 +2242,7 @@ const server = http.createServer(async (req, res) => {
       const users = loadAuthUsers();
       const idx   = users.findIndex(u => u.id === userId);
       if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Usuario no encontrado'})); return; }
+      if (d.role && !loadRoleDefs().map(r=>r.id).includes(d.role)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Rol inválido'})); return; }
       if (d.name)     users[idx].name   = d.name;
       if (d.email)    users[idx].email  = d.email.toLowerCase().trim();
       if (d.role)     users[idx].role   = d.role;
@@ -2165,10 +2251,9 @@ const server = http.createServer(async (req, res) => {
       if (d.password) users[idx].passwordHash = hashPassword(d.password);
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
-      if (d.sectionPerms !== undefined && typeof d.sectionPerms === 'object') users[idx].sectionPerms = d.sectionPerms;
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:users[idx].sectionPerms||{}}}));
+      res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(users[idx].role)}}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

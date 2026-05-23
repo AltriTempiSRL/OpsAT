@@ -1939,6 +1939,11 @@ body{font-family:var(--font);min-height:100dvh}
 .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
 .perm-check{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;padding:3px 0}
 .perm-check input[type=checkbox]{accent-color:var(--brand);width:14px;height:14px;cursor:pointer}
+.role-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:8px}
+.role-card-name{font-size:13px;font-weight:700;color:var(--text);flex:1}
+.role-card-count{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.role-card-actions{display:flex;gap:6px;flex-shrink:0}
+.role-perms-preview{font-size:11px;color:var(--text-muted);margin-top:3px}
 .form-select{
   width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
   font-size:13px;color:var(--text);background:var(--surface-2);outline:none;
@@ -3459,6 +3464,14 @@ body{font-family:var(--font);min-height:100dvh}
         <button class="btn-new" onclick="openNewUserModal()">+ Nuevo Usuario</button>
       </div>
       <div id="users-list"><div class="loading"><div class="spinner"></div><br>Cargando…</div></div>
+      <!-- Roles section -->
+      <div style="margin-top:32px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <span class="sec-header" style="margin:0">ROLES</span>
+          <button class="btn-new" onclick="openNewRoleModal()">+ Nuevo Rol</button>
+        </div>
+        <div id="roles-list"><div class="loading"><div class="spinner"></div><br>Cargando…</div></div>
+      </div>
     </div>
 
     <!-- ═══════════════ TAB VEHÍCULOS ═══════════════ -->
@@ -3830,9 +3843,7 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="form-row">
         <div class="form-group"><label class="form-label">Rol</label>
           <select id="uf-role" class="form-select">
-            <option value="assistant">Auxiliar</option>
-            <option value="manager">Encargado</option>
-            <option value="admin">Admin</option>
+            <!-- populated by populateRoleDropdown() -->
           </select>
         </div>
         <div class="form-group"><label class="form-label">Estado</label>
@@ -3861,12 +3872,34 @@ body{font-family:var(--font);min-height:100dvh}
           <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
         </div>
       </div>
-      <!-- Permisos por sección (solo visible si rol ≠ admin) -->
-      <div id="uf-perms-wrap" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:12px">
-        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Permisos de acceso — el admin siempre tiene acceso completo</p>
-        <!-- Secciones del historial -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" style="background:#6b7280" onclick="closeUserModal()">Cancelar</button>
+      <button class="btn-primary" onclick="saveUser()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Role Edit Modal (admin) -->
+<div class="modal-overlay" id="modal-role">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-role-title">Nuevo Rol</span>
+      <button class="modal-close" onclick="closeRoleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="login-error" id="role-modal-error"></div>
+      <div class="form-group" id="rf-name-wrap">
+        <label class="form-label">Nombre del rol</label>
+        <input id="rf-name" class="form-input" placeholder="Ej. Chofer, Recepcionista…">
+      </div>
+      <div id="rf-admin-note" style="display:none;padding:10px 12px;background:var(--surface-2);border-radius:var(--radius);font-size:12px;color:var(--text-muted);margin-bottom:12px">
+        El rol <strong>Admin</strong> siempre tiene acceso completo — sus permisos no son configurables.
+      </div>
+      <div id="rf-perms-wrap">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Secciones y acciones que este rol puede usar</p>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:0 0 6px">Secciones del historial</p>
-        <div class="perm-grid" id="uf-perms-sections">
+        <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="buscar"> Buscar artículos</label>
           <label class="perm-check"><input type="checkbox" data-perm="devoluciones"> Devoluciones</label>
           <label class="perm-check"><input type="checkbox" data-perm="contenedores"> Contenedores</label>
@@ -3879,13 +3912,11 @@ body{font-family:var(--font);min-height:100dvh}
           <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
         </div>
-        <!-- Workforce — pestañas -->
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="wwp.dashboard"> Dashboard</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp.usuarios"> Usuarios</label>
         </div>
-        <!-- Workforce — acciones de tarea -->
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — acciones</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="wwp.crear_tarea"> Crear tarea</label>
@@ -3896,8 +3927,8 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" style="background:#6b7280" onclick="closeUserModal()">Cancelar</button>
-      <button class="btn-primary" onclick="saveUser()">Guardar</button>
+      <button class="btn-primary" style="background:#6b7280" onclick="closeRoleModal()">Cancelar</button>
+      <button id="btn-save-role" class="btn-primary" onclick="saveRole()">Guardar</button>
     </div>
   </div>
 </div>
@@ -3962,6 +3993,7 @@ body{font-family:var(--font);min-height:100dvh}
 var _tasks = [], _allUsers = [], _editingTask = null, _editingUser = null;
 var _drawerTask = null, _modalItems = [], _resetToken = null, _drawerStockMap = {};
 var _authUsers = []; // wwp auth users (for manager dropdown)
+var _roleDefs = [];
 var _notifications = [];     // notificaciones en memoria
 var _sseSource = null;        // EventSource activo
 var _wwpSocket = null;        // WebSocket realtime compartido con historial
@@ -6164,6 +6196,7 @@ async function loadLunchReport() {
 // ═══════════════════════════════════════════════════════════════════════
 async function loadUsers() {
   document.getElementById('users-list').innerHTML='<div class="loading"><div class="spinner"></div><br>Cargando…</div>';
+  await loadRoleDefs();
   try {
     const r = await authFetch('/api/wwp/auth/users');
     const users = await r.json();
@@ -6183,7 +6216,7 @@ async function loadUsers() {
           <div class="user-row-name">${esc(u.name)}</div>
           <div class="user-row-email">${esc(u.email)}</div>
         </div>
-        <span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>
+        ${getRoleBadgeHtml(u.role)}
         <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
         <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
         ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text)">Inactivo</span>'}
@@ -6221,14 +6254,143 @@ async function loadAuthUsersForDropdown() {
   } catch {}
 }
 
-function _resetPermChecks(sectionPerms) {
-  document.querySelectorAll('#uf-perms-wrap input[data-perm]').forEach(function(cb) {
-    cb.checked = !!(sectionPerms||{})[cb.dataset.perm];
+// ── Role definitions ───────────────────────────────────────────────────────
+async function loadRoleDefs() {
+  try {
+    const r = await authFetch('/api/wwp/role-defs');
+    if (!r.ok) return;
+    _roleDefs = await r.json();
+    renderRoles();
+    populateRoleDropdown();
+  } catch {}
+}
+
+function getRoleLabel(roleId) {
+  const r = _roleDefs.find(r => r.id === roleId);
+  if (r) return r.name;
+  return ROLE_LABELS[roleId] || roleId;
+}
+
+function getRoleBadgeHtml(roleId) {
+  const name = getRoleLabel(roleId);
+  const builtinCss = {admin:'role-admin', manager:'role-manager', assistant:'role-assistant'};
+  if (builtinCss[roleId]) return `<span class="role-badge ${builtinCss[roleId]}">${esc(name)}</span>`;
+  const cols = ['#7c3aed','#0284c7','#d97706','#dc2626','#0891b2','#db2777'];
+  const color = cols[[...roleId].reduce((s,c)=>s+c.charCodeAt(0),0)%cols.length];
+  return `<span class="role-badge" style="background:${color};color:#fff">${esc(name)}</span>`;
+}
+
+function populateRoleDropdown() {
+  const sel = document.getElementById('uf-role');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = _roleDefs.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
+}
+
+function renderRoles() {
+  const el = document.getElementById('roles-list');
+  if (!el) return;
+  if (!_roleDefs.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px">Sin roles definidos.</div>'; return; }
+  const userCounts = {};
+  (_authUsers||[]).forEach(u => { userCounts[u.role] = (userCounts[u.role]||0) + 1; });
+  el.innerHTML = _roleDefs.map(r => {
+    const count = userCounts[r.id] || 0;
+    const isAdmin = r.id === 'admin';
+    const permsPreview = isAdmin ? 'Acceso completo' :
+      Object.keys(r.sectionPerms||{}).filter(k=>(r.sectionPerms||{})[k]).length + ' permisos activos';
+    const deleteBtn = (!r.isBuiltin && count === 0)
+      ? `<button class="btn-sm" style="color:var(--red-text);border-color:var(--red-dot)" onclick="deleteRole('${r.id}')">Eliminar</button>` : '';
+    return `<div class="role-card">
+      ${getRoleBadgeHtml(r.id)}
+      <div style="flex:1;min-width:0">
+        <div class="role-card-name">${esc(r.name)}</div>
+        <div class="role-perms-preview">${permsPreview}</div>
+      </div>
+      <span class="role-card-count">${count} usuario${count!==1?'s':''}</span>
+      <div class="role-card-actions">
+        ${isAdmin ? '' : `<button class="btn-sm" onclick="openEditRoleModal('${r.id}')">Editar permisos</button>`}
+        ${deleteBtn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Role modal
+var _editingRole = null;
+
+function openNewRoleModal() {
+  _editingRole = null;
+  document.getElementById('modal-role-title').textContent = 'Nuevo Rol';
+  document.getElementById('rf-name').value = '';
+  document.getElementById('rf-name-wrap').style.display = '';
+  document.getElementById('rf-admin-note').style.display = 'none';
+  document.getElementById('rf-perms-wrap').style.display = '';
+  document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => cb.checked = false);
+  document.getElementById('role-modal-error').classList.remove('show');
+  document.getElementById('btn-save-role').style.display = '';
+  document.getElementById('modal-role').classList.add('open');
+}
+
+function openEditRoleModal(roleId) {
+  const r = _roleDefs.find(x => x.id === roleId);
+  if (!r) return;
+  _editingRole = r;
+  document.getElementById('modal-role-title').textContent = 'Editar rol: ' + r.name;
+  document.getElementById('rf-name').value = r.name;
+  document.getElementById('rf-name-wrap').style.display = r.isBuiltin ? 'none' : '';
+  document.getElementById('rf-admin-note').style.display = (roleId === 'admin') ? '' : 'none';
+  document.getElementById('rf-perms-wrap').style.display = (roleId === 'admin') ? 'none' : '';
+  document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
+    cb.checked = !!((r.sectionPerms||{})[cb.dataset.perm]);
   });
+  document.getElementById('role-modal-error').classList.remove('show');
+  document.getElementById('btn-save-role').style.display = (roleId === 'admin') ? 'none' : '';
+  document.getElementById('modal-role').classList.add('open');
 }
-function _updatePermsVisibility(role) {
-  document.getElementById('uf-perms-wrap').style.display = (role === 'admin') ? 'none' : '';
+
+function closeRoleModal() {
+  document.getElementById('modal-role').classList.remove('open');
+  _editingRole = null;
 }
+
+async function saveRole() {
+  const name = document.getElementById('rf-name').value.trim();
+  const errEl = document.getElementById('role-modal-error');
+  errEl.classList.remove('show');
+  if (!_editingRole && !name) { showErr(errEl, 'El nombre del rol es requerido'); return; }
+  const sectionPerms = {};
+  document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
+    if (cb.checked) sectionPerms[cb.dataset.perm] = true;
+  });
+  try {
+    let r;
+    if (_editingRole) {
+      const body = { sectionPerms };
+      if (!_editingRole.isBuiltin) body.name = name;
+      r = await authFetch('/api/wwp/role-defs/' + _editingRole.id, { method:'PATCH', body:JSON.stringify(body) });
+    } else {
+      r = await authFetch('/api/wwp/role-defs', { method:'POST', body:JSON.stringify({name, sectionPerms}) });
+    }
+    const d = await r.json();
+    if (!d.ok) { showErr(errEl, d.error||'Error al guardar'); return; }
+    closeRoleModal();
+    toast('Rol guardado');
+    await loadRoleDefs();
+  } catch(e) { showErr(errEl, 'Error: ' + e.message); }
+}
+
+async function deleteRole(roleId) {
+  if (!confirm('¿Eliminar este rol? Esta acción no se puede deshacer.')) return;
+  try {
+    const r = await authFetch('/api/wwp/role-defs/' + roleId, { method:'DELETE' });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error||'Error al eliminar'); return; }
+    toast('Rol eliminado');
+    await loadRoleDefs();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
 function openNewUserModal() {
   _editingUser=null;
   document.getElementById('modal-user-title').textContent='Nuevo Usuario';
@@ -6243,14 +6405,8 @@ function openNewUserModal() {
   document.getElementById('user-modal-error').classList.remove('show');
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { prev.textContent = '?'; prev.style.background = 'var(--brand-light)'; }
-  _resetPermChecks({});
-  _updatePermsVisibility('assistant');
   document.getElementById('modal-user').classList.add('open');
 }
-// Actualizar visibilidad del panel de permisos al cambiar el rol
-document.getElementById('uf-role') && document.getElementById('uf-role').addEventListener('change', function() {
-  _updatePermsVisibility(this.value);
-});
 function openEditUserModal(uid) {
   const u = _authUsers.find(x=>x.id===uid); if(!u) return;
   _editingUser=u;
@@ -6270,9 +6426,6 @@ function openEditUserModal(uid) {
   // Update avatar preview
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { prev.textContent = initials(u.name)||'?'; prev.style.background = avatarColor(u.name); }
-  // Permisos por sección
-  _resetPermChecks(u.sectionPerms||{});
-  _updatePermsVisibility(u.role||'assistant');
   document.getElementById('modal-user').classList.add('open');
 }
 function closeUserModal() { document.getElementById('modal-user').classList.remove('open'); _editingUser=null; }
@@ -6288,14 +6441,7 @@ async function saveUser() {
   if (!name||!email) { showErr(errEl,'Nombre y correo son requeridos'); return; }
   const lunchTimeAllowed = parseInt(document.getElementById('uf-lunch-allowed').value) || 60;
   const scheduleStart    = document.getElementById('uf-schedule-start').value || '08:00';
-  // Recoger sectionPerms desde checkboxes (solo si no es admin)
-  const sectionPerms = {};
-  if (role !== 'admin') {
-    document.querySelectorAll('#uf-perms-wrap input[data-perm]').forEach(function(cb) {
-      if (cb.checked) sectionPerms[cb.dataset.perm] = true;
-    });
-  }
-  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,sectionPerms};
+  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart};
   if (password) body.password=password;
   try {
     let r;
