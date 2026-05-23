@@ -819,8 +819,8 @@ async function getSheetsData() {
 }
 
 // ── Google Sheets — Control de Contenedores ──────────────────────────────────
-const CONT_SHEETS_ID  = ENV.CONT_SHEETS_ID  || '';
-const CONT_SHEETS_GID = ENV.CONT_SHEETS_GID || '0';
+const CONT_SHEETS_ID  = process.env.CONT_SHEETS_ID  || ENV.CONT_SHEETS_ID  || '';
+const CONT_SHEETS_GID = process.env.CONT_SHEETS_GID || ENV.CONT_SHEETS_GID || '0';
 const CONT_SHEETS_URL = CONT_SHEETS_ID
   ? `https://docs.google.com/spreadsheets/d/${CONT_SHEETS_ID}/export?format=csv&gid=${CONT_SHEETS_GID}`
   : '';

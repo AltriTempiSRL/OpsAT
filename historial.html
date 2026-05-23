@@ -318,7 +318,7 @@
 .rpt-prod-img{background:var(--surface)}
 
 *{box-sizing:border-box;font-family:inherit}
-body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text-primary);font-size:13px;line-height:1.5}
+body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text-primary);font-size:13px;line-height:1.5;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 
 /* ── Header ── */
 .hdr{background:var(--accent);color:#fff;padding:14px 24px;border-bottom:3px solid #0e2347}
@@ -336,7 +336,7 @@ body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 
 /* ── Sidebar layout ── */
 .page-layout{display:flex;align-items:flex-start}
-.sidebar{width:210px;min-width:210px;background:var(--accent);flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid rgba(0,0,0,.22);display:flex;flex-direction:column}
+.sidebar{width:210px;min-width:210px;background:var(--accent);flex-shrink:0;position:sticky;top:0;height:100dvh;overflow-y:auto;border-right:1px solid rgba(0,0,0,.22);display:flex;flex-direction:column}
 .sidebar-logo{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
 .sidebar-logo-title{font-size:12px;font-weight:800;color:#fff;letter-spacing:-.1px;margin:0 0 1px}
 .sidebar-logo-sub{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px}
@@ -1866,7 +1866,7 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* ── DRAWER ─────────────────────────────────────────────────────── */
 #wwp-drawer-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;
+  position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;cursor:pointer;
 }
 #wwp-drawer-overlay.open{display:block}
 #wwp-drawer{
@@ -2557,6 +2557,12 @@ body{font-family:var(--font);min-height:100dvh}
   .modal-card-body{max-height:calc(92dvh - 80px);overflow-y:auto}
   .form-row{grid-template-columns:1fr}
   .form-input,.form-select,.form-textarea{font-size:16px;min-height:44px} /* prevent zoom */
+  /* Prevent iOS auto-zoom on all inputs/selects */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select, textarea{font-size:16px!important}
+  /* Touch targets — min 44px */
+  .mob-nav-btn{min-height:44px;padding:10px 13px}
+  .tag{min-height:36px;padding:8px 12px;display:inline-flex;align-items:center}
 
   /* — Notification panel full-width — */
   .notif-panel{
@@ -4068,6 +4074,70 @@ body{font-family:var(--font);min-height:100dvh}
 <div class="toast" id="toast"></div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════════
+// iOS PWA DIALOG HELPERS — replace confirm/alert/prompt which may be
+// blocked in standalone mode on some iOS versions
+// ═══════════════════════════════════════════════════════════════════════
+var _iosPwa = (window.navigator.standalone === true) ||
+              window.matchMedia('(display-mode: standalone)').matches;
+
+function _iosAlert(msg) {
+  if (!_iosPwa) { alert(msg); return Promise.resolve(); }
+  return new Promise(function(resolve) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:20px 22px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.35)">'
+      + '<div style="font-size:14px;color:var(--text);margin-bottom:18px;white-space:pre-wrap;line-height:1.5">'+msg+'</div>'
+      + '<div style="display:flex;justify-content:flex-end">'
+      + '<button style="padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;min-height:44px" id="_iosAlertOk">Aceptar</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    document.getElementById('_iosAlertOk').onclick = function() {
+      document.body.removeChild(ov);
+      resolve();
+    };
+  });
+}
+
+function _iosConfirm(msg) {
+  if (!_iosPwa) { return Promise.resolve(confirm(msg)); }
+  return new Promise(function(resolve) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:20px 22px;width:100%;max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,.35)">'
+      + '<div style="font-size:14px;color:var(--text);margin-bottom:18px;white-space:pre-wrap;line-height:1.5">'+msg+'</div>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+      + '<button style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:14px;cursor:pointer;min-height:44px" id="_iosConfirmNo">Cancelar</button>'
+      + '<button style="padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;min-height:44px" id="_iosConfirmYes">Aceptar</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    document.getElementById('_iosConfirmYes').onclick = function() { document.body.removeChild(ov); resolve(true); };
+    document.getElementById('_iosConfirmNo').onclick  = function() { document.body.removeChild(ov); resolve(false); };
+  });
+}
+
+function _iosPrompt(msg, defaultVal) {
+  return new Promise(function(resolve) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:20px 22px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.35)">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">'+msg+'</div>'
+      + '<input id="_iosPromptInp" type="text" value="'+(defaultVal||'')+'" autocomplete="off"'
+      + ' style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:16px;background:var(--surface-2);color:var(--text);outline:none;margin-bottom:14px">'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+      + '<button style="padding:9px 18px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-2);font-size:14px;cursor:pointer;min-height:44px" id="_iosPromptCancel">Cancelar</button>'
+      + '<button style="padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;min-height:44px" id="_iosPromptOk">Aceptar</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    var inp = document.getElementById('_iosPromptInp');
+    setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 80);
+    function finish(val) { document.body.removeChild(ov); resolve(val); }
+    document.getElementById('_iosPromptOk').onclick     = function() { finish(inp.value); };
+    document.getElementById('_iosPromptCancel').onclick = function() { finish(null); };
+    inp.onkeydown = function(e){ if(e.key==='Enter'){ e.preventDefault(); finish(inp.value); } };
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // STATE (wwp)
 // ═══════════════════════════════════════════════════════════════════════
@@ -5679,7 +5749,7 @@ async function assignManager(taskId) {
   const actionLabel = sameAssignment ? 'confirmar' : (currentIds.length ? 'cambiar' : 'asignar');
   const targetLabel = isAssistantAssignment ? 'auxiliares' : 'encargado';
   const msgNames = names.length ? names.join(', ') : 'este usuario';
-  if (!confirm(`¿Está seguro de que desea ${actionLabel} ${targetLabel} de esta tarea a: ${msgNames}?`)) return;
+  if (!await _iosConfirm(`¿Está seguro de que desea ${actionLabel} ${targetLabel} de esta tarea a: ${msgNames}?`)) return;
 
   const payload = { by:_user.name, byUserId:_user.id };
   if (_user.role === 'manager') {
@@ -5696,7 +5766,8 @@ async function assignManager(taskId) {
     payload.managerId = assignees[0];
     payload.managerName = primaryUser ? primaryUser.name : (checked[0].dataset.name||'');
     payload.assignedTo = primaryOdoo ? ('oe_'+primaryOdoo) : undefined;
-    payload.status = 'assigned';
+    // Solo pasar a 'assigned' si la tarea aún no fue iniciada
+    if (_drawerTask?.status === 'pending') payload.status = 'assigned';
   }
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId, {method:'PATCH', body:JSON.stringify(payload)});
@@ -5883,7 +5954,7 @@ function addGuiaFoto(taskId) {
 }
 
 async function deleteGuiaFoto(taskId, fname) {
-  if (!confirm('¿Eliminar esta foto de guía?')) return;
+  if (!await _iosConfirm('¿Eliminar esta foto de guía?')) return;
   try {
     await authFetch('/api/wwp/tasks/'+taskId+'/fotos-guia/'+encodeURIComponent(fname), {method:'DELETE'});
     toast('Foto eliminada');
@@ -6326,8 +6397,8 @@ function removeFromCart(idx) {
   renderCart();
 }
 
-function clearCart() {
-  if (!confirm('¿Quitar todos los artículos de esta tarea?')) return;
+async function clearCart() {
+  if (!await _iosConfirm('¿Quitar todos los artículos de esta tarea?')) return;
   _modalItems=[];
   _modalSearch.forEach(it=>it._inCart=false);
   renderModalItems();
@@ -6343,7 +6414,7 @@ async function saveTask() {
   if (managerId && managerId !== previousManagerId) {
     const actionLabel = previousManagerId ? 'cambiar el encargado' : 'asignar la tarea';
     const managerName = managerUser?.name || 'este usuario';
-    if (!confirm(`¿Está seguro de que desea ${actionLabel} a: ${managerName}?`)) return;
+    if (!await _iosConfirm(`¿Está seguro de que desea ${actionLabel} a: ${managerName}?`)) return;
   }
   const body = {
     title, type:document.getElementById('mf-type').value,
@@ -6676,7 +6747,7 @@ async function saveRole() {
 }
 
 async function deleteRole(roleId) {
-  if (!confirm('¿Eliminar este rol? Esta acción no se puede deshacer.')) return;
+  if (!await _iosConfirm('¿Eliminar este rol? Esta acción no se puede deshacer.')) return;
   try {
     const r = await authFetch('/api/wwp/role-defs/' + roleId, { method:'DELETE' });
     const d = await r.json();
@@ -10089,7 +10160,7 @@ async function avUploadFotos(id, fotos){
 
 /* Registrar avería */
 async function avRegistrar(){
-  if(!_avCurrentProduct){ alert('Primero busca un artículo con el código de barras.'); return; }
+  if(!_avCurrentProduct){ await _iosAlert('Primero busca un artículo con el código de barras.'); return; }
   var p=_avCurrentProduct;
   var qty=parseInt(document.getElementById('av-qty').value)||1;
   var status=document.getElementById('av-status-init').value;
@@ -10115,7 +10186,7 @@ async function avRegistrar(){
     document.getElementById('av-fotos-count').textContent='';
     _avCurrentProduct=null; _avPendingFotos=[];
     avLoadList();
-  }catch(e){ alert('Error: '+e.message); }
+  }catch(e){ await _iosAlert('Error: '+e.message); }
   finally{ btn.disabled=false; btn.innerHTML='<i data-lucide="alert-triangle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Registrar Artículo Averiado'; if(window.lucide) lucide.createIcons(); }
 }
 
@@ -10279,7 +10350,7 @@ function avItemHtml(a){
 
 /* Actualizar estatus desde la lista */
 async function avUpdateStatus(id, status){
-  var nota=window.prompt('Nota para el cambio a "'+status+'" (opcional):','');
+  var nota=await _iosPrompt('Nota para el cambio a "'+status+'" (opcional):','');
   if(nota===null) return;
   try{
     var r=await fetch('/api/averias/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
@@ -10287,7 +10358,7 @@ async function avUpdateStatus(id, status){
     var d=await r.json();
     if(!d.ok) throw new Error(d.error);
     avLoadList();
-  }catch(e){ alert('Error: '+e.message); }
+  }catch(e){ await _iosAlert('Error: '+e.message); }
 }
 
 /* Agregar fotos a un item ya registrado */
@@ -10307,7 +10378,7 @@ function avAddFotosToItem(id){
         body: JSON.stringify({fotos: fotos})})
         .then(function(r){ return r.json(); })
         .then(function(d){ if(!d.ok) throw new Error(d.error||'No se pudieron subir las fotos'); avLoadList(); })
-        .catch(function(e){ alert('Error subiendo fotos: '+e.message); });
+        .catch(function(e){ _iosAlert('Error subiendo fotos: '+e.message); });
     }
   });
 }
@@ -11563,13 +11634,13 @@ function vehResetForm() {
   document.getElementById('vf-hora').value = new Date().toTimeString().slice(0,5);
 }
 
-function vehSubmit() {
+async function vehSubmit() {
   var vehiculo  = document.getElementById('vf-vehiculo').value.trim();
   var conductor = document.getElementById('vf-conductor').value.trim();
   var fecha     = document.getElementById('vf-fecha').value;
-  if (!vehiculo)  { alert('Por favor selecciona un vehículo.'); return; }
-  if (!conductor) { alert('Por favor indica el conductor.'); return; }
-  if (!fecha)     { alert('Por favor indica la fecha.'); return; }
+  if (!vehiculo)  { await _iosAlert('Por favor selecciona un vehículo.'); return; }
+  if (!conductor) { await _iosAlert('Por favor indica el conductor.'); return; }
+  if (!fecha)     { await _iosAlert('Por favor indica la fecha.'); return; }
 
   // Recolectar respuestas del checklist
   var items = {};
@@ -11613,7 +11684,7 @@ function vehSubmit() {
     if (btn) { btn.textContent = '✓ Guardado'; setTimeout(function(){ btn.textContent = 'Guardar Inspección'; btn.disabled = false; }, 2500); }
   })
   .catch(function(err) {
-    alert('Error al guardar: ' + err.message);
+    _iosAlert('Error al guardar: ' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = 'Guardar Inspección'; }
   });
 }
@@ -11659,22 +11730,22 @@ function vehLoadList() {
   });
 }
 
-function vehDelete(id) {
-  if (!confirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
+async function vehDelete(id) {
+  if (!await _iosConfirm('¿Eliminar esta inspección? Esta acción no se puede deshacer.')) return;
   fetch('/api/vehiculos/inspeccion/' + encodeURIComponent(id), {
     method: 'DELETE',
     headers: { 'Authorization': 'Bearer ' + (_token||'') }
   })
   .then(function(r){ return r.json(); })
   .then(function(){ vehLoadList(); })
-  .catch(function(){ alert('Error al eliminar la inspección.'); });
+  .catch(function(){ _iosAlert('Error al eliminar la inspección.'); });
 }
 
 function vehExportCSV() {
   fetch('/api/vehiculos/inspecciones', { headers: { 'Authorization': 'Bearer ' + (_token||'') } })
   .then(function(r){ return r.json(); })
   .then(function(list) {
-    if (!list.length) { alert('No hay inspecciones para exportar.'); return; }
+    if (!list.length) { _iosAlert('No hay inspecciones para exportar.'); return; }
     // Construir cabeceras: campos fijos + todas las preguntas del checklist
     var fixedHeaders = ['ID','Fecha','Hora','Vehículo','Placa','Conductor','KM','Apto','Observaciones Generales','Firma Conductor','Registrado'];
     // Generar claves en el mismo orden que VEH_SECTIONS
@@ -11725,7 +11796,7 @@ function vehExportCSV() {
     a.href = url; a.download = 'inspecciones_vehiculos_' + new Date().toISOString().slice(0,10) + '.csv';
     a.click(); URL.revokeObjectURL(url);
   })
-  .catch(function(){ alert('Error al exportar.'); });
+  .catch(function(){ _iosAlert('Error al exportar.'); });
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -12069,16 +12140,16 @@ function _polDateRange(from, to) {
   return dates;
 }
 
-function polLoadHistory(polId) {
+async function polLoadHistory(polId) {
   var pol = _polPolicies.find((p) => { return p.id===polId; });
   if (!pol) return;
   var pid = polId.replace(/[^a-z0-9]/gi,'_');
   var from = (document.getElementById('pol-hf-'+pid)||{}).value;
   var to   = (document.getElementById('pol-ht-'+pid)||{}).value;
-  if (!from || !to) { alert('Selecciona un rango de fechas.'); return; }
-  if (from > to)    { alert('La fecha inicio debe ser anterior.'); return; }
+  if (!from || !to) { await _iosAlert('Selecciona un rango de fechas.'); return; }
+  if (from > to)    { await _iosAlert('La fecha inicio debe ser anterior.'); return; }
   var dates = _polDateRange(from, to);
-  if (dates.length > 31) { alert('Máximo 31 días.'); return; }
+  if (dates.length > 31) { await _iosAlert('Máximo 31 días.'); return; }
   var emps  = _polGetEmployees();
   var today = new Date().toISOString().slice(0,10);
   var data  = emps.map((emp) => {
@@ -12187,11 +12258,11 @@ function polOpenEditor(polId) {
 
 function polCloseEditor() { document.getElementById('modal-politica').classList.remove('open'); _polEditorTarget=null; }
 
-function polSaveEditor() {
+async function polSaveEditor() {
   var nombre = document.getElementById('pe-nombre').value.trim();
   var tipo   = document.getElementById('pe-tipo').value;
-  if (!nombre) { alert('El nombre es requerido.'); return; }
-  if (!tipo)   { alert('Selecciona el tipo de política.'); return; }
+  if (!nombre) { await _iosAlert('El nombre es requerido.'); return; }
+  if (!tipo)   { await _iosAlert('Selecciona el tipo de política.'); return; }
   var tolEl = document.getElementById('pe-tol');
   var tol   = tolEl ? (parseInt(tolEl.value)||0) : 0;
   var params = { aplicaA: document.getElementById('pe-aplicaa').value };
@@ -12209,7 +12280,7 @@ function polSaveEditor() {
   authFetch(url, { method:method, body:JSON.stringify(body) })
     .then(function(r){ return r.json(); })
     .then(function() { polCloseEditor(); polLoadAll(); })
-    .catch(function(e) { alert('Error al guardar: '+(e.message||'desconocido')); });
+    .catch(function(e) { _iosAlert('Error al guardar: '+(e.message||'desconocido')); });
 }
 
 function polToggleActive(polId) {
@@ -12218,8 +12289,8 @@ function polToggleActive(polId) {
     .then(function(){ polLoadAll(); });
 }
 
-function polDeletePolicy(polId) {
-  if (!confirm('¿Eliminar esta política? Esta acción no se puede deshacer.')) return;
+async function polDeletePolicy(polId) {
+  if (!await _iosConfirm('¿Eliminar esta política? Esta acción no se puede deshacer.')) return;
   authFetch('/api/politicas/'+encodeURIComponent(polId), { method:'DELETE' })
     .then(function(){ polLoadAll(); });
 }
@@ -12434,7 +12505,7 @@ function empRenderMatGrid() {
       '</div>' +
       '<div class="emp-mat-actions">' +
         '<button class="emp-mat-btn edit" onclick="empOpenMatEditor(\'' + m.id + '\')">Editar</button>' +
-        '<button class="emp-mat-btn del" title="Eliminar material" onclick="if(confirm(\'¿Eliminar \'+\'' + esc(m.nombre) + '\'+\'? Esta acción no se puede deshacer.\'))empDeleteMat(\'' + m.id + '\', this)">✕</button>' +
+        '<button class="emp-mat-btn del" title="Eliminar material" onclick="empDeleteMat(\'' + m.id + '\', this)">✕</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -12807,10 +12878,10 @@ function empSeleccionarFoto() {
   });
 }
 
-function empSaveMat() {
+async function empSaveMat() {
   var nombre = (document.getElementById('emp-mat-nombre').value || '').trim();
   var desc   = (document.getElementById('emp-mat-desc').value   || '').trim();
-  if (!nombre) { alert('El nombre es requerido'); return; }
+  if (!nombre) { await _iosAlert('El nombre es requerido'); return; }
 
   var matId  = document.getElementById('emp-mat-id').value;
   var fotoB64 = _empMatFotoB64; // ya comprimida por empSeleccionarFoto
@@ -12851,8 +12922,8 @@ function empSaveMat() {
   }
 }
 
-function empDeleteMat(matId, btn) {
-  if (!confirm('¿Eliminar este material? Se quitará de todas las reglas.')) return;
+async function empDeleteMat(matId, btn) {
+  if (!await _iosConfirm('¿Eliminar este material? Se quitará de todas las reglas.')) return;
   var orig = btn.textContent; btn.textContent = '…'; btn.disabled = true;
   apiFetch('/api/empaque/materiales/' + matId, {method:'DELETE'}).then(function(r) {
     if (!r.ok) { btn.textContent = orig; btn.disabled = false; showToast('Error al eliminar', 'error'); return; }
@@ -12940,14 +13011,14 @@ function empShowPartialForm(itemId) {
   if (wrap) { wrap.classList.toggle('open'); }
 }
 
-function empConfirmItem(itemId, status, btn) {
+async function empConfirmItem(itemId, status, btn) {
   var taskId = (window._currentTaskDetail || {}).id;
   if (!taskId) return;
   var justificacion = '';
   if (status === 'partial') {
     var txt = document.getElementById('just-txt-' + itemId);
     justificacion = txt ? txt.value.trim() : '';
-    if (!justificacion) { alert('Escribe la justificación antes de enviar'); return; }
+    if (!justificacion) { await _iosAlert('Escribe la justificación antes de enviar'); return; }
   }
   var orig = btn.textContent; btn.textContent = '…'; btn.disabled = true;
   apiFetch('/api/wwp/tasks/' + taskId + '/items/' + itemId + '/empaque', {
