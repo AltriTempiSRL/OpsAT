@@ -2003,6 +2003,14 @@ body{font-family:var(--font);min-height:100dvh}
 .items-panel-hdr{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
 .items-panel-title{font-size:12px;font-weight:700;color:var(--text)}
 .sel-all-btn{font-size:12px;color:var(--brand-light);cursor:pointer;background:none;border:none;font-weight:600}
+/* Carrito de artículos */
+.cart-source-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:6px 14px 4px;background:var(--surface-2);border-bottom:1px solid var(--border-light)}
+.cart-item-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border-light);font-size:12px}
+.cart-item-row:last-child{border-bottom:none}
+.cart-item-name{flex:1;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cart-item-sku{font-size:11px;color:var(--text-muted)}
+.cart-item-remove{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:15px;padding:2px 5px;border-radius:4px;line-height:1;flex-shrink:0}
+.cart-item-remove:hover{background:var(--red-bg);color:var(--red-text)}
 .item-row-modal{
   display:flex;align-items:center;gap:10px;padding:10px 14px;
   border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;
@@ -3789,20 +3797,38 @@ body{font-family:var(--font);min-height:100dvh}
           </select>
         </div>
       </div>
-      <!-- Odoo reference — orden, transferencia o artículo -->
+      <!-- Búsqueda de artículos — multi-referencia -->
       <div class="form-group" id="mf-odoo-wrap" style="display:none">
-        <label class="form-label">Referencia Odoo <span style="font-size:10px;font-weight:400;color:var(--text-3)">orden · transferencia · artículo</span></label>
+        <label class="form-label">Buscar artículos <span style="font-size:10px;font-weight:400;color:var(--text-3)">orden · transferencia · artículo · cliente</span></label>
         <div class="odoo-search-row">
-          <input id="mf-odoo-ref" class="odoo-search-input" placeholder="Ej: S09115, ALVEN/OUT/00146, YH.PALERMO…" oninput="clearOrderItems()">
+          <input id="mf-odoo-ref" class="odoo-search-input" placeholder="S09115 · ALVEN/OUT/00146 · YH.PALERMO · nombre cliente…" oninput="onOdooRefInput()">
           <button class="btn-search" onclick="fetchOrderItems()"><i data-lucide="search"></i>Buscar</button>
         </div>
+        <!-- Info del resultado actual -->
         <div id="mf-odoo-client" class="odoo-client"></div>
+        <!-- Resultados de búsqueda (temporales) -->
         <div id="mf-items-panel" class="items-panel" style="display:none">
           <div class="items-panel-hdr">
-            <span class="items-panel-title" id="mf-items-panel-title"><i data-lucide="package"></i>Artículos</span>
-            <button class="sel-all-btn" onclick="toggleAllItems()">Seleccionar todos</button>
+            <span class="items-panel-title" id="mf-items-panel-title"><i data-lucide="package"></i>Resultados</span>
+            <button class="sel-all-btn" onclick="toggleAllItems()">Sel. todos</button>
           </div>
           <div id="mf-items-list"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px">
+            <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="addCheckedToCart()">
+              <i data-lucide="plus" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Agregar a la tarea
+            </button>
+          </div>
+        </div>
+        <!-- Carrito — artículos confirmados para esta tarea -->
+        <div id="mf-cart-panel" style="display:none;margin-top:10px">
+          <div class="items-panel-hdr" style="background:var(--surface-2);border-radius:var(--radius) var(--radius) 0 0">
+            <span class="items-panel-title" style="color:var(--accent)">
+              <i data-lucide="shopping-cart" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>
+              En esta tarea · <span id="mf-cart-count">0</span> artículo(s)
+            </span>
+            <button class="sel-all-btn" style="color:var(--red-text)" onclick="clearCart()">Limpiar todo</button>
+          </div>
+          <div id="mf-cart-list" style="border:1.5px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)"></div>
         </div>
       </div>
       <div class="form-row">
@@ -6018,10 +6044,16 @@ function openEditTaskModal() {
   document.getElementById('mf-desc').value=_editingTask.description||'';
   document.getElementById('mf-due').value=_editingTask.dueDate||'';
   if (_editingTask.odooRef) { document.getElementById('mf-odoo-ref').value=_editingTask.odooRef; }
+  // Pre-cargar artículos existentes en el carrito
+  _modalItems = (_editingTask.items||[])
+    .filter(it=>it.selected)
+    .map(it=>({...it, _sourceRef:it._sourceRef||_editingTask.odooRef||''}));
+  _modalSearch=[];
+  renderCart();
   onTypeChange();
   document.getElementById('modal-task').classList.add('open');
 }
-function closeTaskModal() { document.getElementById('modal-task').classList.remove('open'); _modalItems=[]; }
+function closeTaskModal() { document.getElementById('modal-task').classList.remove('open'); _modalItems=[]; _modalSearch=[]; _modalCurrentRef=''; }
 var _newTaskFotos = []; // [{b64, ext}] — fotos pendientes del formulario nueva tarea
 
 function resetTaskModal() {
@@ -6035,11 +6067,15 @@ function resetTaskModal() {
   document.getElementById('mf-odoo-ref').value='';
   document.getElementById('mf-odoo-client').innerHTML='';
   document.getElementById('mf-items-panel').style.display='none';
+  document.getElementById('mf-cart-panel').style.display='none';
+  document.getElementById('mf-cart-list').innerHTML='';
   document.getElementById('mf-accion-note').value='';
   document.getElementById('mf-fotos-preview').innerHTML='';
   document.getElementById('mf-fotos-btn-label').textContent='Agregar fotos';
   _newTaskFotos=[];
   _modalItems=[];
+  _modalSearch=[];
+  _modalCurrentRef='';
   onTypeChange();
 }
 
@@ -6084,49 +6120,67 @@ function taskRemoveFoto(idx, wrapEl) {
     ? (remaining + ' foto' + (remaining > 1 ? 's' : '') + ' · Agregar más')
     : 'Agregar fotos';
 }
+// _modalItems  = CARRITO — artículos confirmados para la tarea (persiste entre búsquedas)
+// _modalSearch = resultados de la búsqueda actual (temporales)
+var _modalSearch = [];
+var _modalCurrentRef = ''; // referencia de la búsqueda activa
+
 function onTypeChange() {
-  // Mostrar campo Odoo para todos los tipos — permite vincular cualquier referencia
   document.getElementById('mf-odoo-wrap').style.display='';
 }
-function clearOrderItems() { _modalItems=[]; document.getElementById('mf-items-panel').style.display='none'; document.getElementById('mf-odoo-client').innerHTML=''; }
+function onOdooRefInput() {
+  // Limpiar resultados de búsqueda anterior al cambiar el texto
+  _modalSearch=[];
+  document.getElementById('mf-items-panel').style.display='none';
+  document.getElementById('mf-odoo-client').innerHTML='';
+}
 
 async function fetchOrderItems() {
   const ref = document.getElementById('mf-odoo-ref').value.trim();
   if (!ref) return;
+  _modalCurrentRef = ref;
   document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--text-muted)">Buscando en Odoo…</span>';
   document.getElementById('mf-items-panel').style.display='none';
   try {
     const r = await authFetch('/api/wwp/odoo-order/'+encodeURIComponent(ref));
     const d = await r.json();
-    if (!d.ok) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'+esc(d.error)+'</span>'; if(window.lucide) lucide.createIcons(); return; }
-    // Icono y etiqueta según tipo encontrado
+    if (!d.ok) {
+      document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'+esc(d.error)+'</span>';
+      if(window.lucide) lucide.createIcons(); return;
+    }
     const _tIconMap = {order:'clipboard-list',transfer:'refresh-cw',article:'box'};
-    const typeIconName = _tIconMap[d.type]||'package';
-    const typeIcon = `<i data-lucide="${typeIconName}" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
+    const typeIcon = `<i data-lucide="${_tIconMap[d.type]||'package'}" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
     const typeLabel = d.type==='order'?'Orden de Venta':d.type==='transfer'?'Transferencia'+(d.transferType?' · '+d.transferType:''):d.type==='article'?'Artículo':'—';
     document.getElementById('mf-odoo-client').innerHTML=
       `<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:10px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--text-2)">${typeIcon}${esc(typeLabel)}</span>
         <span><i data-lucide="user" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(d.client)}</span>
-        ${d.origin?'<span style="font-size:11px;color:var(--text-3)">· Origen: '+esc(d.origin)+'</span>':''}
+        ${d.origin?'<span style="font-size:11px;color:var(--text-3)">· '+esc(d.origin)+'</span>':''}
       </span>`;
     if(window.lucide) lucide.createIcons();
-    // Actualizar título del panel
     const panelTitle = document.getElementById('mf-items-panel-title');
     if (panelTitle) {
       const _panIcon = d.type==='transfer'?'refresh-cw':d.type==='article'?'box':'package';
-      const _panText = d.type==='transfer'?'Artículos de la Transferencia':d.type==='article'?'Artículo':'Artículos de la Orden';
+      const _panText = d.type==='transfer'?'Artículos de la transferencia':d.type==='article'?'Artículo':'Artículos de la orden';
       panelTitle.innerHTML = `<i data-lucide="${_panIcon}" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${_panText}`;
       if(window.lucide) lucide.createIcons();
     }
-    _modalItems = d.items||[];
+    // Marcar como ya-en-carrito los que coincidan por SKU + ref
+    _modalSearch = (d.items||[]).map(it => ({
+      ...it,
+      selected: false,
+      _inCart: _modalItems.some(c => c.sku===it.sku && c._sourceRef===ref)
+    }));
     renderModalItems();
-    document.getElementById('mf-items-panel').style.display=_modalItems.length?'':'none';
-  } catch(e) { document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Error: '+esc(e.message)+'</span>'; if(window.lucide) lucide.createIcons(); }
+    document.getElementById('mf-items-panel').style.display=_modalSearch.length?'':'none';
+  } catch(e) {
+    document.getElementById('mf-odoo-client').innerHTML='<span style="color:var(--red)"><i data-lucide="x-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Error: '+esc(e.message)+'</span>';
+    if(window.lucide) lucide.createIcons();
+  }
 }
 
 function renderModalItems() {
-  document.getElementById('mf-items-list').innerHTML = _modalItems.map((it,i)=>{
+  document.getElementById('mf-items-list').innerHTML = _modalSearch.map((it,i)=>{
     const locs = it.locations || [];
     const totalAvail = locs.reduce((s,l)=>s+l.available,0);
 
@@ -6166,15 +6220,19 @@ function renderModalItems() {
       }
     }
 
-    return `<div class="item-row-modal ${it.selected?'sel':''}" onclick="toggleItem(${i})">
-      ${it.image?`<img class="item-thumb-sm" src="${it.image}" onerror="this.style.display='none'">`:`<div class="item-ph-sm"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>`}
-      <div class="item-info-sm" style="flex:1;min-width:0">
-        <div class="item-name-sm">${esc(it.product_name||it.sku)}</div>
-        <div class="item-sku-sm">SKU: ${esc(it.sku||'')}</div>
-        ${stockSummary}
-        ${locationPicker}
+    const inCartLabel = it._inCart
+      ? `<span style="font-size:10px;font-weight:700;color:var(--accent);margin-left:4px">✓ Ya agregado</span>` : '';
+    return `<div class="item-row-modal ${it.selected?'sel':''} ${it._inCart?'':''}${it._inCart?'opacity:.6':''}">
+      <div onclick="toggleItem(${i})" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer">
+        ${it.image?`<img class="item-thumb-sm" src="${it.image}" onerror="this.style.display='none'">`:`<div class="item-ph-sm"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>`}
+        <div class="item-info-sm" style="flex:1;min-width:0">
+          <div class="item-name-sm">${esc(it.product_name||it.sku)}${inCartLabel}</div>
+          <div class="item-sku-sm">SKU: ${esc(it.sku||'')}</div>
+          ${stockSummary}
+          ${locationPicker}
+        </div>
+        <span class="item-qty">×${it.quantity||1}</span>
       </div>
-      <span class="item-qty">×${it.quantity||1}</span>
       <input type="checkbox" class="item-chk" ${it.selected?'checked':''} onclick="event.stopPropagation();toggleItem(${i})">
     </div>`;
   }).join('');
@@ -6182,27 +6240,98 @@ function renderModalItems() {
 }
 
 function selectItemLocation(itemIdx, locIdx) {
-  _modalItems[itemIdx].selected_location = locIdx;
+  _modalSearch[itemIdx].selected_location = locIdx;
   // No re-render para preservar estado del radio; el modelo ya está actualizado
 }
 
 function toggleItem(i) {
-  _modalItems[i].selected = !_modalItems[i].selected;
-  // Auto-seleccionar si solo hay una ubicación
-  if (_modalItems[i].selected && (_modalItems[i].locations||[]).length === 1) {
-    _modalItems[i].selected_location = 0;
-  } else if (!_modalItems[i].selected) {
-    _modalItems[i].selected_location = (_modalItems[i].locations||[]).length===1 ? 0 : null;
+  _modalSearch[i].selected = !_modalSearch[i].selected;
+  if (_modalSearch[i].selected && (_modalSearch[i].locations||[]).length === 1) {
+    _modalSearch[i].selected_location = 0;
+  } else if (!_modalSearch[i].selected) {
+    _modalSearch[i].selected_location = (_modalSearch[i].locations||[]).length===1 ? 0 : null;
   }
   renderModalItems();
 }
 function toggleAllItems() {
-  const allSel = _modalItems.every(i=>i.selected);
-  _modalItems.forEach(it=>{
+  const allSel = _modalSearch.filter(i=>!i._inCart).every(i=>i.selected);
+  _modalSearch.forEach(it=>{
+    if (it._inCart) return; // no tocar los ya agregados
     it.selected = !allSel;
     if (it.selected && (it.locations||[]).length===1) it.selected_location=0;
   });
   renderModalItems();
+}
+
+// ── Carrito ────────────────────────────────────────────────────────────────
+function addCheckedToCart() {
+  const ref = _modalCurrentRef || document.getElementById('mf-odoo-ref').value.trim();
+  const toAdd = _modalSearch.filter(it => it.selected && !it._inCart);
+  if (!toAdd.length) { toast('Selecciona al menos un artículo'); return; }
+  toAdd.forEach(it => {
+    // Evitar duplicados (mismo SKU de la misma referencia)
+    const exists = _modalItems.some(c => c.sku===it.sku && c._sourceRef===ref);
+    if (!exists) _modalItems.push({...it, selected:true, _sourceRef:ref});
+  });
+  // Marcar como _inCart en los resultados
+  _modalSearch.forEach(it => {
+    if (_modalItems.some(c => c.sku===it.sku && c._sourceRef===ref)) it._inCart=true;
+  });
+  renderModalItems();
+  renderCart();
+  toast(toAdd.length + ' artículo' + (toAdd.length!==1?'s':'') + ' agregado' + (toAdd.length!==1?'s':''));
+}
+
+function renderCart() {
+  const panel = document.getElementById('mf-cart-panel');
+  const list  = document.getElementById('mf-cart-list');
+  const count = document.getElementById('mf-cart-count');
+  if (!_modalItems.length) { panel.style.display='none'; return; }
+  panel.style.display='';
+  if (count) count.textContent = _modalItems.length;
+  // Agrupar por fuente
+  const groups = {};
+  _modalItems.forEach((it,i) => {
+    const src = it._sourceRef || '—';
+    if (!groups[src]) groups[src] = [];
+    groups[src].push({...it, _cartIdx:i});
+  });
+  list.innerHTML = Object.entries(groups).map(([src, items]) =>
+    `<div>
+      <div class="cart-source-hdr">
+        <i data-lucide="link" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>${esc(src)}
+      </div>
+      ${items.map(it => `<div class="cart-item-row">
+        ${it.image?`<img style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0" src="${it.image}" onerror="this.style.display='none'">`:''}
+        <div style="flex:1;min-width:0">
+          <div class="cart-item-name">${esc(it.product_name||it.sku)}</div>
+          <div class="cart-item-sku">SKU: ${esc(it.sku||'')} · ×${it.quantity||1}</div>
+        </div>
+        <button class="cart-item-remove" onclick="removeFromCart(${it._cartIdx})" title="Quitar">✕</button>
+      </div>`).join('')}
+    </div>`
+  ).join('');
+  if(window.lucide) lucide.createIcons();
+}
+
+function removeFromCart(idx) {
+  const removed = _modalItems.splice(idx, 1)[0];
+  // Desmarcar _inCart en resultados actuales si coincide
+  if (removed && _modalSearch.length) {
+    _modalSearch.forEach(it => {
+      if (it.sku===removed.sku && _modalCurrentRef===removed._sourceRef) it._inCart=false;
+    });
+    renderModalItems();
+  }
+  renderCart();
+}
+
+function clearCart() {
+  if (!confirm('¿Quitar todos los artículos de esta tarea?')) return;
+  _modalItems=[];
+  _modalSearch.forEach(it=>it._inCart=false);
+  renderModalItems();
+  renderCart();
 }
 
 async function saveTask() {
@@ -6224,7 +6353,9 @@ async function saveTask() {
     description:document.getElementById('mf-desc').value.trim(),
     actionNote:document.getElementById('mf-accion-note').value.trim()||'',
     dueDate:document.getElementById('mf-due').value||null,
-    odooRef:document.getElementById('mf-odoo-ref').value.trim()||null,
+    odooRef: _modalItems.length
+      ? [...new Set(_modalItems.map(it=>it._sourceRef).filter(Boolean))].join(', ')
+      : (document.getElementById('mf-odoo-ref').value.trim()||null),
     createdBy:_user.id, by:_user.name, byUserId:_user.id
   };
   try {
