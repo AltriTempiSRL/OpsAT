@@ -387,6 +387,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .stype-btn{padding:5px 15px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.2px;transition:all .15s;font-family:inherit;line-height:1.4}
 .stype-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 .stype-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* Sub-modo artículo */
+#art-submode-row{display:none;flex-direction:row}
+.art-sub-btn{padding:4px 11px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--surface-2);cursor:pointer;font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.2px;transition:all .15s;font-family:inherit;line-height:1.4}
+.art-sub-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.art-sub-btn.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
+/* Resultados de búsqueda por descripción */
+#art-desc-results{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:8px;overflow:hidden}
+.art-desc-item{padding:10px 14px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
+.art-desc-item:last-child{border-bottom:none}
+.art-desc-item:hover{background:var(--accent-light)}
+.art-desc-item-ref{font-size:10px;font-family:monospace;color:var(--text-muted);margin-top:2px}
+.art-desc-item-bar{font-size:10px;font-family:monospace;color:var(--text-muted)}
 
 /* ── Cards — unified ── */
 .card,.src-card,.timeline-card,.mv-card,.cont-card,.dev-card,.dept-card,.active-card{
@@ -1828,11 +1840,38 @@ body{font-family:var(--font);min-height:100dvh}
 .task-empty{text-align:center;padding:60px 20px;color:var(--text-3);font-size:14px}
 
 /* ── View toggle bar ─────────────────────────────────────────────────── */
-.tasks-view-bar{display:flex;gap:4px;margin-bottom:12px}
+.tasks-view-bar{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
 .tv-btn{padding:5px 10px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;transition:background .12s,color .12s,border-color .12s}
 .tv-btn:hover{background:var(--surface-2);color:var(--text)}
 .tv-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tv-btn svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px}
+.tv-guided-btn{border-color:var(--purple)!important;color:var(--purple)!important}
+.tv-guided-btn:hover,.tv-guided-btn.active{background:var(--purple)!important;color:#fff!important;border-color:var(--purple)!important}
+/* ── Modo Guiado ── */
+.guided-panel{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:0;overflow:hidden;margin-bottom:14px;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.guided-panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;border-bottom:1px solid var(--border-light)}
+.guided-panel-title{font-size:13px;font-weight:700;color:var(--text-primary)}
+.guided-close{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px;border-radius:6px;display:flex;align-items:center;line-height:1}
+.guided-close svg{width:16px;height:16px;stroke:currentColor}
+.guided-actions{padding:8px}
+.guided-action{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;background:none;border:1.5px solid var(--border-light);border-radius:var(--radius);cursor:pointer;margin-bottom:6px;text-align:left;transition:border-color .12s,background .12s;font-family:inherit}
+.guided-action:last-child{margin-bottom:0}
+.guided-action:hover{background:var(--accent-light);border-color:var(--accent)}
+.guided-action-icon{width:32px;height:32px;border-radius:8px;background:var(--accent-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.guided-action-icon svg{width:16px;height:16px;stroke:var(--accent)}
+.guided-action-text{flex:1}
+.guided-action-text strong{display:block;font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:1px}
+.guided-action-text small{font-size:10px;color:var(--text-muted)}
+.guided-action-arrow{color:var(--text-muted)}
+.guided-action-arrow svg{width:14px;height:14px;stroke:currentColor}
+/* Tooltip */
+.guided-tooltip{position:fixed;z-index:9001;max-width:260px;pointer-events:auto}
+.guided-tooltip-body{background:#1b3b6f;color:#fff;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:500;line-height:1.4;display:flex;align-items:flex-start;gap:8px;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.guided-tooltip-close{background:rgba(255,255,255,.15);border:none;cursor:pointer;border-radius:50%;padding:3px;color:#fff;flex-shrink:0;display:flex;align-items:center;margin-left:4px;line-height:1}
+.guided-tooltip-arrow{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:8px solid #1b3b6f;margin-left:20px}
+/* Highlight pulsante en elemento guiado */
+.guided-highlight{animation:guidePulse 1.4s ease-in-out 3;outline:3px solid var(--purple)!important;outline-offset:3px;border-radius:var(--radius)!important}
+@keyframes guidePulse{0%,100%{outline-color:var(--purple);box-shadow:0 0 0 0 rgba(124,58,237,.4)}50%{outline-color:var(--purple);box-shadow:0 0 0 6px rgba(124,58,237,0)}}
 
 /* ── Vista Lista (compact rows) ─────────────────────────────────────── */
 .task-list-row{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s;border-left:3px solid transparent}
@@ -2881,6 +2920,12 @@ body{font-family:var(--font);min-height:100dvh}
         <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
         <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">Artículo</button>
       </div>
+      <!-- Sub-modo artículo: visible solo en modo artículo -->
+      <div id="art-submode-row" style="display:none;margin:8px 0 -2px;gap:5px;flex-wrap:wrap">
+        <button class="art-sub-btn active" id="art-sub-codigo"  onclick="setArtSubMode('codigo')"><i data-lucide="hash" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Referencia</button>
+        <button class="art-sub-btn"        id="art-sub-barcode" onclick="setArtSubMode('barcode')"><i data-lucide="barcode" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Código de barras</button>
+        <button class="art-sub-btn"        id="art-sub-desc"    onclick="setArtSubMode('desc')"><i data-lucide="type" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Descripción</button>
+      </div>
       <div class="search-bar-row">
         <div class="ac-wrap">
           <input type="text" id="order-input" placeholder="Buscar orden, transferencia, artículo…"
@@ -2889,6 +2934,8 @@ body{font-family:var(--font);min-height:100dvh}
         </div>
         <button onclick="buscarOrden()">Buscar</button>
       </div>
+      <!-- Resultados de búsqueda por descripción (artículo) -->
+      <div id="art-desc-results" style="display:none"></div>
       <div class="recent-tags" id="recent-tags-row">
         <span class="tag" onclick="buscarDirecta('8949')">8949 · Lissette Polanco</span>
         <span class="tag" onclick="buscarDirecta('9115')">9115 · Andrea Hormazabal</span>
@@ -3445,6 +3492,52 @@ body{font-family:var(--font);min-height:100dvh}
         <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona">
           <i data-lucide="users"></i> Por persona
         </button>
+        <button class="tv-btn tv-guided-btn" id="btn-guided-mode" onclick="toggleGuidedMode()" title="Modo Guiado" style="margin-left:auto">
+          <i data-lucide="compass"></i> Guía
+        </button>
+      </div>
+
+      <!-- ── MODO GUIADO ──────────────────────────────────────── -->
+      <div id="guided-panel" class="guided-panel" style="display:none">
+        <div class="guided-panel-hdr">
+          <span class="guided-panel-title"><i data-lucide="compass" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>¿Qué quieres hacer?</span>
+          <button class="guided-close" onclick="closeGuidedMode()"><i data-lucide="x"></i></button>
+        </div>
+        <div class="guided-actions">
+          <button class="guided-action" onclick="guideAction('nueva-tarea')">
+            <span class="guided-action-icon"><i data-lucide="plus-circle"></i></span>
+            <span class="guided-action-text"><strong>Crear nueva tarea</strong><small>Agrega una tarea al equipo</small></span>
+            <span class="guided-action-arrow"><i data-lucide="arrow-right"></i></span>
+          </button>
+          <button class="guided-action" onclick="guideAction('buscar-tarea')">
+            <span class="guided-action-icon"><i data-lucide="search"></i></span>
+            <span class="guided-action-text"><strong>Buscar una tarea</strong><small>Filtra por nombre, orden u operador</small></span>
+            <span class="guided-action-arrow"><i data-lucide="arrow-right"></i></span>
+          </button>
+          <button class="guided-action" onclick="guideAction('filtrar-estado')">
+            <span class="guided-action-icon"><i data-lucide="filter"></i></span>
+            <span class="guided-action-text"><strong>Filtrar por estado</strong><small>Pendiente, en progreso, completada…</small></span>
+            <span class="guided-action-arrow"><i data-lucide="arrow-right"></i></span>
+          </button>
+          <button class="guided-action" onclick="guideAction('iniciar-tarea')">
+            <span class="guided-action-icon"><i data-lucide="play-circle"></i></span>
+            <span class="guided-action-text"><strong>Iniciar / avanzar tarea</strong><small>Abre una tarea y usa los botones de acción</small></span>
+            <span class="guided-action-arrow"><i data-lucide="arrow-right"></i></span>
+          </button>
+          <button class="guided-action" onclick="guideAction('cambiar-vista')">
+            <span class="guided-action-icon"><i data-lucide="layout-grid"></i></span>
+            <span class="guided-action-text"><strong>Cambiar vista</strong><small>Lista, tarjetas, kanban o por persona</small></span>
+            <span class="guided-action-arrow"><i data-lucide="arrow-right"></i></span>
+          </button>
+        </div>
+      </div>
+      <!-- Tooltip del modo guiado -->
+      <div id="guided-tooltip" class="guided-tooltip" style="display:none">
+        <div class="guided-tooltip-arrow"></div>
+        <div class="guided-tooltip-body">
+          <span id="guided-tooltip-text"></span>
+          <button class="guided-tooltip-close" onclick="closeGuidedTooltip()"><i data-lucide="x" style="width:12px;height:12px;stroke:currentColor"></i></button>
+        </div>
       </div>
       <div id="tasks-list"><div class="loading"><div class="spinner"></div><br>Cargando tareas…</div></div>
     </div>
@@ -5193,8 +5286,116 @@ function canViewAnyTaskForUser(userId) {
 var _taskView = 'list';
 function setTaskView(v) {
   _taskView = v;
-  document.querySelectorAll('.tv-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  document.querySelectorAll('.tv-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v && b.id !== 'btn-guided-mode'));
   filterTasks();
+}
+
+// ════════════════════════════════════════════════════
+//  MODO GUIADO — Tasks
+// ════════════════════════════════════════════════════
+var _guidedOpen = false;
+var _guidedHighlightEl = null;
+var _guidedTooltipTimer = null;
+
+function toggleGuidedMode() {
+  if (_guidedOpen) { closeGuidedMode(); return; }
+  _guidedOpen = true;
+  var panel = document.getElementById('guided-panel');
+  var btn   = document.getElementById('btn-guided-mode');
+  if (panel) panel.style.display = '';
+  if (btn)   btn.classList.add('active');
+  // Scroll suavemente al panel
+  if (panel) panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeGuidedMode() {
+  _guidedOpen = false;
+  var panel = document.getElementById('guided-panel');
+  var btn   = document.getElementById('btn-guided-mode');
+  if (panel) panel.style.display = 'none';
+  if (btn)   btn.classList.remove('active');
+  closeGuidedTooltip();
+}
+
+function closeGuidedTooltip() {
+  clearTimeout(_guidedTooltipTimer);
+  var tt = document.getElementById('guided-tooltip');
+  if (tt) tt.style.display = 'none';
+  if (_guidedHighlightEl) {
+    _guidedHighlightEl.classList.remove('guided-highlight');
+    _guidedHighlightEl = null;
+  }
+}
+
+function _showGuidedTooltip(targetEl, text, arrowDown) {
+  closeGuidedTooltip();
+  var tt = document.getElementById('guided-tooltip');
+  if (!tt || !targetEl) return;
+  document.getElementById('guided-tooltip-text').textContent = text;
+  // Posición relativa al target
+  var rect = targetEl.getBoundingClientRect();
+  tt.style.display = '';
+  // arrow: arriba del tooltip apunta al elemento (tooltip está abajo)
+  var arrow = tt.querySelector('.guided-tooltip-arrow');
+  var ttW = 260;
+  var left = Math.max(8, Math.min(rect.left, window.innerWidth - ttW - 8));
+  if (arrowDown) {
+    // tooltip arriba del elemento
+    tt.style.top  = (rect.top - 10 - tt.offsetHeight) + 'px';
+    if (arrow) { arrow.style.cssText='border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid #1b3b6f;border-bottom:none;margin-left:20px'; }
+  } else {
+    // tooltip abajo del elemento
+    tt.style.top  = (rect.bottom + 10) + 'px';
+    if (arrow) { arrow.style.cssText='border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:8px solid #1b3b6f;border-top:none;margin-left:20px'; }
+  }
+  tt.style.left = left + 'px';
+  if (window.lucide) lucide.createIcons();
+  // Añadir highlight pulsante al target
+  _guidedHighlightEl = targetEl;
+  targetEl.classList.add('guided-highlight');
+  // Auto-cerrar tooltip después de 6 segundos
+  _guidedTooltipTimer = setTimeout(closeGuidedTooltip, 6000);
+}
+
+function guideAction(action) {
+  // Cerrar el panel pero dejar el tooltip
+  var panel = document.getElementById('guided-panel');
+  if (panel) panel.style.display = 'none';
+  _guidedOpen = false;
+  var btn = document.getElementById('btn-guided-mode');
+  if (btn) btn.classList.remove('active');
+
+  var targetEl, text;
+  switch(action) {
+    case 'nueva-tarea':
+      targetEl = document.getElementById('btn-new-task');
+      if (!targetEl || targetEl.style.display==='none') {
+        targetEl = document.querySelector('.btn-new');
+      }
+      text = 'Pulsa aquí para crear una nueva tarea y asignarla al equipo.';
+      break;
+    case 'buscar-tarea':
+      targetEl = document.getElementById('task-search');
+      text = 'Escribe aquí para buscar tareas por nombre, orden o responsable.';
+      if (targetEl) targetEl.focus();
+      break;
+    case 'filtrar-estado':
+      targetEl = document.getElementById('filter-status');
+      text = 'Selecciona un estado para filtrar: Pendiente, En progreso, Completado…';
+      break;
+    case 'iniciar-tarea':
+      targetEl = document.querySelector('#tasks-list .task-list-row, #tasks-list .task-card');
+      text = 'Pulsa sobre cualquier tarea para abrirla, luego usa los botones de acción para iniciarla o avanzarla.';
+      break;
+    case 'cambiar-vista':
+      targetEl = document.querySelector('.tasks-view-bar');
+      text = 'Aquí puedes cambiar entre Lista, Tarjetas, Kanban y Vista por persona.';
+      break;
+  }
+  if (!targetEl) { closeGuidedTooltip(); return; }
+  targetEl.scrollIntoView({ behavior:'smooth', block:'center' });
+  setTimeout(function(){ _showGuidedTooltip(targetEl, text, false); }, 300);
 }
 
 /* ── Semáforo de fecha límite ─────────────────────────────────────────────────
@@ -8151,8 +8352,11 @@ function detectRefType(val){
 var PLACEHOLDERS={
   orden:         'Nº orden / compra: 8949, S09059, P03025…',
   transferencia: 'Código transferencia: CDP/INT/03839, ALVEN/OUT/87160…',
-  articulo:      'Código artículo: YH.PALERMO.SOFA.3P.GRY.K1…'
+  articulo:      'Código artículo: YH.PALERMO.SOFA.3P.GRY.K1…',
+  barcode:       'Escanear o escribir código de barras…',
+  desc:          'Ej: Palermo Sofá, Sillón Bari, Mesa…'
 };
+var ART_SUB_MODE='codigo'; // 'codigo' | 'barcode' | 'desc'
 function setSearchMode(mode){
   SEARCH_MODE=mode;
   document.querySelectorAll('.stype-btn').forEach((b) => {b.classList.remove('active');});
@@ -8164,8 +8368,72 @@ function setSearchMode(mode){
   if(typeof _acClose==='function') _acClose();
   var tags=document.getElementById('recent-tags-row');
   if(tags) tags.style.display=(mode==='orden')?'':'none';
+  // Sub-modo artículo
+  var subRow=document.getElementById('art-submode-row');
+  if(subRow) subRow.style.display=(mode==='articulo')?'flex':'none';
+  if(mode==='articulo'){ ART_SUB_MODE='codigo'; _artSubBtnActive('codigo'); }
+  var dr=document.getElementById('art-desc-results');
+  if(dr) dr.style.display='none';
   document.getElementById('result-section').style.display='none';
   inp.focus();
+}
+function _artSubBtnActive(sub){
+  document.querySelectorAll('.art-sub-btn').forEach((b)=>{b.classList.remove('active');});
+  var sb=document.getElementById('art-sub-'+sub);
+  if(sb) sb.classList.add('active');
+}
+function setArtSubMode(sub){
+  ART_SUB_MODE=sub;
+  _artSubBtnActive(sub);
+  var inp=document.getElementById('order-input');
+  inp.value='';
+  inp.placeholder=PLACEHOLDERS[sub]||PLACEHOLDERS.articulo;
+  var dr=document.getElementById('art-desc-results');
+  if(dr) dr.style.display='none';
+  document.getElementById('result-section').style.display='none';
+  inp.focus();
+}
+// Búsqueda por descripción — picklist de productos Odoo
+async function buscarArticuloDesc(query){
+  if(!query) return;
+  var dr=document.getElementById('art-desc-results');
+  dr.style.display='';
+  dr.innerHTML='<div class="art-desc-item" style="color:var(--text-muted);cursor:default"><i data-lucide="loader-2" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:5px"></i>Buscando en Odoo…</div>';
+  if(window.lucide) lucide.createIcons();
+  if(!ODOO_LIVE){
+    dr.innerHTML='<div class="art-desc-item" style="color:var(--red-text);cursor:default">Sin conexión Odoo en vivo. Activa la conexión e intenta de nuevo.</div>';
+    return;
+  }
+  try{
+    var prods=await odooSearch('product.product',
+      [['name','ilike',query],['active','=',true]],
+      ['id','name','default_code','barcode'],20);
+    if(!prods||!prods.length){
+      dr.innerHTML='<div class="art-desc-item" style="color:var(--text-muted);cursor:default">Sin resultados para "'+escH(query)+'"</div>';
+      return;
+    }
+    var h='';
+    prods.forEach(function(p){
+      var nombre=(p.name||'').split('\n')[0].trim();
+      var ref=p.default_code||'';
+      var bar=p.barcode||'';
+      h+='<div class="art-desc-item" onclick="artDescSelect('+JSON.stringify(ref||bar||nombre)+')">'
+        +'<div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escH(nombre)+'</div>'
+        +(ref?'<div class="art-desc-item-ref">Ref: '+escH(ref)+'</div>':'')
+        +(bar?'<span class="art-desc-item-bar"> · Barcode: '+escH(bar)+'</span>':'')
+        +'</div>';
+    });
+    dr.innerHTML=h;
+  }catch(e){
+    dr.innerHTML='<div class="art-desc-item" style="color:var(--red-text);cursor:default">Error al consultar Odoo: '+escH(e.message)+'</div>';
+  }
+}
+function artDescSelect(ref){
+  var dr=document.getElementById('art-desc-results');
+  if(dr) dr.style.display='none';
+  document.getElementById('order-input').value=ref;
+  pushNavHistory();
+  buscarArticulo(ref);
 }
 
 // ════════════════════════════════════════════════════
@@ -8177,8 +8445,12 @@ function buscarOrden(){
   pushNavHistory();       // save current result before overwriting
   _navSearchLock=true;    // prevent buscarDirecta from double-pushing
   try{
-    // Artículo: si el modo es artículo o coincide con el diccionario, buscar ahí
-    if(SEARCH_MODE==='articulo'){ buscarArticulo(v); return; }
+    // Artículo: si el modo es artículo, despachar según sub-modo
+    if(SEARCH_MODE==='articulo'){
+      if(ART_SUB_MODE==='desc'){ buscarArticuloDesc(v); return; }
+      // barcode o codigo — buscarArticulo busca por default_code|barcode en Odoo
+      buscarArticulo(v); return;
+    }
     if(ARTICULOS[v.toUpperCase()]||ARTICULOS[v]){ buscarArticulo(v); return; }
     // Auto-detectar por formato (siempre tiene prioridad sobre el modo actual)
     var detected=detectRefType(v);
@@ -13203,7 +13475,18 @@ function _acSelect(el) {
   inp.addEventListener('input', function() {
     clearTimeout(_acDebounce);
     var q = this.value.trim();
-    if (!q) { _acClose(); return; }
+    if (!q) {
+      _acClose();
+      var dr=document.getElementById('art-desc-results');
+      if(dr) dr.style.display='none';
+      return;
+    }
+    // En modo descripción de artículo, hacer búsqueda live contra Odoo
+    if(SEARCH_MODE==='articulo' && ART_SUB_MODE==='desc'){
+      _acClose();
+      _acDebounce = setTimeout(function() { buscarArticuloDesc(q); }, 400);
+      return;
+    }
     _acDebounce = setTimeout(function() { _acRender(q); }, 100);
   });
 
