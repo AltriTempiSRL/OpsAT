@@ -1,18 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Fondo con esquinas redondeadas (maskable safe zone: 512×512) -->
-  <rect width="512" height="512" rx="100" fill="#2d2d2d"/>
-  <!-- Línea decorativa superior -->
-  <rect x="80" y="148" width="352" height="8" rx="4" fill="#888"/>
+  <!-- Fondo gris del logo -->
+  <rect width="512" height="512" fill="#696969"/>
   <!-- ALTRI -->
-  <text x="256" y="278"
+  <text x="256" y="238"
     font-family="Georgia, 'Times New Roman', serif"
-    font-size="108" font-weight="700"
-    fill="white" text-anchor="middle" letter-spacing="12">ALTRI</text>
+    font-size="118" font-weight="400"
+    fill="#e8e8e8" text-anchor="middle" letter-spacing="8">ALTRI</text>
   <!-- TEMPI -->
-  <text x="256" y="390"
+  <text x="256" y="366"
     font-family="Georgia, 'Times New Roman', serif"
-    font-size="108" font-weight="700"
-    fill="white" text-anchor="middle" letter-spacing="12">TEMPI</text>
-  <!-- Línea decorativa inferior -->
-  <rect x="80" y="412" width="352" height="8" rx="4" fill="#888"/>
+    font-size="118" font-weight="400"
+    fill="#e8e8e8" text-anchor="middle" letter-spacing="8">TEMPI</text>
 </svg>
