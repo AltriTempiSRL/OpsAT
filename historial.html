@@ -387,12 +387,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .stype-btn{padding:5px 15px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:11px;font-weight:700;color:var(--text-secondary);letter-spacing:.2px;transition:all .15s;font-family:inherit;line-height:1.4}
 .stype-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 .stype-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-/* Sub-modo artículo */
-#art-submode-row{display:none;flex-direction:row}
-.art-sub-btn{padding:4px 11px;border-radius:20px;border:1.5px solid var(--border-light);background:var(--surface-2);cursor:pointer;font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.2px;transition:all .15s;font-family:inherit;line-height:1.4}
-.art-sub-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
-.art-sub-btn.active{background:var(--accent-light);color:var(--accent);border-color:var(--accent)}
-/* Resultados de búsqueda por descripción */
+/* Resultados de búsqueda por artículo */
 #art-desc-results{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:8px;overflow:hidden}
 .art-desc-item{padding:10px 14px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
 .art-desc-item:last-child{border-bottom:none}
@@ -2919,12 +2914,6 @@ body{font-family:var(--font);min-height:100dvh}
         <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">Orden</button>
         <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
         <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">Artículo</button>
-      </div>
-      <!-- Sub-modo artículo: visible solo en modo artículo -->
-      <div id="art-submode-row" style="display:none;margin:8px 0 -2px;gap:5px;flex-wrap:wrap">
-        <button class="art-sub-btn active" id="art-sub-codigo"  onclick="setArtSubMode('codigo')"><i data-lucide="hash" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Referencia</button>
-        <button class="art-sub-btn"        id="art-sub-barcode" onclick="setArtSubMode('barcode')"><i data-lucide="barcode" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Código de barras</button>
-        <button class="art-sub-btn"        id="art-sub-desc"    onclick="setArtSubMode('desc')"><i data-lucide="type" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Descripción</button>
       </div>
       <div class="search-bar-row">
         <div class="ac-wrap">
@@ -8352,11 +8341,8 @@ function detectRefType(val){
 var PLACEHOLDERS={
   orden:         'Nº orden / compra: 8949, S09059, P03025…',
   transferencia: 'Código transferencia: CDP/INT/03839, ALVEN/OUT/87160…',
-  articulo:      'Código artículo: YH.PALERMO.SOFA.3P.GRY.K1…',
-  barcode:       'Escanear o escribir código de barras…',
-  desc:          'Ej: Palermo Sofá, Sillón Bari, Mesa…'
+  articulo:      'Referencia, código de barras o descripción del artículo…'
 };
-var ART_SUB_MODE='codigo'; // 'codigo' | 'barcode' | 'desc'
 function setSearchMode(mode){
   SEARCH_MODE=mode;
   document.querySelectorAll('.stype-btn').forEach((b) => {b.classList.remove('active');});
@@ -8368,32 +8354,12 @@ function setSearchMode(mode){
   if(typeof _acClose==='function') _acClose();
   var tags=document.getElementById('recent-tags-row');
   if(tags) tags.style.display=(mode==='orden')?'':'none';
-  // Sub-modo artículo
-  var subRow=document.getElementById('art-submode-row');
-  if(subRow) subRow.style.display=(mode==='articulo')?'flex':'none';
-  if(mode==='articulo'){ ART_SUB_MODE='codigo'; _artSubBtnActive('codigo'); }
   var dr=document.getElementById('art-desc-results');
   if(dr) dr.style.display='none';
   document.getElementById('result-section').style.display='none';
   inp.focus();
 }
-function _artSubBtnActive(sub){
-  document.querySelectorAll('.art-sub-btn').forEach((b)=>{b.classList.remove('active');});
-  var sb=document.getElementById('art-sub-'+sub);
-  if(sb) sb.classList.add('active');
-}
-function setArtSubMode(sub){
-  ART_SUB_MODE=sub;
-  _artSubBtnActive(sub);
-  var inp=document.getElementById('order-input');
-  inp.value='';
-  inp.placeholder=PLACEHOLDERS[sub]||PLACEHOLDERS.articulo;
-  var dr=document.getElementById('art-desc-results');
-  if(dr) dr.style.display='none';
-  document.getElementById('result-section').style.display='none';
-  inp.focus();
-}
-// Búsqueda por descripción — picklist de productos Odoo
+// Búsqueda unificada por artículo: intenta ref/barcode exacto, si no encuentra busca por descripción
 async function buscarArticuloDesc(query){
   if(!query) return;
   var dr=document.getElementById('art-desc-results');
@@ -8401,26 +8367,40 @@ async function buscarArticuloDesc(query){
   dr.innerHTML='<div class="art-desc-item" style="color:var(--text-muted);cursor:default"><i data-lucide="loader-2" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:5px"></i>Buscando en Odoo…</div>';
   if(window.lucide) lucide.createIcons();
   if(!ODOO_LIVE){
-    dr.innerHTML='<div class="art-desc-item" style="color:var(--red-text);cursor:default">Sin conexión Odoo en vivo. Activa la conexión e intenta de nuevo.</div>';
+    dr.innerHTML='<div class="art-desc-item" style="color:var(--red-text);cursor:default">Sin conexión Odoo. Activa la conexión e intenta de nuevo.</div>';
     return;
   }
   try{
+    // Buscar por referencia exacta, barcode exacto O nombre parcial — todo en una sola consulta
     var prods=await odooSearch('product.product',
-      [['name','ilike',query],['active','=',true]],
+      ['|','|',['default_code','ilike',query],['barcode','ilike',query],['name','ilike',query]],
       ['id','name','default_code','barcode'],20);
     if(!prods||!prods.length){
       dr.innerHTML='<div class="art-desc-item" style="color:var(--text-muted);cursor:default">Sin resultados para "'+escH(query)+'"</div>';
       return;
     }
-    var h='';
+    // Si hay un único resultado exacto (ref o barcode), ir directo sin picklist
+    var exact=prods.find(function(p){
+      return (p.default_code||'').toLowerCase()===query.toLowerCase()
+          || (p.barcode||'').toLowerCase()===query.toLowerCase();
+    });
+    if(exact){
+      dr.style.display='none';
+      artDescSelect(exact.default_code||exact.barcode||exact.name,true);
+      return;
+    }
+    var h='<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Selecciona un artículo</div>';
     prods.forEach(function(p){
       var nombre=(p.name||'').split('\n')[0].trim();
       var ref=p.default_code||'';
       var bar=p.barcode||'';
       h+='<div class="art-desc-item" onclick="artDescSelect('+JSON.stringify(ref||bar||nombre)+')">'
         +'<div style="font-size:12px;font-weight:600;color:var(--text-primary)">'+escH(nombre)+'</div>'
-        +(ref?'<div class="art-desc-item-ref">Ref: '+escH(ref)+'</div>':'')
-        +(bar?'<span class="art-desc-item-bar"> · Barcode: '+escH(bar)+'</span>':'')
+        +'<div style="font-size:10px;color:var(--text-muted);margin-top:2px">'
+        +(ref?'<span style="font-family:monospace">'+escH(ref)+'</span>':'')
+        +(ref&&bar?' &nbsp;·&nbsp; ':'')
+        +(bar?'<span style="font-family:monospace">'+escH(bar)+'</span>':'')
+        +'</div>'
         +'</div>';
     });
     dr.innerHTML=h;
@@ -8428,10 +8408,10 @@ async function buscarArticuloDesc(query){
     dr.innerHTML='<div class="art-desc-item" style="color:var(--red-text);cursor:default">Error al consultar Odoo: '+escH(e.message)+'</div>';
   }
 }
-function artDescSelect(ref){
+function artDescSelect(ref, skipInputUpdate){
   var dr=document.getElementById('art-desc-results');
   if(dr) dr.style.display='none';
-  document.getElementById('order-input').value=ref;
+  if(!skipInputUpdate) document.getElementById('order-input').value=ref;
   pushNavHistory();
   buscarArticulo(ref);
 }
@@ -8445,12 +8425,8 @@ function buscarOrden(){
   pushNavHistory();       // save current result before overwriting
   _navSearchLock=true;    // prevent buscarDirecta from double-pushing
   try{
-    // Artículo: si el modo es artículo, despachar según sub-modo
-    if(SEARCH_MODE==='articulo'){
-      if(ART_SUB_MODE==='desc'){ buscarArticuloDesc(v); return; }
-      // barcode o codigo — buscarArticulo busca por default_code|barcode en Odoo
-      buscarArticulo(v); return;
-    }
+    // Artículo: búsqueda unificada (ref, barcode, descripción)
+    if(SEARCH_MODE==='articulo'){ buscarArticuloUnificado(v); return; }
     if(ARTICULOS[v.toUpperCase()]||ARTICULOS[v]){ buscarArticulo(v); return; }
     // Auto-detectar por formato (siempre tiene prioridad sobre el modo actual)
     var detected=detectRefType(v);
@@ -9242,6 +9218,20 @@ async function fetchOdooProductHistory(ref){
     imagen:prod.image_128||null,
     _live:true
   };
+}
+
+// ════════════════════════════════════════════════════
+//  BÚSQUEDA UNIFICADA POR ARTÍCULO
+//  Intenta coincidencia exacta en dict local primero.
+//  Si no → busca en Odoo por ref, barcode o nombre.
+//  Si hay varios resultados → muestra picklist.
+// ════════════════════════════════════════════════════
+function buscarArticuloUnificado(v){
+  var key=v.toUpperCase();
+  // 1. En diccionario local → resultado directo
+  if(ARTICULOS[key]||ARTICULOS[v]){ buscarArticulo(v); return; }
+  // 2. Lanza búsqueda Odoo unificada (ref/barcode/nombre)
+  buscarArticuloDesc(v);
 }
 
 // ════════════════════════════════════════════════════
@@ -13481,10 +13471,10 @@ function _acSelect(el) {
       if(dr) dr.style.display='none';
       return;
     }
-    // En modo descripción de artículo, hacer búsqueda live contra Odoo
-    if(SEARCH_MODE==='articulo' && ART_SUB_MODE==='desc'){
+    // En modo artículo, búsqueda live contra Odoo (debounce más largo)
+    if(SEARCH_MODE==='articulo'){
       _acClose();
-      _acDebounce = setTimeout(function() { buscarArticuloDesc(q); }, 400);
+      _acDebounce = setTimeout(function() { buscarArticuloDesc(q); }, 450);
       return;
     }
     _acDebounce = setTimeout(function() { _acRender(q); }, 100);
