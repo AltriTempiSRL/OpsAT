@@ -3539,9 +3539,12 @@ const server = http.createServer(async (req, res) => {
     const ext  = path.extname(filePath);
     const mime = MIME[ext] || 'application/octet-stream';
     const headers = {'Content-Type': mime};
-    if (ext === '.html') {
+    if (ext === '.html' || filePath.endsWith('manifest.json')) {
       headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
       headers['Pragma'] = 'no-cache';
+    } else if (['.png','.svg'].includes(ext) && /icon|apple-touch|favicon/.test(path.basename(filePath))) {
+      // Íconos PWA: caché corta para que los cambios se propaguen
+      headers['Cache-Control'] = 'public, max-age=3600';
     }
     res.writeHead(200, headers);
     res.end(data);
