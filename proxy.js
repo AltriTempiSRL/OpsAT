@@ -2909,9 +2909,8 @@ const server = http.createServer(async (req, res) => {
   // POST /api/vehiculos/inspeccion — guardar inspección
   if (reqPath === '/api/vehiculos/inspeccion' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
-    const body = await readBody(req);
     let payload;
-    try { payload = JSON.parse(body); } catch { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'JSON inválido'})); return; }
+    try { payload = await readBody(req); } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'JSON inválido: '+e.message})); return; }
     if (!payload.vehiculo && !payload.placa) {
       res.writeHead(400,{'Content-Type':'application/json'});
       res.end(JSON.stringify({error:'Campo requerido: vehiculo o placa'}));
