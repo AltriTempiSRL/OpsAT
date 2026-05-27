@@ -1102,6 +1102,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-btn-refresh{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text-secondary);cursor:pointer;flex-shrink:0;transition:background .12s,border-color .12s}
 .rs-btn-refresh:hover{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
 .rs-btn-refresh:disabled{opacity:.4;cursor:not-allowed}
+.rs-table{table-layout:auto}
+/* Columnas compactas — shrink a su contenido */
+.rs-table th:nth-child(1),.rs-table td:nth-child(1),
+.rs-table th:nth-child(2),.rs-table td:nth-child(2),
+.rs-table th:nth-child(3),.rs-table td:nth-child(3),
+.rs-table th:nth-child(5),.rs-table td:nth-child(5),
+.rs-table th:nth-child(7),.rs-table td:nth-child(7),
+.rs-table th:nth-child(8),.rs-table td:nth-child(8),
+.rs-table th:nth-child(9),.rs-table td:nth-child(9){width:1%;white-space:nowrap}
+/* Columnas flexibles — absorben el espacio disponible */
+.rs-table th:nth-child(4),.rs-table td:nth-child(4){min-width:140px} /* Nombre */
+.rs-table th:nth-child(6),.rs-table td:nth-child(6){min-width:100px} /* Ubicación */
 .rs-table td:first-child{padding:4px 8px;text-align:center}
 .rs-table .rs-img{width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);background:var(--surface-2)}
 .rs-table .rs-no-img{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light)}
@@ -3316,7 +3328,7 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="mv-wrap" id="rs-table-wrap" style="display:none">
         <table class="cont-table rs-table">
           <thead><tr>
-            <th style="width:52px">Imagen</th>
+            <th>Imagen</th>
             <th class="rs-th" onclick="sortRs('ref')">Referencia <span class="rs-arr" id="rs-arr-ref">↕</span></th>
             <th class="rs-th" onclick="sortRs('barcode')">Cód. Barras <span class="rs-arr" id="rs-arr-barcode">↕</span></th>
             <th class="rs-th" onclick="sortRs('name')">Nombre <span class="rs-arr" id="rs-arr-name">↕</span></th>
@@ -9265,11 +9277,11 @@ function _rsRowCells(item) {
     : '<span style="color:var(--text-muted)">—</span>';
 
   return '<td>'+imgHtml+'</td>'
-    +'<td style="font-size:11px;font-weight:700;color:var(--text-primary);white-space:nowrap">'+(item.ref?esc(item.ref):'<span style="color:var(--text-muted)">—</span>')+'</td>'
+    +'<td style="font-size:11px;font-weight:700;color:var(--text-primary)">'+(item.ref?esc(item.ref):'<span style="color:var(--text-muted)">—</span>')+'</td>'
     +'<td>'+bcHtml+'</td>'
-    +'<td style="font-size:12px;color:var(--text-primary);max-width:200px">'+esc(item.name||'—')+'</td>'
+    +'<td style="font-size:12px;color:var(--text-primary)">'+esc(item.name||'—')+'</td>'
     +'<td>'+almHtml+'</td>'
-    +'<td style="max-width:160px">'+ubHtml+'</td>'
+    +'<td>'+ubHtml+'</td>'
     +'<td style="text-align:right;font-size:12px;font-weight:600;color:var(--green-text)">'+(item.qtyAlm||0).toFixed(0)+'</td>'
     +'<td style="text-align:center">'+ultimaVezHtml+'</td>'
     +'<td style="text-align:right">'+diasHtml+'</td>';
