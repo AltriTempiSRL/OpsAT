@@ -1112,6 +1112,17 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-th:hover{background:var(--surface-3)!important}
 .rs-arr{font-size:9px;color:var(--text-muted);margin-left:3px}
 .rs-arr.active{color:var(--accent)}
+/* Lightbox imagen producto */
+#rs-lb-overlay{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;animation:rs-lb-in .18s ease}
+@keyframes rs-lb-in{from{opacity:0}to{opacity:1}}
+#rs-lb-card{position:relative;background:var(--surface);border-radius:16px;padding:20px;box-shadow:0 24px 60px rgba(0,0,0,.4);max-width:min(480px,90vw);width:100%;animation:rs-lb-pop .2s cubic-bezier(.34,1.56,.64,1)}
+@keyframes rs-lb-pop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+#rs-lb-close{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-3);color:var(--text-secondary);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+#rs-lb-close:hover{background:var(--surface-2);color:var(--text-primary)}
+#rs-lb-img-wrap{display:flex;align-items:center;justify-content:center;min-height:220px;background:var(--surface-2);border-radius:10px;margin-bottom:10px;overflow:hidden}
+#rs-lb-img{max-width:100%;max-height:360px;object-fit:contain;display:block}
+#rs-lb-caption{font-size:12px;color:var(--text-secondary);text-align:center;word-break:break-word}
+.rs-img{cursor:zoom-in}
 /* Cabecera de grupo almacén */
 .rs-alm-hdr td{background:var(--surface-3)!important;border-top:2px solid var(--border)!important;padding:8px 12px!important}
 .rs-alm-hdr:hover td{background:var(--surface-2)!important}
@@ -3324,6 +3335,17 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
     </div>
     </div><!-- /section-reposicion -->
+
+    <!-- ── LIGHTBOX imagen producto ─────────────────────── -->
+    <div id="rs-lb-overlay" style="display:none" onclick="rsCloseLb()" role="dialog" aria-modal="true">
+      <div id="rs-lb-card" onclick="event.stopPropagation()">
+        <button id="rs-lb-close" onclick="rsCloseLb()" aria-label="Cerrar">✕</button>
+        <div id="rs-lb-img-wrap">
+          <img id="rs-lb-img" src="" alt="">
+        </div>
+        <div id="rs-lb-caption"></div>
+      </div>
+    </div>
 
     <!-- ── TIEMPO REAL ──────────────────────────────────── -->
     <div id="section-pendientes" class="page-section" style="display:none">
@@ -9062,6 +9084,25 @@ function setRsAlmFilter(val) {
   renderReposicion();
 }
 
+function rsOpenLb(src, caption) {
+  var ov  = document.getElementById('rs-lb-overlay');
+  var img = document.getElementById('rs-lb-img');
+  var cap = document.getElementById('rs-lb-caption');
+  img.src = src;
+  cap.textContent = caption || '';
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function rsCloseLb() {
+  var ov = document.getElementById('rs-lb-overlay');
+  ov.style.display = 'none';
+  document.getElementById('rs-lb-img').src = '';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape') rsCloseLb();
+});
+
 function rsToggleAlm(almKey) {
   _rsAlmOpen[almKey] = !_rsAlmOpen[almKey];
   var isOpen = _rsAlmOpen[almKey];
@@ -9196,8 +9237,10 @@ async function runReposicionAnalysis(){
 
 // ── Helpers de fila para Reposición ──────────────────────────────────────────
 function _rsRowCells(item) {
-  var imgHtml = item.image
-    ? '<img class="rs-img" src="data:image/png;base64,'+item.image+'" alt="">'
+  var imgSrc  = item.image ? 'data:image/png;base64,'+item.image : '';
+  var imgLbl  = (item.ref || item.name || '').replace(/'/g,'\\\'');
+  var imgHtml = imgSrc
+    ? '<img class="rs-img" src="'+imgSrc+'" alt="" onclick="rsOpenLb(\''+imgSrc+'\',\''+imgLbl+'\')">'
     : '<div class="rs-no-img"><i data-lucide="image-off" style="width:16px;height:16px;stroke:var(--text-muted)"></i></div>';
 
   var diasHtml = item.diasSin === null
