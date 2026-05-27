@@ -109,6 +109,11 @@ function getRoleDefPerms(roleId) {
   return def ? (def.sectionPerms || {}) : {};
 }
 
+// ── Solicitudes Showroom ──────────────────────────────────────────────────
+const WWP_SOLICITUDES_FILE = path.join(DATA_DIR, 'wwp-solicitudes-showroom.json');
+function loadSolicitudes() { return loadJson(WWP_SOLICITUDES_FILE, []); }
+function saveSolicitudes(list) { saveJson(WWP_SOLICITUDES_FILE, list); }
+
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
@@ -1328,7 +1333,10 @@ const server = http.createServer(async (req, res) => {
         const cn  = locNameMap[lid] || q.location_id[1] || '';
         const lbl = almLabel(cn);
         // Excluir etiquetas exactas + cualquier variante de MONTIBELLO PTN
-        return !EXCLUDED_ALM_LABELS.has(lbl) && !/^MONTIBELLO\s+PTN/i.test(lbl);
+        // (el label puede ser "LOB1" cuando el complete_name es "MONTIBELLO PTN / LOB1 / ...")
+        return !EXCLUDED_ALM_LABELS.has(lbl)
+          && !/^MONTIBELLO\s+PTN/i.test(lbl)
+          && !/MONTIBELLO.*PTN/i.test(cn);
       });
       const srQuants  = allQuants.filter(q =>  srLocSet.has(q.location_id[0]));
 
@@ -2457,6 +2465,80 @@ const server = http.createServer(async (req, res) => {
       if (inUse) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El rol está asignado a uno o más usuarios'})); return; }
       saveRoleDefs(defs.filter(r=>r.id!==roleId));
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── GET /api/solicitudes-showroom ─────────────────────────────────────────
+  if (reqPath === '/api/solicitudes-showroom' && req.method === 'GET') {
+    const _jpSol = requireJwt(req, res); if (!_jpSol) return;
+    const list = loadSolicitudes();
+    res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitudes: list}));
+    return;
+  }
+
+  // ── POST /api/solicitudes-showroom — crear solicitud ─────────────────────
+  if (reqPath === '/api/solicitudes-showroom' && req.method === 'POST') {
+    const _jpSol = requireJwt(req, res); if (!_jpSol) return;
+    try {
+      const d = await readBody(req);
+      if (!d.productId && !d.contId) {
+        res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'productId o contId requerido'})); return;
+      }
+      const list = loadSolicitudes();
+      // Verificar duplicado activo
+      const dup = list.find(s =>
+        s.status === 'activo' &&
+        s.source === d.source &&
+        (d.productId ? s.productId === d.productId : s.contId === d.contId)
+      );
+      if (dup) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitud: dup, existing: true})); return; }
+      const users = loadAuthUsers();
+      const user  = users.find(u => u.id === _jpSol.userId);
+      const sol = {
+        id:              wwpId('sol'),
+        source:          d.source || 'reposicion',   // 'reposicion' | 'contenedores'
+        productId:       d.productId || null,
+        contId:          d.contId    || null,
+        name:            d.name      || '',
+        ref:             d.ref       || '',
+        barcode:         d.barcode   || '',
+        imageBase64:     d.imageBase64 || '',
+        almacen:         d.almacen   || '',
+        ubicacion:       d.ubicacion || '',
+        nota:            (d.nota || '').trim(),
+        status:          'activo',
+        solicitadoPor:   { id: _jpSol.userId, name: user ? user.name : _jpSol.name },
+        fechaSolicitud:  new Date().toISOString(),
+        canceladoPor:    null,
+        fechaCancelacion: null
+      };
+      list.push(sol);
+      saveSolicitudes(list);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitud: sol}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── PATCH /api/solicitudes-showroom/:id — cancelar o editar nota ──────────
+  if (reqPath.match(/^\/api\/solicitudes-showroom\/[^/]+$/) && req.method === 'PATCH') {
+    const _jpSol = requireJwt(req, res); if (!_jpSol) return;
+    try {
+      const solId = reqPath.split('/').pop();
+      const d = await readBody(req);
+      const list = loadSolicitudes();
+      const idx  = list.findIndex(s => s.id === solId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
+      if (d.status === 'cancelado' && list[idx].status !== 'cancelado') {
+        const users = loadAuthUsers();
+        const user  = users.find(u => u.id === _jpSol.userId);
+        list[idx].status           = 'cancelado';
+        list[idx].canceladoPor     = { id: _jpSol.userId, name: user ? user.name : _jpSol.name };
+        list[idx].fechaCancelacion = new Date().toISOString();
+      }
+      if (d.nota !== undefined) list[idx].nota = (d.nota || '').trim();
+      saveSolicitudes(list);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitud: list[idx]}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

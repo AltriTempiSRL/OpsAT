@@ -1104,16 +1104,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-btn-refresh:disabled{opacity:.4;cursor:not-allowed}
 .rs-table{table-layout:auto}
 /* Columnas compactas — shrink a su contenido */
+/* Col 1=☐ 2=Foto 3=Ref 4=Barcode 5=Nombre 6=Almacén 7=Ubicación 8=Stock 9=Última 10=Días */
 .rs-table th:nth-child(1),.rs-table td:nth-child(1),
 .rs-table th:nth-child(2),.rs-table td:nth-child(2),
 .rs-table th:nth-child(3),.rs-table td:nth-child(3),
-.rs-table th:nth-child(5),.rs-table td:nth-child(5),
-.rs-table th:nth-child(7),.rs-table td:nth-child(7),
+.rs-table th:nth-child(4),.rs-table td:nth-child(4),
+.rs-table th:nth-child(6),.rs-table td:nth-child(6),
 .rs-table th:nth-child(8),.rs-table td:nth-child(8),
-.rs-table th:nth-child(9),.rs-table td:nth-child(9){width:1%;white-space:nowrap}
+.rs-table th:nth-child(9),.rs-table td:nth-child(9),
+.rs-table th:nth-child(10),.rs-table td:nth-child(10){width:1%;white-space:nowrap}
 /* Columnas flexibles — absorben el espacio disponible */
-.rs-table th:nth-child(4),.rs-table td:nth-child(4){min-width:140px} /* Nombre */
-.rs-table th:nth-child(6),.rs-table td:nth-child(6){min-width:100px} /* Ubicación */
+.rs-table th:nth-child(5),.rs-table td:nth-child(5){min-width:140px} /* Nombre */
+.rs-table th:nth-child(7),.rs-table td:nth-child(7){min-width:100px} /* Ubicación */
 .rs-table td:first-child{padding:4px 8px;text-align:center}
 .rs-table .rs-img{width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);background:var(--surface-2)}
 .rs-table .rs-no-img{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light)}
@@ -1168,6 +1170,36 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .cb-prep{background:var(--surface-2);color:var(--text-muted)}
 .cb-today{background:var(--orange-bg);color:var(--orange-text)}
 
+/* ── Solicitudes Showroom ── */
+.sol-table{width:100%;border-collapse:collapse;font-size:12px}
+.sol-table th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border-light);background:var(--surface-2);white-space:nowrap}
+.sol-table td{padding:8px 10px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+.sol-table tr:last-child td{border-bottom:none}
+.sol-table tr:hover td{background:var(--accent-light)}
+.sol-table tr.sol-row-cancelado td{opacity:.55}
+.sol-badge-activo{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--green-bg);color:var(--green-text);font-size:10px;font-weight:700}
+.sol-badge-cancelado{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--red-bg);color:var(--red-text);font-size:10px;font-weight:700}
+.sol-cancel-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--red-text);font-size:11px;font-weight:600;cursor:pointer;transition:background .12s}
+.sol-cancel-btn:hover{background:var(--red-bg)}
+.sol-tab-btn{padding:5px 12px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-secondary);transition:background .12s,color .12s}
+.sol-tab-btn:hover{background:var(--surface-3)}
+.sol-tab-active{background:var(--surface)!important;color:var(--text-primary)!important;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+/* Checkbox de solicitud en tabla RS */
+.sol-chk{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+.sol-chk-wrap{display:flex;align-items:center;justify-content:center;gap:0}
+/* Print styles para solicitudes */
+@media print {
+  .app-sidebar, .app-topbar, .mob-nav-bar, #rs-lb-overlay,
+  .rs-btn-refresh, .sol-tab-btn, #sol-stats,
+  .page-section:not(#section-solicitudes), .sol-no-print { display: none !important; }
+  #section-solicitudes { display: block !important; }
+  .app-body { padding: 0 !important; }
+  .cont-card { box-shadow: none !important; border: none !important; padding: 0 !important; }
+  .sol-table th, .sol-table td { font-size: 10px; padding: 5px 6px; border: 1px solid #ccc !important; }
+  .sol-table { border-collapse: collapse !important; }
+  .sol-table tr.sol-row-cancelado { display: none !important; }
+  #sol-print-header { display: block !important; }
+}
 /* ── Despachos Report ── */
 .rpt-filter-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border-light);flex-wrap:wrap}
 .rpt-filter-bar label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
@@ -2443,8 +2475,8 @@ body{font-family:var(--font);min-height:100dvh}
   .app-body{padding:16px;max-width:100%}
   #wwp-drawer{width:min(540px,80vw)}
   .modal-card{max-width:500px}
-  /* — Reposición: tablet — ocultar Ubicación para ganar espacio */
-  .rs-table th:nth-child(6),.rs-table td:nth-child(6){display:none}
+  /* — Reposición: tablet — ocultar Ubicación (col 7) para ganar espacio */
+  .rs-table th:nth-child(7),.rs-table td:nth-child(7){display:none}
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -2790,11 +2822,11 @@ body{font-family:var(--font);min-height:100dvh}
   #rs-table-wrap{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 
   /* Ocultar columnas de menor prioridad en móvil:
-     2=Referencia  3=Cód.Barras  6=Ubicación  8=Última vez */
-  .rs-table th:nth-child(2),.rs-table td:nth-child(2),
+     3=Referencia  4=Cód.Barras  7=Ubicación  9=Última vez */
   .rs-table th:nth-child(3),.rs-table td:nth-child(3),
-  .rs-table th:nth-child(6),.rs-table td:nth-child(6),
-  .rs-table th:nth-child(8),.rs-table td:nth-child(8){display:none}
+  .rs-table th:nth-child(4),.rs-table td:nth-child(4),
+  .rs-table th:nth-child(7),.rs-table td:nth-child(7),
+  .rs-table th:nth-child(9),.rs-table td:nth-child(9){display:none}
 
   /* Compactar celdas visibles */
   .rs-table th{padding:6px 8px;font-size:9px;letter-spacing:.2px}
@@ -3036,6 +3068,9 @@ body{font-family:var(--font);min-height:100dvh}
     <a class="nav-item" id="nav-reposicion" href="#sec-reposicion" onclick="navTo('reposicion');return false;">
       <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
     </a>
+    <a class="nav-item" id="nav-solicitudes" href="#sec-solicitudes" onclick="navTo('solicitudes');return false;">
+      <span class="nav-icon"><i data-lucide="clipboard-check"></i></span>Solicitudes Showroom
+    </a>
 
     <div class="sidebar-group" id="navg-tiemporeal">Tiempo Real</div>
     <a class="nav-item" id="nav-pendientes" href="#sec-pendientes" onclick="navTo('pendientes');return false;">
@@ -3077,6 +3112,7 @@ body{font-family:var(--font);min-height:100dvh}
     <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="scan-line"></i>Validación</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
+    <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
     <button class="mob-nav-btn"        id="mob-nav-pendientes"    onclick="navTo('pendientes')"><i data-lucide="clock"></i>Pendientes</button>
     <button class="mob-nav-btn"        id="mob-nav-ordenes"       onclick="navTo('ordenes')"><i data-lucide="clipboard-list"></i>Órdenes</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
@@ -3328,6 +3364,7 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="mv-wrap" id="rs-table-wrap" style="display:none">
         <table class="cont-table rs-table">
           <thead><tr>
+            <th title="Solicitar para showroom">☐</th>
             <th>Imagen</th>
             <th class="rs-th" onclick="sortRs('ref')">Referencia <span class="rs-arr" id="rs-arr-ref">↕</span></th>
             <th class="rs-th" onclick="sortRs('barcode')">Cód. Barras <span class="rs-arr" id="rs-arr-barcode">↕</span></th>
@@ -3358,6 +3395,63 @@ body{font-family:var(--font);min-height:100dvh}
         <div id="rs-lb-caption"></div>
       </div>
     </div>
+
+    <!-- ── SOLICITUDES SHOWROOM ─────────────────────────── -->
+    <div id="section-solicitudes" class="page-section" style="display:none">
+    <div id="sec-solicitudes" class="divider"><div class="divider-line"></div><span class="divider-label">SOLICITUDES SHOWROOM — COMPRAS</span><div class="divider-line"></div></div>
+    <div class="cont-card">
+      <div class="rs-card-hdr" style="flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary)">Lista de Solicitudes</div>
+          <div style="font-size:11px;color:var(--text-muted)" id="sol-subtitle">Artículos solicitados para el showroom</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;gap:2px;background:var(--surface-2);border-radius:8px;padding:3px">
+            <button class="sol-tab-btn sol-tab-active" id="sol-tab-activo"   onclick="setSolFilter('activo')">Activas</button>
+            <button class="sol-tab-btn"                id="sol-tab-cancelado" onclick="setSolFilter('cancelado')">Canceladas</button>
+            <button class="sol-tab-btn"                id="sol-tab-all"      onclick="setSolFilter('all')">Todas</button>
+          </div>
+          <button class="rs-btn-refresh" onclick="loadSolicitudes(true)" title="Actualizar">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px"></i> Actualizar
+          </button>
+          <button class="rs-btn-refresh" onclick="printSolicitudes()" title="Imprimir PDF" style="background:var(--accent);color:#fff;border-color:var(--accent)">
+            <i data-lucide="printer" style="width:13px;height:13px"></i> Imprimir PDF
+          </button>
+        </div>
+      </div>
+      <div id="sol-stats" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 0;padding:0 4px"></div>
+      <!-- Cabecera solo visible en impresión -->
+      <div id="sol-print-header" style="display:none;margin-bottom:16px;border-bottom:2px solid #1b3b6f;padding-bottom:10px">
+        <div style="font-size:18px;font-weight:800;color:#1b3b6f">Altri Tempi · Solicitudes Showroom</div>
+        <div id="sol-print-date" style="font-size:11px;color:#666;margin-top:3px"></div>
+      </div>
+      <div id="sol-table-wrap" style="overflow-x:auto;margin-top:14px;display:none">
+        <table class="sol-table" id="sol-print-table">
+          <thead><tr>
+            <th style="width:1%">Foto</th>
+            <th>Nombre</th>
+            <th style="width:1%;white-space:nowrap">Cód. Barras</th>
+            <th style="width:1%;white-space:nowrap">Almacén</th>
+            <th style="min-width:120px">Ubicación</th>
+            <th style="min-width:140px">Nota</th>
+            <th style="width:1%;white-space:nowrap">Solicitado por</th>
+            <th style="width:1%;white-space:nowrap">Fecha Solicitud</th>
+            <th style="width:1%;white-space:nowrap">Días</th>
+            <th style="width:1%;white-space:nowrap">Estado</th>
+            <th class="sol-no-print" style="width:1%;white-space:nowrap">Acción</th>
+          </tr></thead>
+          <tbody id="sol-tbody">
+            <tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text-muted)">Cargando solicitudes…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="sol-empty" style="display:none;text-align:center;padding:48px 24px;color:var(--text-muted)">
+        <i data-lucide="clipboard-check" style="width:40px;height:40px;stroke:var(--border);margin-bottom:12px"></i>
+        <div style="font-size:13px;font-weight:600">Sin solicitudes activas</div>
+        <div style="font-size:11px;margin-top:4px">Marca artículos en Reposición o Contenedores para agregarlos aquí</div>
+      </div>
+    </div>
+    </div><!-- /section-solicitudes -->
 
     <!-- ── TIEMPO REAL ──────────────────────────────────── -->
     <div id="section-pendientes" class="page-section" style="display:none">
@@ -4055,6 +4149,21 @@ body{font-family:var(--font);min-height:100dvh}
   </div>
 </div>
 
+<!-- ── Modal: Solicitud Showroom ─────────────────────────────────────────── -->
+<div id="sol-modal-overlay" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:14px;padding:24px;width:min(400px,90vw);box-shadow:0 8px 32px rgba(0,0,0,.25)">
+    <div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Solicitar para Showroom</div>
+    <div id="sol-modal-name" style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;font-style:italic"></div>
+    <label style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Nota / comentario <span style="font-weight:400">(opcional)</span></label>
+    <textarea id="sol-modal-nota" rows="3" placeholder="Ej: urgente, para showroom norte, coordinar con…"
+      style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;resize:vertical;background:var(--surface-2);color:var(--text-primary);font-family:inherit"></textarea>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button onclick="solModalCancel()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer">Cancelar</button>
+      <button onclick="solModalConfirm()" style="padding:8px 18px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">Solicitar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modales de Empaque ─────────────────────────────────────────────────── -->
 
 <!-- Modal: editor de material -->
@@ -4337,6 +4446,7 @@ body{font-family:var(--font);min-height:100dvh}
           <label class="perm-check"><input type="checkbox" data-perm="devoluciones"> Devoluciones</label>
           <label class="perm-check"><input type="checkbox" data-perm="contenedores"> Contenedores</label>
           <label class="perm-check"><input type="checkbox" data-perm="reposicion"> Reposición Showroom</label>
+          <label class="perm-check"><input type="checkbox" data-perm="solicitudes"> Solicitudes Showroom</label>
           <label class="perm-check"><input type="checkbox" data-perm="pendientes"> Pendientes</label>
           <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
           <label class="perm-check"><input type="checkbox" data-perm="pendientes-out"> Pendientes OUT</label>
@@ -4580,7 +4690,7 @@ function isHistorialUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'buscar','devoluciones','contenedores','reposicion','pendientes','ordenes',
+    'buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes','ordenes',
     'sin-adjuntos','pendientes-out','dev-cdp',
     'validacion','averias','reportes','wwp'
   ];
@@ -4597,7 +4707,7 @@ function applyNavPerms() {
     'navg-reportes':    ['reportes'],
     'navg-analisis':    ['devoluciones','validacion','averias'],
     'navg-plataforma':  ['wwp'],
-    'navg-compras':     ['contenedores','reposicion'],
+    'navg-compras':     ['contenedores','reposicion','solicitudes'],
     'navg-tiemporeal':  ['pendientes','ordenes'],
     'navg-despachos':   ['sin-adjuntos','pendientes-out','dev-cdp']
   };
@@ -4713,8 +4823,17 @@ function checkStoredSession() {
       _token = s.accessToken; _refreshToken = s.refreshToken; _user = s.user;
       var payload = JSON.parse(atob(_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
       if (payload.exp * 1000 > Date.now()) {
+        // Token válido: mostrar con permisos cacheados y refrescar en segundo plano
+        // para que cambios de rol (ej. nuevas secciones) se apliquen sin re-login
         if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
         else { enterApp(); showScreen('screen-app'); }
+        doRefresh().then(function(ok) {
+          if (ok) {
+            // Re-aplicar con permisos frescos del servidor
+            if (isHistorialUser(_user)) { setHistorialUser(); }
+            else { enterApp(); }
+          }
+        });
         return;
       }
       doRefresh().then(function(ok) {
@@ -9078,6 +9197,263 @@ function toggleDept(el){
 }
 
 // ════════════════════════════════════════════════════
+//  SOLICITUDES SHOWROOM
+// ════════════════════════════════════════════════════
+var _solicitudes    = [];   // cache de solicitudes del servidor
+var _solFilter      = 'activo'; // 'activo' | 'cancelado' | 'all'
+var _solModalData   = null; // datos pendientes mientras el modal está abierto
+
+/** Busca solicitud activa para un item */
+function solForItem(productId, source) {
+  return _solicitudes.find(function(s) {
+    return s.status === 'activo' && s.source === source && s.productId === productId;
+  }) || null;
+}
+
+/** Carga solicitudes desde el servidor */
+async function loadSolicitudes(showSection) {
+  try {
+    var r = await authFetch('/api/solicitudes-showroom');
+    var d = await r.json();
+    if (d.ok) {
+      _solicitudes = d.solicitudes || [];
+      if (showSection) renderSolicitudes();
+    }
+  } catch(e) { /* silencioso */ }
+}
+
+/** Toggle del checkbox en Reposición */
+function solToggleRS(chkEl, productId) {
+  var sol = solForItem(productId, 'reposicion');
+  // Buscar datos del ítem en cache
+  var item = _rsItems.find(function(i){ return i.id === productId; }) || {};
+  var name = item.name || item.ref || ('ID ' + productId);
+  if (sol) {
+    // Ya existe activa → cancelar
+    if (!confirm('¿Cancelar la solicitud de "'+name+'"?')) {
+      chkEl.checked = true; // revertir visual
+      return;
+    }
+    solCancel(sol.id, chkEl);
+  } else {
+    // No existe → abrir modal para nota
+    chkEl.checked = false; // revertir hasta confirmar
+    _solModalData = {
+      productId:   productId,
+      name:        name,
+      ref:         item.ref       || '',
+      barcode:     item.barcode   || '',
+      almacen:     item.almacen   || '',
+      ubicacion:   item.ubicacion || '',
+      imageBase64: item.image     || '',  // base64 sin prefijo
+      source:      'reposicion',
+      chkEl:       chkEl
+    };
+    document.getElementById('sol-modal-name').textContent = name;
+    document.getElementById('sol-modal-nota').value = '';
+    var ov = document.getElementById('sol-modal-overlay');
+    ov.style.display = 'flex';
+    setTimeout(function(){ document.getElementById('sol-modal-nota').focus(); }, 80);
+  }
+}
+
+/** Cierra el modal sin confirmar */
+function solModalCancel() {
+  document.getElementById('sol-modal-overlay').style.display = 'none';
+  _solModalData = null;
+}
+
+/** Confirma la solicitud desde el modal */
+async function solModalConfirm() {
+  if (!_solModalData) return;
+  var nota = (document.getElementById('sol-modal-nota').value || '').trim();
+  var data = _solModalData;
+  document.getElementById('sol-modal-overlay').style.display = 'none';
+  _solModalData = null;
+  try {
+    var r = await authFetch('/api/solicitudes-showroom', {
+      method: 'POST',
+      body: JSON.stringify({
+        source:      data.source,
+        productId:   data.productId,
+        name:        data.name,
+        ref:         data.ref,
+        barcode:     data.barcode,
+        almacen:     data.almacen,
+        ubicacion:   data.ubicacion,
+        imageBase64: data.imageBase64,
+        nota:        nota
+      })
+    });
+    var d = await r.json();
+    if (d.ok) {
+      _solicitudes.push(d.solicitud);
+      if (data.chkEl) data.chkEl.checked = true;
+    } else {
+      alert('Error al guardar: ' + (d.error || 'desconocido'));
+    }
+  } catch(e) {
+    alert('Error de conexión: ' + e.message);
+  }
+}
+
+/** Cancela una solicitud existente */
+async function solCancel(solId, chkEl) {
+  try {
+    var r = await authFetch('/api/solicitudes-showroom/'+solId, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'cancelado' })
+    });
+    var d = await r.json();
+    if (d.ok) {
+      var idx = _solicitudes.findIndex(function(s){ return s.id === solId; });
+      if (idx !== -1) _solicitudes[idx] = d.solicitud;
+      if (chkEl) chkEl.checked = false;
+      if (document.getElementById('sol-tbody')) renderSolicitudes();
+    } else {
+      alert('Error: ' + (d.error || 'desconocido'));
+      if (chkEl) chkEl.checked = true;
+    }
+  } catch(e) {
+    alert('Error de conexión: ' + e.message);
+    if (chkEl) chkEl.checked = true;
+  }
+}
+
+/** Cambia el filtro de estado en la sección Solicitudes */
+function setSolFilter(f) {
+  _solFilter = f;
+  ['activo','cancelado','all'].forEach(function(t) {
+    var btn = document.getElementById('sol-tab-'+t);
+    if (btn) btn.classList.toggle('sol-tab-active', t === f);
+  });
+  renderSolicitudes();
+}
+
+/** Renderiza la tabla de solicitudes */
+function renderSolicitudes() {
+  var tbody = document.getElementById('sol-tbody');
+  var wrap  = document.getElementById('sol-table-wrap');
+  var empty = document.getElementById('sol-empty');
+  var sub   = document.getElementById('sol-subtitle');
+  var stats = document.getElementById('sol-stats');
+  if (!tbody) return;
+
+  // Filtrar
+  var list = _solicitudes;
+  if (_solFilter !== 'all') list = _solicitudes.filter(function(s){ return s.status === _solFilter; });
+
+  // KPIs
+  var totalActivo    = _solicitudes.filter(function(s){ return s.status === 'activo'; }).length;
+  var totalCancelado = _solicitudes.filter(function(s){ return s.status === 'cancelado'; }).length;
+  if (stats) {
+    stats.innerHTML =
+      '<div class="cont-stat ok" style="cursor:pointer" onclick="setSolFilter(\'activo\')">'
+        +'<div class="cont-stat-num">'+totalActivo+'</div>'
+        +'<div class="cont-stat-lbl">Activas</div></div>'
+      +'<div class="cont-stat alert" style="cursor:pointer" onclick="setSolFilter(\'cancelado\')">'
+        +'<div class="cont-stat-num">'+totalCancelado+'</div>'
+        +'<div class="cont-stat-lbl">Canceladas</div></div>'
+      +'<div class="cont-stat" style="cursor:pointer" onclick="setSolFilter(\'all\')">'
+        +'<div class="cont-stat-num">'+_solicitudes.length+'</div>'
+        +'<div class="cont-stat-lbl">Total</div></div>';
+  }
+
+  if (!list.length) {
+    if (wrap)  wrap.style.display  = 'none';
+    if (empty) empty.style.display = 'block';
+    if (sub)   sub.textContent     = _solFilter === 'activo' ? 'Sin solicitudes activas' : 'Sin solicitudes en este filtro';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (empty) empty.style.display = 'none';
+  if (wrap)  wrap.style.display  = 'block';
+  if (sub)   sub.textContent     = list.length + ' solicitud' + (list.length !== 1 ? 'es' : '') + ' · ' + (_solFilter === 'activo' ? 'activas' : _solFilter === 'cancelado' ? 'canceladas' : 'todas');
+
+  var today = new Date();
+  tbody.innerHTML = list.map(function(sol) {
+    var fechaD  = new Date(sol.fechaSolicitud);
+    var diasN   = Math.floor((today - fechaD) / 86400000);
+    var diasStr = diasN === 0 ? 'Hoy' : diasN === 1 ? '1 día' : diasN + ' días';
+    var fechaStr = fechaD.toLocaleDateString('es-DO', {day:'2-digit',month:'short',year:'numeric'});
+    var statusHtml = sol.status === 'activo'
+      ? '<span class="sol-badge-activo">Activa</span>'
+      : '<span class="sol-badge-cancelado">Cancelada</span><br>'
+        + '<span style="font-size:9px;color:var(--text-muted)">'
+        + esc(sol.canceladoPor ? sol.canceladoPor.name.split(' ')[0] : '') + '</span>';
+
+    var imgHtml = sol.imageBase64
+      ? '<img src="data:image/png;base64,'+sol.imageBase64+'" style="width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light)">'
+      : '<div style="width:40px;height:40px;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center"><i data-lucide="image-off" style="width:14px;height:14px;stroke:var(--text-muted)"></i></div>';
+
+    var accionHtml = sol.status === 'activo'
+      ? '<button class="sol-cancel-btn sol-no-print" onclick="solCancelFromList(\''+sol.id+'\')" title="Cancelar solicitud">✕ Cancelar</button>'
+      : '<span style="font-size:10px;color:var(--text-muted)">'
+        + (sol.fechaCancelacion ? new Date(sol.fechaCancelacion).toLocaleDateString('es-DO',{day:'2-digit',month:'short'}) : '—')
+        + '</span>';
+
+    var almHtml = (sol.almacen||'—').split(' · ').map(function(a){
+      return '<span style="display:inline-block;padding:1px 5px;border-radius:10px;background:var(--blue-bg);color:var(--blue-text);font-size:10px;font-weight:700;margin:1px 1px 1px 0;white-space:nowrap">'+esc(a)+'</span>';
+    }).join('');
+
+    var sourceIcon = sol.source === 'contenedores'
+      ? '<span style="font-size:9px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);padding:1px 5px;border-radius:4px;white-space:nowrap">Contenedor</span> '
+      : '';
+
+    return '<tr class="sol-row-'+sol.status+'">'
+      + '<td>'+imgHtml+'</td>'
+      + '<td style="font-size:12px;font-weight:600;color:var(--text-primary)">'+sourceIcon+esc(sol.name||'—')+'</td>'
+      + '<td style="font-size:10px;font-family:monospace;color:var(--text-secondary)">'+esc(sol.barcode||'—')+'</td>'
+      + '<td>'+almHtml+'</td>'
+      + '<td style="font-size:10px;color:var(--text-secondary)">'+esc((sol.ubicacion||'—').replace(/ · /g,' › '))+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary);font-style:'+(sol.nota?'normal':'italic')+'">'+esc(sol.nota||'—')+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+esc(sol.solicitadoPor ? sol.solicitadoPor.name.split(' ')[0] : '—')+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+fechaStr+'</td>'
+      + '<td style="font-weight:700;color:'+(diasN>=7?'var(--red-text)':'var(--text-primary)')+'">'+diasStr+'</td>'
+      + '<td>'+statusHtml+'</td>'
+      + '<td class="sol-no-print">'+accionHtml+'</td>'
+      + '</tr>';
+  }).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+/** Cancela desde la lista de solicitudes */
+async function solCancelFromList(solId) {
+  var sol = _solicitudes.find(function(s){ return s.id === solId; });
+  var nombre = sol ? (sol.name || 'este artículo') : 'este artículo';
+  if (!confirm('¿Cancelar la solicitud de "'+nombre+'"?')) return;
+  await solCancel(solId, null);
+  // También desmarcar el checkbox en la tabla RS si está visible
+  renderReposicion();
+}
+
+/** Imprime las solicitudes activas en PDF */
+function printSolicitudes() {
+  var prev = _solFilter;
+  // Asegurar que mostramos las activas para imprimir
+  if (_solFilter !== 'activo') setSolFilter('activo');
+  // Rellenar fecha de impresión
+  var ph = document.getElementById('sol-print-date');
+  if (ph) ph.textContent = 'Impreso el ' + new Date().toLocaleDateString('es-DO', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric'
+  }) + ' · Solo se imprimen solicitudes activas';
+  setTimeout(function(){
+    window.print();
+    if (prev !== 'activo') setSolFilter(prev);
+  }, 150);
+}
+
+// ESC cierra el modal de solicitud
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('sol-modal-overlay') &&
+      document.getElementById('sol-modal-overlay').style.display !== 'none') {
+    solModalCancel();
+  }
+});
+
+// ════════════════════════════════════════════════════
 //  REPOSICIÓN SHOWROOM
 // ════════════════════════════════════════════════════
 var _rsLocsDone = false;
@@ -9202,7 +9578,7 @@ async function runReposicionAnalysis(){
   tableWrap.style.display = 'none';
   emptyMsg.style.display  = 'none';
 
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-3)">'
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text-3)">'
     +'<div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
   tableWrap.style.display = 'block';
 
@@ -9218,7 +9594,7 @@ async function runReposicionAnalysis(){
     if (btn) { btn.disabled = false; }
 
     if (!d.ok) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
       return;
     }
 
@@ -9267,7 +9643,7 @@ async function runReposicionAnalysis(){
   } catch(e) {
     if (btn) { btn.disabled = false; }
     var tbody2 = document.getElementById('rs-tbody');
-    tbody2.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
+    tbody2.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
   }
 }
 
@@ -9300,7 +9676,16 @@ function _rsRowCells(item) {
     ? '<span style="font-size:10px;font-family:monospace;color:var(--text-secondary)">'+esc(item.barcode)+'</span>'
     : '<span style="color:var(--text-muted)">—</span>';
 
-  return '<td>'+imgHtml+'</td>'
+  // Checkbox de solicitud — solo pasa el ID; los datos se buscan en _rsItems
+  var sol = solForItem(item.id, 'reposicion');
+  var chkd = sol && sol.status === 'activo';
+  var chkHtml = '<div class="sol-chk-wrap">'
+    + '<input type="checkbox" class="sol-chk" '+(chkd?'checked':'')
+    + ' onchange="solToggleRS(this,'+item.id+')"'
+    + ' title="Solicitar para showroom"></div>';
+
+  return '<td style="text-align:center;width:1%;white-space:nowrap">'+chkHtml+'</td>'
+    +'<td>'+imgHtml+'</td>'
     +'<td style="font-size:11px;font-weight:700;color:var(--text-primary)">'+(item.ref?esc(item.ref):'<span style="color:var(--text-muted)">—</span>')+'</td>'
     +'<td>'+bcHtml+'</td>'
     +'<td style="font-size:12px;color:var(--text-primary)">'+esc(item.name||'—')+'</td>'
@@ -9400,7 +9785,7 @@ function renderReposicion(){
   }
 
   // ── 6. Render ─────────────────────────────────────────────────────────────
-  var COLS = 9;
+  var COLS = 10;
   var html = '';
 
   almOrder.forEach(function(alm) {
@@ -11072,7 +11457,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','pendientes','sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes','sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -11080,6 +11465,7 @@ var NAV_SECTION_MAP={
   'devoluciones':    'devoluciones',
   'contenedores':    'contenedores',
   'reposicion':      'reposicion',
+  'solicitudes':     'solicitudes',
   'pendientes':      'pendientes',
   'ordenes':         'pendientes',
   'sin-adjuntos':    'sin-adjuntos',
@@ -11332,7 +11718,8 @@ function navTo(section){
   showSection(target);
   setNavActive(section);
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
-  if(target==='reposicion') initReposicion();
+  if(target==='reposicion') { loadSolicitudes(false).then(function(){ initReposicion(); }); }
+  if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='pendientes'){renderPendientes();renderOrdenesActivas();}
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
@@ -11416,7 +11803,7 @@ function setHistorialUser() {
   if (typeof checkSheetsConnection === 'function') checkSheetsConnection();
   // Para usuarios no-admin: navegar a la primera sección permitida
   if (_user.role !== 'admin') {
-    var ORDER = ['buscar','devoluciones','contenedores','reposicion','pendientes',
+    var ORDER = ['buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes',
       'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
     var first = ORDER.find(function(s){ return canSection(s); });
     if (first) { showSection(first); setNavActive(first); }
