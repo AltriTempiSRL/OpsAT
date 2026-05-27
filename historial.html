@@ -3003,17 +3003,17 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="sidebar-logo-sub">Trazabilidad · ERP</div>
     </div>
 
-    <div class="sidebar-group">Consultar</div>
+    <div class="sidebar-group" id="navg-consultar">Consultar</div>
     <a class="nav-item active" id="nav-buscar" href="#sec-buscar" onclick="navTo('buscar');return false;">
       <span class="nav-icon"><i data-lucide="search"></i></span>Buscador
     </a>
 
-    <div class="sidebar-group">Reportes</div>
+    <div class="sidebar-group" id="navg-reportes">Reportes</div>
     <a class="nav-item" id="nav-reportes" href="#" onclick="navTo('reportes');return false;">
       <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>Reportes
     </a>
 
-    <div class="sidebar-group">Análisis Operacional</div>
+    <div class="sidebar-group" id="navg-analisis">Análisis Operacional</div>
     <a class="nav-item" id="nav-devoluciones" href="#sec-devoluciones" onclick="navTo('devoluciones');return false;">
       <span class="nav-icon"><i data-lucide="rotate-ccw"></i></span>Devoluciones
     </a>
@@ -3024,12 +3024,12 @@ body{font-family:var(--font);min-height:100dvh}
       <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
     </a>
 
-    <div class="sidebar-group">Plataforma</div>
+    <div class="sidebar-group" id="navg-plataforma">Plataforma</div>
     <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
       <span class="nav-icon"><i data-lucide="factory"></i></span>Workforce Labor
     </a>
 
-    <div class="sidebar-group">Compras</div>
+    <div class="sidebar-group" id="navg-compras">Compras</div>
     <a class="nav-item" id="nav-contenedores" href="#sec-contenedores" onclick="navTo('contenedores');return false;">
       <span class="nav-icon"><i data-lucide="ship"></i></span>Contenedores
     </a>
@@ -3037,7 +3037,7 @@ body{font-family:var(--font);min-height:100dvh}
       <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
     </a>
 
-    <div class="sidebar-group">Tiempo Real</div>
+    <div class="sidebar-group" id="navg-tiemporeal">Tiempo Real</div>
     <a class="nav-item" id="nav-pendientes" href="#sec-pendientes" onclick="navTo('pendientes');return false;">
       <span class="nav-icon"><i data-lucide="clock"></i></span>Pendientes
     </a>
@@ -3045,7 +3045,7 @@ body{font-family:var(--font);min-height:100dvh}
       <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Órdenes Activas
     </a>
 
-    <div class="sidebar-group">Despachos</div>
+    <div class="sidebar-group" id="navg-despachos">Despachos</div>
     <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
       <span class="nav-icon"><i data-lucide="paperclip"></i></span>Sin Comprobante
     </a>
@@ -4579,7 +4579,7 @@ function isHistorialUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'buscar','devoluciones','contenedores','reposicion','pendientes',
+    'buscar','devoluciones','contenedores','reposicion','pendientes','ordenes',
     'sin-adjuntos','pendientes-out','dev-cdp',
     'validacion','averias','reportes','wwp'
   ];
@@ -4589,6 +4589,21 @@ function applyNavPerms() {
     if (nav) nav.style.display = show ? '' : 'none';
     var mob = document.getElementById('mob-nav-' + s);
     if (mob) mob.style.display = show ? '' : 'none';
+  });
+  // Ocultar cabeceras de grupo cuando todos sus ítems están ocultos
+  var GROUPS = {
+    'navg-consultar':   ['buscar'],
+    'navg-reportes':    ['reportes'],
+    'navg-analisis':    ['devoluciones','validacion','averias'],
+    'navg-plataforma':  ['wwp'],
+    'navg-compras':     ['contenedores','reposicion'],
+    'navg-tiemporeal':  ['pendientes','ordenes'],
+    'navg-despachos':   ['sin-adjuntos','pendientes-out','dev-cdp']
+  };
+  Object.keys(GROUPS).forEach(function(gid) {
+    var anyVisible = GROUPS[gid].some(function(s){ return canSection(s); });
+    var el = document.getElementById(gid);
+    if (el) el.style.display = anyVisible ? '' : 'none';
   });
 }
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
@@ -11395,6 +11410,9 @@ function setHistorialUser() {
   if (logoutBtn) logoutBtn.style.display = '';
   // Aplicar permisos de navegación (oculta secciones no autorizadas)
   applyNavPerms();
+  // Re-verificar conexión Odoo (por si el DOMContentLoaded corrió sin token, e.g. primer login)
+  if (typeof checkOdooConnection === 'function') checkOdooConnection();
+  if (typeof checkSheetsConnection === 'function') checkSheetsConnection();
   // Para usuarios no-admin: navegar a la primera sección permitida
   if (_user.role !== 'admin') {
     var ORDER = ['buscar','devoluciones','contenedores','reposicion','pendientes',
