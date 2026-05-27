@@ -1320,40 +1320,83 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      // Step 2: identificar componentes de kits (.Cn) y buscar kit padre en Odoo
+      // Step 2: identificar componentes de kits (.Cn) y consultar mrp.bom en Odoo
       const kitCompRegex = /^(.+)\.C\d+$/i;
-      const baseCodeMap  = {}; // baseCode -> [productIds]
-      poProducts.forEach(p => {
-        const m = (p.ref || '').match(kitCompRegex);
-        if (m) {
-          const base = m[1];
-          p.kitBaseCode = base;
-          if (!baseCodeMap[base]) baseCodeMap[base] = [];
-          baseCodeMap[base].push(p.id);
-        }
-      });
-      // Buscar productos kit en Odoo por código base
-      const kitInfoMap = {}; // baseCode -> { ref, name, image }
-      const baseCodes  = Object.keys(baseCodeMap);
-      if (baseCodes.length) {
+      const componentIds = poProducts
+        .filter(p => kitCompRegex.test(p.ref || ''))
+        .map(p => p.id);
+
+      const kitInfoMap = {}; // productId -> { ref, name, image, bomId }
+
+      if (componentIds.length) {
         try {
-          const kitProds = await odooCall('product.product', 'search_read',
-            [[['default_code', 'in', baseCodes]]],
-            { fields: ['id', 'default_code', 'name', 'image_128'], limit: 200 }
+          // Buscar BOMs de tipo 'phantom' (kit) que contengan estos componentes
+          const bomLines = await odooCall('mrp.bom.line', 'search_read',
+            [[['component_id', 'in', componentIds]]],
+            { fields: ['bom_id', 'component_id'], limit: 500 }
           );
-          kitProds.forEach(k => {
-            kitInfoMap[k.default_code] = {
-              ref:   k.default_code,
-              name:  k.name,
-              image: k.image_128 || ''
-            };
-          });
-        } catch(_) { /* si falla el lookup de kits, continuar sin esa info */ }
+
+          const bomIds = [...new Set(bomLines.map(l => l.bom_id[0]))];
+
+          if (bomIds.length) {
+            // Leer los BOMs — filtrar solo los de tipo phantom (kit)
+            const boms = await odooCall('mrp.bom', 'read',
+              [bomIds],
+              { fields: ['id', 'product_id', 'product_tmpl_id', 'type'] }
+            );
+            const kitBoms = boms.filter(b => b.type === 'phantom');
+
+            if (kitBoms.length) {
+              // Obtener info completa del producto kit (imagen, ref, nombre)
+              const kitProdIds = kitBoms.map(b => b.product_id ? b.product_id[0] : null).filter(Boolean);
+              const kitTmplIds = kitBoms.filter(b => !b.product_id).map(b => b.product_tmpl_id[0]);
+
+              let kitProds = [];
+              if (kitProdIds.length) {
+                kitProds = await odooCall('product.product', 'search_read',
+                  [[['id', 'in', kitProdIds]]],
+                  { fields: ['id', 'default_code', 'name', 'image_128'], limit: 200 }
+                );
+              }
+              // Fallback: buscar por template si no hay product_id directo
+              if (!kitProds.length && kitTmplIds.length) {
+                kitProds = await odooCall('product.product', 'search_read',
+                  [[['product_tmpl_id', 'in', kitTmplIds]]],
+                  { fields: ['id', 'default_code', 'name', 'image_128'], limit: 200 }
+                );
+              }
+              const kitProdMap = {};
+              kitProds.forEach(k => { kitProdMap[k.id] = k; });
+
+              // Mapear componente -> info del kit via bomLine
+              bomLines.forEach(line => {
+                const bom = kitBoms.find(b => b.id === line.bom_id[0]);
+                if (!bom) return;
+                const kitProdId = bom.product_id ? bom.product_id[0] : null;
+                const kp = kitProdId ? kitProdMap[kitProdId] : null;
+                if (!kp) return;
+                kitInfoMap[line.component_id[0]] = {
+                  ref:   kp.default_code || '',
+                  name:  kp.name         || '',
+                  image: kp.image_128    || '',
+                  bomId: bom.id
+                };
+              });
+            }
+          }
+        } catch(_) { /* si mrp no está instalado o falla, continuar sin kits */ }
       }
-      // Adjuntar info del kit a cada componente
+
+      // Adjuntar info del kit a cada componente (por product id)
       poProducts.forEach(p => {
-        if (p.kitBaseCode) {
-          p.kit = kitInfoMap[p.kitBaseCode] || { ref: p.kitBaseCode, name: p.kitBaseCode, image: '' };
+        if (kitCompRegex.test(p.ref || '')) {
+          p.kitBaseCode = (p.ref.match(kitCompRegex) || [])[1] || p.ref;
+          if (kitInfoMap[p.id]) {
+            p.kit = kitInfoMap[p.id];
+          } else {
+            // Fallback: usar código base inferido si Odoo no devolvió BOM
+            p.kit = { ref: p.kitBaseCode, name: p.kitBaseCode, image: '' };
+          }
         }
       });
 
