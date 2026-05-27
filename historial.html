@@ -1092,12 +1092,11 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 [data-theme='dark'] .cont-table tr.cont-row-amber td,[data-theme='dark'] .cont-table tr.cont-row-amber:nth-child(even) td{background:#2a2008}
 [data-theme='dark'] .cont-table tr.cont-row-amber:hover td{background:#362a0a}
 /* ── Reposición Showroom ── */
-.rs-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.rs-filter-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px;max-width:320px}
-.rs-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
-.rs-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;cursor:pointer;outline:none}
+.rs-select{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;cursor:pointer;outline:none;transition:border-color .15s}
 .rs-select:focus{border-color:var(--border-focus)}
-.rs-btn-analizar{align-self:flex-end;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.rs-btn-refresh{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text-secondary);cursor:pointer;flex-shrink:0;transition:background .12s,border-color .12s}
+.rs-btn-refresh:hover{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+.rs-btn-refresh:disabled{opacity:.4;cursor:not-allowed}
 .rs-table td:first-child{padding:4px 8px;text-align:center}
 .rs-table .rs-img{width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);background:var(--surface-2)}
 .rs-table .rs-no-img{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light)}
@@ -1105,6 +1104,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-dias{font-weight:700;color:var(--red-text)}
 .rs-dias-warn{font-weight:700;color:var(--amber-text)}
 [data-theme='dark'] .rs-select{background:var(--surface-2);border-color:var(--border)}
+[data-theme='dark'] .rs-btn-refresh{background:var(--surface-3);border-color:var(--border)}
 /* ── Kit grouping en análisis de contenedor ── */
 .ca-kit-hdr{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;margin-bottom:2px;user-select:none;transition:background .12s}
 .ca-kit-hdr:hover{background:var(--surface-3)}
@@ -3229,23 +3229,18 @@ body{font-family:var(--font);min-height:100dvh}
     <div id="section-reposicion" class="page-section" style="display:none">
     <div id="sec-reposicion" class="divider"><div class="divider-line"></div><span class="divider-label">REPOSICIÓN SHOWROOM — COMPRAS</span><div class="divider-line"></div></div>
     <div class="cont-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:3px">
         <h3 style="margin:0">Reposición Showroom</h3>
-      </div>
-      <div class="cont-subtitle">Artículos con stock en almacén que no tienen existencia en showroom — candidatos a reposición.</div>
-
-      <!-- Filtro de showroom -->
-      <div class="rs-filters">
-        <div class="rs-filter-group">
-          <label class="rs-label">Showroom</label>
-          <select id="rs-showroom-select" class="rs-select">
-            <option value="">— Selecciona showroom —</option>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="rs-showroom-select" class="rs-select" style="max-width:220px" onchange="runReposicionAnalysis()">
+            <option value="">— Showroom —</option>
           </select>
+          <button class="rs-btn-refresh" id="rs-btn-analizar" onclick="runReposicionAnalysis()" title="Actualizar">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+          </button>
         </div>
-        <button class="btn-consultar rs-btn-analizar" id="rs-btn-analizar" onclick="runReposicionAnalysis()">
-          <i data-lucide="search" style="width:13px;height:13px"></i> Analizar
-        </button>
       </div>
+      <div class="cont-subtitle">Artículos con stock en almacén sin existencia en showroom — candidatos a reposición.</div>
 
       <!-- KPIs -->
       <div class="cont-stats" id="rs-stats" style="display:none"></div>
@@ -8973,7 +8968,12 @@ var _rsLocsDone = false;
 var _rsItems    = [];
 
 async function initReposicion(){
-  if (!_rsLocsDone) await loadRsLocalities();
+  if (!_rsLocsDone) {
+    await loadRsLocalities();
+    // auto-ejecutar tras cargar si hay showroom pre-seleccionado
+    var srId = parseInt(document.getElementById('rs-showroom-select').value);
+    if (srId) runReposicionAnalysis();
+  }
 }
 
 async function loadRsLocalities(){
@@ -9018,12 +9018,12 @@ async function runReposicionAnalysis(){
   tableWrap.style.display = 'block';
 
   var btn = document.getElementById('rs-btn-analizar');
-  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  if (btn) { btn.disabled = true; }
 
   try {
     var r = await authFetch('/api/analysis/reposicion?showroom='+srId);
     var d = await r.json();
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    if (btn) { btn.disabled = false; }
 
     if (!d.ok) {
       tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
@@ -9053,7 +9053,7 @@ async function runReposicionAnalysis(){
 
     renderReposicion();
   } catch(e) {
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    if (btn) { btn.disabled = false; }
     var tbody2 = document.getElementById('rs-tbody');
     tbody2.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
   }

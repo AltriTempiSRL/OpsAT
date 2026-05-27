@@ -1256,8 +1256,7 @@ const server = http.createServer(async (req, res) => {
   // ── /api/analysis/reposicion — artículos en almacén sin stock en showroom ──
   if (reqPath === '/api/analysis/reposicion' && req.method === 'GET') {
     const _jpR = requireJwt(req, res); if (!_jpR) return;
-    const params = new URLSearchParams(reqUrl.search);
-    const showroomId = parseInt(params.get('showroom'));
+    const showroomId = parseInt(parsed.query.showroom || 0);
     if (!showroomId) {
       res.writeHead(400, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({ ok: false, error: 'Se requiere showroom' }));
