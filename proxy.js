@@ -1263,22 +1263,22 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     try {
-      // 0. Obtener todos los IDs hijos del showroom para excluirlos
-      //    (Odoo no soporta 'not child_of', hay que usar 'not in')
+      // 0. IDs de ubicaciones del showroom (para separar en JS, sin 'not in' en Odoo)
       const srLocIds = await odooCall('stock.location', 'search',
         [[['id', 'child_of', showroomId]]],
         { limit: 500 }
       );
-      // 1. Stock en todas las ubicaciones internas excepto showroom
-      const almQuants = await odooCall('stock.quant', 'search_read',
-        [[['location_id.usage', '=', 'internal'], ['location_id', 'not in', srLocIds], ['quantity', '>', 0]]],
-        { fields: ['product_id', 'quantity'], limit: 5000 }
+      const srLocSet = new Set(srLocIds);
+
+      // 1. Un solo query: todo el stock interno (incluye showroom)
+      const allIntQuants = await odooCall('stock.quant', 'search_read',
+        [[['location_id.usage', '=', 'internal'], ['quantity', '>', 0]]],
+        { fields: ['product_id', 'location_id', 'quantity'], limit: 10000 }
       );
-      // 2. Stock en showroom
-      const srQuants = await odooCall('stock.quant', 'search_read',
-        [[['location_id', 'child_of', showroomId]]],
-        { fields: ['product_id', 'quantity'], limit: 5000 }
-      );
+
+      // 2. Separar almacén vs showroom en JS usando el Set
+      const almQuants = allIntQuants.filter(q => !srLocSet.has(q.location_id[0]));
+      const srQuants  = allIntQuants.filter(q =>  srLocSet.has(q.location_id[0]));
 
       // Acumular por producto
       const almMap = {};
