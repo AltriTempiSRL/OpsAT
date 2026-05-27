@@ -7890,7 +7890,9 @@ async function checkOdooConnection(retries, delay){
   }
 }
 
-async function checkSheetsConnection(){
+async function checkSheetsConnection(retries, delay){
+  retries = retries !== undefined ? retries : 4;
+  delay   = delay   !== undefined ? delay   : 4000;
   var el=document.getElementById('sheets-status');
   try{
     var res=await fetch('/api/sheets');
@@ -7906,8 +7908,13 @@ async function checkSheetsConnection(){
     }
   }catch(e){
     SHEETS_LIVE=false;
-    if(el) el.innerHTML='<span class="sim-dot"></span><span style="color:var(--amber-text)">Sheets sin conexión</span>';
-    console.warn('Sheets sin conexión:',e.message);
+    if(retries > 0){
+      if(el) el.innerHTML='<span class="sim-dot" style="background:var(--amber-dot,#f59e0b)"></span><span style="color:var(--text-muted)">Conectando… ('+retries+')</span>';
+      setTimeout(function(){ checkSheetsConnection(retries-1, delay); }, delay);
+    } else {
+      if(el) el.innerHTML='<span class="sim-dot"></span><span style="color:var(--amber-text)">Sheets sin conexión</span>';
+      console.warn('Sheets sin conexión:',e.message);
+    }
   }
 }
 
