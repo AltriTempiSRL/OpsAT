@@ -4568,6 +4568,14 @@ function canSection(key) {
   return !!(_user.sectionPerms||{})[key];
 }
 
+/** Devuelve true si el usuario debe entrar al historial (admin o con sectionPerms asignados) */
+function isHistorialUser(u) {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  var sp = u.sectionPerms || {};
+  return Object.keys(sp).some(function(k){ return !!sp[k]; });
+}
+
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
@@ -4689,13 +4697,13 @@ function checkStoredSession() {
       _token = s.accessToken; _refreshToken = s.refreshToken; _user = s.user;
       var payload = JSON.parse(atob(_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
       if (payload.exp * 1000 > Date.now()) {
-        if (_user.role === 'admin') { setHistorialUser(); showScreen('screen-historial'); }
+        if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
         else { enterApp(); showScreen('screen-app'); }
         return;
       }
       doRefresh().then(function(ok) {
         if (ok) {
-          if (_user.role === 'admin') { setHistorialUser(); showScreen('screen-historial'); }
+          if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
           else { enterApp(); showScreen('screen-app'); }
         } else { showScreen('screen-login'); }
       });
@@ -4720,7 +4728,7 @@ async function doLogin() {
     if (!d.ok) { showErr(errEl, d.error||'Error al iniciar sesión'); btn.disabled=false; btn.textContent='Entrar'; return; }
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
-    if (_user.role === 'admin') { setHistorialUser(); showScreen('screen-historial'); }
+    if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
     else { enterApp(); showScreen('screen-app'); }
   } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
 }
@@ -11379,9 +11387,21 @@ function goBackToHistorial() {
 function setHistorialUser() {
   if (!_user) return;
   var info = document.getElementById('hist-user-info');
-  if (info) info.textContent = _user.name.split(' ')[0] + ' · Admin';
+  if (info) {
+    var label = _user.role === 'admin' ? 'Admin' : (ROLE_LABELS[_user.role] || _user.role);
+    info.textContent = _user.name.split(' ')[0] + ' · ' + label;
+  }
   var logoutBtn = document.getElementById('hist-logout-btn');
   if (logoutBtn) logoutBtn.style.display = '';
+  // Aplicar permisos de navegación (oculta secciones no autorizadas)
+  applyNavPerms();
+  // Para usuarios no-admin: navegar a la primera sección permitida
+  if (_user.role !== 'admin') {
+    var ORDER = ['buscar','devoluciones','contenedores','reposicion','pendientes',
+      'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
+    var first = ORDER.find(function(s){ return canSection(s); });
+    if (first) { showSection(first); setNavActive(first); }
+  }
 }
 
 // ════════════════════════════════════════════════════
