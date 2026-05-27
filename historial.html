@@ -1082,6 +1082,15 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .cont-table tr:last-child td{border-bottom:none}
 .cont-table tr:nth-child(even) td{background:#fbfbfc}
 .cont-table tr:hover td{background:var(--accent-light)}
+/* Filas con prioridad: verde (recibido) y amarillo (próximo ≤7d) */
+.cont-table tr.cont-row-green td,.cont-table tr.cont-row-green:nth-child(even) td{background:#f0fdf4}
+.cont-table tr.cont-row-green:hover td{background:#dcfce7}
+.cont-table tr.cont-row-amber td,.cont-table tr.cont-row-amber:nth-child(even) td{background:#fefce8}
+.cont-table tr.cont-row-amber:hover td{background:#fef9c3}
+[data-theme='dark'] .cont-table tr.cont-row-green td,[data-theme='dark'] .cont-table tr.cont-row-green:nth-child(even) td{background:#162a1e}
+[data-theme='dark'] .cont-table tr.cont-row-green:hover td{background:#1e3828}
+[data-theme='dark'] .cont-table tr.cont-row-amber td,[data-theme='dark'] .cont-table tr.cont-row-amber:nth-child(even) td{background:#2a2008}
+[data-theme='dark'] .cont-table tr.cont-row-amber:hover td{background:#362a0a}
 .cont-etapa{display:inline-flex;gap:2px;align-items:center}
 .etapa-dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--border);flex-shrink:0}
 .etapa-dot.done{border-color:transparent}
@@ -8763,15 +8772,32 @@ function renderContenedores(){
     document.getElementById('cont-tbody').innerHTML='<tr><td colspan="15" class="desp-empty">Sin registros</td></tr>';
     return;
   }
+
+  // ── Ordenar: 1) Recibidos en almacén 2) Próximos ≤7d 3) Resto ──
+  function contPriority(c){
+    if(c.recAlm) return 0;
+    if(c.diasRest!==null&&c.diasRest!==undefined&&c.diasRest!==''&&c.diasRest>=0&&c.diasRest<=7) return 1;
+    return 2;
+  }
+  all=all.slice().sort(function(a,b){
+    var pa=contPriority(a), pb=contPriority(b);
+    if(pa!==pb) return pa-pb;
+    // dentro del grupo amarillo, ordenar por días restantes ascendente
+    if(pa===1) return (a.diasRest||0)-(b.diasRest||0);
+    return 0;
+  });
+
   _contDisp=all;
   document.getElementById('cont-tbody').innerHTML=all.map((c,idx) => {
+    var pri=contPriority(c);
+    var rowCls=pri===0?' cont-row-green':pri===1?' cont-row-amber':'';
     var est=contEstado(c);
     var dr=c.diasRest===null||c.diasRest===undefined||c.diasRest===''?'—'
           :c.diasRest===0  ?'<span style="color:var(--amber-text);font-weight:700">Hoy</span>'
           :c.diasRest<0    ?'<span style="color:var(--red-text);font-weight:700">'+Math.abs(c.diasRest)+'d venc.</span>'
           :'<span style="color:var(--green-text);font-weight:700">+'+c.diasRest+'d</span>';
     var diasTrTxt=(c.diasTr!=null&&c.diasTr!=='')?c.diasTr+'d':'—';
-    return '<tr class="cont-tr-click" onclick="openContAnalysis('+idx+')" title="Clic para analizar artículos de este contenedor">'
+    return '<tr class="cont-tr-click'+rowCls+'" onclick="openContAnalysis('+idx+')" title="Clic para analizar artículos de este contenedor">'
       +'<td style="font-weight:700;color:var(--text-primary);white-space:nowrap;font-size:11px">'+c.exp+'</td>'
       +'<td style="font-weight:500;font-size:11px">'+c.proveedor+'</td>'
       +'<td style="color:var(--text-muted);font-size:10px;max-width:160px">'+c.embarque+'</td>'
