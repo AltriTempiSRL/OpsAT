@@ -1076,6 +1076,9 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .cont-stat.alert .cont-stat-num{color:var(--red-text)}
 .cont-stat.warn .cont-stat-num{color:var(--amber-text)}
 .cont-stat.ok .cont-stat-num{color:var(--green-text)}
+.cont-stat.rs-clickable{cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.cont-stat.rs-clickable:hover{border-color:var(--accent);background:var(--accent-light)}
+.cont-stat.rs-active{border-color:var(--accent)!important;background:var(--accent-light)!important;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
 .cont-table{width:100%;border-collapse:collapse;font-size:11px}
 .cont-table th{background:var(--surface-2);padding:7px 10px;text-align:left;font-weight:700;color:var(--text-muted);font-size:10px;border-bottom:2px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.4px}
 .cont-table td{padding:7px 10px;border-bottom:1px solid var(--border-light);vertical-align:middle}
@@ -8973,7 +8976,8 @@ function toggleDept(el){
 var _rsLocsDone = false;
 var _rsItems    = [];
 var _rsSort     = { col: 'diasSin', dir: -1 };
-var _rsKitOpen  = {}; // idx → bool, cerrado por defecto // más días sin showroom primero por defecto
+var _rsKitOpen  = {}; // idx → bool, cerrado por defecto
+var _rsFilter   = 'all'; // 'all' | 'con-historial' | 'nunca' | 'antiguos'
 
 function sortRs(col) {
   if (_rsSort.col === col) {
@@ -8989,6 +8993,15 @@ function sortRs(col) {
     if (!el) return;
     if (c !== _rsSort.col) { el.textContent = '↕'; el.classList.remove('active'); }
     else { el.textContent = _rsSort.dir === 1 ? '↑' : '↓'; el.classList.add('active'); }
+  });
+  renderReposicion();
+}
+
+function setRsFilter(f) {
+  _rsFilter = f;
+  ['all','con-historial','nunca','antiguos'].forEach(function(k) {
+    var el = document.getElementById('rs-stat-' + k);
+    if (el) el.classList.toggle('rs-active', k === f);
   });
   renderReposicion();
 }
@@ -9070,11 +9083,12 @@ async function runReposicionAnalysis(){
     var nunca      = _rsItems.filter(function(i){ return i.ultimaVez === null; }).length;
     var conHistorial = total - nunca;
     var maxDias    = _rsItems.reduce(function(m,i){ return i.diasSin!==null&&i.diasSin>m?i.diasSin:m; }, 0);
+    _rsFilter = 'all';
     stats.innerHTML =
-      '<div class="cont-stat alert"><div class="cont-stat-num">'+total+'</div><div class="cont-stat-lbl">Para Reponer</div></div>'+
-      '<div class="cont-stat"><div class="cont-stat-num">'+conHistorial+'</div><div class="cont-stat-lbl">Con historial showroom</div></div>'+
-      '<div class="cont-stat warn"><div class="cont-stat-num">'+nunca+'</div><div class="cont-stat-lbl">Nunca en showroom</div></div>'+
-      (maxDias>0?'<div class="cont-stat"><div class="cont-stat-num">'+maxDias+'d</div><div class="cont-stat-lbl">Máx. días sin showroom</div></div>':'');
+      '<div class="cont-stat alert rs-clickable rs-active" id="rs-stat-all" onclick="setRsFilter(\'all\')"><div class="cont-stat-num">'+total+'</div><div class="cont-stat-lbl">Para Reponer</div></div>'+
+      '<div class="cont-stat rs-clickable" id="rs-stat-con-historial" onclick="setRsFilter(\'con-historial\')"><div class="cont-stat-num">'+conHistorial+'</div><div class="cont-stat-lbl">Con historial showroom</div></div>'+
+      '<div class="cont-stat warn rs-clickable" id="rs-stat-nunca" onclick="setRsFilter(\'nunca\')"><div class="cont-stat-num">'+nunca+'</div><div class="cont-stat-lbl">Nunca en showroom</div></div>'+
+      (maxDias>0?'<div class="cont-stat rs-clickable" id="rs-stat-antiguos" onclick="setRsFilter(\'antiguos\')"><div class="cont-stat-num">'+maxDias+'d</div><div class="cont-stat-lbl">Máx. días sin showroom</div></div>':'');
     stats.style.display = 'flex';
 
     renderReposicion();
@@ -9136,9 +9150,15 @@ function renderReposicion(){
   var tableWrap = document.getElementById('rs-table-wrap');
   if (!_rsItems.length) return;
 
+  // ── Filtro por categoría KPI ──────────────────────────────────────────────
+  var filtered = _rsItems;
+  if (_rsFilter === 'con-historial') filtered = _rsItems.filter(function(i){ return i.ultimaVez !== null; });
+  else if (_rsFilter === 'nunca')    filtered = _rsItems.filter(function(i){ return i.ultimaVez === null; });
+  else if (_rsFilter === 'antiguos') filtered = _rsItems.filter(function(i){ return i.diasSin !== null && i.diasSin >= 365; });
+
   // ── Sort ──────────────────────────────────────────────────────────────────
   var col = _rsSort.col, dir = _rsSort.dir;
-  var sorted = _rsItems.slice().sort(function(a, b) {
+  var sorted = filtered.slice().sort(function(a, b) {
     var va = a[col], vb = b[col];
     if (va === null && vb === null) return 0;
     if (va === null) return 1;
