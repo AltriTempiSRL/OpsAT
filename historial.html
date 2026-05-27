@@ -11791,6 +11791,14 @@ function caTable(items, rowClass) {
     }
   });
 
+  // Si un "kit" tiene solo 1 componente, tratarlo como fila individual (sin dropdown)
+  Object.keys(kits).forEach(function(key) {
+    if (kits[key].components.length === 1) {
+      standalone.push(kits[key].components[0]);
+      delete kits[key];
+    }
+  });
+
   var hasKits = Object.keys(kits).length > 0;
   var h = '';
 
