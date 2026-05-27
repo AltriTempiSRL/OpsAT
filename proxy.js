@@ -1289,13 +1289,39 @@ const server = http.createServer(async (req, res) => {
         { fields: ['product_id', 'location_id', 'quantity'], limit: 10000 }
       );
 
+      // Mapa locId → complete_name (ya los tenemos de allLocs)
+      const locNameMap = {};
+      allLocs.forEach(l => { locNameMap[l.id] = l.complete_name; });
+
+      // Helper: etiqueta de almacén a partir del complete_name
+      function almLabel(cn) {
+        if (!cn) return '—';
+        if (/A-CDP/i.test(cn))          return 'CDP';
+        if (/D-PTN/i.test(cn))          return 'PTN';
+        if (/B-STI/i.test(cn))          return 'STI';
+        if (/OUTLET|NAC\b/i.test(cn))   return 'OUTLET';
+        if (/OUT27/i.test(cn))          return 'OUT27';
+        const parts = cn.split('/').map(s => s.trim()).filter(Boolean);
+        return parts[1] || parts[0] || '—';
+      }
+
       // Separar en JS: showroom vs almacén
       const almQuants = allQuants.filter(q => !srLocSet.has(q.location_id[0]));
       const srQuants  = allQuants.filter(q =>  srLocSet.has(q.location_id[0]));
 
-      // Acumular por producto
-      const almMap = {};
-      almQuants.forEach(q => { const p = q.product_id[0]; almMap[p] = (almMap[p]||0) + q.quantity; });
+      // Acumular stock por producto + mapa de ubicaciones
+      const almMap    = {};
+      const prodLocMap = {};   // pid → [{cn, alm, qty}]
+      almQuants.forEach(q => {
+        const pid = q.product_id[0];
+        almMap[pid] = (almMap[pid]||0) + q.quantity;
+        const cn  = locNameMap[q.location_id[0]] || q.location_id[1] || '';
+        const alm = almLabel(cn);
+        if (!prodLocMap[pid]) prodLocMap[pid] = [];
+        const ex = prodLocMap[pid].find(x => x.cn === cn);
+        if (ex) ex.qty += q.quantity;
+        else prodLocMap[pid].push({ cn, alm, qty: q.quantity });
+      });
       const srMap  = {};
       srQuants.forEach( q => { const p = q.product_id[0]; srMap[p]  = (srMap[p] ||0) + q.quantity; });
 
@@ -1345,6 +1371,9 @@ const server = http.createServer(async (req, res) => {
           ultimaVez = raw.slice(0,10);
           diasSin = Math.round((today - new Date(ultimaVez)) / 86400000);
         }
+        const locs = (prodLocMap[p.id] || []).sort((a, b) => b.qty - a.qty);
+        const almacen   = [...new Set(locs.map(l => l.alm))].join(' · ') || '—';
+        const ubicacion = locs.map(l => l.cn).join(' · ') || '—';
         copiaRx.lastIndex = 0;
         return {
           id:       p.id,
@@ -1353,7 +1382,8 @@ const server = http.createServer(async (req, res) => {
           barcode:  p.barcode || '',
           image:    p.image_128 || '',
           qtyAlm:   almMap[p.id] || 0,
-          qtySr:    srMap[p.id]  || 0,
+          almacen,
+          ubicacion,
           ultimaVez,
           diasSin
         };

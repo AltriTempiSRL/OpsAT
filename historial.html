@@ -1103,6 +1103,10 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-badge-nunca{display:inline-block;padding:2px 7px;border-radius:10px;background:var(--surface-3);color:var(--text-muted);font-size:10px;font-weight:600}
 .rs-dias{font-weight:700;color:var(--red-text)}
 .rs-dias-warn{font-weight:700;color:var(--amber-text)}
+.rs-th{cursor:pointer;user-select:none;white-space:nowrap}
+.rs-th:hover{background:var(--surface-3)!important}
+.rs-arr{font-size:9px;color:var(--text-muted);margin-left:3px}
+.rs-arr.active{color:var(--accent)}
 [data-theme='dark'] .rs-select{background:var(--surface-2);border-color:var(--border)}
 [data-theme='dark'] .rs-btn-refresh{background:var(--surface-3);border-color:var(--border)}
 /* ── Kit grouping en análisis de contenedor ── */
@@ -3250,12 +3254,13 @@ body{font-family:var(--font);min-height:100dvh}
         <table class="cont-table rs-table">
           <thead><tr>
             <th style="width:52px">Imagen</th>
-            <th>Referencia</th>
-            <th>Nombre</th>
-            <th style="text-align:right">Stock Almacén</th>
-            <th style="text-align:right">Stock Showroom</th>
-            <th>Última vez en Showroom</th>
-            <th style="text-align:right">Días sin Showroom</th>
+            <th class="rs-th" onclick="sortRs('ref')">Referencia <span class="rs-arr" id="rs-arr-ref">↕</span></th>
+            <th class="rs-th" onclick="sortRs('name')">Nombre <span class="rs-arr" id="rs-arr-name">↕</span></th>
+            <th class="rs-th" onclick="sortRs('almacen')">Almacén <span class="rs-arr" id="rs-arr-almacen">↕</span></th>
+            <th class="rs-th" onclick="sortRs('ubicacion')">Ubicación <span class="rs-arr" id="rs-arr-ubicacion">↕</span></th>
+            <th class="rs-th" style="text-align:right" onclick="sortRs('qtyAlm')">Stock Alm. <span class="rs-arr" id="rs-arr-qtyAlm">↕</span></th>
+            <th class="rs-th" onclick="sortRs('ultimaVez')">Última vez en Showroom <span class="rs-arr" id="rs-arr-ultimaVez">↕</span></th>
+            <th class="rs-th" style="text-align:right" onclick="sortRs('diasSin')">Días sin Showroom <span class="rs-arr" id="rs-arr-diasSin">↓</span></th>
           </tr></thead>
           <tbody id="rs-tbody"></tbody>
         </table>
@@ -8966,6 +8971,25 @@ function toggleDept(el){
 // ════════════════════════════════════════════════════
 var _rsLocsDone = false;
 var _rsItems    = [];
+var _rsSort     = { col: 'diasSin', dir: -1 }; // más días sin showroom primero por defecto
+
+function sortRs(col) {
+  if (_rsSort.col === col) {
+    _rsSort.dir *= -1;
+  } else {
+    _rsSort.col = col;
+    // numéricos: mayor primero por defecto; texto: A-Z
+    _rsSort.dir = (col === 'diasSin' || col === 'qtyAlm') ? -1 : 1;
+  }
+  // Actualizar flechas en headers
+  ['ref','name','almacen','ubicacion','qtyAlm','ultimaVez','diasSin'].forEach(function(c) {
+    var el = document.getElementById('rs-arr-' + c);
+    if (!el) return;
+    if (c !== _rsSort.col) { el.textContent = '↕'; el.classList.remove('active'); }
+    else { el.textContent = _rsSort.dir === 1 ? '↑' : '↓'; el.classList.add('active'); }
+  });
+  renderReposicion();
+}
 
 async function initReposicion(){
   if (!_rsLocsDone) {
@@ -9013,7 +9037,7 @@ async function runReposicionAnalysis(){
   tableWrap.style.display = 'none';
   emptyMsg.style.display  = 'none';
 
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">'
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-3)">'
     +'<div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
   tableWrap.style.display = 'block';
 
@@ -9026,7 +9050,7 @@ async function runReposicionAnalysis(){
     if (btn) { btn.disabled = false; }
 
     if (!d.ok) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
       return;
     }
 
@@ -9055,7 +9079,7 @@ async function runReposicionAnalysis(){
   } catch(e) {
     if (btn) { btn.disabled = false; }
     var tbody2 = document.getElementById('rs-tbody');
-    tbody2.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
+    tbody2.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
   }
 }
 
@@ -9064,33 +9088,51 @@ function renderReposicion(){
   var tableWrap = document.getElementById('rs-table-wrap');
   if (!_rsItems.length) return;
 
-  var html = _rsItems.map(function(item){
+  // Aplicar sort
+  var col = _rsSort.col, dir = _rsSort.dir;
+  var sorted = _rsItems.slice().sort(function(a, b) {
+    var va = a[col], vb = b[col];
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;   // nulls siempre al final
+    if (vb === null) return -1;
+    if (typeof va === 'number') return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+
+  var html = sorted.map(function(item){
     var imgHtml = item.image
       ? '<img class="rs-img" src="data:image/png;base64,'+item.image+'" alt="">'
       : '<div class="rs-no-img"><i data-lucide="image-off" style="width:16px;height:16px;stroke:var(--text-muted)"></i></div>';
 
-    var diasHtml;
-    if (item.diasSin === null) {
-      diasHtml = '<span class="rs-badge-nunca">Nunca</span>';
-    } else if (item.diasSin >= 60) {
-      diasHtml = '<span class="rs-dias">'+item.diasSin+'d</span>';
-    } else {
-      diasHtml = '<span class="rs-dias-warn">'+item.diasSin+'d</span>';
-    }
+    var diasHtml = item.diasSin === null
+      ? '<span class="rs-badge-nunca">Nunca</span>'
+      : item.diasSin >= 60
+        ? '<span class="rs-dias">'+item.diasSin+'d</span>'
+        : '<span class="rs-dias-warn">'+item.diasSin+'d</span>';
 
     var ultimaVezHtml = item.ultimaVez
       ? '<span style="font-size:11px;color:var(--text-secondary)">'+esc(item.ultimaVez)+'</span>'
       : '<span class="rs-badge-nunca">Sin historial</span>';
 
-    var qtyAlm = (item.qtyAlm||0);
-    var qtySr  = (item.qtySr||0);
+    // Almacén — chips por cada almacén único
+    var almHtml = (item.almacen||'—').split(' · ').map(function(a){
+      return '<span style="display:inline-block;padding:1px 6px;border-radius:10px;'
+        +'background:var(--blue-bg);color:var(--blue-text);font-size:10px;font-weight:700;'
+        +'margin:1px 2px 1px 0;white-space:nowrap">'+esc(a)+'</span>';
+    }).join('');
+
+    // Ubicación — texto compacto, múltiples separadas con •
+    var ubHtml = '<span style="font-size:10px;color:var(--text-secondary);line-height:1.4">'
+      + esc((item.ubicacion||'—').replace(/ · /g, '\n')).replace(/\n/g,'<br>')
+      + '</span>';
 
     return '<tr>'
       +'<td>'+imgHtml+'</td>'
       +'<td style="font-size:11px;font-weight:700;color:var(--text-primary);white-space:nowrap">'+(item.ref?esc(item.ref):'<span style="color:var(--text-muted)">—</span>')+'</td>'
-      +'<td style="font-size:12px;color:var(--text-primary);max-width:260px">'+esc(item.name||'—')+'</td>'
-      +'<td style="text-align:right;font-size:12px;font-weight:600;color:var(--green-text)">'+qtyAlm.toFixed(0)+'</td>'
-      +'<td style="text-align:right;font-size:12px;color:var(--text-muted)">'+qtySr.toFixed(0)+'</td>'
+      +'<td style="font-size:12px;color:var(--text-primary);max-width:220px">'+esc(item.name||'—')+'</td>'
+      +'<td>'+almHtml+'</td>'
+      +'<td style="max-width:180px">'+ubHtml+'</td>'
+      +'<td style="text-align:right;font-size:12px;font-weight:600;color:var(--green-text)">'+(item.qtyAlm||0).toFixed(0)+'</td>'
       +'<td style="text-align:center">'+ultimaVezHtml+'</td>'
       +'<td style="text-align:right">'+diasHtml+'</td>'
       +'</tr>';
