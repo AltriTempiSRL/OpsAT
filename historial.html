@@ -1091,6 +1091,20 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 [data-theme='dark'] .cont-table tr.cont-row-green:hover td{background:#1e3828}
 [data-theme='dark'] .cont-table tr.cont-row-amber td,[data-theme='dark'] .cont-table tr.cont-row-amber:nth-child(even) td{background:#2a2008}
 [data-theme='dark'] .cont-table tr.cont-row-amber:hover td{background:#362a0a}
+/* ── Reposición Showroom ── */
+.rs-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.rs-filter-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px;max-width:320px}
+.rs-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.rs-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;cursor:pointer;outline:none}
+.rs-select:focus{border-color:var(--border-focus)}
+.rs-btn-analizar{align-self:flex-end;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.rs-table td:first-child{padding:4px 8px;text-align:center}
+.rs-table .rs-img{width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);background:var(--surface-2)}
+.rs-table .rs-no-img{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light)}
+.rs-badge-nunca{display:inline-block;padding:2px 7px;border-radius:10px;background:var(--surface-3);color:var(--text-muted);font-size:10px;font-weight:600}
+.rs-dias{font-weight:700;color:var(--red-text)}
+.rs-dias-warn{font-weight:700;color:var(--amber-text)}
+[data-theme='dark'] .rs-select{background:var(--surface-2);border-color:var(--border)}
 /* ── Kit grouping en análisis de contenedor ── */
 .ca-kit-hdr{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;margin-bottom:2px;user-select:none;transition:background .12s}
 .ca-kit-hdr:hover{background:var(--surface-3)}
@@ -2943,6 +2957,9 @@ body{font-family:var(--font);min-height:100dvh}
     <a class="nav-item" id="nav-contenedores" href="#sec-contenedores" onclick="navTo('contenedores');return false;">
       <span class="nav-icon"><i data-lucide="ship"></i></span>Contenedores
     </a>
+    <a class="nav-item" id="nav-reposicion" href="#sec-reposicion" onclick="navTo('reposicion');return false;">
+      <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
+    </a>
 
     <div class="sidebar-group">Tiempo Real</div>
     <a class="nav-item" id="nav-pendientes" href="#sec-pendientes" onclick="navTo('pendientes');return false;">
@@ -2983,6 +3000,7 @@ body{font-family:var(--font);min-height:100dvh}
     <button class="mob-nav-btn"        id="mob-nav-devoluciones"  onclick="navTo('devoluciones')"><i data-lucide="rotate-ccw"></i>Devoluciones</button>
     <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="scan-line"></i>Validación</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
+    <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-pendientes"    onclick="navTo('pendientes')"><i data-lucide="clock"></i>Pendientes</button>
     <button class="mob-nav-btn"        id="mob-nav-ordenes"       onclick="navTo('ordenes')"><i data-lucide="clipboard-list"></i>Órdenes</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
@@ -3206,6 +3224,59 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
     </div>
     </div><!-- /section-contenedores -->
+
+    <!-- ── REPOSICIÓN SHOWROOM ──────────────────────────── -->
+    <div id="section-reposicion" class="page-section" style="display:none">
+    <div id="sec-reposicion" class="divider"><div class="divider-line"></div><span class="divider-label">REPOSICIÓN SHOWROOM — COMPRAS</span><div class="divider-line"></div></div>
+    <div class="cont-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+        <h3 style="margin:0">Reposición Showroom</h3>
+      </div>
+      <div class="cont-subtitle">Artículos con stock en almacén que no tienen existencia en showroom — candidatos a reposición.</div>
+
+      <!-- Filtros de ubicación -->
+      <div class="rs-filters">
+        <div class="rs-filter-group">
+          <label class="rs-label">Almacén</label>
+          <select id="rs-almacen-select" class="rs-select">
+            <option value="">— Selecciona almacén —</option>
+          </select>
+        </div>
+        <div class="rs-filter-group">
+          <label class="rs-label">Showroom</label>
+          <select id="rs-showroom-select" class="rs-select">
+            <option value="">— Selecciona showroom —</option>
+          </select>
+        </div>
+        <button class="btn-consultar rs-btn-analizar" id="rs-btn-analizar" onclick="runReposicionAnalysis()">
+          <i data-lucide="search" style="width:13px;height:13px"></i> Analizar
+        </button>
+      </div>
+
+      <!-- KPIs -->
+      <div class="cont-stats" id="rs-stats" style="display:none"></div>
+
+      <!-- Tabla resultados -->
+      <div class="mv-wrap" id="rs-table-wrap" style="display:none">
+        <table class="cont-table rs-table">
+          <thead><tr>
+            <th style="width:52px">Imagen</th>
+            <th>Referencia</th>
+            <th>Nombre</th>
+            <th style="text-align:right">Stock Almacén</th>
+            <th style="text-align:right">Stock Showroom</th>
+            <th>Última vez en Showroom</th>
+            <th style="text-align:right">Días sin Showroom</th>
+          </tr></thead>
+          <tbody id="rs-tbody"></tbody>
+        </table>
+      </div>
+      <div id="rs-empty" style="display:none;padding:40px;text-align:center;color:var(--text-3);font-size:13px">
+        <i data-lucide="check-circle" style="width:32px;height:32px;stroke:var(--green);display:block;margin:0 auto 8px"></i>
+        Todos los artículos tienen existencia en showroom.
+      </div>
+    </div>
+    </div><!-- /section-reposicion -->
 
     <!-- ── TIEMPO REAL ──────────────────────────────────── -->
     <div id="section-pendientes" class="page-section" style="display:none">
@@ -4419,7 +4490,7 @@ function canSection(key) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'buscar','devoluciones','contenedores','pendientes',
+    'buscar','devoluciones','contenedores','reposicion','pendientes',
     'sin-adjuntos','pendientes-out','dev-cdp',
     'validacion','averias','reportes','wwp'
   ];
@@ -8902,6 +8973,164 @@ function toggleDept(el){
 }
 
 // ════════════════════════════════════════════════════
+//  REPOSICIÓN SHOWROOM
+// ════════════════════════════════════════════════════
+var _rsLocsDone = false;
+var _rsItems    = [];
+
+async function initReposicion(){
+  if (!_rsLocsDone) await loadRsLocalities();
+}
+
+async function loadRsLocalities(){
+  var selAlm = document.getElementById('rs-almacen-select');
+  var selSr  = document.getElementById('rs-showroom-select');
+  selAlm.innerHTML = '<option value="">Cargando ubicaciones…</option>';
+  selSr.innerHTML  = '<option value="">Cargando ubicaciones…</option>';
+  try {
+    var r = await fetch('/api/analysis/localities');
+    var d = await r.json();
+    if (!d.ok || !d.locations || !d.locations.length) {
+      selAlm.innerHTML = '<option value="">Sin ubicaciones disponibles</option>';
+      selSr.innerHTML  = '<option value="">Sin ubicaciones disponibles</option>';
+      return;
+    }
+    var defaultAlm = '<option value="">— Selecciona almacén —</option>';
+    var defaultSr  = '<option value="">— Selecciona showroom —</option>';
+    var optionsAlm = defaultAlm, optionsSr = defaultSr;
+    d.locations.forEach(function(loc) {
+      var lower = loc.complete_name.toLowerCase();
+      var opt = '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
+      // Pre-seleccionar showroom si contiene "showroom"
+      if (lower.includes('showroom')) {
+        opt = '<option value="'+loc.id+'" selected>'+esc(loc.complete_name)+'</option>';
+        optionsSr += opt;
+      } else {
+        optionsSr += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
+      }
+      // Pre-seleccionar almacén: "WH/Stock" o "Almacen" sin showroom
+      if (!lower.includes('showroom') && (lower.includes('wh/stock') || lower.includes('almacen') || lower.includes('almacén'))) {
+        optionsAlm += '<option value="'+loc.id+'" selected>'+esc(loc.complete_name)+'</option>';
+      } else if (!lower.includes('showroom')) {
+        optionsAlm += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
+      } else {
+        optionsAlm += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
+      }
+    });
+    selAlm.innerHTML = optionsAlm;
+    selSr.innerHTML  = optionsSr;
+    _rsLocsDone = true;
+  } catch(e) {
+    selAlm.innerHTML = '<option value="">Error cargando ubicaciones</option>';
+    selSr.innerHTML  = '<option value="">Error cargando ubicaciones</option>';
+    console.warn('loadRsLocalities:', e.message);
+  }
+}
+
+async function runReposicionAnalysis(){
+  var almId = parseInt(document.getElementById('rs-almacen-select').value);
+  var srId  = parseInt(document.getElementById('rs-showroom-select').value);
+  if (!almId) { document.getElementById('rs-almacen-select').focus(); return; }
+  if (!srId)  { document.getElementById('rs-showroom-select').focus(); return; }
+
+  var tbody     = document.getElementById('rs-tbody');
+  var stats     = document.getElementById('rs-stats');
+  var tableWrap = document.getElementById('rs-table-wrap');
+  var emptyMsg  = document.getElementById('rs-empty');
+
+  stats.style.display     = 'none';
+  tableWrap.style.display = 'none';
+  emptyMsg.style.display  = 'none';
+
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">'
+    +'<div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
+  tableWrap.style.display = 'block';
+
+  var btn = document.getElementById('rs-btn-analizar');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+
+  try {
+    var r = await authFetch('/api/analysis/reposicion?almacen='+almId+'&showroom='+srId);
+    var d = await r.json();
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+
+    if (!d.ok) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">'+esc(d.error||'Error al consultar')+'</td></tr>';
+      return;
+    }
+
+    _rsItems = d.items || [];
+
+    if (!_rsItems.length) {
+      tableWrap.style.display = 'none';
+      emptyMsg.style.display  = 'block';
+      if(window.lucide) lucide.createIcons();
+      return;
+    }
+
+    // KPIs
+    var total      = _rsItems.length;
+    var nunca      = _rsItems.filter(function(i){ return i.ultimaVez === null; }).length;
+    var conHistorial = total - nunca;
+    var maxDias    = _rsItems.reduce(function(m,i){ return i.diasSin!==null&&i.diasSin>m?i.diasSin:m; }, 0);
+    stats.innerHTML =
+      '<div class="cont-stat alert"><div class="cont-stat-num">'+total+'</div><div class="cont-stat-lbl">Para Reponer</div></div>'+
+      '<div class="cont-stat"><div class="cont-stat-num">'+conHistorial+'</div><div class="cont-stat-lbl">Con historial showroom</div></div>'+
+      '<div class="cont-stat warn"><div class="cont-stat-num">'+nunca+'</div><div class="cont-stat-lbl">Nunca en showroom</div></div>'+
+      (maxDias>0?'<div class="cont-stat"><div class="cont-stat-num">'+maxDias+'d</div><div class="cont-stat-lbl">Máx. días sin showroom</div></div>':'');
+    stats.style.display = 'flex';
+
+    renderReposicion();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    var tbody2 = document.getElementById('rs-tbody');
+    tbody2.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</td></tr>';
+  }
+}
+
+function renderReposicion(){
+  var tbody     = document.getElementById('rs-tbody');
+  var tableWrap = document.getElementById('rs-table-wrap');
+  if (!_rsItems.length) return;
+
+  var html = _rsItems.map(function(item){
+    var imgHtml = item.image
+      ? '<img class="rs-img" src="data:image/png;base64,'+item.image+'" alt="">'
+      : '<div class="rs-no-img"><i data-lucide="image-off" style="width:16px;height:16px;stroke:var(--text-muted)"></i></div>';
+
+    var diasHtml;
+    if (item.diasSin === null) {
+      diasHtml = '<span class="rs-badge-nunca">Nunca</span>';
+    } else if (item.diasSin >= 60) {
+      diasHtml = '<span class="rs-dias">'+item.diasSin+'d</span>';
+    } else {
+      diasHtml = '<span class="rs-dias-warn">'+item.diasSin+'d</span>';
+    }
+
+    var ultimaVezHtml = item.ultimaVez
+      ? '<span style="font-size:11px;color:var(--text-secondary)">'+esc(item.ultimaVez)+'</span>'
+      : '<span class="rs-badge-nunca">Sin historial</span>';
+
+    var qtyAlm = (item.qtyAlm||0);
+    var qtySr  = (item.qtySr||0);
+
+    return '<tr>'
+      +'<td>'+imgHtml+'</td>'
+      +'<td style="font-size:11px;font-weight:700;color:var(--text-primary);white-space:nowrap">'+(item.ref?esc(item.ref):'<span style="color:var(--text-muted)">—</span>')+'</td>'
+      +'<td style="font-size:12px;color:var(--text-primary);max-width:260px">'+esc(item.name||'—')+'</td>'
+      +'<td style="text-align:right;font-size:12px;font-weight:600;color:var(--green-text)">'+qtyAlm.toFixed(0)+'</td>'
+      +'<td style="text-align:right;font-size:12px;color:var(--text-muted)">'+qtySr.toFixed(0)+'</td>'
+      +'<td style="text-align:center">'+ultimaVezHtml+'</td>'
+      +'<td style="text-align:right">'+diasHtml+'</td>'
+      +'</tr>';
+  }).join('');
+
+  tbody.innerHTML = html;
+  tableWrap.style.display = 'block';
+  if(window.lucide) lucide.createIcons();
+}
+
+// ════════════════════════════════════════════════════
 //  ÓRDENES ACTIVAS — LIVE desde API WWP
 // ════════════════════════════════════════════════════
 async function renderOrdenesActivas(){
@@ -10510,13 +10739,14 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','pendientes','sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','pendientes','sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
   'buscar':          'buscar',
   'devoluciones':    'devoluciones',
   'contenedores':    'contenedores',
+  'reposicion':      'reposicion',
   'pendientes':      'pendientes',
   'ordenes':         'pendientes',
   'sin-adjuntos':    'sin-adjuntos',
@@ -10769,6 +10999,7 @@ function navTo(section){
   showSection(target);
   setNavActive(section);
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
+  if(target==='reposicion') initReposicion();
   if(target==='pendientes'){renderPendientes();renderOrdenesActivas();}
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
