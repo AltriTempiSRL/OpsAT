@@ -3197,7 +3197,7 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="mv-wrap">
         <table class="cont-table">
           <thead><tr>
-            <th>EXP / PO</th><th>Proveedor</th><th>Embarque</th><th>Origen</th><th>Método</th>
+            <th>EXP / PO</th><th>Proveedor</th><th>Días Alm.</th><th>Embarque</th><th>Origen</th><th>Método</th>
             <th>F. Salida</th><th>F. Est. Llegada</th><th>F. Real</th><th>Días Tr.</th><th>Días Rest.</th>
             <th>Localidad</th><th>Etapas</th><th>Estado</th><th>No de Orden Odoo</th><th>Responsable</th>
           </tr></thead>
@@ -8810,9 +8810,14 @@ function renderContenedores(){
           :c.diasRest<0    ?'<span style="color:var(--red-text);font-weight:700">'+Math.abs(c.diasRest)+'d venc.</span>'
           :'<span style="color:var(--green-text);font-weight:700">+'+c.diasRest+'d</span>';
     var diasTrTxt=(c.diasTr!=null&&c.diasTr!=='')?c.diasTr+'d':'—';
+    var diasAlm=c.recAlm&&c.fReal?daysBetween(c.fReal,new Date()):null;
+    var diasAlmTxt=diasAlm!==null
+      ?'<span style="font-weight:700;color:var(--red-text)">'+diasAlm+'d</span>'
+      :'—';
     return '<tr class="cont-tr-click'+rowCls+'" onclick="openContAnalysis('+idx+')" title="Clic para analizar artículos de este contenedor">'
       +'<td style="font-weight:700;color:var(--text-primary);white-space:nowrap;font-size:11px">'+c.exp+'</td>'
       +'<td style="font-weight:500;font-size:11px">'+c.proveedor+'</td>'
+      +'<td style="text-align:center;font-size:11px">'+diasAlmTxt+'</td>'
       +'<td style="color:var(--text-muted);font-size:10px;max-width:160px">'+c.embarque+'</td>'
       +'<td><span style="font-size:10px;background:var(--surface-2);padding:1px 5px;border-radius:var(--radius-sm);border:1px solid var(--border-light)">'+c.origen+'</span></td>'
       +'<td style="font-size:10px;color:var(--text-muted);white-space:nowrap">'+(c.metodo||'—')+'</td>'
