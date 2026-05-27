@@ -1112,6 +1112,10 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-th:hover{background:var(--surface-3)!important}
 .rs-arr{font-size:9px;color:var(--text-muted);margin-left:3px}
 .rs-arr.active{color:var(--accent)}
+/* Cabecera de grupo almacén */
+.rs-alm-hdr td{background:var(--surface-3)!important;border-top:2px solid var(--border)!important;padding:8px 12px!important}
+.rs-alm-hdr:hover td{background:var(--surface-2)!important}
+.rs-alm-chev{display:inline-block;font-size:10px;color:var(--text-muted);transition:transform .2s;margin-right:2px;flex-shrink:0}
 [data-theme='dark'] .rs-select{background:var(--surface-2);border-color:var(--border)}
 [data-theme='dark'] .rs-btn-refresh{background:var(--surface-3);border-color:var(--border)}
 /* ── Kit grouping en análisis de contenedor ── */
@@ -2750,7 +2754,7 @@ body{font-family:var(--font);min-height:100dvh}
   /* Header: apila título + controles */
   .rs-card-hdr{flex-direction:column;align-items:stretch;gap:8px}
   .rs-card-controls{width:100%}
-  .rs-select{flex:1;max-width:100%!important;width:100%;font-size:16px;min-height:44px;padding:10px 12px}
+  .rs-select{flex:1;max-width:100%!important;font-size:16px;min-height:44px;padding:10px 12px}
   .rs-btn-refresh{width:44px;height:44px;flex-shrink:0}
 
   /* KPI cards: 2 por fila, táctiles */
@@ -3283,6 +3287,9 @@ body{font-family:var(--font);min-height:100dvh}
         <div class="rs-card-controls">
           <select id="rs-showroom-select" class="rs-select" onchange="runReposicionAnalysis()">
             <option value="">— Showroom —</option>
+          </select>
+          <select id="rs-alm-filter" class="rs-select" style="max-width:160px" onchange="setRsAlmFilter(this.value)" disabled>
+            <option value="all">Todos los almacenes</option>
           </select>
           <button class="rs-btn-refresh" id="rs-btn-analizar" onclick="runReposicionAnalysis()" title="Actualizar">
             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
@@ -9018,8 +9025,10 @@ function toggleDept(el){
 var _rsLocsDone = false;
 var _rsItems    = [];
 var _rsSort     = { col: 'diasSin', dir: -1 };
-var _rsKitOpen  = {}; // idx → bool, cerrado por defecto
-var _rsFilter   = 'all'; // 'all' | 'con-historial' | 'nunca' | 'antiguos'
+var _rsKitOpen  = {}; // setIdx → bool
+var _rsAlmOpen  = {}; // almKey → bool
+var _rsFilter   = 'all';    // KPI filter
+var _rsAlmFilter = 'all';   // almacén filter
 
 function sortRs(col) {
   if (_rsSort.col === col) {
@@ -9046,6 +9055,28 @@ function setRsFilter(f) {
     if (el) el.classList.toggle('rs-active', k === f);
   });
   renderReposicion();
+}
+
+function setRsAlmFilter(val) {
+  _rsAlmFilter = val;
+  renderReposicion();
+}
+
+function rsToggleAlm(almKey) {
+  _rsAlmOpen[almKey] = !_rsAlmOpen[almKey];
+  var isOpen = _rsAlmOpen[almKey];
+  // Mostrar/ocultar filas directas del grupo (no las sub-filas de SET)
+  document.querySelectorAll('.rs-alm-row-' + almKey).forEach(function(r) {
+    r.style.display = isOpen ? '' : 'none';
+  });
+  // Si se cierra el grupo, también cerrar los SETs abiertos dentro
+  if (!isOpen) {
+    document.querySelectorAll('.rs-set-row-' + almKey).forEach(function(r) {
+      r.style.display = 'none';
+    });
+  }
+  var chev = document.getElementById('rs-alm-chev-' + almKey);
+  if (chev) chev.style.transform = isOpen ? 'rotate(90deg)' : '';
 }
 
 async function initReposicion(){
@@ -9098,6 +9129,9 @@ async function runReposicionAnalysis(){
     +'<div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
   tableWrap.style.display = 'block';
 
+  var almSelEl = document.getElementById('rs-alm-filter');
+  if (almSelEl) { almSelEl.disabled = true; almSelEl.innerHTML = '<option value="all">Todos los almacenes</option>'; }
+
   var btn = document.getElementById('rs-btn-analizar');
   if (btn) { btn.disabled = true; }
 
@@ -9111,7 +9145,26 @@ async function runReposicionAnalysis(){
       return;
     }
 
-    _rsItems = d.items || [];
+    _rsItems    = d.items || [];
+    _rsAlmOpen  = {};       // reset estado abierto/cerrado al cargar nuevos datos
+    _rsAlmFilter = 'all';   // reset filtro almacén
+
+    // Poblar dropdown de almacén con los que realmente aparecen
+    var almSel = document.getElementById('rs-alm-filter');
+    if (almSel) {
+      var almsSet = new Set();
+      _rsItems.forEach(function(i){
+        ((i.almacen||'—').split(' · ')).forEach(function(a){
+          var t = a.trim(); if (t) almsSet.add(t);
+        });
+      });
+      var almHtml = '<option value="all">Todos los almacenes</option>';
+      Array.from(almsSet).sort().forEach(function(a){
+        almHtml += '<option value="'+esc(a)+'">'+esc(a)+'</option>';
+      });
+      almSel.innerHTML = almHtml;
+      almSel.disabled = false;
+    }
 
     if (!_rsItems.length) {
       tableWrap.style.display = 'none';
@@ -9192,13 +9245,13 @@ function renderReposicion(){
   var tableWrap = document.getElementById('rs-table-wrap');
   if (!_rsItems.length) return;
 
-  // ── Filtro por categoría KPI ──────────────────────────────────────────────
+  // ── 1. Filtro KPI ─────────────────────────────────────────────────────────
   var filtered = _rsItems;
   if (_rsFilter === 'con-historial') filtered = _rsItems.filter(function(i){ return i.ultimaVez !== null; });
   else if (_rsFilter === 'nunca')    filtered = _rsItems.filter(function(i){ return i.ultimaVez === null; });
   else if (_rsFilter === 'antiguos') filtered = _rsItems.filter(function(i){ return i.diasSin !== null && i.diasSin >= 365; });
 
-  // ── Sort ──────────────────────────────────────────────────────────────────
+  // ── 2. Sort ───────────────────────────────────────────────────────────────
   var col = _rsSort.col, dir = _rsSort.dir;
   var sorted = filtered.slice().sort(function(a, b) {
     var va = a[col], vb = b[col];
@@ -9209,7 +9262,8 @@ function renderReposicion(){
     return String(va).localeCompare(String(vb)) * dir;
   });
 
-  // ── Agrupar por barcode SET (misma lógica que análisis de contenedor) ─────
+  // ── 3. Agrupar SETs por barcode ───────────────────────────────────────────
+  _rsKitOpen = {}; // reset al re-renderizar
   var bcPartRx = /^(\d)(\d)(\d)\.(.+)$/;
   var bcGroups  = {};
   sorted.forEach(function(item) {
@@ -9222,56 +9276,108 @@ function renderReposicion(){
     bcGroups[key].push({ item: item, part: parseInt(m[2]) });
   });
 
-  var setList = [];
-  var inSet   = new Set();
+  var setCounter = 0;
+  var inSet = new Set();
+  var setUnits = []; // { type:'set', set:{...} }
   Object.keys(bcGroups).forEach(function(key) {
     var group = bcGroups[key];
     if (group.length < 2) return;
     group.sort(function(a, b){ return a.part - b.part; });
     var p1 = group.find(function(g){ return g.part === 1; }) || group[0];
-    setList.push({
-      idx:   setList.length,
-      image: p1.item.image  || '',
-      ref:   p1.item.barcode || key,
-      name:  p1.item.ref    || '',
-      items: group.map(function(g){ return g.item; })
-    });
+    setUnits.push({ type:'set', set:{
+      idx:     setCounter++,
+      image:   p1.item.image   || '',
+      ref:     p1.item.barcode || key,
+      name:    p1.item.ref     || '',
+      almacen: p1.item.almacen || '—',
+      items:   group.map(function(g){ return g.item; })
+    }});
     group.forEach(function(g){ inSet.add(g.item.id); });
   });
 
-  var standalone = sorted.filter(function(item){ return !inSet.has(item.id); });
+  // Unidades de renderizado: artículos sueltos + SETs
+  var units = [];
+  sorted.filter(function(item){ return !inSet.has(item.id); })
+        .forEach(function(item){ units.push({ type:'item', item:item }); });
+  setUnits.forEach(function(u){ units.push(u); });
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── 4. Agrupar unidades por almacén primario ──────────────────────────────
+  function primaryAlm(u) {
+    var s = u.type === 'item' ? (u.item.almacen||'—') : (u.set.almacen||'—');
+    return s.split(' · ')[0].trim() || '—';
+  }
+
+  var almGroups = {}, almOrder = [];
+  units.forEach(function(u) {
+    var alm = primaryAlm(u);
+    if (!almGroups[alm]) { almGroups[alm] = []; almOrder.push(alm); }
+    almGroups[alm].push(u);
+  });
+  almOrder.sort();
+
+  // ── 5. Filtro de almacén (dropdown) ──────────────────────────────────────
+  if (_rsAlmFilter !== 'all') {
+    almOrder = almOrder.filter(function(a){ return a === _rsAlmFilter; });
+  }
+
+  // ── 6. Render ─────────────────────────────────────────────────────────────
   var COLS = 9;
   var html = '';
 
-  // Filas individuales
-  standalone.forEach(function(item){
-    html += '<tr>' + _rsRowCells(item) + '</tr>';
-  });
+  almOrder.forEach(function(alm) {
+    var grpUnits = almGroups[alm];
+    var almKey   = alm.replace(/[^a-zA-Z0-9]/g, '_');
+    var isOpen   = !!_rsAlmOpen[almKey];
 
-  // Grupos SET
-  setList.forEach(function(set) {
-    var idx = set.idx;
-    var imgH = set.image
-      ? '<img style="width:36px;height:36px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);flex-shrink:0" src="data:image/png;base64,'+set.image+'" alt="">'
-      : '<div style="width:36px;height:36px;background:var(--surface-3);border-radius:4px;flex-shrink:0"></div>';
+    // Contar artículos totales (SETs cuentan por piezas)
+    var count = grpUnits.reduce(function(n, u){
+      return n + (u.type === 'item' ? 1 : u.set.items.length);
+    }, 0);
 
-    html += '<tr class="rs-set-hdr cont-btc-hdr" onclick="rsToggleKit('+idx+')" style="cursor:pointer">'
-      +'<td colspan="'+COLS+'" style="padding:7px 12px">'
-      +'<div style="display:flex;align-items:center;gap:8px">'
-      + imgH
-      +'<span style="display:inline-flex;align-items:center;gap:3px;background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;letter-spacing:.4px;flex-shrink:0">SET</span>'
-      +'<span style="font-size:11px;font-weight:700;color:var(--text-primary);flex-shrink:0">'+esc(set.ref)+'</span>'
-      +(set.name?'<span style="font-size:11px;color:var(--text-secondary)">'+esc(set.name)+'</span>':'')
-      +'<span style="font-size:10px;color:var(--text-muted);margin-left:2px">· '+set.items.length+' piezas</span>'
-      +'<span id="rs-chev-'+idx+'" style="margin-left:auto;font-size:10px;color:var(--text-muted);transition:transform .2s">▶</span>'
-      +'</div></td></tr>';
+    // Cabecera de grupo
+    var chevRot = isOpen ? 'rotate(90deg)' : '';
+    html += '<tr class="rs-alm-hdr" onclick="rsToggleAlm(\''+almKey+'\')" style="cursor:pointer">'
+      + '<td colspan="'+COLS+'">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span class="rs-alm-chev" id="rs-alm-chev-'+almKey+'" style="transform:'+chevRot+'">▶</span>'
+      + '<span style="font-size:12px;font-weight:800;color:var(--text-primary);letter-spacing:.3px">'+esc(alm)+'</span>'
+      + '<span style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);font-size:10px;font-weight:700;padding:1px 8px;border-radius:10px">'+count+' art.</span>'
+      + '</div></td></tr>';
 
-    set.items.forEach(function(item){
-      html += '<tr class="rs-set-row-'+idx+'" style="display:none">' + _rsRowCells(item) + '</tr>';
+    // Filas del grupo
+    var rowStyle = isOpen ? '' : 'display:none';
+    grpUnits.forEach(function(u) {
+      if (u.type === 'item') {
+        html += '<tr class="rs-alm-row-'+almKey+'" style="'+rowStyle+'">' + _rsRowCells(u.item) + '</tr>';
+      } else {
+        var set = u.set, idx = set.idx;
+        var imgH = set.image
+          ? '<img style="width:36px;height:36px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);flex-shrink:0" src="data:image/png;base64,'+set.image+'" alt="">'
+          : '<div style="width:36px;height:36px;background:var(--surface-3);border-radius:4px;flex-shrink:0"></div>';
+
+        // Cabecera SET (dentro del grupo almacén)
+        html += '<tr class="rs-alm-row-'+almKey+' rs-set-hdr cont-btc-hdr" onclick="event.stopPropagation();rsToggleKit('+idx+')" style="'+rowStyle+';cursor:pointer">'
+          + '<td colspan="'+COLS+'" style="padding:7px 12px">'
+          + '<div style="display:flex;align-items:center;gap:8px">'
+          + imgH
+          + '<span style="display:inline-flex;align-items:center;background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;letter-spacing:.4px;flex-shrink:0">SET</span>'
+          + '<span style="font-size:11px;font-weight:700;color:var(--text-primary);flex-shrink:0">'+esc(set.ref)+'</span>'
+          + (set.name?'<span style="font-size:11px;color:var(--text-secondary)">'+esc(set.name)+'</span>':'')
+          + '<span style="font-size:10px;color:var(--text-muted);margin-left:2px">· '+set.items.length+' piezas</span>'
+          + '<span id="rs-chev-'+idx+'" style="margin-left:auto;font-size:10px;color:var(--text-muted);transition:transform .2s">▶</span>'
+          + '</div></td></tr>';
+
+        // Piezas del SET (siempre ocultas inicialmente — se abren con rsToggleKit)
+        set.items.forEach(function(item){
+          html += '<tr class="rs-set-row-'+idx+'" style="display:none">' + _rsRowCells(item) + '</tr>';
+        });
+      }
     });
   });
+
+  if (!html) {
+    html = '<tr><td colspan="'+COLS+'" style="text-align:center;padding:40px;color:var(--text-muted)">Sin resultados para este filtro.</td></tr>';
+  }
 
   tbody.innerHTML = html;
   tableWrap.style.display = 'block';
