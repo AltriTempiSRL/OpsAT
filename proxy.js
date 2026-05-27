@@ -1263,9 +1263,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     try {
+      // 0. Obtener todos los IDs hijos del showroom para excluirlos
+      //    (Odoo no soporta 'not child_of', hay que usar 'not in')
+      const srLocIds = await odooCall('stock.location', 'search',
+        [[['id', 'child_of', showroomId]]],
+        { limit: 500 }
+      );
       // 1. Stock en todas las ubicaciones internas excepto showroom
       const almQuants = await odooCall('stock.quant', 'search_read',
-        [[['location_id.usage', '=', 'internal'], ['location_id', 'not child_of', showroomId], ['quantity', '>', 0]]],
+        [[['location_id.usage', '=', 'internal'], ['location_id', 'not in', srLocIds], ['quantity', '>', 0]]],
         { fields: ['product_id', 'quantity'], limit: 5000 }
       );
       // 2. Stock en showroom
