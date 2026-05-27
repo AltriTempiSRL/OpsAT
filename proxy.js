@@ -1633,6 +1633,9 @@ const server = http.createServer(async (req, res) => {
           bcGroups[key].entries.push({ p, part: parseInt(m[2]) });
         });
 
+        // grupos sin padre en la OC → guardar para lookup en Step 2c
+        const orphanGroups = []; // { derivedBarcode, piecesPs }
+
         Object.entries(bcGroups).forEach(([key, group]) => {
           group.entries.sort((a, b) => a.part - b.part);
 
@@ -1665,8 +1668,43 @@ const server = http.createServer(async (req, res) => {
             parent.p.kitGroupKey = key;
             parent.p.kit         = { ref: kitBarcode, name: kitRef, image: kitImage,
                                      isBarcodeSet: true, isKitParent: true };
+          } else {
+            // Sin padre en OC: derivar su barcode (2do dígito → 0) para buscarlo en Odoo
+            const piece1 = pieces.find(e => e.part === 1) || pieces[0];
+            if (piece1 && piece1.p.barcode) {
+              const derivedBarcode = piece1.p.barcode.replace(/^(\d)\d/, '$10');
+              orphanGroups.push({ derivedBarcode, piecesPs: pieces.map(e => e.p) });
+            }
           }
         });
+
+        // Step 2c: buscar producto padre en Odoo para sets cuyo padre no está en la OC
+        if (orphanGroups.length) {
+          const barcodes = [...new Set(orphanGroups.map(o => o.derivedBarcode))];
+          try {
+            const parentProds = await odooCall('product.product', 'search_read',
+              [[['barcode', 'in', barcodes]]],
+              { fields: ['id', 'default_code', 'name', 'barcode', 'image_128'], limit: 100 }
+            );
+            const parentByBarcode = {};
+            parentProds.forEach(pp => parentByBarcode[pp.barcode] = pp);
+
+            orphanGroups.forEach(({ derivedBarcode, piecesPs }) => {
+              const pp = parentByBarcode[derivedBarcode];
+              // Usar datos del padre si lo encontramos; si no, al menos mostrar su barcode
+              const newRef   = pp ? (pp.barcode        || derivedBarcode) : derivedBarcode;
+              const newName  = pp ? (pp.default_code   || pp.name || '') : '';
+              const newImage = pp ? (pp.image_128      || '') : '';
+              piecesPs.forEach(p => {
+                if (!p.kit) return;
+                p.kit.ref          = newRef;
+                p.kit.parentBarcode = derivedBarcode;
+                if (newName)  p.kit.name  = newName;
+                if (newImage) p.kit.image = newImage;
+              });
+            });
+          } catch(_) { /* si falla el lookup, quedan con datos de la pieza */ }
+        }
       }
 
       // Step 3: stock.move DONE hacia esa ubicación para esos productos
