@@ -1320,14 +1320,19 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      // Excluir productos que contengan "(copia)" en nombre o referencia
-      const copiasAntes = poProducts.length;
-      for (let i = poProducts.length - 1; i >= 0; i--) {
-        const p = poProducts[i];
-        if (/\(copia\)/i.test(p.name || '') || /\(copia\)/i.test(p.ref || '')) {
-          poProducts.splice(i, 1);
+      // Limpiar nombres/refs que contengan "(copia)" o "(copy)" — el producto sí
+      // se incluye en el análisis pero se muestra con el nombre limpio
+      const copiaRegex = /\s*\((copia|copy)\)\s*/gi;
+      poProducts.forEach(p => {
+        if (copiaRegex.test(p.name || '')) {
+          p.name = p.name.replace(copiaRegex, '').trim();
         }
-      }
+        copiaRegex.lastIndex = 0; // reset flag tras test()
+        if (copiaRegex.test(p.ref || '')) {
+          p.ref = p.ref.replace(copiaRegex, '').trim();
+        }
+        copiaRegex.lastIndex = 0;
+      });
 
       // Step 2: identificar componentes de kits (.Cn) y consultar mrp.bom en Odoo
       const kitCompRegex = /^(.+)\.C\d+$/i;
