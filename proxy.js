@@ -1634,19 +1634,38 @@ const server = http.createServer(async (req, res) => {
         });
 
         Object.entries(bcGroups).forEach(([key, group]) => {
-          if (group.entries.length < 2) return; // solo 1 pieza en la orden → individual
-          // Usar la pieza con dígito de parte = 1 como representante del set (foto + barcode)
           group.entries.sort((a, b) => a.part - b.part);
-          const rep   = group.entries[0].p;               // parte más baja disponible
-          const part1 = group.entries.find(e => e.part === 1) || group.entries[0];
-          const kitImage   = part1.p.image   || '';
-          const kitBarcode = part1.p.barcode || group.rest;
-          // Referencia sin sufijo .Cn (ej: GVF.ODEN.KING.BASE.FCOTEMEG005.BRW)
-          const kitRef = part1.p.kitBaseCode || part1.p.ref || group.rest;
-          group.entries.forEach(({ p }) => {
+
+          // Separar padre (part=0) de piezas (part>0)
+          const parent     = group.entries.find(e => e.part === 0);
+          const pieces     = group.entries.filter(e => e.part > 0);
+
+          // Necesitamos al menos 1 pieza real para formar un set visible
+          if (pieces.length < 1) return;
+          // Si solo hay 1 pieza y no hay padre, tratarla como individual
+          if (pieces.length < 2 && !parent) return;
+
+          // Representante del set: preferir parte=0 (padre), fallback a parte=1
+          const rep = parent || pieces.find(e => e.part === 1) || pieces[0];
+          const kitImage   = rep.p.image   || '';
+          const kitBarcode = rep.p.barcode || group.rest;
+          // Nombre legible: usar ref del padre si existe, sino parte más baja
+          const kitRef = rep.p.kitBaseCode || rep.p.ref || group.rest;
+
+          // Marcar SOLO las piezas (part>0) como componentes del kit;
+          // el padre (part=0) actúa únicamente como cabecera — no aparece como fila
+          pieces.forEach(({ p }) => {
             p.kitGroupKey = key;
-            p.kit = { ref: kitBarcode, name: kitRef, image: kitImage, isBarcodeSet: true };
+            p.kit = { ref: kitBarcode, name: kitRef, image: kitImage, isBarcodeSet: true,
+                      parentBarcode: parent ? parent.p.barcode : null };
           });
+          // Marcar el padre también (para que no quede como fila suelta),
+          // pero con una bandera que lo excluya de los componentes
+          if (parent) {
+            parent.p.kitGroupKey = key;
+            parent.p.kit         = { ref: kitBarcode, name: kitRef, image: kitImage,
+                                     isBarcodeSet: true, isKitParent: true };
+          }
         });
       }
 

@@ -12870,15 +12870,20 @@ function caTable(items, rowClass) {
     if (p.kit && p.kitGroupKey) {
       var key = p.kitGroupKey;
       if (!kits[key]) kits[key] = { kit: p.kit, components: [] };
-      kits[key].components.push(p);
+      // El padre (isKitParent) solo inicializa la cabecera del grupo; no es una fila de componente
+      if (!p.kit.isKitParent) {
+        kits[key].components.push(p);
+      }
     } else {
       standalone.push(p);
     }
   });
 
-  // Si un "kit" tiene solo 1 componente, tratarlo como fila individual (sin dropdown)
+  // Limpiar grupos: sin piezas → eliminar; 1 pieza → tratar como individual
   Object.keys(kits).forEach(function(key) {
-    if (kits[key].components.length === 1) {
+    if (kits[key].components.length === 0) {
+      delete kits[key]; // solo padre, sin piezas en esta OC
+    } else if (kits[key].components.length === 1) {
       standalone.push(kits[key].components[0]);
       delete kits[key];
     }
