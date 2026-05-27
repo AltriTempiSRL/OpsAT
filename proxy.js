@@ -1253,6 +1253,100 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /api/analysis/reposicion — artículos en almacén sin stock en showroom ──
+  if (reqPath === '/api/analysis/reposicion' && req.method === 'GET') {
+    const _jpR = requireJwt(req, res); if (!_jpR) return;
+    const params = new URLSearchParams(reqUrl.search);
+    const showroomId = parseInt(params.get('showroom'));
+    if (!showroomId) {
+      res.writeHead(400, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ ok: false, error: 'Se requiere showroom' }));
+      return;
+    }
+    try {
+      // 1. Stock en todas las ubicaciones internas excepto showroom
+      const almQuants = await odooCall('stock.quant', 'search_read',
+        [[['location_id.usage', '=', 'internal'], ['location_id', 'not child_of', showroomId], ['quantity', '>', 0]]],
+        { fields: ['product_id', 'quantity'], limit: 5000 }
+      );
+      // 2. Stock en showroom
+      const srQuants = await odooCall('stock.quant', 'search_read',
+        [[['location_id', 'child_of', showroomId]]],
+        { fields: ['product_id', 'quantity'], limit: 5000 }
+      );
+
+      // Acumular por producto
+      const almMap = {};
+      almQuants.forEach(q => { const p = q.product_id[0]; almMap[p] = (almMap[p]||0) + q.quantity; });
+      const srMap = {};
+      srQuants.forEach(q => { const p = q.product_id[0]; srMap[p] = (srMap[p]||0) + q.quantity; });
+
+      // Filtro: en almacén Y showroom qty <= 0
+      const targetIds = Object.keys(almMap).map(Number)
+        .filter(pid => !(srMap[pid] > 0));
+
+      if (!targetIds.length) {
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ ok: true, items: [], total: 0 }));
+        return;
+      }
+
+      // 3. Info del producto
+      const prods = await odooCall('product.product', 'search_read',
+        [[['id', 'in', targetIds]]],
+        { fields: ['id', 'default_code', 'name', 'barcode', 'image_128'], limit: 5000 }
+      );
+
+      // 4. Último movimiento de stock hacia/desde showroom por producto
+      const moves = await odooCall('stock.move', 'search_read',
+        [[['product_id', 'in', targetIds], ['state', '=', 'done'],
+          ['|', ['location_id', 'child_of', showroomId], ['location_dest_id', 'child_of', showroomId]]]],
+        { fields: ['product_id', 'date'], limit: 10000, order: 'date desc' }
+      );
+      const lastMoveMap = {};
+      moves.forEach(m => { const p = m.product_id[0]; if (!lastMoveMap[p]) lastMoveMap[p] = m.date; });
+
+      // 5. Construir resultado
+      const copiaRx = /\s*\((copia|copy)\)\s*/gi;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const items = prods.map(p => {
+        const raw = lastMoveMap[p.id];
+        let ultimaVez = null, diasSin = null;
+        if (raw) {
+          ultimaVez = raw.slice(0,10);
+          diasSin = Math.round((today - new Date(ultimaVez)) / 86400000);
+        }
+        copiaRx.lastIndex = 0;
+        return {
+          id: p.id,
+          ref:  p.default_code || '',
+          name: (p.name || '').replace(copiaRx,'').trim(),
+          barcode: p.barcode || '',
+          image:   p.image_128 || '',
+          qtyAlm:  almMap[p.id] || 0,
+          qtySr:   srMap[p.id]  || 0,
+          ultimaVez,
+          diasSin
+        };
+      });
+
+      // Ordenar: primero los que estuvieron en showroom (más días primero), luego nunca
+      items.sort((a,b) => {
+        if (a.diasSin !== null && b.diasSin !== null) return b.diasSin - a.diasSin;
+        if (a.diasSin !== null) return -1;
+        if (b.diasSin !== null) return 1;
+        return (a.name||'').localeCompare(b.name||'');
+      });
+
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ ok: true, items, total: items.length }));
+    } catch(e) {
+      res.writeHead(502, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
   // ── /api/analysis/container — comparar artículos PO vs stock.move a ubicación
   if (reqPath === '/api/analysis/container' && req.method === 'POST') {
     try {

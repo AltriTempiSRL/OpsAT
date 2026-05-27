@@ -3234,14 +3234,8 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
       <div class="cont-subtitle">Artículos con stock en almacén que no tienen existencia en showroom — candidatos a reposición.</div>
 
-      <!-- Filtros de ubicación -->
+      <!-- Filtro de showroom -->
       <div class="rs-filters">
-        <div class="rs-filter-group">
-          <label class="rs-label">Almacén</label>
-          <select id="rs-almacen-select" class="rs-select">
-            <option value="">— Selecciona almacén —</option>
-          </select>
-        </div>
         <div class="rs-filter-group">
           <label class="rs-label">Showroom</label>
           <select id="rs-showroom-select" class="rs-select">
@@ -8983,55 +8977,32 @@ async function initReposicion(){
 }
 
 async function loadRsLocalities(){
-  var selAlm = document.getElementById('rs-almacen-select');
-  var selSr  = document.getElementById('rs-showroom-select');
-  selAlm.innerHTML = '<option value="">Cargando ubicaciones…</option>';
-  selSr.innerHTML  = '<option value="">Cargando ubicaciones…</option>';
+  var selSr = document.getElementById('rs-showroom-select');
+  selSr.innerHTML = '<option value="">Cargando ubicaciones…</option>';
   try {
     var r = await fetch('/api/analysis/localities');
     var d = await r.json();
     if (!d.ok || !d.locations || !d.locations.length) {
-      selAlm.innerHTML = '<option value="">Sin ubicaciones disponibles</option>';
-      selSr.innerHTML  = '<option value="">Sin ubicaciones disponibles</option>';
+      selSr.innerHTML = '<option value="">Sin ubicaciones disponibles</option>';
       return;
     }
-    var defaultAlm = '<option value="">— Selecciona almacén —</option>';
-    var defaultSr  = '<option value="">— Selecciona showroom —</option>';
-    var optionsAlm = defaultAlm, optionsSr = defaultSr;
+    var html = '<option value="">— Selecciona showroom —</option>';
     d.locations.forEach(function(loc) {
       var lower = loc.complete_name.toLowerCase();
-      var opt = '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
-      // Pre-seleccionar showroom si contiene "showroom"
-      if (lower.includes('showroom')) {
-        opt = '<option value="'+loc.id+'" selected>'+esc(loc.complete_name)+'</option>';
-        optionsSr += opt;
-      } else {
-        optionsSr += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
-      }
-      // Pre-seleccionar almacén: "WH/Stock" o "Almacen" sin showroom
-      if (!lower.includes('showroom') && (lower.includes('wh/stock') || lower.includes('almacen') || lower.includes('almacén'))) {
-        optionsAlm += '<option value="'+loc.id+'" selected>'+esc(loc.complete_name)+'</option>';
-      } else if (!lower.includes('showroom')) {
-        optionsAlm += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
-      } else {
-        optionsAlm += '<option value="'+loc.id+'">'+esc(loc.complete_name)+'</option>';
-      }
+      var sel = lower.includes('showroom') ? ' selected' : '';
+      html += '<option value="'+loc.id+'"'+sel+'>'+esc(loc.complete_name)+'</option>';
     });
-    selAlm.innerHTML = optionsAlm;
-    selSr.innerHTML  = optionsSr;
+    selSr.innerHTML = html;
     _rsLocsDone = true;
   } catch(e) {
-    selAlm.innerHTML = '<option value="">Error cargando ubicaciones</option>';
-    selSr.innerHTML  = '<option value="">Error cargando ubicaciones</option>';
+    selSr.innerHTML = '<option value="">Error cargando ubicaciones</option>';
     console.warn('loadRsLocalities:', e.message);
   }
 }
 
 async function runReposicionAnalysis(){
-  var almId = parseInt(document.getElementById('rs-almacen-select').value);
-  var srId  = parseInt(document.getElementById('rs-showroom-select').value);
-  if (!almId) { document.getElementById('rs-almacen-select').focus(); return; }
-  if (!srId)  { document.getElementById('rs-showroom-select').focus(); return; }
+  var srId = parseInt(document.getElementById('rs-showroom-select').value);
+  if (!srId) { document.getElementById('rs-showroom-select').focus(); return; }
 
   var tbody     = document.getElementById('rs-tbody');
   var stats     = document.getElementById('rs-stats');
@@ -9050,7 +9021,7 @@ async function runReposicionAnalysis(){
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
 
   try {
-    var r = await authFetch('/api/analysis/reposicion?almacen='+almId+'&showroom='+srId);
+    var r = await authFetch('/api/analysis/reposicion?showroom='+srId);
     var d = await r.json();
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
 
