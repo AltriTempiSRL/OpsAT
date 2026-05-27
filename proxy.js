@@ -1315,11 +1315,12 @@ const server = http.createServer(async (req, res) => {
       );
 
       // 4. Último movimiento de stock hacia/desde showroom por producto
-      const moves = await odooCall('stock.move', 'search_read',
+      //    srLocIds ya calculado arriba — usamos 'in' (child_of da unhashable)
+      const moves = srLocIds.length ? await odooCall('stock.move', 'search_read',
         [[['product_id', 'in', targetIds], ['state', '=', 'done'],
-          ['|', ['location_id', 'child_of', showroomId], ['location_dest_id', 'child_of', showroomId]]]],
+          ['|', ['location_id', 'in', srLocIds], ['location_dest_id', 'in', srLocIds]]]],
         { fields: ['product_id', 'date'], limit: 10000, order: 'date desc' }
-      );
+      ) : [];
       const lastMoveMap = {};
       moves.forEach(m => { const p = m.product_id[0]; if (!lastMoveMap[p]) lastMoveMap[p] = m.date; });
 
