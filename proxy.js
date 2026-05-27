@@ -2530,6 +2530,79 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/solicitudes-showroom' && req.method === 'GET') {
     const _jpSol = requireJwt(req, res); if (!_jpSol) return;
     const list = loadSolicitudes();
+
+    // ── Auto-detectar completados ─────────────────────────────────────────
+    // Una solicitud se marca 'completado' automáticamente cuando existe un
+    // stock.move DONE con destino PTN SHOWROOM para ese producto, ocurrido
+    // DESPUÉS de que fue creada la solicitud. Es permanente: nunca revierte.
+    const activas = list.filter(s => s.status === 'activo');
+    if (activas.length) {
+      try {
+        // 1. Ubicaciones internas de PTN/SHOWROOM
+        const srLocs = await odooCall('stock.location', 'search_read',
+          [[['complete_name', 'ilike', 'D-PTN'], ['complete_name', 'ilike', 'SHOWROOM'],
+            ['usage', '=', 'internal']]],
+          { fields: ['id', 'complete_name'], limit: 20 }
+        );
+        const srLocIds = srLocs.map(l => l.id);
+
+        if (srLocIds.length) {
+          // 2. Resolver solicitud → product_id de Odoo
+          const prodIdMap = {}; // solId → odoo product_id
+          const repoAct = activas.filter(s => s.source === 'reposicion' && s.productId);
+          const contAct = activas.filter(s => s.source === 'contenedores' && s.contId);
+
+          repoAct.forEach(s => { prodIdMap[s.id] = s.productId; });
+
+          if (contAct.length) {
+            const bcs = [...new Set(contAct.map(s => s.contId))];
+            const cProds = await odooCall('product.product', 'search_read',
+              [[['barcode', 'in', bcs]]], { fields: ['id', 'barcode'], limit: 500 }
+            );
+            const byBc = {};
+            cProds.forEach(p => { byBc[p.barcode] = p.id; });
+            contAct.forEach(s => { const pid = byBc[s.contId]; if (pid) prodIdMap[s.id] = pid; });
+          }
+
+          // 3. stock.move DONE → showroom para esos productos
+          const allPids = [...new Set(Object.values(prodIdMap))];
+          if (allPids.length) {
+            const moves = await odooCall('stock.move', 'search_read',
+              [[['product_id','in',allPids], ['location_dest_id','in',srLocIds], ['state','=','done']]],
+              { fields: ['id','product_id','date','reference'], limit: 2000 }
+            );
+
+            // Primer movimiento DONE por producto (fecha más temprana)
+            const mvByProd = {};
+            moves.forEach(m => {
+              const pid = m.product_id[0];
+              if (!mvByProd[pid] || m.date < mvByProd[pid].date)
+                mvByProd[pid] = { date: m.date, ref: m.reference || '' };
+            });
+
+            // 4. Marcar completadas (solo si el movimiento es posterior a la solicitud)
+            let changed = false;
+            list.forEach(sol => {
+              if (sol.status !== 'activo') return;
+              const pid = prodIdMap[sol.id];
+              if (!pid) return;
+              const mv = mvByProd[pid];
+              if (!mv) return;
+              if (mv.date >= sol.fechaSolicitud) {
+                sol.status          = 'completado';
+                sol.fechaCompletado = mv.date;
+                sol.completadoRef   = mv.ref;
+                sol.completadoPor   = { id: 'sistema', name: 'Sistema (Odoo)' };
+                changed = true;
+              }
+            });
+
+            if (changed) saveSolicitudes(list);
+          }
+        }
+      } catch(_) { /* silencioso — si falla el check, devolver lista tal cual */ }
+    }
+
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitudes: list}));
     return;
   }
@@ -2586,12 +2659,20 @@ const server = http.createServer(async (req, res) => {
       const list = loadSolicitudes();
       const idx  = list.findIndex(s => s.id === solId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
-      if (d.status === 'cancelado' && list[idx].status !== 'cancelado') {
-        const users = loadAuthUsers();
-        const user  = users.find(u => u.id === _jpSol.userId);
-        list[idx].status           = 'cancelado';
-        list[idx].canceladoPor     = { id: _jpSol.userId, name: user ? user.name : _jpSol.name };
-        list[idx].fechaCancelacion = new Date().toISOString();
+      if (d.status === 'cancelado') {
+        if (list[idx].status === 'completado') {
+          // Completado es permanente — no se puede cancelar
+          res.writeHead(409,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false, error:'Esta solicitud ya fue completada (artículo transferido al showroom) y no puede cancelarse.'}));
+          return;
+        }
+        if (list[idx].status !== 'cancelado') {
+          const users = loadAuthUsers();
+          const user  = users.find(u => u.id === _jpSol.userId);
+          list[idx].status           = 'cancelado';
+          list[idx].canceladoPor     = { id: _jpSol.userId, name: user ? user.name : _jpSol.name };
+          list[idx].fechaCancelacion = new Date().toISOString();
+        }
       }
       if (d.nota !== undefined) list[idx].nota = (d.nota || '').trim();
       saveSolicitudes(list);
