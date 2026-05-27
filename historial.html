@@ -1091,6 +1091,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 [data-theme='dark'] .cont-table tr.cont-row-green:hover td{background:#1e3828}
 [data-theme='dark'] .cont-table tr.cont-row-amber td,[data-theme='dark'] .cont-table tr.cont-row-amber:nth-child(even) td{background:#2a2008}
 [data-theme='dark'] .cont-table tr.cont-row-amber:hover td{background:#362a0a}
+/* ── Kit grouping en análisis de contenedor ── */
+.ca-kit-hdr{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;margin-bottom:2px;user-select:none;transition:background .12s}
+.ca-kit-hdr:hover{background:var(--surface-3)}
+.ca-kit-badge{display:inline-flex;align-items:center;gap:3px;background:var(--accent);color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;letter-spacing:.4px;text-transform:uppercase;flex-shrink:0}
+.ca-kit-name{font-size:12px;font-weight:700;color:var(--text-primary);flex:1;min-width:0}
+.ca-kit-sub{font-size:10px;color:var(--text-muted)}
+.ca-kit-chevron{font-size:11px;color:var(--text-muted);transition:transform .2s;flex-shrink:0}
+.ca-kit-chevron.open{transform:rotate(90deg)}
+.ca-kit-body{margin-bottom:8px;border:1px solid var(--border-light);border-radius:0 0 var(--radius-sm) var(--radius-sm);border-top:none;overflow:hidden}
+.ca-kit-body.collapsed{display:none}
+.ca-tbl tr.ca-comp-row td{background:var(--surface);padding-left:18px}
+.ca-tbl tr.ca-comp-row:hover td{background:var(--surface-2)}
 .cont-etapa{display:inline-flex;gap:2px;align-items:center}
 .etapa-dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--border);flex-shrink:0}
 .etapa-dot.done{border-color:transparent}
@@ -11733,25 +11745,103 @@ function renderContAnalysis(data){
   if(window.lucide) lucide.createIcons();
 }
 
-function caTable(items,rowClass){
-  var h='<table class="ca-tbl"><thead><tr>'
-    +'<th style="width:52px"></th>'
-    +'<th>Referencia</th><th>Código de Barras</th><th>Artículo</th><th>Cant.</th><th>OC</th>'
-    +'</tr></thead><tbody>';
-  items.forEach((p) => {
-    var thumb=p.image
-      ?'<img src="data:image/png;base64,'+p.image+'" alt="" style="width:44px;height:44px;object-fit:cover;border-radius:4px;display:block" onerror="this.style.display=\'none\'">'
-      :'<div style="width:44px;height:44px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;color:var(--border)"><i data-lucide="package" style="width:20px;height:20px;stroke:currentColor;opacity:.45"></i></div>';
-    h+='<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
-      +'<td style="padding:5px 6px;width:52px">'+thumb+'</td>'
-      +'<td class="td-ref">'+(p.ref||'—')+'</td>'
-      +'<td class="td-bar">'+(p.barcode||'—')+'</td>'
-      +'<td class="td-name">'+p.name+'</td>'
-      +'<td class="td-qty">'+p.qty+'</td>'
-      +'<td class="td-po">'+(p.po||'—')+'</td>'
-      +'</tr>';
+var _caKitOpen = {}; // kitRef -> bool (open/collapsed)
+
+function caToggleKit(ref) {
+  _caKitOpen[ref] = !_caKitOpen[ref];
+  var body = document.getElementById('ca-kit-body-' + ref.replace(/[^a-zA-Z0-9]/g,'_'));
+  var chev = document.getElementById('ca-kit-chev-' + ref.replace(/[^a-zA-Z0-9]/g,'_'));
+  if (body) body.classList.toggle('collapsed', !_caKitOpen[ref]);
+  if (chev) chev.classList.toggle('open', _caKitOpen[ref]);
+}
+
+function caThumb(p, size) {
+  size = size || 44;
+  return p.image
+    ? '<img src="data:image/png;base64,'+p.image+'" alt="" style="width:'+size+'px;height:'+size+'px;object-fit:cover;border-radius:4px;display:block" onerror="this.style.display=\'none\'">'
+    : '<div style="width:'+size+'px;height:'+size+'px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center"><i data-lucide="package" style="width:'+(size*0.45|0)+'px;height:'+(size*0.45|0)+'px;stroke:currentColor;opacity:.4"></i></div>';
+}
+
+function caProductRow(p, rowClass) {
+  return '<tr'+(rowClass?' class="'+rowClass+'"':'')+'>'
+    +'<td style="padding:5px 6px;width:52px">'+caThumb(p)+'</td>'
+    +'<td class="td-ref">'+(p.ref||'—')+'</td>'
+    +'<td class="td-bar">'+(p.barcode||'—')+'</td>'
+    +'<td class="td-name">'+esc(p.name)+'</td>'
+    +'<td class="td-qty">'+p.qty+'</td>'
+    +'<td class="td-po">'+(p.po||'—')+'</td>'
+    +'</tr>';
+}
+
+function caTable(items, rowClass) {
+  if (!items.length) return '';
+
+  // Separar: componentes de kit vs artículos independientes
+  var kits   = {}; // baseCode -> { kit, components[] }
+  var standalone = [];
+
+  items.forEach(function(p) {
+    if (p.kit && p.kitBaseCode) {
+      if (!kits[p.kitBaseCode]) kits[p.kitBaseCode] = { kit: p.kit, components: [] };
+      kits[p.kitBaseCode].components.push(p);
+    } else {
+      standalone.push(p);
+    }
   });
-  return h+'</tbody></table>';
+
+  var hasKits = Object.keys(kits).length > 0;
+  var h = '';
+
+  // ── Kits agrupados ───────────────────────────────────────────────────────
+  Object.entries(kits).forEach(function(entry) {
+    var baseCode   = entry[0];
+    var group      = entry[1];
+    var kit        = group.kit;
+    var components = group.components;
+    var safeId     = baseCode.replace(/[^a-zA-Z0-9]/g,'_');
+    var isOpen     = _caKitOpen[baseCode] !== false; // abierto por defecto
+    _caKitOpen[baseCode] = isOpen;
+    var totalQty   = components.reduce(function(s,c){return s+(c.qty||0);},0);
+
+    h += '<div style="margin-bottom:8px">';
+
+    // Cabecera del kit
+    h += '<div class="ca-kit-hdr" onclick="caToggleKit(\''+baseCode.replace(/'/g,"\\'")+'\')">'
+      + '<span style="width:36px;height:36px;flex-shrink:0">'+caThumb({image:kit.image},36)+'</span>'
+      + '<div style="flex:1;min-width:0">'
+        + '<div class="ca-kit-name">'+esc(kit.name)+'</div>'
+        + '<div class="ca-kit-sub">'+esc(kit.ref)+' &nbsp;·&nbsp; '+components.length+' pieza'+(components.length!==1?'s':'')+' &nbsp;·&nbsp; '+totalQty+' uds.</div>'
+      + '</div>'
+      + '<span class="ca-kit-badge"><i data-lucide="layers" style="width:9px;height:9px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>KIT</span>'
+      + '<span class="ca-kit-chevron'+(isOpen?' open':'')+'" id="ca-kit-chev-'+safeId+'">▶</span>'
+      + '</div>';
+
+    // Cuerpo colapsable con tabla de piezas
+    h += '<div class="ca-kit-body'+(isOpen?'':' collapsed')+'" id="ca-kit-body-'+safeId+'">';
+    h += '<table class="ca-tbl"><thead><tr>'
+      + '<th style="width:52px"></th>'
+      + '<th>Referencia</th><th>Código de Barras</th><th>Pieza</th><th>Cant.</th><th>OC</th>'
+      + '</tr></thead><tbody>';
+    components.forEach(function(p) { h += caProductRow(p, 'ca-comp-row'); });
+    h += '</tbody></table></div>';
+
+    h += '</div>';
+  });
+
+  // ── Artículos independientes ─────────────────────────────────────────────
+  if (standalone.length) {
+    if (hasKits) {
+      h += '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px">Artículos individuales</div>';
+    }
+    h += '<table class="ca-tbl"><thead><tr>'
+      + '<th style="width:52px"></th>'
+      + '<th>Referencia</th><th>Código de Barras</th><th>Artículo</th><th>Cant.</th><th>OC</th>'
+      + '</tr></thead><tbody>';
+    standalone.forEach(function(p) { h += caProductRow(p, rowClass); });
+    h += '</tbody></table>';
+  }
+
+  return h;
 }
 
 // ════════════════════════════════════════════════════════════════════════════

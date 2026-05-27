@@ -1320,7 +1320,44 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      // Step 2: stock.move DONE hacia esa ubicación para esos productos
+      // Step 2: identificar componentes de kits (.Cn) y buscar kit padre en Odoo
+      const kitCompRegex = /^(.+)\.C\d+$/i;
+      const baseCodeMap  = {}; // baseCode -> [productIds]
+      poProducts.forEach(p => {
+        const m = (p.ref || '').match(kitCompRegex);
+        if (m) {
+          const base = m[1];
+          p.kitBaseCode = base;
+          if (!baseCodeMap[base]) baseCodeMap[base] = [];
+          baseCodeMap[base].push(p.id);
+        }
+      });
+      // Buscar productos kit en Odoo por código base
+      const kitInfoMap = {}; // baseCode -> { ref, name, image }
+      const baseCodes  = Object.keys(baseCodeMap);
+      if (baseCodes.length) {
+        try {
+          const kitProds = await odooCall('product.product', 'search_read',
+            [[['default_code', 'in', baseCodes]]],
+            { fields: ['id', 'default_code', 'name', 'image_128'], limit: 200 }
+          );
+          kitProds.forEach(k => {
+            kitInfoMap[k.default_code] = {
+              ref:   k.default_code,
+              name:  k.name,
+              image: k.image_128 || ''
+            };
+          });
+        } catch(_) { /* si falla el lookup de kits, continuar sin esa info */ }
+      }
+      // Adjuntar info del kit a cada componente
+      poProducts.forEach(p => {
+        if (p.kitBaseCode) {
+          p.kit = kitInfoMap[p.kitBaseCode] || { ref: p.kitBaseCode, name: p.kitBaseCode, image: '' };
+        }
+      });
+
+      // Step 3: stock.move DONE hacia esa ubicación para esos productos
       const sentProductIds = new Set();
       if (poProducts.length) {
         const poProductIds = poProducts.map(p => p.id);
@@ -1335,7 +1372,7 @@ const server = http.createServer(async (req, res) => {
         moves.forEach(m => sentProductIds.add(m.product_id[0]));
       }
 
-      // Step 3: comparar
+      // Step 4: comparar
       const sent    = poProducts.filter(p =>  sentProductIds.has(p.id));
       const notSent = poProducts.filter(p => !sentProductIds.has(p.id));
 
