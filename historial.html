@@ -598,7 +598,7 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* ── Movements table ── */
 .mv-card{padding:14px 18px}
 .mv-card h3{margin:0 0 10px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
-.mv-wrap{overflow-x:auto}
+.mv-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
 .mv-table{width:100%;border-collapse:collapse;font-size:12px}
 .mv-table th{background:var(--surface-2);padding:8px 11px;text-align:left;font-weight:700;color:var(--text-muted);font-size:10px;border-bottom:2px solid var(--border);white-space:nowrap;text-transform:uppercase;letter-spacing:.4px}
 .mv-table td{padding:8px 11px;border-bottom:1px solid var(--border-light);vertical-align:top;color:var(--text-primary)}
@@ -1171,6 +1171,29 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .cb-today{background:var(--orange-bg);color:var(--orange-text)}
 
 /* ── Solicitudes Showroom ── */
+/* Cards — visibles solo en móvil vía JS */
+.sol-card{background:var(--surface);border:1px solid var(--border-light);border-radius:12px;overflow:hidden;margin-bottom:10px;transition:box-shadow .12s}
+.sol-card:active{box-shadow:0 0 0 2px var(--accent)}
+.sol-card-completado{border-color:#a7f3d0;background:#f0fdf9}
+[data-theme='dark'] .sol-card-completado{border-color:#065f46;background:rgba(5,150,105,.08)}
+.sol-card-cancelado{opacity:.6}
+.sol-card-main{display:flex;gap:10px;padding:10px 12px;align-items:flex-start}
+.sol-card-photo{flex-shrink:0;width:44px;height:44px;border-radius:8px;overflow:hidden;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center}
+.sol-card-photo img{width:100%;height:100%;object-fit:contain;display:block}
+.sol-card-info{flex:1;min-width:0}
+.sol-card-name{font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:3px;word-break:break-word;line-height:1.35}
+.sol-card-alm{margin-bottom:4px;display:flex;flex-wrap:wrap;gap:3px}
+.sol-card-alm span{display:inline-block;padding:1px 6px;border-radius:10px;background:var(--blue-bg);color:var(--blue-text);font-size:10px;font-weight:700}
+.sol-card-row2{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.sol-card-fecha{font-size:10px;color:var(--text-muted)}
+.sol-card-nota-wrap{font-size:11px;color:var(--text-secondary);font-style:italic;padding:6px 12px;border-top:1px solid var(--border-light);background:var(--surface-2);word-break:break-word}
+.sol-card-nota-lbl{font-style:normal;font-weight:700;color:var(--text-muted);font-size:10px;text-transform:uppercase;margin-right:4px}
+.sol-card-foot{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-top:1px solid var(--border-light);background:var(--surface-2);gap:8px}
+.sol-card-quien{font-size:10px;color:var(--text-muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sol-card-accion button{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--red-text);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.sol-card-accion button:active{background:var(--red-bg)}
+.sol-card-accion .sol-card-fecha-done{font-size:11px;font-weight:700;color:#065f46}
+/* Tabla desktop */
 .sol-table{width:100%;border-collapse:collapse;font-size:12px}
 .sol-table th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border-light);background:var(--surface-2);white-space:nowrap}
 .sol-table td{padding:8px 10px;border-bottom:1px solid var(--border-light);vertical-align:middle}
@@ -2844,6 +2867,69 @@ body{font-family:var(--font);min-height:100dvh}
 
   /* Fila SET: compactar */
   .rs-set-hdr td{padding:6px 8px!important}
+
+  /* ── Reposición: controles en mobile ───────────────────────────────────── */
+  /* Selects apilan, botón siempre a la derecha del primero */
+  .rs-card-controls{flex-wrap:wrap;gap:6px}
+  #rs-showroom-select{flex:1 1 calc(100% - 52px);max-width:calc(100% - 52px)!important}
+  #rs-alm-filter{flex:1 1 100%;max-width:100%!important;order:3}
+  #rs-btn-analizar{order:2;width:44px;height:44px;flex-shrink:0}
+  /* KPIs reposición: 2 por fila con mínimos táctiles */
+  #rs-stats .cont-stat{flex:1 1 calc(50% - 5px);min-width:0;min-height:48px}
+
+  /* ── Contenedores lista: scroll táctil correcto ────────────────────────── */
+  #section-contenedores .cont-card{padding:10px 0;border-radius:12px;overflow:hidden}
+  #section-contenedores .cont-card>div:first-child,
+  #section-contenedores .cont-subtitle,
+  #section-contenedores .cont-stats{padding-left:12px;padding-right:12px}
+  #section-contenedores .mv-wrap{border-radius:0;margin:0}
+  #section-contenedores .cont-table th{padding:6px 9px;font-size:9px;letter-spacing:.2px}
+  #section-contenedores .cont-table td{padding:6px 9px;font-size:10px}
+  .cont-stats{gap:6px}
+  .cont-stat{min-width:70px;padding:6px 10px}
+  .cont-stat-num{font-size:18px}
+
+  /* ── Contenedores análisis (ca-panel): full width + optimizaciones ─────── */
+  .ca-panel{width:100vw;max-width:100vw;border-radius:0}
+  .ca-head{padding:12px 48px 10px 14px}
+  .ca-title{font-size:13px}
+  .ca-locality-bar{flex-direction:column;gap:8px;padding:10px 12px}
+  .ca-locality-bar label{font-size:12px;font-weight:700}
+  .ca-locality-input{font-size:15px;min-height:42px;padding:10px 12px}
+  .ca-btn-run{width:100%;min-height:42px;font-size:13px;border-radius:8px}
+  .ca-body{padding:10px 12px 24px}
+  .ca-summary{flex-direction:column;align-items:flex-start;gap:8px;padding:10px 12px}
+  .ca-sum-big{font-size:26px}
+  /* Kit header: mejor layout en pantalla angosta */
+  .ca-kit-hdr{flex-wrap:wrap;gap:6px;padding:8px 10px}
+  .ca-kit-name{font-size:11px;flex-basis:100%;order:2}
+  .ca-kit-sub{font-size:10px}
+  .ca-kit-badge{order:1}
+  .ca-kit-chevron{order:3}
+  /* Tabla de análisis: ocultar ref, barcode y OC en móvil → caben 4 cols */
+  .ca-tbl th:nth-child(3),.ca-tbl td:nth-child(3),
+  .ca-tbl th:nth-child(4),.ca-tbl td:nth-child(4),
+  .ca-tbl th:nth-child(7),.ca-tbl td:nth-child(7){display:none}
+  .ca-tbl .td-name{max-width:160px;word-break:break-word;white-space:normal}
+  .ca-tbl th{padding:5px 8px}
+  .ca-tbl td{padding:6px 8px}
+  /* Scroll horizontal para las tablas dentro del panel */
+  .ca-tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -12px;padding:0 12px}
+
+  /* ── Solicitudes: tarjetas en lugar de tabla ───────────────────────────── */
+  /* La tabla se oculta en JS; el wrap de tarjetas se muestra */
+  #sol-table-wrap{display:none!important}
+  #sol-cards-wrap{display:block}
+  /* KPIs solicitudes: 2 por fila */
+  #sol-stats .cont-stat{flex:1 1 calc(50% - 5px);min-width:0;min-height:48px;padding:8px 10px}
+  #sol-stats .cont-stat-num{font-size:20px}
+  /* Tabs de filtro: ajustar tamaño */
+  .sol-tab-btn{padding:6px 10px;font-size:11px}
+  /* Botones del header de solicitudes: ancho completo en móvil */
+  #section-solicitudes .rs-card-hdr{flex-direction:column;align-items:stretch}
+  #section-solicitudes .rs-card-hdr>div:last-child{flex-direction:column;gap:6px}
+  #section-solicitudes .rs-card-hdr>div:last-child>div{width:100%}
+  #section-solicitudes .rs-btn-refresh,.sol-print-btn{width:100%;min-height:42px;justify-content:center}
 }
 
 /* ── Photo source popover (siempre position:fixed, funciona en móvil y desktop) ── */
@@ -3429,6 +3515,10 @@ body{font-family:var(--font);min-height:100dvh}
         <div style="font-size:18px;font-weight:800;color:#1b3b6f">Altri Tempi · Solicitudes Showroom</div>
         <div id="sol-print-date" style="font-size:11px;color:#666;margin-top:3px"></div>
       </div>
+      <!-- Cards — móvil (renderizado por JS cuando innerWidth ≤ 619) -->
+      <div id="sol-cards-wrap" style="display:none;margin-top:12px"></div>
+
+      <!-- Tabla — desktop -->
       <div id="sol-table-wrap" style="overflow-x:auto;margin-top:14px;display:none">
         <table class="sol-table" id="sol-print-table">
           <thead><tr>
@@ -9382,14 +9472,115 @@ function setSolFilter(f) {
   renderSolicitudes();
 }
 
-/** Renderiza la tabla de solicitudes */
+/** Helpers compartidos para renderizar una solicitud */
+function _solMeta(sol, today) {
+  var fechaD  = new Date(sol.fechaSolicitud);
+  var diasRef = sol.status === 'completado' && sol.fechaCompletado ? new Date(sol.fechaCompletado) : today;
+  var diasN   = Math.floor((diasRef - fechaD) / 86400000);
+  var diasStr = sol.status === 'completado'
+    ? (diasN === 0 ? 'Mismo día' : diasN === 1 ? '1 día' : diasN + ' días')
+    : (diasN === 0 ? 'Hoy' : diasN === 1 ? '1 día' : diasN + ' días');
+  var fechaStr = fechaD.toLocaleDateString('es-DO', {day:'2-digit',month:'short',year:'numeric'});
+  var almHtml = (sol.almacen||'—').split(' · ').map(function(a){
+    return '<span>'+esc(a)+'</span>';
+  }).join('');
+  return { diasN: diasN, diasStr: diasStr, fechaStr: fechaStr, almHtml: almHtml };
+}
+
+/** Genera HTML de una fila de tabla (desktop) */
+function _solRowHtml(sol, today) {
+  var m = _solMeta(sol, today);
+  var imgHtml = sol.imageBase64
+    ? '<img src="data:image/png;base64,'+sol.imageBase64+'" style="width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light)">'
+    : '<div style="width:40px;height:40px;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center"><i data-lucide="image-off" style="width:14px;height:14px;stroke:var(--text-muted)"></i></div>';
+  var almCells = (sol.almacen||'—').split(' · ').map(function(a){
+    return '<span style="display:inline-block;padding:1px 5px;border-radius:10px;background:var(--blue-bg);color:var(--blue-text);font-size:10px;font-weight:700;margin:1px 1px 1px 0;white-space:nowrap">'+esc(a)+'</span>';
+  }).join('');
+  var sourceIcon = sol.source === 'contenedores'
+    ? '<span style="font-size:9px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);padding:1px 5px;border-radius:4px;white-space:nowrap">Contenedor</span> '
+    : '';
+  var statusHtml = sol.status === 'activo'
+    ? '<span class="sol-badge-activo">Activa</span>'
+    : sol.status === 'completado'
+    ? '<span class="sol-badge-completado">✓ Completada</span><br><span style="font-size:9px;color:var(--text-muted)">Auto · Odoo</span>'
+    : '<span class="sol-badge-cancelado">Cancelada</span><br><span style="font-size:9px;color:var(--text-muted)">'+esc(sol.canceladoPor ? sol.canceladoPor.name.split(' ')[0] : '')+'</span>';
+  var accionHtml = sol.status === 'activo'
+    ? '<button class="sol-cancel-btn sol-no-print" onclick="solCancelFromList(\''+sol.id+'\')" title="Cancelar solicitud">✕ Cancelar</button>'
+    : sol.status === 'completado'
+    ? '<span style="font-size:10px;color:#065f46;font-weight:600">'+(sol.fechaCompletado ? new Date(sol.fechaCompletado).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—')+'</span>'
+    : '<span style="font-size:10px;color:var(--text-muted)">'+(sol.fechaCancelacion ? new Date(sol.fechaCancelacion).toLocaleDateString('es-DO',{day:'2-digit',month:'short'}) : '—')+'</span>';
+  return '<tr class="sol-row-'+sol.status+'">'
+    + '<td>'+imgHtml+'</td>'
+    + '<td style="font-size:12px;font-weight:600;color:var(--text-primary)">'+sourceIcon+esc(sol.name||'—')+'</td>'
+    + '<td style="font-size:10px;font-family:monospace;color:var(--text-secondary)">'+esc(sol.barcode||'—')+'</td>'
+    + '<td>'+almCells+'</td>'
+    + '<td style="font-size:10px;color:var(--text-secondary)">'+esc((sol.ubicacion||'—').replace(/ · /g,' › '))+'</td>'
+    + '<td style="font-size:11px;color:var(--text-secondary);font-style:'+(sol.nota?'normal':'italic')+'">'+esc(sol.nota||'—')+'</td>'
+    + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+esc(sol.solicitadoPor ? sol.solicitadoPor.name.split(' ')[0] : '—')+'</td>'
+    + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+m.fechaStr+'</td>'
+    + '<td style="font-weight:700;color:'+(sol.status==='completado'?'#065f46':m.diasN>=7?'var(--red-text)':'var(--text-primary)')+'">'+m.diasStr+'</td>'
+    + '<td>'+statusHtml+'</td>'
+    + '<td class="sol-no-print">'+accionHtml+'</td>'
+    + '</tr>';
+}
+
+/** Genera HTML de una tarjeta (móvil) */
+function _solCardHtml(sol, today) {
+  var m = _solMeta(sol, today);
+  var photoHtml = sol.imageBase64
+    ? '<img src="data:image/png;base64,'+sol.imageBase64+'" alt="">'
+    : '<i data-lucide="image-off" style="width:18px;height:18px;stroke:var(--text-muted)"></i>';
+  var sourceBadge = sol.source === 'contenedores'
+    ? '<span style="font-size:9px;color:var(--text-muted);background:var(--surface-3);border:1px solid var(--border);padding:1px 5px;border-radius:4px;margin-right:4px">Cont.</span>'
+    : '';
+  var almHtml = (sol.almacen||'').split(' · ').filter(Boolean).map(function(a){
+    return '<span>'+esc(a)+'</span>';
+  }).join('');
+  var statusBadge = sol.status === 'activo'
+    ? '<span class="sol-badge-activo">Activa</span>'
+    : sol.status === 'completado'
+    ? '<span class="sol-badge-completado">✓ Completada</span>'
+    : '<span class="sol-badge-cancelado">Cancelada</span>';
+  var diasColor = sol.status === 'completado' ? '#065f46' : m.diasN >= 7 ? 'var(--red-text)' : 'var(--text-secondary)';
+  var accionHtml = sol.status === 'activo'
+    ? '<button onclick="solCancelFromList(\''+sol.id+'\')" title="Cancelar">✕ Cancelar</button>'
+    : sol.status === 'completado'
+    ? '<span class="sol-card-fecha-done">'+(sol.fechaCompletado ? new Date(sol.fechaCompletado).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—')+'</span>'
+    : '<span style="font-size:10px;color:var(--text-muted)">'+(sol.fechaCancelacion ? new Date(sol.fechaCancelacion).toLocaleDateString('es-DO',{day:'2-digit',month:'short'}) : '—')+'</span>';
+  var notaHtml = sol.nota
+    ? '<div class="sol-card-nota-wrap"><span class="sol-card-nota-lbl">Nota</span>'+esc(sol.nota)+'</div>'
+    : '';
+  return '<div class="sol-card sol-card-'+sol.status+'">'
+    + '<div class="sol-card-main">'
+      + '<div class="sol-card-photo">'+photoHtml+'</div>'
+      + '<div class="sol-card-info">'
+        + '<div class="sol-card-name">'+sourceBadge+esc(sol.name||'—')+'</div>'
+        + (almHtml ? '<div class="sol-card-alm">'+almHtml+'</div>' : '')
+        + '<div class="sol-card-row2">'
+          + '<span class="sol-card-fecha">'+m.fechaStr+' · <span style="font-weight:700;color:'+diasColor+'">'+m.diasStr+'</span></span>'
+          + statusBadge
+        + '</div>'
+      + '</div>'
+    + '</div>'
+    + notaHtml
+    + '<div class="sol-card-foot">'
+      + '<div class="sol-card-quien">'+esc(sol.solicitadoPor ? sol.solicitadoPor.name : '—')+'</div>'
+      + '<div class="sol-card-accion">'+accionHtml+'</div>'
+    + '</div>'
+  + '</div>';
+}
+
+/** Renderiza solicitudes — tabla en desktop, tarjetas en móvil */
 function renderSolicitudes() {
-  var tbody = document.getElementById('sol-tbody');
-  var wrap  = document.getElementById('sol-table-wrap');
-  var empty = document.getElementById('sol-empty');
-  var sub   = document.getElementById('sol-subtitle');
-  var stats = document.getElementById('sol-stats');
-  if (!tbody) return;
+  var tbody     = document.getElementById('sol-tbody');
+  var wrap      = document.getElementById('sol-table-wrap');
+  var cardsWrap = document.getElementById('sol-cards-wrap');
+  var empty     = document.getElementById('sol-empty');
+  var sub       = document.getElementById('sol-subtitle');
+  var stats     = document.getElementById('sol-stats');
+  if (!tbody && !cardsWrap) return;
+
+  var isMobile = window.innerWidth <= 619;
 
   // Filtrar
   var list = _solicitudes;
@@ -9415,76 +9606,35 @@ function renderSolicitudes() {
         +'<div class="cont-stat-lbl">Total</div></div>';
   }
 
+  // Estado vacío
   if (!list.length) {
-    if (wrap)  wrap.style.display  = 'none';
-    if (empty) empty.style.display = 'block';
-    if (sub)   sub.textContent     = _solFilter === 'activo' ? 'Sin solicitudes activas'
-                                   : _solFilter === 'completado' ? 'Sin solicitudes completadas'
-                                   : 'Sin solicitudes en este filtro';
+    if (wrap)      wrap.style.display      = 'none';
+    if (cardsWrap) cardsWrap.style.display = 'none';
+    if (empty)     empty.style.display     = 'block';
+    if (sub) sub.textContent = _solFilter === 'activo' ? 'Sin solicitudes activas'
+                             : _solFilter === 'completado' ? 'Sin solicitudes completadas'
+                             : 'Sin solicitudes en este filtro';
     if (window.lucide) lucide.createIcons();
     return;
   }
 
   if (empty) empty.style.display = 'none';
-  if (wrap)  wrap.style.display  = 'block';
-  if (sub)   sub.textContent     = list.length + ' solicitud' + (list.length !== 1 ? 'es' : '') + ' · '
+  if (sub) sub.textContent = list.length + ' solicitud' + (list.length !== 1 ? 'es' : '') + ' · '
     + (_solFilter === 'activo' ? 'activas' : _solFilter === 'completado' ? 'completadas' : _solFilter === 'cancelado' ? 'canceladas' : 'todas');
 
   var today = new Date();
-  tbody.innerHTML = list.map(function(sol) {
-    var fechaD  = new Date(sol.fechaSolicitud);
-    // Para completadas: mostrar cuántos días tardó en completarse; para otras: días desde solicitud
-    var diasRef = sol.status === 'completado' && sol.fechaCompletado ? new Date(sol.fechaCompletado) : today;
-    var diasN   = Math.floor((diasRef - fechaD) / 86400000);
-    var diasStr = sol.status === 'completado'
-      ? (diasN === 0 ? 'Mismo día' : diasN === 1 ? '1 día' : diasN + ' días')
-      : (diasN === 0 ? 'Hoy' : diasN === 1 ? '1 día' : diasN + ' días');
-    var fechaStr = fechaD.toLocaleDateString('es-DO', {day:'2-digit',month:'short',year:'numeric'});
-    var statusHtml = sol.status === 'activo'
-      ? '<span class="sol-badge-activo">Activa</span>'
-      : sol.status === 'completado'
-      ? '<span class="sol-badge-completado">✓ Completada</span><br>'
-        + '<span style="font-size:9px;color:var(--text-muted)">Auto · Odoo</span>'
-      : '<span class="sol-badge-cancelado">Cancelada</span><br>'
-        + '<span style="font-size:9px;color:var(--text-muted)">'
-        + esc(sol.canceladoPor ? sol.canceladoPor.name.split(' ')[0] : '') + '</span>';
 
-    var imgHtml = sol.imageBase64
-      ? '<img src="data:image/png;base64,'+sol.imageBase64+'" style="width:40px;height:40px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light)">'
-      : '<div style="width:40px;height:40px;background:var(--surface-2);border-radius:4px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center"><i data-lucide="image-off" style="width:14px;height:14px;stroke:var(--text-muted)"></i></div>';
-
-    var accionHtml = sol.status === 'activo'
-      ? '<button class="sol-cancel-btn sol-no-print" onclick="solCancelFromList(\''+sol.id+'\')" title="Cancelar solicitud">✕ Cancelar</button>'
-      : sol.status === 'completado'
-      ? '<span style="font-size:10px;color:#065f46;font-weight:600">'
-        + (sol.fechaCompletado ? new Date(sol.fechaCompletado).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—')
-        + '</span>'
-      : '<span style="font-size:10px;color:var(--text-muted)">'
-        + (sol.fechaCancelacion ? new Date(sol.fechaCancelacion).toLocaleDateString('es-DO',{day:'2-digit',month:'short'}) : '—')
-        + '</span>';
-
-    var almHtml = (sol.almacen||'—').split(' · ').map(function(a){
-      return '<span style="display:inline-block;padding:1px 5px;border-radius:10px;background:var(--blue-bg);color:var(--blue-text);font-size:10px;font-weight:700;margin:1px 1px 1px 0;white-space:nowrap">'+esc(a)+'</span>';
-    }).join('');
-
-    var sourceIcon = sol.source === 'contenedores'
-      ? '<span style="font-size:9px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border);padding:1px 5px;border-radius:4px;white-space:nowrap">Contenedor</span> '
-      : '';
-
-    return '<tr class="sol-row-'+sol.status+'">'
-      + '<td>'+imgHtml+'</td>'
-      + '<td style="font-size:12px;font-weight:600;color:var(--text-primary)">'+sourceIcon+esc(sol.name||'—')+'</td>'
-      + '<td style="font-size:10px;font-family:monospace;color:var(--text-secondary)">'+esc(sol.barcode||'—')+'</td>'
-      + '<td>'+almHtml+'</td>'
-      + '<td style="font-size:10px;color:var(--text-secondary)">'+esc((sol.ubicacion||'—').replace(/ · /g,' › '))+'</td>'
-      + '<td style="font-size:11px;color:var(--text-secondary);font-style:'+(sol.nota?'normal':'italic')+'">'+esc(sol.nota||'—')+'</td>'
-      + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+esc(sol.solicitadoPor ? sol.solicitadoPor.name.split(' ')[0] : '—')+'</td>'
-      + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+fechaStr+'</td>'
-      + '<td style="font-weight:700;color:'+(sol.status==='completado'?'#065f46':diasN>=7?'var(--red-text)':'var(--text-primary)')+'">'+diasStr+'</td>'
-      + '<td>'+statusHtml+'</td>'
-      + '<td class="sol-no-print">'+accionHtml+'</td>'
-      + '</tr>';
-  }).join('');
+  if (isMobile && cardsWrap) {
+    // ── Vista tarjetas (móvil) ──
+    if (wrap)  wrap.style.display      = 'none';
+    cardsWrap.style.display = 'block';
+    cardsWrap.innerHTML = list.map(function(sol){ return _solCardHtml(sol, today); }).join('');
+  } else {
+    // ── Vista tabla (desktop / tablet) ──
+    if (cardsWrap) cardsWrap.style.display = 'none';
+    if (wrap) wrap.style.display = 'block';
+    if (tbody) tbody.innerHTML = list.map(function(sol){ return _solRowHtml(sol, today); }).join('');
+  }
 
   if (window.lucide) lucide.createIcons();
 }
@@ -9522,6 +9672,18 @@ document.addEventListener('keydown', function(e) {
     solModalCancel();
   }
 });
+
+// Re-renderizar solicitudes si cambia el breakpoint móvil/desktop (orientación, resize)
+(function() {
+  var _solPrevMobile = window.innerWidth <= 619;
+  window.addEventListener('resize', function() {
+    var nowMobile = window.innerWidth <= 619;
+    if (nowMobile !== _solPrevMobile && _solicitudes.length) {
+      _solPrevMobile = nowMobile;
+      renderSolicitudes();
+    }
+  }, { passive: true });
+})();
 
 // ════════════════════════════════════════════════════
 //  REPOSICIÓN SHOWROOM
@@ -12985,13 +13147,13 @@ function caTable(items, rowClass) {
 
     // ── Piezas colapsables ───────────────────────────────────────────────
     h += '<div class="ca-kit-body'+(isOpen?'':' collapsed')+'" id="ca-kit-body-'+safeId+'">';
-    h += '<table class="ca-tbl"><thead><tr>'
+    h += '<div class="ca-tbl-scroll"><table class="ca-tbl"><thead><tr>'
       + '<th style="width:28px"></th>'
       + '<th style="width:52px"></th>'
       + '<th>Referencia</th><th>Código de Barras</th><th>Pieza</th><th>Cant.</th><th>OC</th>'
       + '</tr></thead><tbody>';
     components.forEach(function(p) { h += caProductRow(p, 'ca-comp-row'); });
-    h += '</tbody></table></div>';
+    h += '</tbody></table></div></div>';
 
     h += '</div></div>'; // cierra flex div del kit + wrapper checkbox
     h += '</div>';       // cierra margin-bottom div
@@ -13002,13 +13164,13 @@ function caTable(items, rowClass) {
     if (hasKits) {
       h += '<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;padding-top:8px;border-top:1px solid var(--border-light)">Artículos individuales</div>';
     }
-    h += '<table class="ca-tbl"><thead><tr>'
+    h += '<div class="ca-tbl-scroll"><table class="ca-tbl"><thead><tr>'
       + '<th style="width:28px"></th>'
       + '<th style="width:52px"></th>'
       + '<th>Referencia</th><th>Código de Barras</th><th>Artículo</th><th>Cant.</th><th>OC</th>'
       + '</tr></thead><tbody>';
     standalone.forEach(function(p) { h += caProductRow(p, rowClass); });
-    h += '</tbody></table>';
+    h += '</tbody></table></div>';
   }
 
   return h;
