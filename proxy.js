@@ -1262,45 +1262,45 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: false, error: 'Se requiere showroom' }));
       return;
     }
+    let _step = 'init';
     try {
-      // 0a. complete_name del showroom para identificar sus hijos en JS
+      // PASO 1 — complete_name del showroom (para identificar sus ubicaciones en JS)
+      _step = 'loc-read';
       const srLocInfo = await odooCall('stock.location', 'read',
         [[showroomId]], { fields: ['id', 'complete_name'] }
       );
       const srBase = (srLocInfo[0]?.complete_name || '').trim();
+      if (!srBase) throw new Error('Showroom no encontrado (id=' + showroomId + ')');
 
-      // 0b. Todas las ubicaciones internas activas (operadores simples únicamente)
+      // PASO 2 — todas las ubicaciones internas (mismo query que /api/analysis/localities)
+      _step = 'loc-list';
       const allLocs = await odooCall('stock.location', 'search_read',
-        [[['usage', '=', 'internal'], ['active', '=', true]]],
+        [[['usage', '=', 'internal']]],
         { fields: ['id', 'complete_name'], limit: 1000 }
       );
-
-      // Separar en JS: pertenece al showroom si su complete_name empieza con srBase
-      const srLocSet  = new Set(allLocs.filter(l =>  l.complete_name.startsWith(srBase)).map(l => l.id));
-      const almLocIds = allLocs.filter(l => !l.complete_name.startsWith(srBase)).map(l => l.id);
-
-      // 1. Stock en almacén (usando 'in' con IDs — operador seguro)
-      const almQuants = almLocIds.length ? await odooCall('stock.quant', 'search_read',
-        [[['location_id', 'in', almLocIds], ['quantity', '>', 0]]],
-        { fields: ['product_id', 'quantity'], limit: 10000 }
-      ) : [];
-
-      // 2. Stock en showroom (usando 'in' con IDs del showroom)
+      const srLocSet = new Set(allLocs.filter(l => l.complete_name.startsWith(srBase)).map(l => l.id));
       const srLocIds = [...srLocSet];
-      const srQuants = srLocIds.length ? await odooCall('stock.quant', 'search_read',
-        [[['location_id', 'in', srLocIds]]],
-        { fields: ['product_id', 'quantity'], limit: 5000 }
-      ) : [];
+
+      // PASO 3 — TODO el stock interno con location_id incluido
+      //   Mismo patrón que fetchStockMap (que ya funciona en producción)
+      _step = 'quants';
+      const allQuants = await odooCall('stock.quant', 'search_read',
+        [[['location_id.usage', '=', 'internal'], ['quantity', '>', 0]]],
+        { fields: ['product_id', 'location_id', 'quantity'], limit: 10000 }
+      );
+
+      // Separar en JS: showroom vs almacén
+      const almQuants = allQuants.filter(q => !srLocSet.has(q.location_id[0]));
+      const srQuants  = allQuants.filter(q =>  srLocSet.has(q.location_id[0]));
 
       // Acumular por producto
       const almMap = {};
       almQuants.forEach(q => { const p = q.product_id[0]; almMap[p] = (almMap[p]||0) + q.quantity; });
-      const srMap = {};
-      srQuants.forEach(q => { const p = q.product_id[0]; srMap[p] = (srMap[p]||0) + q.quantity; });
+      const srMap  = {};
+      srQuants.forEach( q => { const p = q.product_id[0]; srMap[p]  = (srMap[p] ||0) + q.quantity; });
 
-      // Filtro: en almacén Y showroom qty <= 0
-      const targetIds = Object.keys(almMap).map(Number)
-        .filter(pid => !(srMap[pid] > 0));
+      // Productos que tienen stock en almacén y cero en showroom
+      const targetIds = Object.keys(almMap).map(Number).filter(pid => !(srMap[pid] > 0));
 
       if (!targetIds.length) {
         res.writeHead(200, {'Content-Type': 'application/json'});
@@ -1308,23 +1308,34 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // 3. Info del producto
+      // PASO 4 — info del producto
+      _step = 'products';
       const prods = await odooCall('product.product', 'search_read',
         [[['id', 'in', targetIds]]],
         { fields: ['id', 'default_code', 'name', 'barcode', 'image_128'], limit: 5000 }
       );
 
-      // 4. Último movimiento de stock hacia/desde showroom por producto
-      //    srLocIds ya calculado arriba — usamos 'in' (child_of da unhashable)
-      const moves = srLocIds.length ? await odooCall('stock.move', 'search_read',
-        [[['product_id', 'in', targetIds], ['state', '=', 'done'],
-          ['|', ['location_id', 'in', srLocIds], ['location_dest_id', 'in', srLocIds]]]],
-        { fields: ['product_id', 'date'], limit: 10000, order: 'date desc' }
+      // PASO 5 — último movimiento hacia/desde showroom
+      //   Dos queries separados (sin | — causa unhashable en algunos Odoo)
+      _step = 'moves-to-sr';
+      const movesTo = srLocIds.length ? await odooCall('stock.move', 'search_read',
+        [[['product_id', 'in', targetIds], ['state', '=', 'done'], ['location_dest_id', 'in', srLocIds]]],
+        { fields: ['product_id', 'date'], limit: 5000, order: 'date desc' }
       ) : [];
-      const lastMoveMap = {};
-      moves.forEach(m => { const p = m.product_id[0]; if (!lastMoveMap[p]) lastMoveMap[p] = m.date; });
 
-      // 5. Construir resultado
+      _step = 'moves-from-sr';
+      const movesFrom = srLocIds.length ? await odooCall('stock.move', 'search_read',
+        [[['product_id', 'in', targetIds], ['state', '=', 'done'], ['location_id', 'in', srLocIds]]],
+        { fields: ['product_id', 'date'], limit: 5000, order: 'date desc' }
+      ) : [];
+
+      // Combinar y quedarse con el más reciente por producto
+      const lastMoveMap = {};
+      [...movesTo, ...movesFrom]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .forEach(m => { const p = m.product_id[0]; if (!lastMoveMap[p]) lastMoveMap[p] = m.date; });
+
+      // PASO 6 — construir resultado
       const copiaRx = /\s*\((copia|copy)\)\s*/gi;
       const today = new Date(); today.setHours(0,0,0,0);
       const items = prods.map(p => {
@@ -1336,20 +1347,19 @@ const server = http.createServer(async (req, res) => {
         }
         copiaRx.lastIndex = 0;
         return {
-          id: p.id,
-          ref:  p.default_code || '',
-          name: (p.name || '').replace(copiaRx,'').trim(),
-          barcode: p.barcode || '',
-          image:   p.image_128 || '',
-          qtyAlm:  almMap[p.id] || 0,
-          qtySr:   srMap[p.id]  || 0,
+          id:       p.id,
+          ref:      p.default_code || '',
+          name:     (p.name || '').replace(copiaRx, '').trim(),
+          barcode:  p.barcode || '',
+          image:    p.image_128 || '',
+          qtyAlm:   almMap[p.id] || 0,
+          qtySr:    srMap[p.id]  || 0,
           ultimaVez,
           diasSin
         };
       });
 
-      // Ordenar: primero los que estuvieron en showroom (más días primero), luego nunca
-      items.sort((a,b) => {
+      items.sort((a, b) => {
         if (a.diasSin !== null && b.diasSin !== null) return b.diasSin - a.diasSin;
         if (a.diasSin !== null) return -1;
         if (b.diasSin !== null) return 1;
@@ -1360,7 +1370,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, items, total: items.length }));
     } catch(e) {
       res.writeHead(502, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: false, error: e.message }));
+      res.end(JSON.stringify({ ok: false, error: '[' + _step + '] ' + e.message }));
     }
     return;
   }
