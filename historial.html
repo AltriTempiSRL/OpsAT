@@ -10035,13 +10035,15 @@ function renderReposicion(){
   var tableWrap = document.getElementById('rs-table-wrap');
   if (!_rsItems.length) return;
 
-  // ── 1. Filtro KPI ─────────────────────────────────────────────────────────
+  // ── 1. Filtro KPI (se omite cuando hay búsqueda activa — búsqueda es global) ──
   var filtered = _rsItems;
-  if (_rsFilter === 'con-historial') filtered = _rsItems.filter(function(i){ return i.ultimaVez !== null; });
-  else if (_rsFilter === 'nunca')    filtered = _rsItems.filter(function(i){ return i.ultimaVez === null; });
-  else if (_rsFilter === 'antiguos') filtered = _rsItems.filter(function(i){ return i.diasSin !== null && i.diasSin >= 365; });
+  if (!_rsSearch) {
+    if (_rsFilter === 'con-historial') filtered = _rsItems.filter(function(i){ return i.ultimaVez !== null; });
+    else if (_rsFilter === 'nunca')    filtered = _rsItems.filter(function(i){ return i.ultimaVez === null; });
+    else if (_rsFilter === 'antiguos') filtered = _rsItems.filter(function(i){ return i.diasSin !== null && i.diasSin >= 365; });
+  }
 
-  // ── 1b. Búsqueda libre ────────────────────────────────────────────────────
+  // ── 1b. Búsqueda libre (sobre todos los artículos, independiente del KPI) ──
   if (_rsSearch) {
     var q = _rsSearch.toLowerCase();
     filtered = filtered.filter(function(i){
