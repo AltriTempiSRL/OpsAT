@@ -4200,15 +4200,15 @@ const server = http.createServer(async (req, res) => {
       const subject = 'Prueba de notificación — Dashboard Despachos';
       let msgId = null, notifId = null, errors = [];
 
-      // Paso 1: crear mail.message
+      // Paso 1: crear mail.message vinculado al res.partner del destinatario
+      // (model+res_id permiten que Odoo lo muestre correctamente en Discuss)
       try {
         msgId = await odooCall('mail.message', 'create', [{
           message_type: 'user_notification',
-          model: false,
-          res_id: false,
+          model: 'res.partner',
+          res_id: partnerId,
           body,
           subject,
-          author_id: partnerId,
         }]);
       } catch(e1) { errors.push('msg:' + e1.message); }
 
@@ -4338,15 +4338,25 @@ const server = http.createServer(async (req, res) => {
 
         const body = buildSinAdjOdooMsg(group.odooName, group.pickings, periodStr, group.supervisorName);
         try {
-          await odooCall('mail.message', 'create', [{
+          const mainMsgId = await odooCall('mail.message', 'create', [{
             message_type: 'user_notification',
-            model: false,
-            res_id: false,
+            model: 'res.partner',
+            res_id: partnerId,
             body,
-            partner_ids: [[6, 0, msgPartnerIds]],
             subject: `${group.pickings.length} despacho${group.pickings.length !== 1 ? 's' : ''} pendiente${group.pickings.length !== 1 ? 's' : ''} de comprobante — ${periodStr}`,
-            notification_ids: msgPartnerIds.map(pid => [0, 0, { notification_type: 'inbox', res_partner_id: pid }]),
           }]);
+          // Crear mail.notification por cada destinatario (fuerza inbox sin importar preferencias)
+          for (const pid of msgPartnerIds) {
+            try {
+              await odooCall('mail.notification', 'create', [{
+                mail_message_id: mainMsgId,
+                res_partner_id: pid,
+                notification_type: 'inbox',
+                is_read: false,
+                notification_status: 'sent',
+              }]);
+            } catch(en) { console.warn('[sinAdj] notif create failed for partner', pid, en.message); }
+          }
           results.sent.push({
             name: group.odooName, odooId: group.odooId, count: group.pickings.length,
             supervisor: group.supervisorName || null
