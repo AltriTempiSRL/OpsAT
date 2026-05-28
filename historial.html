@@ -9989,7 +9989,9 @@ async function initReposicion(){
   if (window.lucide) lucide.createIcons();
   if (!_rsLocsDone) {
     await loadRsLocalities();
-    // auto-ejecutar tras cargar si hay showroom pre-seleccionado
+  }
+  // Auto-ejecutar siempre que haya showroom seleccionado y aún no haya datos cargados
+  if (!_rsItems.length) {
     var srId = parseInt(document.getElementById('rs-showroom-select').value);
     if (srId) runReposicionAnalysis();
   }
@@ -10005,10 +10007,14 @@ async function loadRsLocalities(){
       selSr.innerHTML = '<option value="">Sin ubicaciones disponibles</option>';
       return;
     }
+    // Buscar showroom: primero por nombre, si no hay ninguno tomar el primero disponible
+    var showroomLoc = d.locations.find(function(l){
+      var n = l.complete_name.toLowerCase();
+      return n.includes('showroom') || n.includes('exhibic') || n.includes('sala');
+    }) || d.locations[0];
     var html = '<option value="">— Selecciona showroom —</option>';
     d.locations.forEach(function(loc) {
-      var lower = loc.complete_name.toLowerCase();
-      var sel = lower.includes('showroom') ? ' selected' : '';
+      var sel = (showroomLoc && loc.id === showroomLoc.id) ? ' selected' : '';
       html += '<option value="'+loc.id+'"'+sel+'>'+esc(loc.complete_name)+'</option>';
     });
     selSr.innerHTML = html;
