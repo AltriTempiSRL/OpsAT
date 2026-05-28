@@ -9852,6 +9852,7 @@ var _rsLocsDone = false;
 var _rsItems    = [];
 var _rsSort     = { col: 'diasSin', dir: -1 };
 var _rsKitOpen  = {}; // setIdx → bool
+var _rsCamaOpen = {}; // camaIdx → bool
 var _rsAlmOpen  = {}; // almKey → bool
 var _rsFilter   = 'all';    // KPI filter
 var _rsAlmFilter = 'all';   // almacén filter
@@ -10228,6 +10229,37 @@ function rsToggleKit(idx) {
   if (chev) chev.style.transform = open ? 'rotate(90deg)' : '';
 }
 
+function rsCamaToggle(idx) {
+  _rsCamaOpen[idx] = !_rsCamaOpen[idx];
+  var open = _rsCamaOpen[idx];
+  document.querySelectorAll('.rs-cama-row-'+idx).forEach(function(r){ r.style.display = open ? '' : 'none'; });
+  var chev = document.getElementById('rs-cama-chev-'+idx);
+  if (chev) chev.style.transform = open ? 'rotate(90deg)' : '';
+}
+
+function _rsRowCellsCamaChild(item) {
+  var imgH = item.image
+    ? '<img style="width:32px;height:32px;object-fit:contain;border-radius:3px;border:1px solid var(--border-light)" src="data:image/png;base64,'+item.image+'" alt="">'
+    : '<div style="width:32px;height:32px;background:var(--surface-3);border-radius:3px"></div>';
+  var ultimaVez = item.ultimaVez
+    ? '<span style="font-size:11px;color:var(--text-secondary)">'+item.ultimaVez+'</span>'
+    : '<span style="font-size:11px;color:var(--text-muted)">Nunca</span>';
+  var diasHtml = item.diasSin === null
+    ? '<span style="color:var(--text-muted)">—</span>'
+    : '<span style="font-weight:700;color:'+(item.diasSin>365?'var(--red-text)':item.diasSin>180?'var(--warn-text)':'var(--text-secondary)')+'">'+item.diasSin+'d</span>';
+  return '<td style="padding-left:32px;opacity:.55;font-size:11px">↳</td>'
+    +'<td style="padding:4px 6px">'+imgH+'</td>'
+    +'<td style="font-size:11px;color:var(--text-secondary)">'+esc(item.ref||'—')+'</td>'
+    +'<td style="font-size:11px;color:var(--text-muted)">'+esc(item.barcode||'—')+'</td>'
+    +'<td style="font-size:11px;color:var(--text-primary)">'+esc(item.name||'—')+'</td>'
+    +'<td style="font-size:11px">'+esc(item.almacen||'—')+'</td>'
+    +'<td style="font-size:11px;color:var(--text-muted)">'+esc(item.ubicacion||'—')+'</td>'
+    +'<td style="text-align:right;font-size:11px;color:var(--text-muted)">'+item.qtyAlm.toFixed(0)+'</td>'
+    +'<td style="text-align:right;font-size:11px;color:var(--text-muted)">'+(item.qtyCdp>0?item.qtyCdp.toFixed(0):'—')+'</td>'
+    +'<td style="font-size:11px">'+ultimaVez+'</td>'
+    +'<td style="text-align:right">'+diasHtml+'</td>';
+}
+
 function renderReposicion(){
   var tbody     = document.getElementById('rs-tbody');
   var tableWrap = document.getElementById('rs-table-wrap');
@@ -10271,11 +10303,42 @@ function renderReposicion(){
     return String(va).localeCompare(String(vb)) * dir;
   });
 
-  // ── 3. Agrupar SETs por barcode ───────────────────────────────────────────
-  _rsKitOpen = {}; // reset al re-renderizar
+  // ── 3. Agrupar por barcode (Camas y SETs) ────────────────────────────────
+  _rsKitOpen  = {}; // reset al re-renderizar
+  _rsCamaOpen = {};
   var bcPartRx = /^(\d)(\d)(\d)\.(.+)$/;
-  var bcGroups  = {};
+
+  // ── 3a. Camas: segundo dígito = 0 → padre; ≠ 0 → hijo ────────────────────
+  var camaGroupMap = {};
   sorted.forEach(function(item) {
+    var m = bcPartRx.exec(item.barcode || '');
+    if (!m) return;
+    var key = 'cama_' + m[1] + m[3] + '.' + m[4];
+    if (!camaGroupMap[key]) camaGroupMap[key] = { parent: null, children: [] };
+    if (m[2] === '0') camaGroupMap[key].parent = item;
+    else              camaGroupMap[key].children.push({ item: item, part: parseInt(m[2]) });
+  });
+  var camaCounter = 0;
+  var inCama  = new Set();
+  var camaUnits = [];
+  Object.keys(camaGroupMap).forEach(function(key) {
+    var g = camaGroupMap[key];
+    if (!g.parent || !g.children.length) return;
+    g.children.sort(function(a, b){ return a.part - b.part; });
+    var idx = 'ca' + (camaCounter++);
+    camaUnits.push({ type:'cama', cama:{
+      idx:      idx,
+      parent:   g.parent,
+      children: g.children.map(function(c){ return c.item; })
+    }});
+    inCama.add(g.parent.id);
+    g.children.forEach(function(c){ inCama.add(c.item.id); });
+  });
+
+  // ── 3b. SETs: artículos no-cama con barcode partido ───────────────────────
+  var bcGroups = {};
+  sorted.forEach(function(item) {
+    if (inCama.has(item.id)) return;
     var m = bcPartRx.exec(item.barcode || '');
     if (!m) return;
     var total = parseInt(m[3]);
@@ -10284,10 +10347,9 @@ function renderReposicion(){
     if (!bcGroups[key]) bcGroups[key] = [];
     bcGroups[key].push({ item: item, part: parseInt(m[2]) });
   });
-
   var setCounter = 0;
   var inSet = new Set();
-  var setUnits = []; // { type:'set', set:{...} }
+  var setUnits = [];
   Object.keys(bcGroups).forEach(function(key) {
     var group = bcGroups[key];
     if (group.length < 2) return;
@@ -10304,15 +10366,18 @@ function renderReposicion(){
     group.forEach(function(g){ inSet.add(g.item.id); });
   });
 
-  // Unidades de renderizado: artículos sueltos + SETs
+  // Unidades de renderizado: artículos sueltos + Camas + SETs
   var units = [];
-  sorted.filter(function(item){ return !inSet.has(item.id); })
+  sorted.filter(function(item){ return !inSet.has(item.id) && !inCama.has(item.id); })
         .forEach(function(item){ units.push({ type:'item', item:item }); });
+  camaUnits.forEach(function(u){ units.push(u); });
   setUnits.forEach(function(u){ units.push(u); });
 
   // ── 4. Agrupar unidades por almacén primario ──────────────────────────────
   function primaryAlm(u) {
-    var s = u.type === 'item' ? (u.item.almacen||'—') : (u.set.almacen||'—');
+    var s = u.type === 'item'  ? (u.item.almacen||'—')
+          : u.type === 'cama'  ? (u.cama.parent.almacen||'—')
+          :                      (u.set.almacen||'—');
     return s.split(' · ')[0].trim() || '—';
   }
 
@@ -10330,7 +10395,7 @@ function renderReposicion(){
   }
 
   // ── 6. Render ─────────────────────────────────────────────────────────────
-  var COLS = 10;
+  var COLS = 11;
   var html = '';
 
   almOrder.forEach(function(alm) {
@@ -10338,9 +10403,11 @@ function renderReposicion(){
     var almKey   = alm.replace(/[^a-zA-Z0-9]/g, '_');
     var isOpen   = !!_rsAlmOpen[almKey];
 
-    // Contar artículos totales (SETs cuentan por piezas)
+    // Contar artículos totales (Camas y SETs cuentan padre+hijos)
     var count = grpUnits.reduce(function(n, u){
-      return n + (u.type === 'item' ? 1 : u.set.items.length);
+      if (u.type === 'item')  return n + 1;
+      if (u.type === 'cama')  return n + 1 + u.cama.children.length;
+      return n + u.set.items.length;
     }, 0);
 
     // Cabecera de grupo
@@ -10358,6 +10425,24 @@ function renderReposicion(){
     grpUnits.forEach(function(u) {
       if (u.type === 'item') {
         html += '<tr class="rs-alm-row-'+almKey+'" style="'+rowStyle+'">' + _rsRowCells(u.item) + '</tr>';
+
+      } else if (u.type === 'cama') {
+        var cama = u.cama, idx = cama.idx;
+        var parent = cama.parent;
+        // Fila padre con checkbox (solicitud para el padre)
+        html += '<tr class="rs-alm-row-'+almKey+'" style="'+rowStyle+'">' + _rsRowCells(parent) + '</tr>';
+        // Botón expandir hijos (debajo del padre, dentro del mismo grupo)
+        html += '<tr class="rs-alm-row-'+almKey+'" style="'+rowStyle+'">'
+          + '<td colspan="'+COLS+'" style="padding:0 12px 2px 52px">'
+          + '<button onclick="event.stopPropagation();rsCamaToggle(\''+idx+'\')" style="display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:12px;padding:2px 10px;font-size:10px;color:var(--text-muted);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'var(--brand)\';this.style.color=\'var(--brand)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text-muted)\'">'
+          + '<span id="rs-cama-chev-'+idx+'" style="font-size:9px;transition:transform .2s">▶</span>'
+          + cama.children.length+' partes'
+          + '</button></td></tr>';
+        // Hijos (ocultos inicialmente)
+        cama.children.forEach(function(child){
+          html += '<tr class="rs-cama-row-'+idx+'" style="display:none;background:var(--surface-2)">' + _rsRowCellsCamaChild(child) + '</tr>';
+        });
+
       } else {
         var set = u.set, idx = set.idx;
         var imgH = set.image
