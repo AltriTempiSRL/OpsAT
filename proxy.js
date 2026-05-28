@@ -4126,6 +4126,32 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── POST /api/sin-adjuntos/clear-test-notifs — limpiar notificaciones de prueba ─
+  if (reqPath === '/api/sin-adjuntos/clear-test-notifs' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      if (!odooUid) await authenticate();
+      // Buscar partner_id del usuario autenticado
+      const readResult = await odooCall('res.users', 'read', [[odooUid], ['id', 'partner_id']]);
+      const partnerId  = readResult && readResult[0] && readResult[0].partner_id && readResult[0].partner_id[0];
+      if (!partnerId) return sendJson(res, 404, { ok: false, error: 'No se encontró partner_id' });
+
+      // Buscar todas las notificaciones inbox no leídas del usuario
+      const notifIds = await odooCall('mail.notification', 'search',
+        [[['res_partner_id', '=', partnerId], ['notification_type', '=', 'inbox'], ['is_read', '=', false]]]
+      );
+      if (!notifIds || !notifIds.length) return sendJson(res, 200, { ok: true, cleared: 0, msg: 'No había notificaciones pendientes' });
+
+      // Marcarlas como leídas
+      await odooCall('mail.notification', 'write', [notifIds, { is_read: true }]);
+
+      return sendJson(res, 200, { ok: true, cleared: notifIds.length, notifIds });
+    } catch(e) {
+      return sendJson(res, 500, { ok: false, error: e.message });
+    }
+  }
+
   // ── POST /api/sin-adjuntos/test-notify — prueba directa de notificación Odoo ─
   if (reqPath === '/api/sin-adjuntos/test-notify' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
