@@ -3546,7 +3546,7 @@ body{font-family:var(--font);min-height:100dvh}
         <label>Hasta</label>
         <input type="date" id="desp-to" autocomplete="off">
         <button class="btn-consultar" onclick="cargarSinAdjuntos()">Consultar</button>
-        <button class="btn-consultar" id="sin-adj-email-btn" onclick="enviarCorreosSinAdjuntos()" style="display:none;background:var(--accent);gap:5px"><i data-lucide="mail" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar correos</button>
+        <button class="btn-consultar" id="sin-adj-email-btn" onclick="enviarCorreosSinAdjuntos()" style="display:none;background:var(--accent);gap:5px"><i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo</button>
         <span id="sin-adj-status" style="font-size:11px;color:var(--text-muted)"></span>
       </div>
       <div class="rpt-stat-bar" id="sin-adj-stats" style="display:none"></div>
@@ -11548,8 +11548,8 @@ async function enviarCorreosSinAdjuntos(){
 
   var emailBtn=document.getElementById('sin-adj-email-btn');
   var statusEl=document.getElementById('sin-adj-status');
-  if(emailBtn){ emailBtn.disabled=true; emailBtn.textContent='Enviando…'; }
-  if(statusEl) statusEl.textContent='Enviando correos…';
+  if(emailBtn){ emailBtn.disabled=true; emailBtn.textContent='Notificando…'; }
+  if(statusEl) statusEl.textContent='Enviando notificaciones a Odoo…';
 
   var from=document.getElementById('desp-from').value;
   var to  =document.getElementById('desp-to').value;
@@ -11562,30 +11562,30 @@ async function enviarCorreosSinAdjuntos(){
     });
     var data=await resp.json();
     if(statusEl) statusEl.textContent='';
-    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="mail" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar correos'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
+    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
     if(!data.ok){
-      alert('Error al enviar correos: '+(data.error||'Error desconocido'));
+      alert('Error al enviar notificaciones: '+(data.error||'Error desconocido'));
       return;
     }
     var msg='';
     if(data.sent&&data.sent.length){
-      msg+='✅ Correos enviados ('+data.sent.length+'):\n'+data.sent.map(function(s){
-        var line='  • '+s.name+' <'+s.email+'> — '+s.count+' despacho'+(s.count!==1?'s':'');
-        if(s.cc) line+=' (CC: '+s.supervisor+')';
+      msg+='✅ Notificaciones enviadas ('+data.sent.length+'):\n'+data.sent.map(function(s){
+        var line='  • '+s.name+' — '+s.count+' despacho'+(s.count!==1?'s':'');
+        if(s.supervisor) line+=' (+ supervisor: '+s.supervisor+')';
         return line;
       }).join('\n')+'\n\n';
     }
-    if(data.noEmail&&data.noEmail.length){
-      msg+='⚠️ Sin correo registrado ('+data.noEmail.length+'):\n'+data.noEmail.map(function(s){return '  • '+s.name+' (Odoo ID '+s.odooId+')';}).join('\n')+'\n\n';
+    if(data.noPartner&&data.noPartner.length){
+      msg+='⚠️ Sin usuario Odoo identificado ('+data.noPartner.length+'):\n'+data.noPartner.map(function(s){return '  • '+s.name;}).join('\n')+'\n\n';
     }
     if(data.errors&&data.errors.length){
-      msg+='❌ Fallos de envío ('+data.errors.length+'):\n'+data.errors.map(function(s){return '  • '+s.name+' <'+s.email+'> — '+s.error;}).join('\n');
+      msg+='❌ Fallos ('+data.errors.length+'):\n'+data.errors.map(function(s){return '  • '+s.name+' — '+s.error;}).join('\n');
     }
-    if(!msg) msg='No se procesaron correos.';
+    if(!msg) msg='No se procesaron notificaciones.';
     alert(msg.trim());
   }catch(e){
     if(statusEl) statusEl.textContent='';
-    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="mail" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar correos'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
+    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
     alert('Error de conexión: '+e.message);
   }
 }
