@@ -11745,7 +11745,8 @@ async function testSinAdjNotif(){
     if (data.ok) {
       alert('✅ Notificación de prueba enviada a tu inbox de Odoo Discuss.\n\nUsuario: ' + data.userName + '\nPartner ID: ' + data.partnerId + '\nMessage ID: ' + data.msgId + '\n\nRevisa tu Discuss en Odoo.');
     } else {
-      alert('❌ Error al enviar prueba:\n' + (data.error || 'Error desconocido'));
+      var diagStr = data.diag ? '\n\nDiagnóstico:\n' + JSON.stringify(data.diag, null, 2) : '';
+      alert('❌ Error al enviar prueba:\n' + (data.error || 'Error desconocido') + diagStr);
     }
   } catch(e) {
     alert('❌ Error de conexión: ' + e.message);

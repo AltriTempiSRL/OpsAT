@@ -4131,19 +4131,59 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
     try {
-      // Buscar el partner_id del usuario autenticado
       const odooId = jp.odooId;
       if (!odooId) return sendJson(res, 400, { ok: false, error: 'Tu usuario no tiene odooId configurado' });
 
-      const usersInfo = await odooCall('res.users', 'search_read',
-        [[['id', '=', odooId]]],
-        { fields: ['id', 'name', 'partner_id'], limit: 1 }
-      );
-      if (!usersInfo || !usersInfo.length || !usersInfo[0].partner_id) {
-        return sendJson(res, 404, { ok: false, error: `No se encontró partner_id para odooId=${odooId}` });
+      let partnerId = null;
+      let userName  = jp.name || 'Usuario';
+      const diag    = { odooId, method: null, rawResult: null };
+
+      // Intento 1: read() directo — bypasea filtros active/domain
+      try {
+        const readResult = await odooCall('res.users', 'read', [[odooId], ['id', 'name', 'partner_id']]);
+        diag.method = 'res.users.read';
+        diag.rawResult = readResult;
+        if (readResult && readResult.length && readResult[0].partner_id) {
+          partnerId = readResult[0].partner_id[0];
+          userName  = readResult[0].name || userName;
+        }
+      } catch(e1) { diag.readError = e1.message; }
+
+      // Intento 2: search_read con active in [true,false]
+      if (!partnerId) {
+        try {
+          const sr = await odooCall('res.users', 'search_read',
+            [[['id', '=', odooId], ['active', 'in', [true, false]]]],
+            { fields: ['id', 'name', 'partner_id'], limit: 1 }
+          );
+          diag.method = 'res.users.search_read+active';
+          diag.rawResult = sr;
+          if (sr && sr.length && sr[0].partner_id) {
+            partnerId = sr[0].partner_id[0];
+            userName  = sr[0].name || userName;
+          }
+        } catch(e2) { diag.srError = e2.message; }
       }
-      const partnerId = usersInfo[0].partner_id[0];
-      const userName  = usersInfo[0].name || jp.name || 'Usuario';
+
+      // Intento 3: partner_id desde res.partner buscando por email del JWT
+      if (!partnerId && jp.email) {
+        try {
+          const pr = await odooCall('res.partner', 'search_read',
+            [[['email', '=', jp.email]]],
+            { fields: ['id', 'name'], limit: 1 }
+          );
+          diag.method = 'res.partner.email';
+          diag.rawResult = pr;
+          if (pr && pr.length) {
+            partnerId = pr[0].id;
+            userName  = pr[0].name || userName;
+          }
+        } catch(e3) { diag.partnerError = e3.message; }
+      }
+
+      if (!partnerId) {
+        return sendJson(res, 404, { ok: false, error: `No se encontró partner_id para odooId=${odooId}`, diag });
+      }
 
       const body = `<p>Hola <b>${userName}</b>,</p>
 <p>Esta es una <b>notificación de prueba</b> del sistema de alertas de <b>Sin Comprobantes</b>.</p>
@@ -4159,7 +4199,7 @@ const server = http.createServer(async (req, res) => {
         subject: 'Prueba de notificación — Dashboard Despachos',
       }]);
 
-      return sendJson(res, 200, { ok: true, msgId, partnerId, userName });
+      return sendJson(res, 200, { ok: true, msgId, partnerId, userName, diag });
     } catch (e) {
       console.error('[test-notify] error:', e);
       return sendJson(res, 500, { ok: false, error: e.message });
