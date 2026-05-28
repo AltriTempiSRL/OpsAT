@@ -3546,10 +3546,25 @@ body{font-family:var(--font);min-height:100dvh}
         <label>Hasta</label>
         <input type="date" id="desp-to" autocomplete="off">
         <button class="btn-consultar" onclick="cargarSinAdjuntos()">Consultar</button>
-        <button class="btn-consultar" id="sin-adj-email-btn" onclick="enviarCorreosSinAdjuntos()" style="display:none;background:var(--accent);gap:5px"><i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo</button>
         <span id="sin-adj-status" style="font-size:11px;color:var(--text-muted)"></span>
       </div>
       <div class="rpt-stat-bar" id="sin-adj-stats" style="display:none"></div>
+
+      <!-- Panel de notificaciones por usuario (solo admin/manager) -->
+      <div id="sin-adj-notif-panel" style="display:none;border-top:1px solid var(--border)">
+        <div class="rpt-filter-bar" style="background:var(--surface-alt,var(--surface));padding:8px 14px;gap:8px">
+          <i data-lucide="bell" style="width:13px;height:13px;stroke:var(--accent);flex-shrink:0"></i>
+          <span style="font-size:12px;font-weight:700;color:var(--text-primary)">Notificaciones vía Odoo Discuss</span>
+          <div style="flex:1"></div>
+          <button class="btn-sm-ghost" onclick="sinAdjToggleAll(true)" style="font-size:11px;padding:3px 8px">Todos</button>
+          <button class="btn-sm-ghost" onclick="sinAdjToggleAll(false)" style="font-size:11px;padding:3px 8px">Ninguno</button>
+          <button id="sin-adj-notif-btn" onclick="enviarCorreosSinAdjuntos(null)" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">
+            <i data-lucide="send" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar notificación
+          </button>
+        </div>
+        <div id="sin-adj-user-list"></div>
+      </div>
+
       <div class="mv-wrap" id="sin-adj-wrap" style="display:none">
         <table class="desp-table">
           <thead><tr>
@@ -4650,7 +4665,8 @@ const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000
 // ════════════════════════════════════════════════════
 var ODOO_LIVE=false;
 var SHEETS_LIVE=false;
-var _sinAdjNoAtt=null; // lista actual de pickings sin adjunto (para envío de correos)
+var _sinAdjNoAtt=null;  // lista actual de pickings sin adjunto
+var _sinAdjByUser={};   // pickings agrupados por usuario {key → {odooId,name,pickings[]}}
 var GS_CACHE={}; // datos vivos de Google Sheets
 var SEARCH_MODE='orden'; // 'orden' | 'transferencia' | 'articulo'
 
@@ -11405,7 +11421,7 @@ function initDespFiltro(){
   var count=2;
   while(count>0){
     from.setDate(from.getDate()-1);
-    var dow=from.getDay(); // 0=dom, 6=sab
+    var dow=from.getDay();
     if(dow!==0&&dow!==6) count--;
   }
   document.getElementById('desp-from').value=from.toISOString().slice(0,10);
@@ -11414,8 +11430,9 @@ function initDespFiltro(){
 
 async function cargarSinAdjuntos(){
   _sinAdjNoAtt=null;
-  var emailBtn=document.getElementById('sin-adj-email-btn');
-  if(emailBtn) emailBtn.style.display='none';
+  _sinAdjByUser={};
+  var notifPanel=document.getElementById('sin-adj-notif-panel');
+  if(notifPanel) notifPanel.style.display='none';
   var statusEl=document.getElementById('sin-adj-status');
   var emptyEl =document.getElementById('sin-adj-empty');
   var statsEl =document.getElementById('sin-adj-stats');
@@ -11453,16 +11470,14 @@ async function cargarSinAdjuntos(){
       return;
     }
 
-    // Obtener adjuntos de todos los pickings en una sola llamada
-    var ids=picks.map((p) => {return p.id;});
+    var ids=picks.map(function(p){return p.id;});
     var atts=await odooSearch('ir.attachment',
       [['res_model','=','stock.picking'],['res_id','in',ids]],
       ['res_id','name'],5000);
 
-    var withAtt=new Set(atts.map((a) => {return a.res_id;}));
-    var noAtt=picks.filter((p) => {return !withAtt.has(p.id);});
+    var withAtt=new Set(atts.map(function(a){return a.res_id;}));
+    var noAtt=picks.filter(function(p){return !withAtt.has(p.id);});
 
-    // Estadísticas
     var pct=picks.length?Math.round((noAtt.length/picks.length)*100):0;
     statsEl.innerHTML=''
       +'<div class="rpt-stat"><div class="rpt-stat-val '+(noAtt.length?'red':'green')+'">'+noAtt.length+'</div><div class="rpt-stat-lbl">Sin adjunto</div></div>'
@@ -11478,12 +11493,11 @@ async function cargarSinAdjuntos(){
       return;
     }
 
-    // Ordenar: más reciente primero
     noAtt.sort(function(a,b){return (b.date_done||'').localeCompare(a.date_done||'');});
 
     var tbody=document.getElementById('sin-adj-tbody');
     tbody.innerHTML='';
-    noAtt.forEach((p) => {
+    noAtt.forEach(function(p){
       var ref    =p.name||'—';
       var fecha  =fmtOdooDate(p.date_done);
       var ovName =(p.sale_id&&p.sale_id[1])||p.origin||'—';
@@ -11492,11 +11506,9 @@ async function cargarSinAdjuntos(){
       var wU     =p.write_uid?p.write_uid[1]:'';
       var uU     =p.user_id?p.user_id[1]:'';
       var usuario=(wU&&wU.toLowerCase()!=='odoobot')?wU:(uU&&uU.toLowerCase()!=='odoobot')?uU:(wU||uU||'—');
-
       var ovCell=ovKey
         ?'<a class="desp-ov" href="#" onclick="setSearchMode(\'orden\');buscarDirecta(\''+ovKey+'\');return false;">'+ovName+'</a>'
         :'<span style="color:var(--text-muted)">'+ovName+'</span>';
-
       var tr=document.createElement('tr');
       tr.innerHTML=''
         +'<td><a class="desp-ref" href="#" onclick="setSearchMode(\'transferencia\');buscarTransferencia(\''+ref+'\');return false;">'+ref+'</a></td>'
@@ -11509,12 +11521,13 @@ async function cargarSinAdjuntos(){
 
     wrapEl.style.display='';
     emptyEl.style.display='none';
-
-    // Guardar lista y mostrar botón de correos (solo admin/manager)
     _sinAdjNoAtt=noAtt;
-    if(emailBtn && _user && ['admin','manager'].includes(_user.role)){
-      emailBtn.style.display='';
-      if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]});
+
+    // Panel de notificaciones: solo para admin/manager
+    if(notifPanel && _user && ['admin','manager'].includes(_user.role)){
+      _sinAdjBuildUserPanel(noAtt);
+      notifPanel.style.display='';
+      if(window.lucide) window.lucide.createIcons({el:notifPanel});
     }
 
   }catch(e){
@@ -11524,32 +11537,78 @@ async function cargarSinAdjuntos(){
   }
 }
 
+// Construye el panel de selección de usuarios
+function _sinAdjBuildUserPanel(noAtt){
+  _sinAdjByUser={};
+  noAtt.forEach(function(p){
+    var wU=p.write_uid, uU=p.user_id;
+    var odooId=null, name='Desconocido';
+    if(wU&&wU[0]&&wU[1]&&wU[1].toLowerCase()!=='odoobot'){ odooId=wU[0]; name=wU[1]; }
+    else if(uU&&uU[0]&&uU[1]&&uU[1].toLowerCase()!=='odoobot'){ odooId=uU[0]; name=uU[1]; }
+    var key=odooId||name;
+    if(!_sinAdjByUser[key]) _sinAdjByUser[key]={odooId:odooId, name:name, pickings:[]};
+    _sinAdjByUser[key].pickings.push(p);
+  });
+
+  var list=document.getElementById('sin-adj-user-list');
+  if(!list) return;
+  var keys=Object.keys(_sinAdjByUser);
+  list.innerHTML=keys.map(function(key){
+    var g=_sinAdjByUser[key];
+    var n=g.pickings.length;
+    var idAttr=g.odooId?'data-oid="'+g.odooId+'"':'';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:13px">'
+      +'<input type="checkbox" class="sin-adj-chk" data-key="'+key+'" '+idAttr+' checked style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)">'
+      +'<span style="flex:1;color:var(--text-primary);font-weight:500">'+g.name+'</span>'
+      +'<span style="color:var(--text-muted);font-size:12px;white-space:nowrap">'+n+' despacho'+(n!==1?'s':'')+'</span>'
+      +'<button onclick="enviarCorreosSinAdjuntos(\''+key+'\')" style="font-size:11px;padding:3px 10px;border:1px solid var(--accent);border-radius:5px;background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap">Notificar</button>'
+      +'</div>';
+  }).join('');
+}
+
+// Seleccionar / deseleccionar todos los checkboxes
+function sinAdjToggleAll(checked){
+  document.querySelectorAll('.sin-adj-chk').forEach(function(chk){ chk.checked=checked; });
+}
+
 // ════════════════════════════════════════════════════
-//  SIN ADJUNTOS — ENVIAR CORREOS
+//  SIN ADJUNTOS — ENVIAR NOTIFICACIÓN ODOO
 // ════════════════════════════════════════════════════
-async function enviarCorreosSinAdjuntos(){
+// singleKey: clave de _sinAdjByUser para notificar solo ese usuario
+//            null = notificar todos los seleccionados en los checkboxes
+async function enviarCorreosSinAdjuntos(singleKey){
   if(!_sinAdjNoAtt||!_sinAdjNoAtt.length){
     alert('No hay transferencias pendientes cargadas. Consulta primero el período.');
     return;
   }
-  var n=_sinAdjNoAtt.length;
-  // Agrupar por usuario para mostrar el resumen en la confirmación
-  var byName={};
-  _sinAdjNoAtt.forEach(function(p){
-    var wU=p.write_uid, uU=p.user_id;
-    var name='Desconocido';
-    if(wU&&wU[1]&&wU[1].toLowerCase()!=='odoobot') name=wU[1];
-    else if(uU&&uU[1]&&uU[1].toLowerCase()!=='odoobot') name=uU[1];
-    byName[name]=(byName[name]||0)+1;
-  });
-  var lines=Object.entries(byName).map(function(e){return '• '+e[0]+': '+e[1]+' despacho'+(e[1]!==1?'s':'');}).join('\n');
-  var ok=confirm('Se enviará un correo a cada usuario con sus despachos pendientes:\n\n'+lines+'\n\nTotal: '+n+' transferencias.\n\n¿Continuar?');
-  if(!ok) return;
 
-  var emailBtn=document.getElementById('sin-adj-email-btn');
+  // Determinar qué pickings enviar
+  var targetPickings=[];
+  if(singleKey){
+    // Notificación individual: solo ese usuario
+    var g=_sinAdjByUser[singleKey];
+    if(!g){ alert('Usuario no encontrado.'); return; }
+    targetPickings=g.pickings;
+    var ok=confirm('Enviar notificación a '+g.name+' ('+g.pickings.length+' despacho'+(g.pickings.length!==1?'s':'')+')?');
+    if(!ok) return;
+  } else {
+    // Notificación grupal: solo los seleccionados en los checkboxes
+    var checkedKeys=[];
+    document.querySelectorAll('.sin-adj-chk:checked').forEach(function(chk){ checkedKeys.push(chk.getAttribute('data-key')); });
+    if(!checkedKeys.length){ alert('Selecciona al menos un usuario para notificar.'); return; }
+    checkedKeys.forEach(function(k){ if(_sinAdjByUser[k]) targetPickings=targetPickings.concat(_sinAdjByUser[k].pickings); });
+    var names=checkedKeys.map(function(k){
+      var g=_sinAdjByUser[k];
+      return '• '+g.name+' ('+g.pickings.length+' despacho'+(g.pickings.length!==1?'s':'')+')';
+    }).join('\n');
+    var ok=confirm('Enviar notificación vía Odoo Discuss a:\n\n'+names+'\n\n¿Continuar?');
+    if(!ok) return;
+  }
+
+  var notifBtn=document.getElementById('sin-adj-notif-btn');
   var statusEl=document.getElementById('sin-adj-status');
-  if(emailBtn){ emailBtn.disabled=true; emailBtn.textContent='Notificando…'; }
-  if(statusEl) statusEl.textContent='Enviando notificaciones a Odoo…';
+  if(notifBtn){ notifBtn.disabled=true; notifBtn.textContent='Enviando…'; }
+  if(statusEl) statusEl.textContent='Enviando notificaciones…';
 
   var from=document.getElementById('desp-from').value;
   var to  =document.getElementById('desp-to').value;
@@ -11558,34 +11617,34 @@ async function enviarCorreosSinAdjuntos(){
     var resp=await authFetch('/api/sin-adjuntos/enviar-correos',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({pickings:_sinAdjNoAtt, dateFrom:from, dateTo:to})
+      body:JSON.stringify({pickings:targetPickings, dateFrom:from, dateTo:to})
     });
     var data=await resp.json();
     if(statusEl) statusEl.textContent='';
-    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
-    if(!data.ok){
-      alert('Error al enviar notificaciones: '+(data.error||'Error desconocido'));
-      return;
-    }
+    if(notifBtn){ notifBtn.disabled=false; notifBtn.innerHTML='<i data-lucide="send" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar notificación'; if(window.lucide) window.lucide.createIcons({el:notifBtn}); }
+    if(!data.ok){ alert('Error: '+(data.error||'Error desconocido')); return; }
     var msg='';
     if(data.sent&&data.sent.length){
-      msg+='✅ Notificaciones enviadas ('+data.sent.length+'):\n'+data.sent.map(function(s){
-        var line='  • '+s.name+' — '+s.count+' despacho'+(s.count!==1?'s':'');
-        if(s.supervisor) line+=' (+ supervisor: '+s.supervisor+')';
-        return line;
-      }).join('\n')+'\n\n';
+      msg+='✅ Notificaciones enviadas ('+data.sent.length+'):\n'
+        +data.sent.map(function(s){
+          var line='  • '+s.name+' — '+s.count+' despacho'+(s.count!==1?'s':'');
+          if(s.supervisor) line+=' (+ supervisor: '+s.supervisor+')';
+          return line;
+        }).join('\n')+'\n\n';
     }
     if(data.noPartner&&data.noPartner.length){
-      msg+='⚠️ Sin usuario Odoo identificado ('+data.noPartner.length+'):\n'+data.noPartner.map(function(s){return '  • '+s.name;}).join('\n')+'\n\n';
+      msg+='⚠️ Sin usuario Odoo ('+data.noPartner.length+'):\n'
+        +data.noPartner.map(function(s){return '  • '+s.name;}).join('\n')+'\n\n';
     }
     if(data.errors&&data.errors.length){
-      msg+='❌ Fallos ('+data.errors.length+'):\n'+data.errors.map(function(s){return '  • '+s.name+' — '+s.error;}).join('\n');
+      msg+='❌ Fallos ('+data.errors.length+'):\n'
+        +data.errors.map(function(s){return '  • '+s.name+' — '+s.error;}).join('\n');
     }
     if(!msg) msg='No se procesaron notificaciones.';
     alert(msg.trim());
   }catch(e){
     if(statusEl) statusEl.textContent='';
-    if(emailBtn){ emailBtn.disabled=false; emailBtn.innerHTML='<i data-lucide="bell" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Notificar en Odoo'; if(window.lucide) window.lucide.createIcons({nodes:[emailBtn]}); }
+    if(notifBtn){ notifBtn.disabled=false; notifBtn.innerHTML='<i data-lucide="send" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i>Enviar notificación'; if(window.lucide) window.lucide.createIcons({el:notifBtn}); }
     alert('Error de conexión: '+e.message);
   }
 }
