@@ -18,6 +18,16 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
 <meta name="description" content="Plataforma de gestión operativa — Altritempi">
 <script src="/lucide.min.js"></script>
+<!-- SheetJS — carga diferida solo cuando se exporta Excel -->
+<script>
+function _loadXlsx(cb){
+  if(window.XLSX){ cb(); return; }
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload=cb; s.onerror=function(){ alert('No se pudo cargar la librería de Excel. Verifica tu conexión.'); };
+  document.head.appendChild(s);
+}
+</script>
 <style>
 /* ═══════════════════════════════════════════════
    DESIGN TOKENS (merged: historial + wwp)
@@ -2929,7 +2939,7 @@ body{font-family:var(--font);min-height:100dvh}
   #section-solicitudes .rs-card-hdr{flex-direction:column;align-items:stretch}
   #section-solicitudes .rs-card-hdr>div:last-child{flex-direction:column;gap:6px}
   #section-solicitudes .rs-card-hdr>div:last-child>div{width:100%}
-  #section-solicitudes .rs-btn-refresh,.sol-print-btn{width:100%!important;min-height:42px;justify-content:center;padding:0 12px}
+  #section-solicitudes .rs-btn-refresh,.sol-print-btn,.sol-excel-btn{width:100%!important;min-height:42px;justify-content:center;padding:0 12px}
 }
 
 /* ── Photo source popover (siempre position:fixed, funciona en móvil y desktop) ── */
@@ -3492,6 +3502,9 @@ body{font-family:var(--font);min-height:100dvh}
           </button>
           <button class="rs-btn-refresh" onclick="printSolicitudes()" title="Imprimir PDF" style="width:auto;padding:0 12px;white-space:nowrap;gap:5px;background:var(--accent);color:#fff;border-color:var(--accent)">
             <i data-lucide="printer" style="width:13px;height:13px;flex-shrink:0"></i> Imprimir PDF
+          </button>
+          <button class="rs-btn-refresh" onclick="exportSolicitudesExcel()" title="Descargar Excel" style="width:auto;padding:0 12px;white-space:nowrap;gap:5px;background:#217346;color:#fff;border-color:#1a5c38">
+            <i data-lucide="file-spreadsheet" style="width:13px;height:13px;flex-shrink:0"></i> Excel
           </button>
         </div>
       </div>
@@ -9617,6 +9630,78 @@ function printSolicitudes() {
     window.print();
     if (prev !== 'activo') setSolFilter(prev);
   }, 150);
+}
+
+// ── Exportar solicitudes a Excel (.xlsx) ─────────────────────────────────────
+function exportSolicitudesExcel() {
+  if (!_solicitudes || !_solicitudes.length) {
+    alert('No hay solicitudes cargadas. Recarga la sección primero.');
+    return;
+  }
+  var list = _solFilter !== 'all'
+    ? _solicitudes.filter(function(s){ return s.status === _solFilter; })
+    : _solicitudes.slice();
+  if (!list.length) {
+    alert('No hay solicitudes en el filtro actual.');
+    return;
+  }
+  _loadXlsx(function() {
+    var today = new Date();
+    var headers = [
+      'Producto', 'Código / Barcode', 'Almacén', 'Ubicación',
+      'Nota', 'Solicitado por', 'Fecha Solicitud',
+      'Estado', 'Días', 'Fecha Completado / Cancelado', 'Origen'
+    ];
+    var rows = list.map(function(sol) {
+      var m = _solMeta(sol, today);
+      var fechaRef = sol.status === 'completado' && sol.fechaCompletado
+        ? new Date(sol.fechaCompletado).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'})
+        : sol.status === 'cancelado' && sol.fechaCancelacion
+        ? new Date(sol.fechaCancelacion).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'})
+        : '—';
+      var estadoLabel = sol.status === 'activo' ? 'Activa'
+        : sol.status === 'completado' ? 'Completada' : 'Cancelada';
+      return [
+        sol.name    || '—',
+        sol.barcode || '—',
+        (sol.almacen  || '—').replace(/ · /g, ', '),
+        (sol.ubicacion|| '—').replace(/ · /g, ' › '),
+        sol.nota || '',
+        sol.solicitadoPor ? sol.solicitadoPor.name : '—',
+        new Date(sol.fechaSolicitud).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}),
+        estadoLabel,
+        m.diasStr,
+        fechaRef,
+        sol.source === 'contenedores' ? 'Contenedor' : 'Manual'
+      ];
+    });
+
+    var ws = XLSX.utils.aoa_to_sheet([headers].concat(rows));
+
+    // Ancho de columnas
+    ws['!cols'] = [
+      {wch:32},{wch:18},{wch:16},{wch:28},
+      {wch:22},{wch:22},{wch:15},
+      {wch:13},{wch:10},{wch:17},{wch:12}
+    ];
+
+    // Estilo negrita en encabezados (solo en celdas A1:K1)
+    var range = XLSX.utils.decode_range(ws['!ref']);
+    for (var C = range.s.c; C <= range.e.c; C++) {
+      var cellAddr = XLSX.utils.encode_cell({r:0, c:C});
+      if (!ws[cellAddr]) continue;
+      ws[cellAddr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'E2E8F0' } } };
+    }
+
+    var wb = XLSX.utils.book_new();
+    var sheetName = _solFilter === 'all' ? 'Todas'
+      : _solFilter === 'activo' ? 'Activas'
+      : _solFilter === 'completado' ? 'Completadas' : 'Canceladas';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    var fechaHoy = today.toISOString().slice(0,10);
+    XLSX.writeFile(wb, 'Solicitudes_Showroom_' + sheetName + '_' + fechaHoy + '.xlsx');
+  });
 }
 
 // ESC cierra el modal de solicitud
