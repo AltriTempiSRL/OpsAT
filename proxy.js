@@ -375,7 +375,7 @@ function createMailTransporter() {
     tls: { rejectUnauthorized: false }
   });
 }
-function buildSinAdjEmail(userName, pickings, period) {
+function buildSinAdjEmail(userName, pickings, period, supervisorName) {
   const rows = pickings.map(p => {
     const fecha = (p.date_done || '').slice(0, 10);
     const ref   = p.name || '—';
@@ -422,6 +422,7 @@ function buildSinAdjEmail(userName, pickings, period) {
     <div style="background:#f8fafc;padding:14px 28px;border-top:1px solid #e2e8f0">
       <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.5">
         Mensaje generado automáticamente por el sistema de despachos de ${COMPANY_NAME}. No responder a este correo.
+        ${supervisorName ? `<br>Tu supervisor <strong>${supervisorName}</strong> ha sido copiado en este mensaje.` : ''}
       </p>
     </div>
   </div>
@@ -4176,8 +4177,8 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { ok: false, error: 'No hay transferencias para notificar' });
       }
 
-      // Agrupar por usuario Odoo (preferir write_uid, ignorar OdooBot)
-      const byUser = new Map(); // odooId → { odooId, odooName, pickings[] }
+      // ── 1. Agrupar por usuario Odoo (preferir write_uid, ignorar OdooBot) ──
+      const byUser = new Map(); // odooId → { odooId, odooName, pickings[], email, supervisorEmail, supervisorName }
       pickings.forEach(p => {
         const wU = p.write_uid, uU = p.user_id;
         let odooId, odooName;
@@ -4187,7 +4188,7 @@ const server = http.createServer(async (req, res) => {
           odooId = uU[0]; odooName = uU[1];
         }
         if (!odooId) return;
-        if (!byUser.has(odooId)) byUser.set(odooId, { odooId, odooName, pickings: [] });
+        if (!byUser.has(odooId)) byUser.set(odooId, { odooId, odooName, pickings: [], email: null, supervisorEmail: null, supervisorName: null });
         byUser.get(odooId).pickings.push(p);
       });
 
@@ -4195,35 +4196,78 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { ok: false, error: 'No se pudieron identificar usuarios en los despachos' });
       }
 
-      // Buscar emails en wwp-users-auth.json por odooId
+      const allOdooIds = [...byUser.keys()];
+
+      // ── 2. Buscar emails locales (wwp-users-auth.json) ────────────────────
       const authUsers = loadAuthUsers();
       const authByOdooId = new Map();
       authUsers.forEach(u => { if (u.odooId) authByOdooId.set(Number(u.odooId), u); });
 
-      const missingOdooIds = [];
+      const needsOdooEmail = [];
       byUser.forEach((group, odooId) => {
         const au = authByOdooId.get(Number(odooId));
         if (au && au.email && au.active) group.email = au.email;
-        else missingOdooIds.push(odooId);
+        else needsOdooEmail.push(odooId);
       });
 
-      // Fallback: buscar en Odoo res.users para IDs no encontrados localmente
-      if (missingOdooIds.length) {
+      // Fallback: buscar en res.users de Odoo para los no encontrados localmente
+      if (needsOdooEmail.length) {
         try {
           const odooUsers = await odooCall('res.users', 'search_read',
-            [[['id', 'in', missingOdooIds]]],
-            { fields: ['id', 'name', 'login', 'email'], limit: 50 }
+            [[['id', 'in', needsOdooEmail]]],
+            { fields: ['id', 'email', 'login'], limit: 100 }
           );
           odooUsers.forEach(ou => {
             const group = byUser.get(ou.id);
-            if (group && !group.email) {
-              group.email = ou.email || ou.login || null;
-            }
+            if (group && !group.email) group.email = ou.email || ou.login || null;
           });
-        } catch(e) { console.warn('[sinAdj email] Odoo res.users lookup failed:', e.message); }
+        } catch(e) { console.warn('[sinAdj email] res.users fallback failed:', e.message); }
       }
 
-      // Enviar emails
+      // ── 3. Resolver supervisor por organigrama de hr.employee ─────────────
+      try {
+        // Traer el registro de empleado de cada usuario + su parent_id (supervisor)
+        const employees = await odooCall('hr.employee', 'search_read',
+          [[['user_id', 'in', allOdooIds], ['active', 'in', [true, false]]]],
+          { fields: ['id', 'name', 'user_id', 'parent_id', 'work_email'], limit: 200 }
+        );
+
+        // Mapear user_id → { parent_id, work_email }
+        const empByUserId = new Map();
+        const supervisorEmpIds = new Set();
+        employees.forEach(emp => {
+          if (!emp.user_id) return;
+          empByUserId.set(emp.user_id[0], emp);
+          if (emp.parent_id && emp.parent_id[0]) supervisorEmpIds.add(emp.parent_id[0]);
+        });
+
+        // Traer los registros de los supervisores para obtener su user_id y work_email
+        let supervisorByEmpId = new Map();
+        if (supervisorEmpIds.size) {
+          const supEmps = await odooCall('hr.employee', 'search_read',
+            [[['id', 'in', [...supervisorEmpIds]], ['active', 'in', [true, false]]]],
+            { fields: ['id', 'name', 'user_id', 'work_email'], limit: 200 }
+          );
+          supEmps.forEach(s => supervisorByEmpId.set(s.id, s));
+        }
+
+        // Para cada grupo de usuario, resolver el email del supervisor
+        byUser.forEach((group, odooId) => {
+          const emp = empByUserId.get(odooId);
+          if (!emp || !emp.parent_id || !emp.parent_id[0]) return;
+          const supEmp = supervisorByEmpId.get(emp.parent_id[0]);
+          if (!supEmp) return;
+          group.supervisorName = supEmp.name || emp.parent_id[1] || null;
+          // Preferir email en wwp-users-auth, luego work_email del empleado supervisor
+          const supUserId = supEmp.user_id ? supEmp.user_id[0] : null;
+          const auSup = supUserId ? authByOdooId.get(Number(supUserId)) : null;
+          group.supervisorEmail = (auSup && auSup.email && auSup.active)
+            ? auSup.email
+            : (supEmp.work_email || null);
+        });
+      } catch(e) { console.warn('[sinAdj email] hr.employee supervisor lookup failed:', e.message); }
+
+      // ── 4. Enviar emails ──────────────────────────────────────────────────
       let transport;
       try { transport = createMailTransporter(); }
       catch(e) { return sendJson(res, 503, { ok: false, error: e.message }); }
@@ -4239,15 +4283,23 @@ const server = http.createServer(async (req, res) => {
           results.noEmail.push({ name: group.odooName, odooId: group.odooId });
           continue;
         }
-        const html = buildSinAdjEmail(group.odooName, group.pickings, periodStr);
+        const html = buildSinAdjEmail(group.odooName, group.pickings, periodStr, group.supervisorName);
+        const mailOpts = {
+          from: SMTP_FROM,
+          to: group.email,
+          subject: `[${COMPANY_NAME}] ${group.pickings.length} despacho${group.pickings.length !== 1 ? 's' : ''} pendiente${group.pickings.length !== 1 ? 's' : ''} de comprobante`,
+          html
+        };
+        // CC al supervisor si existe y es distinto al destinatario
+        if (group.supervisorEmail && group.supervisorEmail.toLowerCase() !== group.email.toLowerCase()) {
+          mailOpts.cc = group.supervisorEmail;
+        }
         try {
-          await transport.sendMail({
-            from: SMTP_FROM,
-            to: group.email,
-            subject: `[${COMPANY_NAME}] ${group.pickings.length} despacho${group.pickings.length !== 1 ? 's' : ''} pendiente${group.pickings.length !== 1 ? 's' : ''} de comprobante`,
-            html
+          await transport.sendMail(mailOpts);
+          results.sent.push({
+            name: group.odooName, email: group.email, count: group.pickings.length,
+            cc: mailOpts.cc || null, supervisor: group.supervisorName || null
           });
-          results.sent.push({ name: group.odooName, email: group.email, count: group.pickings.length });
         } catch(e) {
           results.errors.push({ name: group.odooName, email: group.email, error: e.message });
         }

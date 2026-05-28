@@ -11569,7 +11569,11 @@ async function enviarCorreosSinAdjuntos(){
     }
     var msg='';
     if(data.sent&&data.sent.length){
-      msg+='✅ Correos enviados ('+data.sent.length+'):\n'+data.sent.map(function(s){return '  • '+s.name+' <'+s.email+'> — '+s.count+' despacho'+(s.count!==1?'s':'');}).join('\n')+'\n\n';
+      msg+='✅ Correos enviados ('+data.sent.length+'):\n'+data.sent.map(function(s){
+        var line='  • '+s.name+' <'+s.email+'> — '+s.count+' despacho'+(s.count!==1?'s':'');
+        if(s.cc) line+=' (CC: '+s.supervisor+')';
+        return line;
+      }).join('\n')+'\n\n';
     }
     if(data.noEmail&&data.noEmail.length){
       msg+='⚠️ Sin correo registrado ('+data.noEmail.length+'):\n'+data.noEmail.map(function(s){return '  • '+s.name+' (Odoo ID '+s.odooId+')';}).join('\n')+'\n\n';
