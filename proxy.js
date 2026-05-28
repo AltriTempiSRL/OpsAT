@@ -4196,17 +4196,54 @@ const server = http.createServer(async (req, res) => {
 <p>Si ves este mensaje en tu bandeja de Odoo Discuss significa que la integración funciona correctamente ✅</p>
 <p style="color:#6b7280;font-size:12px">Enviado desde el Dashboard de Despachos — ${new Date().toLocaleString('es-DO')}</p>`;
 
-      const msgId = await odooCall('mail.message', 'create', [{
-        message_type: 'user_notification',
-        model: false,
-        res_id: false,
-        body,
-        partner_ids: [[6, 0, [partnerId]]],
-        subject: 'Prueba de notificación — Dashboard Despachos',
-        notification_ids: [[0, 0, { notification_type: 'inbox', res_partner_id: partnerId }]],
-      }]);
+      // Intentar 3 métodos distintos — devolver cuál funcionó
+      let msgId = null, method = null, err = null;
 
-      return sendJson(res, 200, { ok: true, msgId, partnerId, userName, diag });
+      // Método A: message_post en res.partner del destinatario (el más confiable)
+      try {
+        msgId = await odooCall('res.partner', 'message_post', [[partnerId]], {
+          body,
+          subject: 'Prueba de notificación — Dashboard Despachos',
+          message_type: 'comment',
+          subtype_xmlid: 'mail.mt_note',
+          partner_ids: [partnerId],
+        });
+        method = 'res.partner.message_post';
+      } catch(eA) { err = 'A:' + eA.message; }
+
+      // Método B: mail.message + notification_ids (inbox directo)
+      if (!msgId) {
+        try {
+          msgId = await odooCall('mail.message', 'create', [{
+            message_type: 'user_notification',
+            model: 'res.partner',
+            res_id: partnerId,
+            body,
+            partner_ids: [[6, 0, [partnerId]]],
+            subject: 'Prueba de notificación — Dashboard Despachos',
+            notification_ids: [[0, 0, { notification_type: 'inbox', res_partner_id: partnerId, is_read: false }]],
+          }]);
+          method = 'mail.message.create+notification';
+        } catch(eB) { err = (err||'') + ' B:' + eB.message; }
+      }
+
+      // Método C: mail.message simple (fallback)
+      if (!msgId) {
+        try {
+          msgId = await odooCall('mail.message', 'create', [{
+            message_type: 'user_notification',
+            model: false, res_id: false,
+            body,
+            partner_ids: [[4, partnerId]],
+            subject: 'Prueba de notificación — Dashboard Despachos',
+          }]);
+          method = 'mail.message.create.simple';
+        } catch(eC) { err = (err||'') + ' C:' + eC.message; }
+      }
+
+      if (!msgId) return sendJson(res, 500, { ok: false, error: 'Todos los métodos fallaron: ' + err });
+
+      return sendJson(res, 200, { ok: true, msgId, partnerId, userName, method });
     } catch (e) {
       console.error('[test-notify] error:', e);
       return sendJson(res, 500, { ok: false, error: e.message });

@@ -11743,7 +11743,7 @@ async function testSinAdjNotif(){
     });
     var data = await resp.json();
     if (data.ok) {
-      alert('✅ Notificación de prueba enviada a tu inbox de Odoo Discuss.\n\nUsuario: ' + data.userName + '\nPartner ID: ' + data.partnerId + '\nMessage ID: ' + data.msgId + '\n\nRevisa tu Discuss en Odoo.');
+      alert('✅ Notificación de prueba enviada.\nMétodo: ' + data.method + '\nUsuario: ' + data.userName + '\nPartner ID: ' + data.partnerId + '\nMessage ID: ' + data.msgId + '\n\nRevisa:\n• Discuss → Bandeja de entrada\n• Discuss → Charla (si es mensaje directo)\n• Contactos → tu ficha → pestaña Mensajes');
     } else {
       var diagStr = data.diag ? '\n\nDiagnóstico:\n' + JSON.stringify(data.diag, null, 2) : '';
       alert('❌ Error al enviar prueba:\n' + (data.error || 'Error desconocido') + diagStr);
