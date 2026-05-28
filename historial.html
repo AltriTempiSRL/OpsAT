@@ -1117,16 +1117,11 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* Buscador Reposición */
 .rs-search-wrap{position:relative;display:inline-flex;align-items:center;flex:1;min-width:140px;max-width:480px}
 /* Barra de familias */
-#rs-familia-bar{display:flex;align-items:center;gap:0;padding:8px 0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-bottom:1px solid var(--border-light);margin-bottom:6px}
-#rs-familia-bar::-webkit-scrollbar{display:none}
-.rs-fchip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;margin-right:6px}
-.rs-fchip:hover{border-color:var(--brand);color:var(--brand);background:var(--surface)}
-.rs-fchip.active{background:var(--brand);border-color:var(--brand);color:#fff}
-.rs-fchip.rs-fchip-all{border-style:dashed}
-.rs-fchip-count{font-size:10px;opacity:.7;font-weight:700}
+#rs-familia-bar{padding:6px 0 4px;margin-bottom:4px}
+#rs-familia-select{width:100%;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:13px;cursor:pointer;outline:none;transition:border-color .15s}
+#rs-familia-select:focus{border-color:var(--border-focus)}
 @media(max-width:700px){
-  #rs-familia-bar{padding:10px 0 6px;gap:0}
-  .rs-fchip{font-size:12px;padding:7px 14px;margin-right:7px}
+  #rs-familia-select{font-size:16px;min-height:44px;padding:10px 12px}
 }
 .rs-search-icon{position:absolute;left:8px;width:13px;height:13px;color:var(--text-muted);pointer-events:none;flex-shrink:0}
 .rs-search-input{width:100%;padding:5px 28px 5px 26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .15s}
@@ -9893,8 +9888,9 @@ function setRsAlmFilter(val) {
 
 /* ── Barra de familias ───────────────────────────── */
 function setRsFamily(f) {
-  _rsFamily = (_rsFamily === f) ? '' : f; // toggle
-  _rsRenderFamiliaBar();
+  _rsFamily = f || '';
+  var sel = document.getElementById('rs-familia-select');
+  if (sel) sel.value = _rsFamily;
   renderReposicion();
 }
 
@@ -9910,17 +9906,15 @@ function _rsRenderFamiliaBar() {
   if (!familias.length) { bar.style.display = 'none'; return; }
 
   var total = _rsItems.length;
-  var allActive = !_rsFamily ? ' active' : '';
-  var html = '<button class="rs-fchip rs-fchip-all'+allActive+'" onclick="setRsFamily(\'\')">'
-    + 'Todas <span class="rs-fchip-count">'+total+'</span></button>';
+  var html = '<select id="rs-familia-select" onchange="setRsFamily(this.value)">'
+    + '<option value="">Todas las familias — '+total+' artículos</option>';
   html += familias.map(function(f) {
-    var active = _rsFamily === f ? ' active' : '';
-    var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return '<button class="rs-fchip'+active+'" onclick="setRsFamily(\''+safe+'\')">'
-      + esc(f) + ' <span class="rs-fchip-count">'+counts[f]+'</span></button>';
+    var sel = _rsFamily === f ? ' selected' : '';
+    return '<option value="'+esc(f)+'"'+sel+'>'+esc(f)+' — '+counts[f]+' artículos</option>';
   }).join('');
+  html += '</select>';
   bar.innerHTML = html;
-  bar.style.display = 'flex';
+  bar.style.display = 'block';
 }
 
 function setRsSearch(val) {
