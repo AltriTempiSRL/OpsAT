@@ -9459,18 +9459,25 @@ async function solCancel(solId, chkEl) {
       method: 'PATCH',
       body: JSON.stringify({ status: 'cancelado' })
     });
+    // Verificar que sea JSON antes de parsear
+    var ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      var text = await r.text();
+      throw new Error('Respuesta inesperada del servidor (HTTP '+r.status+'). Recarga la página e intenta de nuevo.');
+    }
     var d = await r.json();
     if (d.ok) {
       var idx = _solicitudes.findIndex(function(s){ return s.id === solId; });
       if (idx !== -1) _solicitudes[idx] = d.solicitud;
       if (chkEl) chkEl.checked = false;
       if (document.getElementById('sol-tbody')) renderSolicitudes();
+      _rsRenderGlobal(); // refrescar checkboxes en resultados globales si están visibles
     } else {
       alert('Error: ' + (d.error || 'desconocido'));
       if (chkEl) chkEl.checked = true;
     }
   } catch(e) {
-    alert('Error de conexión: ' + e.message);
+    alert('Error: ' + e.message);
     if (chkEl) chkEl.checked = true;
   }
 }
@@ -9658,8 +9665,8 @@ async function solCancelFromList(solId) {
   var nombre = sol ? (sol.name || 'este artículo') : 'este artículo';
   if (!confirm('¿Cancelar la solicitud de "'+nombre+'"?')) return;
   await solCancel(solId, null);
-  // También desmarcar el checkbox en la tabla RS si está visible
-  renderReposicion();
+  // Refrescar checkboxes en RS si la tabla está visible
+  if (_rsItems.length) renderReposicion();
 }
 
 /** Imprime las solicitudes activas en PDF */
