@@ -1114,18 +1114,17 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rs-btn-refresh:disabled{opacity:.4;cursor:not-allowed}
 /* Buscador Reposición */
 .rs-search-wrap{position:relative;display:inline-flex;align-items:center;flex:1;min-width:140px;max-width:220px}
-/* Panel de familias */
-.rs-familia-panel{position:absolute;top:calc(100% + 5px);left:0;min-width:280px;max-width:420px;background:var(--surface);border:1.5px solid var(--border-focus);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.13);z-index:999;padding:10px;display:none}
-.rs-familia-panel.open{display:block}
-.rs-familia-panel-title{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px;padding:0 2px}
-.rs-familia-chips{display:flex;flex-wrap:wrap;gap:5px}
-.rs-fchip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
-.rs-fchip:hover{border-color:var(--brand);color:var(--brand)}
+/* Barra de familias */
+#rs-familia-bar{display:flex;align-items:center;gap:0;padding:8px 0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-bottom:1px solid var(--border-light);margin-bottom:6px}
+#rs-familia-bar::-webkit-scrollbar{display:none}
+.rs-fchip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;margin-right:6px}
+.rs-fchip:hover{border-color:var(--brand);color:var(--brand);background:var(--surface)}
 .rs-fchip.active{background:var(--brand);border-color:var(--brand);color:#fff}
-.rs-fchip-count{font-size:10px;opacity:.75}
+.rs-fchip.rs-fchip-all{border-style:dashed}
+.rs-fchip-count{font-size:10px;opacity:.7;font-weight:700}
 @media(max-width:700px){
-  .rs-familia-panel{position:fixed;left:12px;right:12px;top:auto;min-width:0;max-width:none;border-radius:14px;padding:14px}
-  .rs-fchip{font-size:12px;padding:6px 12px}
+  #rs-familia-bar{padding:10px 0 6px;gap:0}
+  .rs-fchip{font-size:12px;padding:7px 14px;margin-right:7px}
 }
 .rs-search-icon{position:absolute;left:8px;width:13px;height:13px;color:var(--text-muted);pointer-events:none;flex-shrink:0}
 .rs-search-input{width:100%;padding:5px 28px 5px 26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .15s}
@@ -3464,18 +3463,12 @@ body{font-family:var(--font);min-height:100dvh}
           </select>
           <div class="rs-search-wrap" id="rs-search-wrap">
             <i data-lucide="search" class="rs-search-icon"></i>
-            <input id="rs-search-input" class="rs-search-input" type="search" placeholder="Buscar o filtrar por familia…" autocomplete="off"
+            <input id="rs-search-input" class="rs-search-input" type="search" placeholder="Buscar…" autocomplete="off"
               oninput="setRsSearch(this.value)"
-              onfocus="rsShowFamiliaPanel()"
-              onkeydown="if(event.key==='Enter'||event.key==='Search'){this.blur();rsFamiliaClose();}">
+              onkeydown="if(event.key==='Enter'||event.key==='Search')this.blur();">
             <button id="rs-search-clear" class="rs-search-clear" onclick="clearRsSearch()" title="Limpiar búsqueda" style="display:none">
               <i data-lucide="x"></i>
             </button>
-            <!-- Panel de familias -->
-            <div class="rs-familia-panel" id="rs-familia-panel">
-              <div class="rs-familia-panel-title">Filtrar por familia</div>
-              <div class="rs-familia-chips" id="rs-familia-chips"></div>
-            </div>
           </div>
           <button class="rs-btn-refresh" id="rs-btn-analizar" onclick="runReposicionAnalysis()" title="Actualizar">
             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
@@ -3486,6 +3479,9 @@ body{font-family:var(--font);min-height:100dvh}
 
       <!-- KPIs -->
       <div class="cont-stats" id="rs-stats" style="display:none"></div>
+
+      <!-- Barra de familias -->
+      <div id="rs-familia-bar" style="display:none"></div>
 
       <!-- Tabla resultados -->
       <div class="mv-wrap" id="rs-table-wrap" style="display:none">
@@ -9896,54 +9892,37 @@ function setRsAlmFilter(val) {
   renderReposicion();
 }
 
-/* ── Familia panel ────────────────────────────────── */
-function rsShowFamiliaPanel() {
-  if (!_rsItems.length) return;
-  _rsRenderFamiliaChips();
-  var panel = document.getElementById('rs-familia-panel');
-  if (panel) panel.classList.add('open');
-}
-
-function rsFamiliaClose() {
-  var panel = document.getElementById('rs-familia-panel');
-  if (panel) panel.classList.remove('open');
-}
-
+/* ── Barra de familias ───────────────────────────── */
 function setRsFamily(f) {
   _rsFamily = (_rsFamily === f) ? '' : f; // toggle
-  _rsRenderFamiliaChips();
+  _rsRenderFamiliaBar();
   renderReposicion();
-  // En móvil cerrar panel tras seleccionar
-  if (window.innerWidth <= 700) rsFamiliaClose();
 }
 
-function _rsRenderFamiliaChips() {
-  var chips = document.getElementById('rs-familia-chips');
-  if (!chips) return;
-  // Construir mapa familia → count desde los ítems visibles (sin filtro familia)
+function _rsRenderFamiliaBar() {
+  var bar = document.getElementById('rs-familia-bar');
+  if (!bar) return;
+  // Contar por familia en TODOS los ítems (sin aplicar filtro familia)
   var counts = {};
   _rsItems.forEach(function(i) {
     if (i.familia) counts[i.familia] = (counts[i.familia] || 0) + 1;
   });
   var familias = Object.keys(counts).sort();
-  if (!familias.length) { rsFamiliaClose(); return; }
-  var html = familias.map(function(f) {
-    var active = _rsFamily === f ? ' active' : '';
-    return '<button class="rs-fchip'+active+'" onclick="setRsFamily(\''+esc(f).replace(/'/g,"\\'")+'\')">'
-      + esc(f) + '<span class="rs-fchip-count">'+counts[f]+'</span></button>';
-  }).join('');
-  // Chip "Todas" al inicio si hay familia activa
-  if (_rsFamily) {
-    html = '<button class="rs-fchip" onclick="setRsFamily(\'\')">✕ Todas</button>' + html;
-  }
-  chips.innerHTML = html;
-}
+  if (!familias.length) { bar.style.display = 'none'; return; }
 
-// Cerrar panel al hacer click fuera
-document.addEventListener('click', function(e) {
-  var wrap = document.getElementById('rs-search-wrap');
-  if (wrap && !wrap.contains(e.target)) rsFamiliaClose();
-}, true);
+  var total = _rsItems.length;
+  var allActive = !_rsFamily ? ' active' : '';
+  var html = '<button class="rs-fchip rs-fchip-all'+allActive+'" onclick="setRsFamily(\'\')">'
+    + 'Todas <span class="rs-fchip-count">'+total+'</span></button>';
+  html += familias.map(function(f) {
+    var active = _rsFamily === f ? ' active' : '';
+    var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<button class="rs-fchip'+active+'" onclick="setRsFamily(\''+safe+'\')">'
+      + esc(f) + ' <span class="rs-fchip-count">'+counts[f]+'</span></button>';
+  }).join('');
+  bar.innerHTML = html;
+  bar.style.display = 'flex';
+}
 
 function setRsSearch(val) {
   _rsSearch = (val || '').trim();
@@ -9966,6 +9945,7 @@ function clearRsSearch() {
   if (inp) { inp.value = ''; inp.focus(); }
   _rsGlobalItems = [];
   _rsFamily = '';
+  _rsRenderFamiliaBar();
   _rsRenderGlobal();
   setRsSearch('');
 }
@@ -10132,7 +10112,7 @@ async function runReposicionAnalysis(){
 
     _rsItems    = d.items || [];
     if (d._meta) console.log('[Reposición _meta]', JSON.stringify(d._meta));
-    _rsFamily   = '';       // reset filtro familia
+    _rsFamily   = '';
     _rsAlmOpen  = {};       // reset estado abierto/cerrado al cargar nuevos datos
     _rsAlmFilter = 'all';   // reset filtro almacén
     _rsSearch      = '';    // reset búsqueda
@@ -10182,6 +10162,7 @@ async function runReposicionAnalysis(){
       (maxDias>0?'<div class="cont-stat rs-clickable" id="rs-stat-antiguos" onclick="setRsFilter(\'antiguos\')"><div class="cont-stat-num">'+maxDias+'d</div><div class="cont-stat-lbl">Máx. días sin showroom</div></div>':'');
     stats.style.display = 'flex';
 
+    _rsRenderFamiliaBar();
     renderReposicion();
   } catch(e) {
     if (btn) { btn.disabled = false; }
