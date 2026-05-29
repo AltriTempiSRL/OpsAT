@@ -9329,6 +9329,45 @@ function solForItem(productId, source) {
   }) || null;
 }
 
+/** Busca solicitud para un padre sintético (productId=null) por barcode */
+function solForSynth(barcode, source) {
+  return _solicitudes.find(function(s) {
+    return (s.status === 'activo' || s.status === 'completado')
+        && s.source === source && s.productId === null && s.barcode === barcode;
+  }) || null;
+}
+
+/** Toggle checkbox para padres sintéticos (sin producto en stock) */
+function solToggleSynth(chkEl, barcode) {
+  var sol = solForSynth(barcode, 'reposicion');
+  // Tomar datos representativos del primer hijo que coincida
+  var bcRx = /^(\d)(\d)(\d)\.(.+)$/;
+  var rep = _rsItems.find(function(i) {
+    var m = bcRx.exec(i.barcode || '');
+    if (!m || m[2] === '0') return false;
+    return (m[1] + '0' + m[3] + '.' + m[4]) === barcode;
+  }) || {};
+  var name = rep.name || barcode;
+  if (sol) {
+    if (sol.status === 'completado') {
+      chkEl.checked = true;
+      toast('Este artículo ya fue transferido al showroom — solicitud completada automáticamente.');
+      return;
+    }
+    if (!confirm('¿Cancelar la solicitud de "'+name+'"?')) { chkEl.checked = true; return; }
+    solCancel(sol.id, chkEl);
+  } else {
+    chkEl.checked = false;
+    solCreateDirect({
+      productId: null, name: name,
+      ref: barcode, barcode: barcode,
+      almacen: rep.almacen || '', ubicacion: rep.ubicacion || '',
+      imageBase64: rep.image || '',
+      source: 'reposicion', chkEl: chkEl
+    });
+  }
+}
+
 /** Busca solicitud activa o completada para un item de Contenedores (por contId = barcode/ref) */
 function solForContItem(contId) {
   return _solicitudes.find(function(s) {
@@ -10413,12 +10452,23 @@ function renderReposicion(){
         var cama = u.cama, idx = cama.idx, parent = cama.parent;
 
         if (cama.synthetic) {
-          // ── Padre sintético: cabecera colapsable con código d2=0, sin checkbox ──
+          // ── Padre sintético: cabecera colapsable con código d2=0 + checkbox ──
+          var solS = solForSynth(parent.barcode, 'reposicion');
+          var chkdS = solS && (solS.status === 'activo' || solS.status === 'completado');
+          var isCompS = solS && solS.status === 'completado';
+          var bcSafe = parent.barcode.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          var chkHtmlS = '<div class="sol-chk-wrap">'
+            + '<input type="checkbox" class="sol-chk" '+(chkdS?'checked':'')
+            + (isCompS
+                ? ' disabled style="accent-color:#059669;opacity:1" title="Transferido al showroom ✓"'
+                : ' onchange="solToggleSynth(this,\''+bcSafe+'\')" title="Solicitar para showroom"')
+            + '></div>';
           var imgH = parent.image
             ? '<img style="width:36px;height:36px;object-fit:contain;border-radius:4px;border:1px solid var(--border-light);flex-shrink:0" src="data:image/png;base64,'+parent.image+'" alt="">'
             : '<div style="width:36px;height:36px;background:var(--surface-3);border-radius:4px;flex-shrink:0"></div>';
           html += '<tr class="rs-alm-row-'+almKey+' rs-set-hdr cont-btc-hdr" onclick="event.stopPropagation();rsCamaToggle(\''+idx+'\')" style="'+rowStyle+';cursor:pointer">'
-            + '<td colspan="'+COLS+'" style="padding:7px 12px">'
+            + '<td style="text-align:center;width:1%;white-space:nowrap;padding:6px 8px" onclick="event.stopPropagation()">'+chkHtmlS+'</td>'
+            + '<td colspan="'+(COLS-1)+'" style="padding:7px 12px">'
             + '<div style="display:flex;align-items:center;gap:8px">'
             + imgH
             + '<span style="font-size:12px;font-weight:800;color:var(--text-primary);font-family:monospace;flex-shrink:0">'+esc(parent.barcode)+'</span>'
