@@ -2722,34 +2722,43 @@ const server = http.createServer(async (req, res) => {
               { fields: ['id','product_id','date','reference'], limit: 2000 }
             );
 
-            // Primer movimiento DONE por producto (fecha más temprana)
-            const mvByProd = {};
+            // Agrupar todos los movimientos por producto (guardar todos, no solo uno)
+            const mvByProd = {}; // pid → [{ date, ref }, ...]
             moves.forEach(m => {
               const pid = m.product_id[0];
-              if (!mvByProd[pid] || m.date < mvByProd[pid].date)
-                mvByProd[pid] = { date: m.date, ref: m.reference || '' };
+              if (!mvByProd[pid]) mvByProd[pid] = [];
+              mvByProd[pid].push({ date: m.date, ref: m.reference || '' });
             });
 
-            // 4. Marcar completadas (solo si el movimiento es posterior a la solicitud)
-            // Odoo devuelve fechas con espacio ("2026-05-28 14:00:00") y fechaSolicitud
-            // es ISO con T ("2026-05-28T14:00:00.000Z"). Normalizar antes de comparar
-            // para evitar que espacio < T cause falsos negativos el mismo día.
+            // 4. Marcar completadas:
+            //    Busca si ALGÚN movimiento hacia showroom ocurrió después de la solicitud.
+            //    Tolerancia: acepta movimientos hasta 48h ANTES de la solicitud (cubre casos
+            //    donde el operario transfirió en Odoo antes de marcar la solicitud).
+            //
+            //    Normalización de fechas: Odoo usa espacio ("2026-05-28 14:00:00"),
+            //    fechaSolicitud es ISO con T. Se convierten a timestamp para comparar.
             function parseFecha(s) {
               if (!s) return 0;
               const norm = s.includes('T') ? s : s.replace(' ', 'T') + 'Z';
               return Date.parse(norm) || 0;
             }
+            const TOLERANCIA_MS = 48 * 60 * 60 * 1000; // 48 horas de tolerancia
             let changed = false;
             list.forEach(sol => {
               if (sol.status !== 'activo') return;
               const pid = prodIdMap[sol.id];
               if (!pid) return;
-              const mv = mvByProd[pid];
-              if (!mv) return;
-              if (parseFecha(mv.date) >= parseFecha(sol.fechaSolicitud)) {
+              const movs = mvByProd[pid];
+              if (!movs || !movs.length) return;
+              const solTs = parseFecha(sol.fechaSolicitud);
+              // Buscar cualquier movimiento dentro de la ventana: (solicitud - 48h) en adelante
+              const match = movs
+                .filter(mv => parseFecha(mv.date) >= (solTs - TOLERANCIA_MS))
+                .sort((a, b) => parseFecha(b.date) - parseFecha(a.date))[0]; // más reciente primero
+              if (match) {
                 sol.status          = 'completado';
-                sol.fechaCompletado = mv.date;
-                sol.completadoRef   = mv.ref;
+                sol.fechaCompletado = match.date;
+                sol.completadoRef   = match.ref;
                 sol.completadoPor   = { id: 'sistema', name: 'Sistema (Odoo)' };
                 changed = true;
               }
