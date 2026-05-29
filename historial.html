@@ -1117,23 +1117,30 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* Buscador Reposición */
 .rs-search-wrap{position:relative;display:inline-flex;align-items:center;flex:1;min-width:140px;max-width:480px}
 /* Barra de familias */
+/* ── Filtro familia: dropdown custom scrolleable ─────────────────────────── */
 #rs-familia-bar{padding:6px 0 4px;margin-bottom:4px;position:relative}
-.rs-seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:100%}
-.rs-seg{padding:5px 14px;font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--surface);cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;transition:background .12s,color .12s;user-select:none}
-.rs-seg:last-child{border-right:none}
-.rs-seg:hover{background:var(--surface-2);color:var(--text-primary)}
-.rs-seg.active{background:var(--brand);color:#fff;border-color:var(--brand)}
-.rs-seg.active+.rs-seg{border-left-color:var(--brand)}
-.rs-seg-more{position:relative}
-.rs-seg-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:180px;padding:4px}
-.rs-seg-panel.open{display:block}
-.rs-seg-opt{padding:7px 14px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.rs-seg-opt:hover{background:var(--surface-2);color:var(--text-primary)}
-.rs-seg-opt.active{color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
-.rs-seg-opt-count{font-size:10px;opacity:.65;font-weight:700}
-@media(max-width:700px){.rs-seg{padding:7px 12px;font-size:12px}}
+.rs-fam-btn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;transition:border-color .15s,color .15s;min-width:200px;max-width:100%;user-select:none}
+.rs-fam-btn:hover{border-color:var(--border-focus);color:var(--text-primary)}
+.rs-fam-btn.has-filter{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
+.rs-fam-btn-label{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rs-fam-btn-arrow{font-size:10px;transition:transform .2s;flex-shrink:0}
+.rs-fam-btn.open .rs-fam-btn-arrow{transform:rotate(180deg)}
+.rs-fam-dropdown{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);width:260px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.rs-fam-dropdown.open{display:block}
+.rs-fam-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-bottom:1px solid var(--border-light)}
+.rs-fam-opt:last-child{border-bottom:none}
+.rs-fam-opt:hover{background:var(--surface-2);color:var(--text-primary)}
+.rs-fam-opt.active{color:var(--brand)}
+.rs-fam-opt.active::before{content:'✓';margin-right:2px;font-size:11px}
+.rs-fam-opt-count{font-size:10px;font-weight:700;opacity:.6;background:var(--surface-3);padding:1px 6px;border-radius:8px;flex-shrink:0}
+/* Mobile: dropdown ocupa ancho completo y toca fondo */
 @media(max-width:700px){
-  .rs-seg{padding:8px 13px;font-size:12px;min-height:40px}
+  .rs-fam-btn{min-width:0;width:100%;font-size:13px;padding:10px 14px;min-height:44px}
+  .rs-fam-dropdown{width:100%;max-height:55vh;border-radius:12px}
+  .rs-fam-opt{padding:13px 16px;font-size:13px;min-height:48px}
+}
+@media(max-width:700px){
+  /* rs-fam mobile ya cubierto en bloque de estilos base */
 }
 .rs-search-icon{position:absolute;left:8px;width:13px;height:13px;color:var(--text-muted);pointer-events:none;flex-shrink:0}
 .rs-search-input{width:100%;padding:5px 28px 5px 26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .15s}
@@ -9998,29 +10005,33 @@ function setRsAlmFilter(val) {
 }
 
 /* ── Barra de familias ───────────────────────────── */
-var _rsFamPanelOpen = false;
+var _rsFamDropOpen = false;
 
 function setRsFamily(f) {
   _rsFamily = (f === _rsFamily) ? '' : (f || '');
-  _rsFamPanelOpen = false;
+  _rsFamDropOpen = false;
   _rsRenderFamiliaBar();
   renderReposicion();
 }
 
-function _rsFamTogglePanel() {
-  _rsFamPanelOpen = !_rsFamPanelOpen;
-  var panel = document.getElementById('rs-fam-panel');
-  if (panel) panel.classList.toggle('open', _rsFamPanelOpen);
+function _rsFamToggle() {
+  _rsFamDropOpen = !_rsFamDropOpen;
+  var btn  = document.getElementById('rs-fam-btn');
+  var drop = document.getElementById('rs-fam-drop');
+  if (btn)  btn.classList.toggle('open', _rsFamDropOpen);
+  if (drop) drop.classList.toggle('open', _rsFamDropOpen);
 }
 
-// Cerrar panel al hacer click fuera
+// Cerrar al click fuera
 document.addEventListener('click', function(e) {
-  if (!_rsFamPanelOpen) return;
+  if (!_rsFamDropOpen) return;
   var bar = document.getElementById('rs-familia-bar');
   if (bar && !bar.contains(e.target)) {
-    _rsFamPanelOpen = false;
-    var panel = document.getElementById('rs-fam-panel');
-    if (panel) panel.classList.remove('open');
+    _rsFamDropOpen = false;
+    var btn  = document.getElementById('rs-fam-btn');
+    var drop = document.getElementById('rs-fam-drop');
+    if (btn)  btn.classList.remove('open');
+    if (drop) drop.classList.remove('open');
   }
 });
 
@@ -10034,37 +10045,26 @@ function _rsRenderFamiliaBar() {
   var familias = Object.keys(counts).sort();
   if (!familias.length) { bar.style.display = 'none'; return; }
 
-  var total = _rsItems.length;
-  var MAX_VISIBLE = 5; // máximo segmentos visibles (sin contar Todas y +más)
-  var visible = familias.slice(0, MAX_VISIBLE);
-  var overflow = familias.slice(MAX_VISIBLE);
+  var total  = _rsItems.length;
+  var label  = _rsFamily ? _rsFamily + ' — ' + (counts[_rsFamily]||0) + ' artículos' : 'Familia · ' + familias.length + ' categorías';
+  var hasFilter = _rsFamily ? ' has-filter' : '';
+  var isOpen    = _rsFamDropOpen ? ' open' : '';
 
-  // Segmentos visibles
-  var allActive = !_rsFamily ? ' active' : '';
-  var segs = '<div class="rs-seg'+allActive+'" onclick="setRsFamily(\'\')">Todas <span style="opacity:.6;font-size:10px">'+total+'</span></div>';
-  segs += visible.map(function(f) {
+  // Opción "Todas"
+  var opts = '<div class="rs-fam-opt'+(!_rsFamily?' active':'')+'" onclick="setRsFamily(\'\')">Todas las familias<span class="rs-fam-opt-count">'+total+'</span></div>';
+  opts += familias.map(function(f) {
     var active = _rsFamily === f ? ' active' : '';
-    var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return '<div class="rs-seg'+active+'" onclick="setRsFamily(\''+safe+'\')">'+esc(f)+' <span style="opacity:.6;font-size:10px">'+counts[f]+'</span></div>';
+    var safe   = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div class="rs-fam-opt'+active+'" onclick="setRsFamily(\''+safe+'\')">'+esc(f)+'<span class="rs-fam-opt-count">'+counts[f]+'</span></div>';
   }).join('');
 
-  // Panel overflow
-  var overflowHtml = '';
-  if (overflow.length) {
-    var moreActive = overflow.indexOf(_rsFamily) !== -1 ? ' active' : '';
-    var panelOpen = _rsFamPanelOpen ? ' open' : '';
-    var panelItems = overflow.map(function(f) {
-      var active = _rsFamily === f ? ' active' : '';
-      var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return '<div class="rs-seg-opt'+active+'" onclick="setRsFamily(\''+safe+'\')">'+esc(f)+'<span class="rs-seg-opt-count">'+counts[f]+'</span></div>';
-    }).join('');
-    overflowHtml = '<div class="rs-seg rs-seg-more'+moreActive+'" onclick="event.stopPropagation();_rsFamTogglePanel()">'
-      + '+ '+overflow.length+' más'
-      + '<div class="rs-seg-panel'+panelOpen+'" id="rs-fam-panel">'+panelItems+'</div>'
-      + '</div>';
-  }
+  bar.innerHTML =
+    '<div id="rs-fam-btn" class="rs-fam-btn'+hasFilter+isOpen+'" onclick="event.stopPropagation();_rsFamToggle()">'
+    + '<span class="rs-fam-btn-label">'+esc(label)+'</span>'
+    + '<span class="rs-fam-btn-arrow">▾</span>'
+    + '</div>'
+    + '<div id="rs-fam-drop" class="rs-fam-dropdown'+isOpen+'">'+opts+'</div>';
 
-  bar.innerHTML = '<div class="rs-seg-wrap">'+segs+overflowHtml+'</div>';
   bar.style.display = 'block';
 }
 
