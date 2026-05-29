@@ -21,7 +21,10 @@ function saveJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-// ── Leer credenciales desde .env.txt (opcional en producción) ───────────────
+// ── Leer credenciales desde archivo .env / .env.txt ──────────────────────────
+// Carga temprana: las vars del archivo se inyectan en process.env ANTES de
+// que se usen DATA_DIR y el resto de constantes de configuración.
+// process.env (variables de Render) siempre tienen prioridad sobre el archivo.
 function loadEnv(filename) {
   const candidates = [filename, path.join(__dirname, filename)];
   for (const f of candidates) {
@@ -29,18 +32,25 @@ function loadEnv(filename) {
       const lines = fs.readFileSync(f, 'utf-8').split('\n');
       const env = {};
       lines.forEach(line => {
-        const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.+)\s*$/);
+        const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.+)\s*$/);
         if (m) env[m[1]] = m[2].trim();
       });
       return env;
     }
   }
-  // En producción (Render) no hay .env.txt — las vars vienen de process.env
   return {};
 }
+// Inyectar variables del archivo .env (o .env.txt) en process.env si no existen ya
+(function applyEnvFile() {
+  const fileEnv = loadEnv('.env');
+  const src = Object.keys(fileEnv).length ? fileEnv : loadEnv('.env.txt');
+  for (const [k, v] of Object.entries(src)) {
+    if (process.env[k] === undefined) process.env[k] = v;
+  }
+})();
 
 // ── Directorio de datos persistentes ────────────────────────────────────────
-// En Render: DATA_DIR=/data (disco persistente). En local: carpeta del proyecto.
+// En Render: DATA_DIR=/data (disco persistente). En local: ./data-local (desde .env)
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -349,15 +359,14 @@ function seedAuthUsers() {
   console.warn('🔐 WWP Auth: usuarios iniciales creados (contraseña default: WWP2026!)');
 }
 
-const ENV        = loadEnv('.env.txt');
-// process.env tiene prioridad (Render), luego .env.txt (desarrollo local)
-const ODOO_URL   = process.env.ODOO_URL   || ENV.ODOO_URL   || '';
-const ODOO_DB    = process.env.ODOO_DB    || ENV.ODOO_DB    || '';
-const ODOO_USER  = process.env.ODOO_USER  || ENV.ODOO_USER  || '';
-const ODOO_KEY   = process.env.ODOO_API_KEY || ENV.ODOO_API_KEY || '';
+// Todas las vars ya están en process.env (inyectadas al inicio desde .env / Render)
+const ODOO_URL   = process.env.ODOO_URL   || '';
+const ODOO_DB    = process.env.ODOO_DB    || '';
+const ODOO_USER  = process.env.ODOO_USER  || '';
+const ODOO_KEY   = process.env.ODOO_API_KEY || '';
 const PORT       = parseInt(process.env.PORT || '3000', 10);
-const odooOrigin = ODOO_URL ? new url.URL(ODOO_URL).origin : ''; // vacío si no está configurado
-const COMPANY_NAME = process.env.COMPANY_NAME || ENV.COMPANY_NAME || 'Altri Tempi';
+const odooOrigin = ODOO_URL ? new url.URL(ODOO_URL).origin : '';
+const COMPANY_NAME = process.env.COMPANY_NAME || 'Altri Tempi';
 
 // ── Notificaciones vía Odoo Discuss (sin SMTP) ───────────────────────────────
 // Construye el HTML que aparecerá en el inbox de Discuss del usuario

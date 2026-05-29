@@ -36,3 +36,8 @@ backups/
 # ── Herramientas de desarrollo ────────────────────────────────────────────────
 .claude/
 .netlify/
+
+# ── Entorno local de desarrollo ───────────────────────────────────────────────
+.env
+data-local/
+stress-test.js
