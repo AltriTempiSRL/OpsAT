@@ -10744,8 +10744,15 @@ function renderReposicion(){
 
   // ── 4. Agrupar unidades por almacén primario ──────────────────────────────
   function primaryAlm(u) {
-    var s = u.type === 'item' ? (u.item.almacen||'—') : (u.cama.parent.almacen||'—');
-    return s.split(' · ')[0].trim() || '—';
+    if (u.type === 'item') {
+      return (u.item.almacen||'—').split(' · ')[0].trim() || '—';
+    }
+    // Para kits: el padre puede tener almacén '—' (stock=0),
+    // usar el almacén del primer hijo que tenga valor real.
+    var fromChild = u.cama.children
+      .map(function(c){ return (c.almacen||'').split(' · ')[0].trim(); })
+      .find(function(a){ return a && a !== '—'; });
+    return fromChild || (u.cama.parent.almacen||'—').split(' · ')[0].trim() || '—';
   }
 
   var almGroups = {}, almOrder = [];
