@@ -10305,8 +10305,8 @@ function renderReposicion(){
     else if (_rsFilter === 'con-cdp')  filtered = _rsItems.filter(function(i){ return i.qtyCdp > 0; });
   }
 
-  // ── 1b. Filtro por familia ────────────────────────────────────────────────
-  if (_rsFamily) {
+  // ── 1b. Filtro por familia (se ignora cuando hay búsqueda activa) ──────────
+  if (_rsFamily && !_rsSearch) {
     filtered = filtered.filter(function(i){ return i.familia === _rsFamily; });
   }
 
