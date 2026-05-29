@@ -10576,6 +10576,14 @@ function renderReposicion(){
     return String(va).localeCompare(String(vb)) * dir;
   });
 
+  // Garantizar que los padres kit (isKitParent) estén siempre en sorted para
+  // que el agrupamiento los encuentre con foto real, sin importar el filtro activo.
+  // Se agregan al final — son invisibles como filas sueltas (filtro !isKitParent).
+  var _sortedIdSet = new Set(sorted.map(function(i){ return i.id; }));
+  _rsItems.forEach(function(i){
+    if (i.isKitParent && !_sortedIdSet.has(i.id)) sorted.push(i);
+  });
+
   // ── 3. Agrupar por barcode (dual-formato) ────────────────────────────────
   // Formato 3D-A: d2 varía (=pieza), d3 constante → key=d1+d3+suffix, padre=d2=0
   // Formato 3D-B: d3 varía (=pieza), d2 constante → key=d1+d2+suffix, padre=d3=0
