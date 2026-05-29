@@ -1117,11 +1117,23 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* Buscador Reposición */
 .rs-search-wrap{position:relative;display:inline-flex;align-items:center;flex:1;min-width:140px;max-width:480px}
 /* Barra de familias */
-#rs-familia-bar{padding:6px 0 4px;margin-bottom:4px}
-#rs-familia-select{width:100%;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:13px;cursor:pointer;outline:none;transition:border-color .15s}
-#rs-familia-select:focus{border-color:var(--border-focus)}
+#rs-familia-bar{padding:6px 0 4px;margin-bottom:4px;position:relative}
+.rs-seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:100%}
+.rs-seg{padding:5px 14px;font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--surface);cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;transition:background .12s,color .12s;user-select:none}
+.rs-seg:last-child{border-right:none}
+.rs-seg:hover{background:var(--surface-2);color:var(--text-primary)}
+.rs-seg.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.rs-seg.active+.rs-seg{border-left-color:var(--brand)}
+.rs-seg-more{position:relative}
+.rs-seg-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:180px;padding:4px}
+.rs-seg-panel.open{display:block}
+.rs-seg-opt{padding:7px 14px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rs-seg-opt:hover{background:var(--surface-2);color:var(--text-primary)}
+.rs-seg-opt.active{color:var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent)}
+.rs-seg-opt-count{font-size:10px;opacity:.65;font-weight:700}
+@media(max-width:700px){.rs-seg{padding:7px 12px;font-size:12px}}
 @media(max-width:700px){
-  #rs-familia-select{font-size:16px;min-height:44px;padding:10px 12px}
+  .rs-seg{padding:8px 13px;font-size:12px;min-height:40px}
 }
 .rs-search-icon{position:absolute;left:8px;width:13px;height:13px;color:var(--text-muted);pointer-events:none;flex-shrink:0}
 .rs-search-input{width:100%;padding:5px 28px 5px 26px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .15s}
@@ -9986,17 +9998,35 @@ function setRsAlmFilter(val) {
 }
 
 /* ── Barra de familias ───────────────────────────── */
+var _rsFamPanelOpen = false;
+
 function setRsFamily(f) {
-  _rsFamily = f || '';
-  var sel = document.getElementById('rs-familia-select');
-  if (sel) sel.value = _rsFamily;
+  _rsFamily = (f === _rsFamily) ? '' : (f || '');
+  _rsFamPanelOpen = false;
+  _rsRenderFamiliaBar();
   renderReposicion();
 }
+
+function _rsFamTogglePanel() {
+  _rsFamPanelOpen = !_rsFamPanelOpen;
+  var panel = document.getElementById('rs-fam-panel');
+  if (panel) panel.classList.toggle('open', _rsFamPanelOpen);
+}
+
+// Cerrar panel al hacer click fuera
+document.addEventListener('click', function(e) {
+  if (!_rsFamPanelOpen) return;
+  var bar = document.getElementById('rs-familia-bar');
+  if (bar && !bar.contains(e.target)) {
+    _rsFamPanelOpen = false;
+    var panel = document.getElementById('rs-fam-panel');
+    if (panel) panel.classList.remove('open');
+  }
+});
 
 function _rsRenderFamiliaBar() {
   var bar = document.getElementById('rs-familia-bar');
   if (!bar) return;
-  // Contar por familia en TODOS los ítems (sin aplicar filtro familia)
   var counts = {};
   _rsItems.forEach(function(i) {
     if (i.familia) counts[i.familia] = (counts[i.familia] || 0) + 1;
@@ -10005,14 +10035,36 @@ function _rsRenderFamiliaBar() {
   if (!familias.length) { bar.style.display = 'none'; return; }
 
   var total = _rsItems.length;
-  var html = '<select id="rs-familia-select" onchange="setRsFamily(this.value)">'
-    + '<option value="">Todas las familias — '+total+' artículos</option>';
-  html += familias.map(function(f) {
-    var sel = _rsFamily === f ? ' selected' : '';
-    return '<option value="'+esc(f)+'"'+sel+'>'+esc(f)+' — '+counts[f]+' artículos</option>';
+  var MAX_VISIBLE = 5; // máximo segmentos visibles (sin contar Todas y +más)
+  var visible = familias.slice(0, MAX_VISIBLE);
+  var overflow = familias.slice(MAX_VISIBLE);
+
+  // Segmentos visibles
+  var allActive = !_rsFamily ? ' active' : '';
+  var segs = '<div class="rs-seg'+allActive+'" onclick="setRsFamily(\'\')">Todas <span style="opacity:.6;font-size:10px">'+total+'</span></div>';
+  segs += visible.map(function(f) {
+    var active = _rsFamily === f ? ' active' : '';
+    var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div class="rs-seg'+active+'" onclick="setRsFamily(\''+safe+'\')">'+esc(f)+' <span style="opacity:.6;font-size:10px">'+counts[f]+'</span></div>';
   }).join('');
-  html += '</select>';
-  bar.innerHTML = html;
+
+  // Panel overflow
+  var overflowHtml = '';
+  if (overflow.length) {
+    var moreActive = overflow.indexOf(_rsFamily) !== -1 ? ' active' : '';
+    var panelOpen = _rsFamPanelOpen ? ' open' : '';
+    var panelItems = overflow.map(function(f) {
+      var active = _rsFamily === f ? ' active' : '';
+      var safe = f.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      return '<div class="rs-seg-opt'+active+'" onclick="setRsFamily(\''+safe+'\')">'+esc(f)+'<span class="rs-seg-opt-count">'+counts[f]+'</span></div>';
+    }).join('');
+    overflowHtml = '<div class="rs-seg rs-seg-more'+moreActive+'" onclick="event.stopPropagation();_rsFamTogglePanel()">'
+      + '+ '+overflow.length+' más'
+      + '<div class="rs-seg-panel'+panelOpen+'" id="rs-fam-panel">'+panelItems+'</div>'
+      + '</div>';
+  }
+
+  bar.innerHTML = '<div class="rs-seg-wrap">'+segs+overflowHtml+'</div>';
   bar.style.display = 'block';
 }
 
