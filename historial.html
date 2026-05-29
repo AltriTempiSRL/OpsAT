@@ -10593,13 +10593,11 @@ function renderReposicion(){
     return String(va).localeCompare(String(vb)) * dir;
   });
 
-  // Garantizar que los padres kit (isKitParent) estén siempre en sorted para
-  // que el agrupamiento los encuentre con foto real, sin importar el filtro activo.
-  // Se agregan al final — son invisibles como filas sueltas (filtro !isKitParent).
-  var _sortedIdSet = new Set(sorted.map(function(i){ return i.id; }));
-  _rsItems.forEach(function(i){
-    if (i.isKitParent && !_sortedIdSet.has(i.id)) sorted.push(i);
-  });
+  // Mapa de padres kit por barcode (para enriquecer padres sintéticos con foto real).
+  // Los isKitParent NO entran en sorted — inyectarlos corrompe la detección de formato
+  // (ej: un padre Format-A potencial que existe en Odoo cambia d2Set y rompe Format B).
+  var _kitParentMap = {}; // barcode → item
+  _rsItems.forEach(function(i){ if (i.isKitParent) _kitParentMap[i.barcode || ''] = i; });
 
   // ── 3. Agrupar por barcode (dual-formato) ────────────────────────────────
   // Formato 3D-A: d2 varía (=pieza), d3 constante → key=d1+d3+suffix, padre=d2=0
@@ -10652,11 +10650,15 @@ function renderReposicion(){
     if (!synthetic) {
       parent = g.parent;
     } else {
-      var rep = g.children[0].item;
+      var rep    = g.children[0].item;
+      var synBC  = synBCFn(rep, subKey);
+      // Buscar padre real en el mapa de kit parents (imagen y nombre correctos de Odoo)
+      var kpi    = _kitParentMap[synBC] || null;
       parent = {
         id: null, synthetic: true,
-        barcode: synBCFn(rep, subKey), ref: synBCFn(rep, subKey),
-        name: rep.name, image: rep.image || '',
+        barcode: synBC, ref: synBC,
+        name:   kpi ? kpi.name  : rep.name,
+        image:  kpi ? (kpi.image || '') : (rep.image || ''),
         almacen: rep.almacen || '—', ubicacion: '',
         qtyAlm: 0, qtyCdp: 0,
         ultimaVez: null, diasSin: null,
@@ -10755,7 +10757,7 @@ function renderReposicion(){
 
   // Unidades de renderizado: artículos sueltos + grupos
   var units = [];
-  sorted.filter(function(item){ return !inGroup.has(item.id) && !item.isKitParent; })
+  sorted.filter(function(item){ return !inGroup.has(item.id); })
         .forEach(function(item){ units.push({ type:'item', item:item }); });
   groupUnits.forEach(function(u){ units.push(u); });
 
