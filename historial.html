@@ -1253,6 +1253,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .sol-badge-completado{display:inline-block;padding:2px 8px;border-radius:10px;background:#d1fae5;color:#065f46;font-size:10px;font-weight:700}
 .sol-cancel-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--red-text);font-size:11px;font-weight:600;cursor:pointer;transition:background .12s}
 .sol-cancel-btn:hover{background:var(--red-bg)}
+/* Grupos por usuario en solicitudes */
+.sol-user-hdr{background:var(--surface-2);cursor:pointer;user-select:none;border-top:2px solid var(--border)}
+.sol-user-hdr:hover{background:var(--surface-3)}
+.sol-user-hdr td{padding:6px 10px}
+.sol-user-hdr-name{font-size:12px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px}
+.sol-user-hdr-count{font-size:11px;font-weight:400;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0 7px}
+.sol-user-arrow{font-size:10px;transition:transform .2s;color:var(--text-muted)}
+/* Cards agrupadas en móvil */
+.sol-user-grp-hdr{padding:8px 12px;background:var(--surface-2);border-radius:8px;margin:10px 0 4px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;border:1px solid var(--border)}
+.sol-user-grp-hdr-name{font-size:12px;font-weight:700;color:var(--text-primary);flex:1}
+.sol-user-grp-count{font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0 7px}
+.sol-user-grp-arrow{font-size:10px;transition:transform .2s;color:var(--text-muted)}
 .sol-tab-btn{padding:5px 12px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-secondary);transition:background .12s,color .12s}
 .sol-tab-btn:hover{background:var(--surface-3)}
 .sol-tab-active{background:var(--surface)!important;color:var(--text-primary)!important;box-shadow:0 1px 3px rgba(0,0,0,.08)}
@@ -9337,6 +9349,7 @@ function toggleDept(el){
 var _solicitudes    = [];   // cache de solicitudes del servidor
 var _solFilter      = 'activo'; // 'activo' | 'cancelado' | 'all'
 var _solSynthOpen   = {};  // solId → bool (expansión hijos en solicitudes)
+var _solUserOpen    = {};  // userName → bool (grupos por usuario, true=abierto)
 var _solModalData   = null; // datos pendientes mientras el modal está abierto
 
 /** Contexto del contenedor actualmente analizado */
@@ -9801,19 +9814,92 @@ function renderSolicitudes() {
 
   var today = new Date();
 
+  // ── Agrupar por usuario ──────────────────────────────────────────────────
+  // Yudelka siempre primera; resto alfabético
+  var groupMap = {};
+  list.forEach(function(sol) {
+    var uname = sol.solicitadoPor ? sol.solicitadoPor.name : 'Sin asignar';
+    if (!groupMap[uname]) groupMap[uname] = [];
+    groupMap[uname].push(sol);
+  });
+  var userNames = Object.keys(groupMap).sort(function(a, b) {
+    var aY = a.toLowerCase().indexOf('yudelka') >= 0;
+    var bY = b.toLowerCase().indexOf('yudelka') >= 0;
+    if (aY && !bY) return -1;
+    if (!aY && bY) return 1;
+    return a.localeCompare(b, 'es');
+  });
+  // Inicializar grupos nuevos como abiertos
+  userNames.forEach(function(u) {
+    if (_solUserOpen[u] === undefined) _solUserOpen[u] = true;
+  });
+
   if (isMobile && cardsWrap) {
     // ── Vista tarjetas (móvil) ──
-    if (wrap)  wrap.style.display      = 'none';
+    if (wrap) wrap.style.display = 'none';
     cardsWrap.style.display = 'block';
-    cardsWrap.innerHTML = list.map(function(sol){ return _solCardHtml(sol, today); }).join('');
+    var mHtml = '';
+    userNames.forEach(function(uname) {
+      var sols = groupMap[uname];
+      var open = _solUserOpen[uname] !== false;
+      var firstName = uname.split(' ')[0];
+      var safeU = uname.replace(/'/g,"\\'");
+      mHtml += '<div class="sol-user-grp-hdr" onclick="solToggleUserGroup(\''+safeU+'\',false)">'
+        + '<span class="sol-user-grp-name" style="font-size:12px;font-weight:700;color:var(--text-primary);flex:1">'+esc(firstName)+'</span>'
+        + '<span class="sol-user-grp-count" style="font-size:11px;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0 7px">'+sols.length+'</span>'
+        + '<span id="sol-uarr-m-'+CSS.escape(uname)+'" style="font-size:10px;color:var(--text-muted);transition:transform .2s;display:inline-block;transform:'+(open?'rotate(90deg)':'rotate(0)')+'"">▶</span>'
+        + '</div>'
+        + '<div id="sol-ugrp-m-'+CSS.escape(uname)+'" style="display:'+(open?'block':'none')+'">'
+        + sols.map(function(sol){ return _solCardHtml(sol, today); }).join('')
+        + '</div>';
+    });
+    cardsWrap.innerHTML = mHtml;
   } else {
     // ── Vista tabla (desktop / tablet) ──
     if (cardsWrap) cardsWrap.style.display = 'none';
     if (wrap) wrap.style.display = 'block';
-    if (tbody) tbody.innerHTML = list.map(function(sol){ return _solRowHtml(sol, today); }).join('');
+    if (tbody) {
+      var tHtml = '';
+      userNames.forEach(function(uname) {
+        var sols   = groupMap[uname];
+        var open   = _solUserOpen[uname] !== false;
+        var firstName = uname.split(' ')[0];
+        var safeU  = uname.replace(/'/g,"\\'");
+        var arrow  = open ? '▾' : '▸';
+        // Fila encabezado de grupo
+        tHtml += '<tr class="sol-user-hdr" onclick="solToggleUserGroup(\''+safeU+'\',true)">'
+          + '<td colspan="11"><div class="sol-user-hdr-name">'
+          + '<span style="font-size:10px;color:var(--text-muted);display:inline-block;transition:transform .2s" id="sol-uarr-'+CSS.escape(uname)+'">'+arrow+'</span>'
+          + esc(firstName)
+          + '<span class="sol-user-hdr-count">'+sols.length+' solicitud'+(sols.length!==1?'es':'')+'</span>'
+          + '</div></td>'
+          + '</tr>';
+        // Filas de la solicitud
+        if (open) {
+          tHtml += sols.map(function(sol){ return _solRowHtml(sol, today); }).join('');
+        }
+      });
+      tbody.innerHTML = tHtml;
+    }
   }
 
   if (window.lucide) lucide.createIcons();
+}
+
+/** Toggle grupo de usuario en solicitudes */
+function solToggleUserGroup(uname, isTable) {
+  _solUserOpen[uname] = !(_solUserOpen[uname] !== false);
+  var open = _solUserOpen[uname];
+  if (isTable) {
+    // Modo tabla: re-render para mostrar/ocultar filas
+    renderSolicitudes();
+  } else {
+    // Modo móvil: toggle div
+    var grpDiv = document.getElementById('sol-ugrp-m-'+CSS.escape(uname));
+    var arrEl  = document.getElementById('sol-uarr-m-'+CSS.escape(uname));
+    if (grpDiv) grpDiv.style.display = open ? 'block' : 'none';
+    if (arrEl)  arrEl.style.transform = open ? 'rotate(90deg)' : 'rotate(0)';
+  }
 }
 
 /** Cancela desde la lista de solicitudes */
