@@ -636,16 +636,15 @@ function initEvents(){
   // Pan with right mouse or middle mouse
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
 
-  // Click → select bin
-  let _dragDist=0;
-  canvas.addEventListener('mousedown',()=>_dragDist=0);
-  window.addEventListener('mousemove',e=>{ if(V.dragging) _dragDist+=Math.abs(e.movementX)+Math.abs(e.movementY); });
-  canvas.addEventListener('click',e=>{
-    if(_dragDist>6) return;
+  // Click → select bin (use mousedown/up positions to distinguish from drag)
+  let _downX=0, _downY=0;
+  canvas.addEventListener('mousedown',e=>{ _downX=e.clientX; _downY=e.clientY; });
+  canvas.addEventListener('mouseup',e=>{
+    const dist=Math.abs(e.clientX-_downX)+Math.abs(e.clientY-_downY);
+    if(dist>8) return; // was a drag, not a click
     const rect=canvas.getBoundingClientRect();
     const hit=hitTest(e.clientX-rect.left, e.clientY-rect.top);
     if(hit){ _selectedBin=hit; schedRender(); showBinDetail(hit); }
-    else { /* click on empty = deselect? keep selection */ }
   });
 }
 
