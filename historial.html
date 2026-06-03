@@ -4461,11 +4461,19 @@ body{font-family:var(--font);min-height:100dvh}
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" id="mf-manager-group">
           <label class="form-label">Encargado</label>
           <select id="mf-manager" class="form-select">
             <option value="">— Sin asignar —</option>
           </select>
+        </div>
+        <div class="form-group" id="mf-manager-self" style="display:none">
+          <label class="form-label">Responsable</label>
+          <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface-2);border:1.5px solid var(--border);border-radius:var(--radius)">
+            <i data-lucide="user-check" style="width:15px;height:15px;stroke:var(--accent)"></i>
+            <span id="mf-manager-self-name" style="font-size:13px;font-weight:600;color:var(--text)"></span>
+            <span class="badge" style="background:var(--blue-bg);color:var(--blue-text);font-size:10px">Tú</span>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Fecha límite</label>
@@ -7318,7 +7326,26 @@ async function deleteItemEvidence(taskId, itemId, evId) {
 // ═══════════════════════════════════════════════════════════════════════
 function openNewTaskModal() {
   if (!can('create_task')) return; // RBAC guard
-  _editingTask=null; resetTaskModal(); document.getElementById('modal-task-title').textContent='Nueva Tarea'; document.getElementById('modal-task').classList.add('open');
+  _editingTask=null; resetTaskModal(); document.getElementById('modal-task-title').textContent='Nueva Tarea';
+  applyManagerSelfMode();
+  document.getElementById('modal-task').classList.add('open');
+}
+// Para rol encargado: él es el responsable automático. Oculta el dropdown
+// de encargado y muestra su nombre. Los auxiliares se asignan luego en el drawer.
+function applyManagerSelfMode() {
+  const isManager = _user && _user.role === 'manager';
+  const grp = document.getElementById('mf-manager-group');
+  const self = document.getElementById('mf-manager-self');
+  if (!grp || !self) return;
+  if (isManager) {
+    grp.style.display = 'none';
+    self.style.display = '';
+    document.getElementById('mf-manager-self-name').textContent = _user.name;
+    if (window.lucide) lucide.createIcons();
+  } else {
+    grp.style.display = '';
+    self.style.display = 'none';
+  }
 }
 function openEditTaskModal() {
   if (!_drawerTask || !can('edit_task')) return; // RBAC guard
@@ -7339,6 +7366,7 @@ function openEditTaskModal() {
   _modalSearch=[];
   renderCart();
   onTypeChange();
+  applyManagerSelfMode();
   document.getElementById('modal-task').classList.add('open');
 }
 function closeTaskModal() { document.getElementById('modal-task').classList.remove('open'); _modalItems=[]; _modalSearch=[]; _modalCurrentRef=''; }
@@ -7625,18 +7653,27 @@ async function clearCart() {
 async function saveTask() {
   const title = document.getElementById('mf-title').value.trim();
   if (!title) { toast('El título es requerido'); return; }
-  const managerId = document.getElementById('mf-manager').value||null;
+  // Encargado: él es el responsable automático (no elige de dropdown).
+  // En edición conserva el managerId existente.
+  let managerId;
+  if (_user.role === 'manager') {
+    managerId = _editingTask?.managerId || _user.id;
+  } else {
+    managerId = document.getElementById('mf-manager').value||null;
+  }
+  const isSelfManager = _user.role === 'manager' && managerId === _user.id;
   const managerUser = managerId ? (_authUsers||[]).find(u=>u.id===managerId) : null;
+  const managerName = isSelfManager ? _user.name : (managerUser?.name || null);
   const previousManagerId = _editingTask?.managerId || null;
-  if (managerId && managerId !== previousManagerId) {
+  // El encargado que se auto-asigna no necesita confirmar (es responsable por defecto)
+  if (managerId && managerId !== previousManagerId && !isSelfManager) {
     const actionLabel = previousManagerId ? 'cambiar el encargado' : 'asignar la tarea';
-    const managerName = managerUser?.name || 'este usuario';
-    if (!await _iosConfirm(`¿Está seguro de que desea ${actionLabel} a: ${managerName}?`)) return;
+    if (!await _iosConfirm(`¿Está seguro de que desea ${actionLabel} a: ${managerName||'este usuario'}?`)) return;
   }
   const body = {
     title, type:document.getElementById('mf-type').value,
     priority:document.getElementById('mf-priority').value,
-    managerId, managerName:managerUser?.name||null,
+    managerId, managerName,
     // Asignar encargado también vía assignedTo (oe_<odooId>) para que el
     // servidor marque la tarea como 'assigned' y se pueda iniciar sin re-asignar.
     assignedTo: (managerId && managerUser?.odooId) ? ('oe_'+managerUser.odooId) : undefined,
