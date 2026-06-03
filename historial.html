@@ -10030,34 +10030,36 @@ function _solRowHtml(sol, today) {
     + '<td style="font-size:12px;font-weight:600;color:var(--text-primary)">'+sourceIcon+esc(sol.name||'—')+'</td>'
     + '<td style="font-size:10px;font-family:monospace;color:var(--text-secondary)">'+esc(sol.barcode||'—')+'</td>'
     + '<td>'+almCells+'</td>'
-    + '<td style="font-size:10px;color:var(--text-secondary)">'+(sol.source==='contenedores'
-        ? '<span style="color:var(--text-muted);font-style:italic">En contenedor</span>'
-        : (function(){
-            // Ubicación: primero desde _solMovimientos (más fresco), luego _rsItems, luego snapshot
+    + '<td style="font-size:10px;color:var(--text-secondary)">'+(function(){
             var mov = _solMovimientos[sol.id];
-            var ubText;
+            var esCont = sol.source==='contenedores';
+            // 1) Ubicación REAL desde Odoo (incluye frontal/PFRONTAL y cualquier bin)
             if (mov && mov.currentLocs && mov.currentLocs.length) {
-              ubText = mov.currentLocs.join(' › ');
-            } else {
-              var liveItem = sol.productId
-                ? (_rsItems.find(function(i){ return i.id === sol.productId; })
-                || _rsGlobalItems.find(function(i){ return i.id === sol.productId; }))
-                : null;
-              ubText = (liveItem && liveItem.ubicacion) ? liveItem.ubicacion : (sol.ubicacion || '—');
+              var locs = mov.currentLocs;
+              var enFrontal = locs.some(function(l){ return /FRONTAL/i.test(l); });
+              var html = esc(locs.join(' › ').replace(/ · /g,' › '));
+              if (esCont) {
+                // Artículo de contenedor que YA llegó al almacén
+                html += '<div style="font-size:9px;color:var(--green-text);margin-top:2px">'+(enFrontal?'frontal CDP · recién llegado':'recibido de contenedor')+'</div>';
+              } else if (mov.hasMoved && mov.lastMoveDate) {
+                var movFecha = new Date(mov.lastMoveDate.replace(' ','T')+'Z').toLocaleDateString('es-DO',{day:'2-digit',month:'short'});
+                var movTitle = (mov.lastMoveRef ? mov.lastMoveRef + ' · ' : '') + (mov.lastMoveDest || '');
+                html += '<div class="sol-mov-badge" title="'+esc(movTitle)+'">↗ movido '+esc(movFecha)+'</div>';
+              } else if (mov && !mov.hasMoved) {
+                html += '<div style="font-size:9px;color:var(--text-muted);margin-top:2px">sin movimientos</div>';
+              }
+              return html;
             }
-            var html = esc(ubText.replace(/ · /g,' › '));
-            // Badge de movimiento si el artículo se movió después de la solicitud
-            if (mov && mov.hasMoved && mov.lastMoveDate) {
-              var movFecha = new Date(mov.lastMoveDate.replace(' ','T')+'Z')
-                .toLocaleDateString('es-DO',{day:'2-digit',month:'short'});
-              var movTitle = (mov.lastMoveRef ? mov.lastMoveRef + ' · ' : '') + (mov.lastMoveDest || '');
-              html += '<div class="sol-mov-badge" title="'+esc(movTitle)+'">↗ movido '+esc(movFecha)+'</div>';
-            } else if (mov && !mov.hasMoved) {
-              // Sin movimientos: indicador sutil de que los datos están frescos
-              html += '<div style="font-size:9px;color:var(--text-muted);margin-top:2px">sin movimientos</div>';
-            }
-            return html;
-          })())+'</td>'
+            // 2) Sin stock recibido todavía → contenedor sigue "En contenedor"
+            if (esCont) return '<span style="color:var(--text-muted);font-style:italic">En contenedor</span>';
+            // 3) No-contenedor sin movimientos: snapshot
+            var liveItem = sol.productId
+              ? (_rsItems.find(function(i){ return i.id === sol.productId; })
+              || _rsGlobalItems.find(function(i){ return i.id === sol.productId; }))
+              : null;
+            var ubText = (liveItem && liveItem.ubicacion) ? liveItem.ubicacion : (sol.ubicacion || '—');
+            return esc(ubText.replace(/ · /g,' › '));
+          })()+'</td>'
     + '<td style="font-size:11px;color:var(--text-secondary);font-style:'+(sol.nota?'normal':'italic')+'">'+esc(sol.nota||'—')+'</td>'
     + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+esc(sol.solicitadoPor ? sol.solicitadoPor.name.split(' ')[0] : '—')+'</td>'
     + '<td style="font-size:11px;color:var(--text-secondary);white-space:nowrap">'+m.fechaStr+'</td>'
