@@ -4491,10 +4491,8 @@ body{font-family:var(--font);min-height:100dvh}
           <span style="font-size:12px;color:var(--text)"><b>Requiere el paso anterior completado</b><br><span style="font-size:10px;color:var(--text-3)">No se podrá iniciar esta subtarea hasta cerrar la anterior de la cadena</span></span>
         </label>
       </div>
-      <div class="form-group">
-        <label class="form-label">Localidad / Área</label>
-        <input id="mf-location" class="form-input" placeholder="CDP, PTN, Showroom…">
-      </div>
+      <!-- Localidad / Área eliminada del formulario; input oculto para compatibilidad -->
+      <input id="mf-location" type="hidden" value="">
       <div class="form-group">
         <label class="form-label">Descripción</label>
         <textarea id="mf-desc" class="form-textarea" placeholder="Detalles adicionales…"></textarea>
@@ -6792,12 +6790,15 @@ function renderDrawer(t) {
     const selItems = (t.items||[]).filter(i=>i.selected);
     const missingEv = selItems.filter(i=>!i.evidence_images||!i.evidence_images.length);
     const missingConf = selItems.filter(i=>!i.confirmado);
+    const missingCond = selItems.filter(i=>!i.condition);
     const hasGuiaEvidencia = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const missingGeneralEv = !selItems.length && !(t.evidence||[]).length && !hasGuiaEvidencia;
     if (selItems.length && missingEv.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (faltan ${missingEv.length} foto${missingEv.length>1?'s':''})</button></div>`;
     } else if (selItems.length && missingConf.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
+    } else if (selItems.length && missingCond.length) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${missingCond.length} sin indicar condición)</button></div>`;
     } else if (missingGeneralEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (falta evidencia fotográfica)</button></div>`;
     } else {
@@ -6915,11 +6916,13 @@ function renderDrawer(t) {
           </div>
           <span class="${evs.length?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):'Sin fotos'}</span>
         </div>
-        ${(()=>{ const dmg=it.condition==='damaged'; const DMG=['Rayado','Con golpe','Desperfecto de pintura','Defecto de fábrica'];
+        ${(()=>{ const dmg=it.condition==='damaged'; const good=it.condition==='good'; const unset=!it.condition; const DMG=['Rayado','Con golpe','Desperfecto de pintura','Defecto de fábrica'];
+          const _bord = dmg?'var(--red-dot)':(unset?'var(--amber-dot)':'var(--border)');
           return `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text-3);font-weight:600">Condición:</span>
-          <select ${canUpload?'':'disabled'} onchange="setItemCondition('${t.id}','${it.item_id}',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid ${dmg?'var(--red-dot)':'var(--border)'};border-radius:6px;background:var(--surface);color:${dmg?'var(--red-text)':'var(--text)'};font-weight:600">
-            <option value="good" ${dmg?'':'selected'}>✓ Buen estado</option>
+          <select ${canUpload?'':'disabled'} onchange="setItemCondition('${t.id}','${it.item_id}',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid ${_bord};border-radius:6px;background:var(--surface);color:${dmg?'var(--red-text)':'var(--text)'};font-weight:600">
+            <option value="" ${unset?'selected':''} disabled>Seleccionar…</option>
+            <option value="good" ${good?'selected':''}>✓ Buen estado</option>
             <option value="damaged" ${dmg?'selected':''}>⚠ Avería</option>
           </select>
           ${dmg?`<select ${canUpload?'':'disabled'} onchange="setItemDamage('${t.id}','${it.item_id}',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid var(--red-dot);border-radius:6px;background:var(--red-bg);color:var(--red-text);font-weight:600">

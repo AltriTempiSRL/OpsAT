@@ -3681,6 +3681,13 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ok:false,error:`Faltan confirmar ${sinConfirmarItems.length} artículo(s) antes de completar`}));
             return;
           }
+          // Condición obligatoria: cada artículo debe indicar buen estado o avería
+          const sinCondicion=selItems.filter(it=>!it.condition);
+          if (sinCondicion.length>0) {
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:`Falta indicar la condición de ${sinCondicion.length} artículo(s)`}));
+            return;
+          }
         }
         tasks[idx].status=d.status;
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
@@ -4273,8 +4280,9 @@ const server = http.createServer(async (req, res) => {
           selected_location:selLocIdx,
           // bin explícito del pick tiene prioridad; si no, el seleccionado de locations
           selected_location_name: item.selected_location_name || selLocObj?.location_name || null,
-          // Condición del artículo: 'good' (buen estado) | 'damaged' (avería) + tipo de avería
-          condition: item.condition||prev.condition||'good', damageType: item.damageType||prev.damageType||'',
+          // Condición del artículo: '' (sin elegir) | 'good' (buen estado) | 'damaged' (avería) + tipo
+          // Sin preselección: el auxiliar debe elegirla explícitamente (obligatoria para completar).
+          condition: item.condition||prev.condition||'', damageType: item.damageType||prev.damageType||'',
           evidence_images:prev.evidence_images||[], comments:item.comments||prev.comments||'',
           confirmado:prev.confirmado||false, status:prev.status||'pending' };
       });
