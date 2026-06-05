@@ -380,11 +380,8 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS    = 15 * 60 * 1000;
 
 function checkLoginRateLimit(email) {
-  const key   = (email || '').toLowerCase().trim();
-  const now   = Date.now();
-  const entry = _loginAttempts.get(key);
-  if (!entry || entry.resetAt < now) return false; // no hay bloqueo
-  return entry.count >= LOGIN_MAX_ATTEMPTS;
+  // Bloqueo por intentos fallidos DESACTIVADO (solicitado para pruebas en vivo).
+  return false;
 }
 function recordFailedLogin(email) {
   const key   = (email || '').toLowerCase().trim();
