@@ -7921,9 +7921,9 @@ async function fetchOrderItems() {
     }
     // Usar el ref REAL resuelto por Odoo (ej. "7647" → "S07647") para guardar y sincronizar
     if (d.ref) _modalCurrentRef = d.ref;
-    const _tIconMap = {order:'clipboard-list',transfer:'refresh-cw',article:'box'};
+    const _tIconMap = {order:'clipboard-list',transfer:'refresh-cw',article:'box',return:'rotate-ccw'};
     const typeIcon = `<i data-lucide="${_tIconMap[d.type]||'package'}" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
-    const typeLabel = d.type==='order'?'Orden de Venta':d.type==='transfer'?'Transferencia'+(d.transferType?' · '+d.transferType:''):d.type==='article'?'Artículo':'—';
+    const typeLabel = d.type==='order'?'Orden de Venta':d.type==='return'?'Devolución'+(d.transferType?' · '+d.transferType:''):d.type==='transfer'?'Transferencia'+(d.transferType?' · '+d.transferType:''):d.type==='article'?'Artículo':'—';
     document.getElementById('mf-odoo-client').innerHTML=
       `<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:10px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;color:var(--text-2)">${typeIcon}${esc(typeLabel)}</span>
@@ -7944,8 +7944,8 @@ async function fetchOrderItems() {
     if(window.lucide) lucide.createIcons();
     const panelTitle = document.getElementById('mf-items-panel-title');
     if (panelTitle) {
-      const _panIcon = d.type==='transfer'?'refresh-cw':d.type==='article'?'box':'package';
-      const _panText = d.type==='transfer'?'Artículos de la transferencia':d.type==='article'?'Artículo':'Artículos de la orden';
+      const _panIcon = d.type==='return'?'rotate-ccw':d.type==='transfer'?'refresh-cw':d.type==='article'?'box':'package';
+      const _panText = d.type==='return'?'Artículos de la devolución':d.type==='transfer'?'Artículos de la transferencia':d.type==='article'?'Artículo':'Artículos de la orden';
       panelTitle.innerHTML = `<i data-lucide="${_panIcon}" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${_panText}`;
       if(window.lucide) lucide.createIcons();
     }

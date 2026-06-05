@@ -4183,12 +4183,32 @@ const server = http.createServer(async (req, res) => {
         const productIds=[...new Set(moves.filter(m=>m.product_id).map(m=>m.product_id[0]))];
         const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128']}) : [];
         const prodMap={}; products.forEach(p=>{ prodMap[p.id]=p; });
-        const stockMap = await fetchStockMap(productIds);
-        const items = buildItems(moves, prodMap, stockMap);
-        const client = pick.partner_id?pick.partner_id[1]:(pick.origin||pick.name);
         const typeName = pick.picking_type_id?pick.picking_type_id[1]:'';
+        // ¿Es una DEVOLUCIÓN (RET)? — por tipo o por nombre /RET/
+        const isReturn = /return|devoluci/i.test(typeName) || /\/RET\//i.test(pick.name||'');
+        let items;
+        if (isReturn) {
+          // Devolución: SIN ubicación (manual). El auxiliar registra/fotografía lo recibido.
+          const kitMap = await resolveKitInfo(products);
+          items = moves.filter(m=>m.product_id).map(m=>{
+            const prod=prodMap[m.product_id[0]]||{}, kit=kitMap[m.product_id[0]];
+            const units=Math.max(1,Math.round(m.product_uom_qty||m.quantity_done||1));
+            return { item_id:'oi_'+m.product_id[0], odoo_product_id:m.product_id[0], odoo_line_id:null,
+              sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
+              product_name:m.product_id[1]||m.name||'', quantity:units, units,
+              image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
+              ...(kit ? {kitId:kit.kitId,kitRef:kit.kitRef,kitName:kit.kitName,kitImage:kit.kitImage} : {}),
+              locations:[], selected_location:null,   // sin ubicación → manual
+              selected:false, evidence_images:[], comments:'', status:'pending' };
+          });
+        } else {
+          const stockMap = await fetchStockMap(productIds);
+          items = buildItems(moves, prodMap, stockMap);
+        }
+        const client = pick.partner_id?pick.partner_id[1]:(pick.origin||pick.name);
         res.writeHead(200,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true,type:'transfer',ref:pick.name,client,transferType:typeName,origin:pick.origin||'',items}));
+        res.end(JSON.stringify({ok:true, type:isReturn?'return':'transfer', ref:pick.name, client,
+          transferType:typeName, origin:pick.origin||'', items}));
         return;
       }
 
