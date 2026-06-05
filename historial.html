@@ -6761,6 +6761,19 @@ function renderDrawer(t) {
         </div>
       </div>
     </div>`;
+
+    // Encargado: reasignar la tarea a OTRO encargado (transfiere responsabilidad). Admin ya lo hace arriba.
+    if (_user.role === 'manager') {
+      const encOpts = (_authUsers||[]).filter(u => u.active!==false && u.role==='manager')
+        .map(u => `<option value="${u.id}" ${u.id===(t.managerId||'')?'selected':''}>${esc(u.name)}${u.id===_user.id?' (yo)':''}</option>`).join('');
+      actionHtml += `<div style="margin-bottom:16px;padding:10px 12px;background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px"><i data-lucide="user-cog" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Encargado responsable</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="dr-reassign-mgr" class="form-select" style="flex:1;font-size:12px;padding:7px 9px">${encOpts}</select>
+          <button class="btn-primary" onclick="reassignManagerTo('${t.id}')" style="flex-shrink:0">Reasignar</button>
+        </div>
+      </div>`;
+    }
   }
   if (t.status==='assigned'&&isResponsibleCloser) {
     actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','in_progress')">▶ Iniciar</button></div>`;
@@ -7521,6 +7534,24 @@ async function toggleItemConfirm(taskId, itemId, checked) {
   } catch(e) { toast(e.message); openDrawer(taskId); }
 }
 
+// Reasignar la tarea a otro encargado (transfiere la responsabilidad)
+async function reassignManagerTo(taskId) {
+  const sel = document.getElementById('dr-reassign-mgr');
+  const newId = sel ? sel.value : '';
+  if (!newId) { toast('Selecciona un encargado'); return; }
+  const u = (_authUsers||[]).find(x=>x.id===newId);
+  if (newId === (_drawerTask?.managerId||'')) { toast('Ya es el responsable'); return; }
+  if (!await _iosConfirm('¿Transferir la responsabilidad de esta tarea a: '+(u?u.name:'ese encargado')+'?')) return;
+  try {
+    const payload = { managerId:newId, managerName:u?u.name:'',
+      assignedTo: u?.odooId ? ('oe_'+u.odooId) : undefined, by:_user.name, byUserId:_user.id };
+    const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (!d.ok && !d.task) { toast('Error al reasignar'); return; }
+    toast('Tarea reasignada a '+(u?u.name.split(' ')[0]:'encargado'));
+    openDrawer(taskId);
+  } catch(e){ toast('Error: '+e.message); }
+}
 // Auxiliar marca su parte como terminada (handoff al encargado)
 async function setAuxDone(taskId, done) {
   try {
@@ -7730,18 +7761,16 @@ function inheritSubtaskItemsIfChecked() {
 // Para rol encargado: él es el responsable automático. Oculta el dropdown
 // de encargado y muestra su nombre. Los auxiliares se asignan luego en el drawer.
 function applyManagerSelfMode() {
-  const isManager = _user && _user.role === 'manager';
+  // Todos (admin y encargado) usan el dropdown de encargado. Para el encargado, se
+  // preselecciona él mismo por defecto, pero puede elegir a otro encargado (asignación entre ellos).
   const grp = document.getElementById('mf-manager-group');
   const self = document.getElementById('mf-manager-self');
   if (!grp || !self) return;
-  if (isManager) {
-    grp.style.display = 'none';
-    self.style.display = '';
-    document.getElementById('mf-manager-self-name').textContent = _user.name;
-    if (window.lucide) lucide.createIcons();
-  } else {
-    grp.style.display = '';
-    self.style.display = 'none';
+  grp.style.display = '';
+  self.style.display = 'none';
+  const sel = document.getElementById('mf-manager');
+  if (sel && _user && _user.role === 'manager' && !_editingTask && !sel.value) {
+    sel.value = _user.id; // default: el propio encargado
   }
 }
 function openEditTaskModal() {
@@ -8139,7 +8168,8 @@ async function saveTask() {
   // En edición conserva el managerId existente.
   let managerId;
   if (_user.role === 'manager') {
-    managerId = _editingTask?.managerId || _user.id;
+    // El encargado elige del dropdown (puede ser otro encargado); por defecto, sí mismo.
+    managerId = document.getElementById('mf-manager').value || _editingTask?.managerId || _user.id;
   } else {
     managerId = document.getElementById('mf-manager').value||null;
   }
@@ -8375,13 +8405,14 @@ async function loadAuthUsersForDropdown() {
     const r = await authFetch('/api/wwp/auth/users');
     if (r.ok) {
       _authUsers = await r.json();
-      // Admin puede asignar cualquier usuario como encargado de la tarea.
+      // Admin: cualquier usuario como encargado. Encargado: otros encargados (managers) — para
+      // asignarse tareas entre ellos; incluye a sí mismo.
       const sel = document.getElementById('mf-manager');
       const prev = sel.value;
       sel.innerHTML = '<option value="">— Sin asignar —</option>';
       const roleOrder = {admin:0, manager:1, assistant:2};
       const sorted = _authUsers.filter(u =>
-          u.active !== false && (_user.role === 'admin' || u.role === 'assistant')
+          u.active !== false && (_user.role === 'admin' || u.role === 'manager')
         ).sort((a,b) => (roleOrder[a.role]??9)-(roleOrder[b.role]??9) || a.name.localeCompare(b.name));
       sorted.forEach(u => {
         const opt = document.createElement('option');
