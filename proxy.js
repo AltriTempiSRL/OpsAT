@@ -129,18 +129,74 @@ async function buildItemsFromPicks(orderName) {
   if(!pids.length) return { noPick:false, items:[], pickNames:pickList.map(p=>p.name) };
   const prods = await odooCall('product.product','read',[pids],{fields:['id','barcode','default_code','image_128']});
   const pm={}; prods.forEach(p=>{ pm[p.id]=p; });
+  const kitMap = await resolveKitInfo(prods); // componente → info del kit (BOM phantom)
   const items = pids.map(pid=>{
-    const g=byProd[pid], prod=pm[pid]||{}, units=g.unitBins.length;
+    const g=byProd[pid], prod=pm[pid]||{}, units=g.unitBins.length, kit=kitMap[pid];
     return { item_id:'oi_'+pid, odoo_product_id:pid, odoo_line_id:null,
       sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
       product_name:g.name||'', quantity:units, units,
       image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
       unitBins:g.unitBins, pickName:g.pickName, fromPick:true,  // bin por unidad desde el pick
+      ...(kit ? { kitId:kit.kitId, kitRef:kit.kitRef, kitName:kit.kitName, kitImage:kit.kitImage } : {}),
       locations:[], selected_location:null,
       selected:false, evidence_images:[], comments:'', status:'pending' };
   });
   return { noPick:false, items, pickNames:pickList.map(p=>p.name) };
 }
+
+// Detecta componentes de kit (.Cn) y devuelve map productId → {kitId,kitRef,kitName,kitImage}
+// usando BOM tipo 'phantom' en Odoo. Reutilizable para etiquetar artículos de tareas.
+async function resolveKitInfo(products) {
+  const rx = /^(.+)\.C\d+$/i;
+  const compIds = (products||[]).filter(p => rx.test(p.default_code||p.ref||'')).map(p => p.id);
+  const out = {};
+  if (!compIds.length) return out;
+  try {
+    const bomLines = await odooCall('mrp.bom.line','search_read',
+      [[['product_id','in',compIds]]], {fields:['bom_id','product_id'],limit:1000});
+    const bomIds = [...new Set(bomLines.map(l => l.bom_id[0]))];
+    if (!bomIds.length) return out;
+    const boms = await odooCall('mrp.bom','read',[bomIds],{fields:['id','product_id','product_tmpl_id','type']});
+    const kitBoms = boms.filter(b => b.type === 'phantom');
+    if (!kitBoms.length) return out;
+    const kitPids = kitBoms.map(b => b.product_id ? b.product_id[0] : null).filter(Boolean);
+    const kitTmplIds = kitBoms.filter(b => !b.product_id).map(b => b.product_tmpl_id[0]);
+    let kitProds = [];
+    if (kitPids.length) kitProds = await odooCall('product.product','search_read',[[['id','in',kitPids]]],{fields:['id','default_code','name','image_512','image_128','product_tmpl_id'],limit:300});
+    if (!kitProds.length && kitTmplIds.length) kitProds = await odooCall('product.product','search_read',[[['product_tmpl_id','in',kitTmplIds]]],{fields:['id','default_code','name','image_512','image_128','product_tmpl_id'],limit:300});
+    const tmplIds = kitProds.filter(k=>!k.image_512&&!k.image_128).map(k=>k.product_tmpl_id?.[0]).filter(Boolean);
+    const tmplImg = {};
+    if (tmplIds.length) { try { (await odooCall('product.template','read',[tmplIds],{fields:['id','image_512','image_128']})).forEach(t=>{tmplImg[t.id]=t.image_512||t.image_128||'';}); } catch(_){} }
+    const kpMap = {}, kpByTmpl = {};
+    kitProds.forEach(k => {
+      const o = { ...k, _img: k.image_512||k.image_128||(k.product_tmpl_id?tmplImg[k.product_tmpl_id[0]]:'')||'' };
+      kpMap[k.id] = o;
+      if (k.product_tmpl_id) kpByTmpl[k.product_tmpl_id[0]] = o;
+    });
+    // Resuelve el producto kit de un BOM por product_id o por product_tmpl_id (BOMs a nivel template)
+    const kpForBom = (bom) =>
+      (bom.product_id && kpMap[bom.product_id[0]]) ||
+      (bom.product_tmpl_id && kpByTmpl[bom.product_tmpl_id[0]]) || null;
+    bomLines.forEach(line => {
+      const bom = kitBoms.find(b => b.id === line.bom_id[0]); if (!bom) return;
+      const kp = kpForBom(bom); if (!kp) return;
+      out[line.product_id[0]] = {
+        kitId: 'bom_'+bom.id, kitRef: kp.default_code||'', kitName: kp.name||'',
+        kitImage: kp._img ? ('data:image/png;base64,'+kp._img) : '' };
+    });
+  } catch(_) { /* mrp no instalado o sin permiso */ }
+  return out;
+}
+
+// Etiqueta una lista de items (con odoo_product_id) con su info de kit (kitId, kitName, kitImage)
+async function tagKitInfo(items) {
+  const prods = [...new Map((items||[]).filter(i=>i.odoo_product_id).map(i=>[i.odoo_product_id,{id:i.odoo_product_id,default_code:i.sku}])).values()];
+  if (!prods.length) return items;
+  const km = await resolveKitInfo(prods);
+  items.forEach(i => { const k = km[i.odoo_product_id]; if (k) { i.kitId=k.kitId; i.kitRef=k.kitRef; i.kitName=k.kitName; i.kitImage=k.kitImage; } });
+  return items;
+}
+
 // Secuencia incremental de tareas (alto agua persistente; no se reutiliza al borrar)
 const WWP_SEQ_FILE = path.join(DATA_DIR, 'wwp-task-seq.json');
 function nextTaskSeq() {
@@ -4176,6 +4232,9 @@ const server = http.createServer(async (req, res) => {
           group_ref:item.group_ref||item.item_id,
           // Ubicación desde el pick (bin por unidad). fromPick = ubicación fija del pick.
           fromPick: !!item.fromPick, pickName: item.pickName||prev.pickName||'',
+          // Info de kit (componente de un set). kitInstance agrupa unidades del mismo kit armado.
+          kitId: item.kitId||prev.kitId||null, kitRef: item.kitRef||prev.kitRef||'',
+          kitName: item.kitName||prev.kitName||'', kitImage: item.kitImage||prev.kitImage||'',
           selected:!!item.selected,
           locations:item.locations||[],
           selected_location:selLocIdx,

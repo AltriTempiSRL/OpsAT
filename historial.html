@@ -6823,9 +6823,8 @@ function renderDrawer(t) {
     ${(()=>{
       // Agrupar unidades por artículo (group_ref). Encabezado con editor de unidades (admin/encargado).
       const _canEditUnits = !isClosedTask && (_user.role==='admin' || _user.role==='manager');
-      const _groups = {};
-      items.forEach(g=>{ const k=g.group_ref||g.item_id; (_groups[k]=_groups[k]||[]).push(g); });
-      return Object.entries(_groups).map(([gref, units])=>{
+      // Render de un conjunto de grupos (group_ref) — reutilizado dentro y fuera de kits
+      const renderGroups = (groupsObj) => Object.entries(groupsObj).map(([gref, units])=>{
       const _first = units[0];
       const _grpHdr = (units.length>1 || _canEditUnits) ? `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:6px 10px;background:var(--surface-2);border-radius:7px">
         <span style="font-size:11px;font-weight:700;color:var(--text-2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(_first.product_name||_first.sku||'')}</span>
@@ -6874,6 +6873,32 @@ function renderDrawer(t) {
       </div>`;
     }).join('');
     }).join('');
+      // Partición: componentes de kit (agrupados por kitId con encabezado y foto) vs no-kit
+      const _kitG = {}, _nonKit = {};
+      items.forEach(it => {
+        if (it.kitId) { (_kitG[it.kitId]=_kitG[it.kitId]||[]).push(it); }
+        else { const k=it.group_ref||it.item_id; (_nonKit[k]=_nonKit[k]||[]).push(it); }
+      });
+      let _html = '';
+      Object.entries(_kitG).forEach(([kitId, kitItems]) => {
+        const kf = kitItems[0];
+        const kImg = kf.kitImage
+          ? `<img src="${kf.kitImage}" style="width:42px;height:42px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:#fff;flex-shrink:0" onerror="this.style.display='none'">`
+          : `<div style="width:42px;height:42px;border-radius:6px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="package" style="width:20px;height:20px;stroke:var(--purple-dot)"></i></div>`;
+        const _sub = {}; kitItems.forEach(it=>{ const k=it.group_ref||it.item_id; (_sub[k]=_sub[k]||[]).push(it); });
+        _html += `<div style="border:1.5px solid var(--purple-dot);border-radius:10px;padding:10px;margin:12px 0;background:rgba(124,58,237,.03)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            ${kImg}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:9px;color:var(--purple-text);font-weight:700;text-transform:uppercase;letter-spacing:.5px">🧩 Kit / Set · ${kitItems.length} pieza${kitItems.length>1?'s':''}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${esc(kf.kitName||kf.kitRef||'Kit')}</div>
+            </div>
+          </div>
+          ${renderGroups(_sub)}
+        </div>`;
+      });
+      _html += renderGroups(_nonKit);
+      return _html;
     })()}`;
   }
   const _hasGuiaEvFull = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
