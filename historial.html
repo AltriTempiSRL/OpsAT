@@ -5988,12 +5988,43 @@ function filterTasks() {
   // Guardar lista filtrada para export
   _filteredTasks = visible;
   switch (_taskView) {
-    case 'cards':  el.innerHTML = visible.map(renderTaskCard).join(''); break;
+    case 'cards':  el.innerHTML = renderGroupedByType(visible, renderTaskCard); break;
     case 'kanban': el.innerHTML = renderKanbanView(visible); break;
     case 'person': el.innerHTML = renderPersonView(visible); break;
-    default:       el.innerHTML = visible.map(renderListRow).join(''); break;
+    default:       el.innerHTML = renderGroupedByType(visible, renderListRow); break;
   }
   if(window.lucide) lucide.createIcons();
+}
+
+// Categorías de tareas (acción concreta) para agrupar las vistas Lista y Tarjetas
+var _TYPE_GROUPS = [
+  {type:'packaging',      label:'Empaque',                icon:'package',   color:'#7c3aed'},
+  {type:'dispatch_order', label:'Despacho',               icon:'truck',     color:'#2563eb'},
+  {type:'warehouse_move', label:'Almacenamiento',         icon:'warehouse', color:'#059669'},
+  {type:'item_pickup',    label:'Recogida de artículos',  icon:'scan-line', color:'#0891b2'},
+  {type:'truck_loading',  label:'Carga en camión',        icon:'truck',     color:'#d97706'},
+  {type:'staffing',       label:'Solicitud de Personal',  icon:'users',     color:'#dc2626'},
+  {type:'general',        label:'Tarea Libre / General',  icon:'circle-dot',color:'#6b7280'}
+];
+function renderGroupedByType(visible, rowRenderer) {
+  const known = new Set(_TYPE_GROUPS.map(g=>g.type));
+  let html = '';
+  const groupHdr = (g, n) => `<div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding:6px 2px;border-bottom:2px solid ${g.color}33">
+    <span style="width:24px;height:24px;border-radius:6px;background:${g.color}1a;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <i data-lucide="${g.icon}" style="width:14px;height:14px;stroke:${g.color}"></i></span>
+    <span style="font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.4px">${g.label}</span>
+    <span style="font-size:11px;font-weight:700;color:#fff;background:${g.color};border-radius:20px;padding:1px 8px">${n}</span>
+  </div>`;
+  _TYPE_GROUPS.forEach(g => {
+    const rows = visible.filter(t => t.type === g.type);
+    if (!rows.length) return;
+    html += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
+  });
+  const others = visible.filter(t => !known.has(t.type));
+  if (others.length) {
+    html += groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, others.length) + others.map(rowRenderer).join('');
+  }
+  return html;
 }
 function renderTasks() { filterTasks(); }
 
