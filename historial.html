@@ -4012,6 +4012,43 @@ body{font-family:var(--font);min-height:100dvh}
     <div class="pm-item danger" onclick="doLogout()"><i data-lucide="log-out"></i>Cerrar sesión</div>
   </div>
 
+  <!-- Pantalla de bienvenida + consentimiento de permisos (primera vez) -->
+  <div id="wwp-welcome" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
+    <div style="background:var(--surface);border-radius:18px;max-width:460px;width:100%;max-height:92dvh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="text-align:center;padding:26px 24px 14px;background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:18px 18px 0 0;color:#fff">
+        <div style="font-size:34px;line-height:1">👋</div>
+        <div style="font-size:19px;font-weight:800;margin-top:6px">Bienvenido a Workforce</div>
+        <div style="font-size:12px;opacity:.85;margin-top:2px">Altritempi · Operaciones</div>
+      </div>
+      <div style="padding:18px 22px 8px">
+        <p style="font-size:13px;color:var(--text);line-height:1.55;margin:0 0 14px">Esta es tu plataforma para gestionar el trabajo diario de operaciones de forma simple y ordenada.</p>
+
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:14px">
+          <div style="font-size:11px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px"><i data-lucide="clipboard-list" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Tus tareas, en un solo lugar</div>
+          <p style="font-size:12.5px;color:var(--text-2);line-height:1.5;margin:0 0 8px">En la sección <b>Tareas</b> ves todo lo que te corresponde: empaques, despachos, movimientos de almacén y solicitudes de personal. Cada tarea te muestra qué hacer, los artículos y su estado.</p>
+          <div style="font-size:12.5px;color:var(--text-2);line-height:1.7">
+            <div><b>①</b> Abres tu tarea y tocas <b>“▶ Iniciar”</b>.</div>
+            <div><b>②</b> Subes las fotos de evidencia de cada artículo.</div>
+            <div><b>③</b> Tocas <b>“✓ Terminé mi parte”</b> y listo.</div>
+          </div>
+          <p style="font-size:12px;color:var(--text-3);line-height:1.5;margin:8px 0 0">Todo queda registrado automáticamente — sin papeles, sin llamadas. Tú solo trabajas y la app lleva el control.</p>
+        </div>
+
+        <div style="font-size:11px;font-weight:800;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"><i data-lucide="shield-check" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Permisos que necesita la app</div>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:6px">
+          <div style="display:flex;gap:9px;align-items:flex-start"><span style="font-size:16px;flex-shrink:0">📍</span><div style="font-size:12px;color:var(--text-2);line-height:1.45"><b>Ubicación</b> — registra dónde realizas cada tarea (entregas, recogidas), solo durante tu jornada.</div></div>
+          <div style="display:flex;gap:9px;align-items:flex-start"><span style="font-size:16px;flex-shrink:0">🔔</span><div style="font-size:12px;color:var(--text-2);line-height:1.45"><b>Notificaciones</b> — te avisa al instante cuando te asignan una tarea o te escriben.</div></div>
+          <div style="display:flex;gap:9px;align-items:flex-start"><span style="font-size:16px;flex-shrink:0">📷</span><div style="font-size:12px;color:var(--text-2);line-height:1.45"><b>Cámara</b> — para tomar las fotos de evidencia directamente desde la app.</div></div>
+        </div>
+        <p style="font-size:11px;color:var(--text-3);line-height:1.45;margin:6px 0 0">Tus datos se usan únicamente para la operación de Altritempi.</p>
+      </div>
+      <div style="padding:8px 22px 22px">
+        <button class="btn-primary" style="width:100%;padding:13px;font-size:14px;font-weight:700" onclick="acceptWelcome()">Aceptar y continuar</button>
+        <div style="text-align:center;margin-top:10px"><a onclick="dismissWelcome()" style="font-size:12px;color:var(--text-3);cursor:pointer">Ahora no</a></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Mapa de ubicaciones (solo admin) -->
   <div class="modal-overlay" id="modal-users-map">
     <div class="modal-card" style="max-width:760px;width:96vw">
@@ -5820,9 +5857,14 @@ function enterApp() {
   loadNotificationsFromServer();
   connectSSE();
   connectWwpRealtime();
-  // Request browser notification permission (non-intrusive — only if not decided yet)
-  if ('Notification' in window && Notification.permission === 'default') {
-    setTimeout(() => Notification.requestPermission(), 3000);
+  // Pantalla de bienvenida + consentimiento de permisos (primera vez). Si ya la aceptó,
+  // pedimos notificaciones de forma no intrusiva como respaldo.
+  if (localStorage.getItem(_WELCOME_VER)) {
+    if ('Notification' in window && Notification.permission === 'default') {
+      setTimeout(() => Notification.requestPermission(), 3000);
+    }
+  } else {
+    setTimeout(maybeShowWelcome, 400);
   }
   // Render Lucide icons (nav tabs are created dynamically above)
   if (window.lucide) lucide.createIcons();
@@ -10635,6 +10677,33 @@ async function stopImpersonate(){
     else { enterApp(); showScreen('screen-app'); }
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
+}
+
+// ── Bienvenida + consentimiento de permisos (primera vez) ──────────────
+var _WELCOME_VER='wwp_welcome_v1';
+function maybeShowWelcome(){
+  try{ if(localStorage.getItem(_WELCOME_VER)) return; }catch(e){}
+  const el=document.getElementById('wwp-welcome');
+  if(el){ el.style.display='flex'; if(window.lucide)lucide.createIcons(); }
+}
+async function acceptWelcome(){
+  try{ localStorage.setItem(_WELCOME_VER,'1'); }catch(e){}
+  const el=document.getElementById('wwp-welcome'); if(el) el.style.display='none';
+  // 1) Notificaciones (todos los usuarios)
+  try{ if('Notification' in window && Notification.permission==='default'){ await Notification.requestPermission(); } }catch(e){}
+  // 2) Ubicación — solo si el rol del usuario tiene rastreo GPS (auxiliares)
+  try{
+    if(_user && (_user.sectionPerms||{})['wwp.rastreo_gps'] && navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        function(pos){ try{ authFetch('/api/wwp/auth/location',{method:'POST',body:JSON.stringify({lat:pos.coords.latitude,lng:pos.coords.longitude,accuracy:pos.coords.accuracy,context:'permiso inicial'})}); }catch(e){} },
+        function(){}, {enableHighAccuracy:true,timeout:8000,maximumAge:60000}
+      );
+    }
+  }catch(e){}
+}
+function dismissWelcome(){
+  try{ localStorage.setItem(_WELCOME_VER,'1'); }catch(e){}
+  const el=document.getElementById('wwp-welcome'); if(el) el.style.display='none';
 }
 
 // ── Mapa de ubicaciones (Leaflet, solo admin) ──────────────────────────
