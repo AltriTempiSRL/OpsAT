@@ -268,6 +268,120 @@ function syncKitStructureToChildren(parentTask, tasks) {
   return changed;
 }
 
+// ── Claude API (Anthropic) — cerebro de los agentes de IA ────────────────────
+// Carga opcional: si el SDK o la key no están, los agentes caen a modo heurístico.
+let Anthropic = null;
+try { Anthropic = require('@anthropic-ai/sdk'); } catch { /* SDK no instalado */ }
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+const anthropicClient = (Anthropic && ANTHROPIC_KEY) ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
+
+// Cache del parte del día (evita llamar a Claude en cada carga del dashboard).
+// Se invalida cuando cambian los datos (hash) o al pasar el TTL.
+let _opsBriefCache = { hash: '', brief: null, generatedAt: 0 };
+const OPS_BRIEF_TTL = 30 * 60 * 1000; // 30 min
+let _processAuditorAiCache = { hash: '', brief: null, generatedAt: 0 };
+const PROCESS_AUDITOR_AI_TTL = 30 * 60 * 1000; // 30 min
+
+// Reporte heurístico del Gerente de Operaciones (compartido por /ops-agent y /ops-agent/brief)
+function computeOpsAgentReport() {
+  const tasks = loadWwpTasks();
+  const users = loadAuthUsers();
+  const userById = {};
+  users.forEach(u => { userById[u.id] = u; });
+
+  const now = Date.now();
+  const today = new Date().toISOString().slice(0, 10);
+  const closedStatuses = new Set(['completed', 'validated', 'cancelled']);
+  const active = tasks.filter(t => !closedStatuses.has(t.status));
+  const parents = active.filter(t => !t.parentId);
+  const subtasks = active.filter(t => t.parentId);
+  const done = tasks.filter(t => t.status === 'completed' || t.status === 'validated');
+
+  const hoursSince = (value) => {
+    const ms = value ? now - new Date(value).getTime() : 0;
+    return Number.isFinite(ms) && ms > 0 ? Math.round(ms / 36e5) : 0;
+  };
+  const taskOwner = (t) => {
+    if (t.managerId && userById[t.managerId]) return userById[t.managerId].name;
+    if (t.managerName) return t.managerName;
+    if (t.assignedTo && String(t.assignedTo).startsWith('oe_')) {
+      const odooId = String(t.assignedTo).slice(3);
+      const u = users.find(x => String(x.odooId || '') === odooId);
+      if (u) return u.name;
+    }
+    return 'Sin responsable';
+  };
+  const taskUrl = (t) => ({ id: t.id, seq: t.seq || null, title: t.title || t.odooRef || t.id, type: t.type || 'general', status: t.status, owner: taskOwner(t), dueDate: t.dueDate || null, updatedHoursAgo: hoursSince(t.updatedAt || t.createdAt) });
+  const severityRank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const decisions = [];
+  const pushDecision = (severity, title, action, task = null, reason = '') => {
+    decisions.push({ severity, title, action, reason, task: task ? taskUrl(task) : null });
+  };
+
+  const overdue = active.filter(t => t.dueDate && t.dueDate < today);
+  overdue.forEach(t => pushDecision('critical', 'Tarea vencida', 'Contactar responsable y definir cierre o reasignacion hoy.', t, `Vencio el ${t.dueDate}.`));
+
+  const staleInProgress = active.filter(t => t.status === 'in_progress' && hoursSince(t.updatedAt || t.createdAt) >= 8);
+  staleInProgress.forEach(t => pushDecision('high', 'Tarea en progreso sin avance reciente', 'Pedir actualizacion, evidencia o desbloqueo operativo.', t, `${hoursSince(t.updatedAt || t.createdAt)}h sin actualizacion.`));
+
+  const waitingAssignment = active.filter(t => ['pending', 'assigned'].includes(t.status) && hoursSince(t.createdAt) >= 24);
+  waitingAssignment.forEach(t => pushDecision('medium', 'Tarea esperando ejecucion', 'Confirmar responsable, prioridad y hora de inicio.', t, `${hoursSince(t.createdAt)}h desde creacion.`));
+
+  const noOwner = parents.filter(t => !t.managerId && !t.assignedTo);
+  noOwner.forEach(t => pushDecision('high', 'Tarea sin responsable claro', 'Asignar encargado antes de crear mas subtareas.', t, 'No tiene managerId ni assignedTo.'));
+
+  const missingEvidence = active.filter(t => {
+    const selected = (t.items || []).filter(i => i.selected);
+    if (!selected.length) return false;
+    return selected.some(i => !(i.evidence_images || []).length);
+  });
+  missingEvidence.slice(0, 12).forEach(t => pushDecision('medium', 'Evidencia pendiente', 'Solicitar foto/evidencia para poder cerrar la tarea.', t, 'Hay articulos seleccionados sin evidencia.'));
+
+  const readyToValidate = tasks.filter(t => t.status === 'completed');
+  readyToValidate.forEach(t => pushDecision('high', 'Pendiente de validacion', 'Validar, devolver o documentar causa de espera.', t, 'La tarea ya fue marcada completada.'));
+
+  const byOwner = {};
+  active.forEach(t => {
+    const owner = taskOwner(t);
+    if (!byOwner[owner]) byOwner[owner] = { owner, total: 0, overdue: 0, inProgress: 0, assigned: 0, stale: 0 };
+    byOwner[owner].total++;
+    if (t.dueDate && t.dueDate < today) byOwner[owner].overdue++;
+    if (t.status === 'in_progress') byOwner[owner].inProgress++;
+    if (t.status === 'assigned') byOwner[owner].assigned++;
+    if (hoursSince(t.updatedAt || t.createdAt) >= 8 && !closedStatuses.has(t.status)) byOwner[owner].stale++;
+  });
+  const workload = Object.values(byOwner).sort((a, b) => (b.overdue - a.overdue) || (b.total - a.total) || a.owner.localeCompare(b.owner));
+
+  const byType = {};
+  active.forEach(t => { byType[t.type || 'general'] = (byType[t.type || 'general'] || 0) + 1; });
+  const avgCloseHours = done.length
+    ? Math.round(done.reduce((s, t) => s + Math.max(0, new Date(t.updatedAt || t.createdAt).getTime() - new Date(t.createdAt).getTime()), 0) / done.length / 36e5 * 10) / 10
+    : 0;
+
+  decisions.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+  const summary = {
+    active: active.length,
+    parentTasks: parents.length,
+    subtasks: subtasks.length,
+    overdue: overdue.length,
+    stale: staleInProgress.length,
+    waitingAssignment: waitingAssignment.length,
+    noOwner: noOwner.length,
+    missingEvidence: missingEvidence.length,
+    readyToValidate: readyToValidate.length,
+    avgCloseHours,
+    byType
+  };
+  const nextActions = [
+    overdue.length ? `Resolver ${overdue.length} vencida(s) antes de crear trabajo nuevo.` : 'No hay tareas vencidas activas.',
+    readyToValidate.length ? `Validar o devolver ${readyToValidate.length} tarea(s) completada(s).` : 'No hay validaciones acumuladas.',
+    noOwner.length ? `Asignar responsable a ${noOwner.length} tarea(s) sin dueño.` : 'Todas las tareas principales activas tienen responsable o asignacion.',
+    missingEvidence.length ? `Pedir evidencia en ${missingEvidence.length} tarea(s) antes del cierre.` : 'No hay evidencia pendiente detectada en tareas activas.'
+  ];
+
+  return { summary, decisions: decisions.slice(0, 30), workload, nextActions };
+}
+
 // Normaliza una referencia de orden a su número (S06031 / 6031 / 06031 → "6031")
 function normRef(ref){ const m=(ref||'').match(/\d+/); return m?String(parseInt(m[0],10)):''; }
 // Artículos (productos) ya reclamados por tareas ACTIVAS de la misma orden, fuera de la
@@ -480,6 +594,28 @@ function appendAuditLog(event, data) {
     if (logs.length > 10000) logs.splice(0, logs.length - 10000);
     fs.writeFileSync(WWP_AUDIT_FILE, JSON.stringify(logs, null, 2), 'utf-8');
   } catch(e) { console.warn('[audit]', e.message); }
+}
+
+const PROCESS_AUDITOR_FILE = path.join(DATA_DIR, 'wwp-process-auditor.json');
+const AGENT_OWNER_EMAIL = 'gsanchez@altritempi.com.do';
+function loadProcessAuditorState() {
+  return loadJson(PROCESS_AUDITOR_FILE, { recommendations: {} });
+}
+function saveProcessAuditorState(state) {
+  saveJson(PROCESS_AUDITOR_FILE, state || { recommendations: {} });
+}
+function getAuthUser(jp) {
+  return loadAuthUsers().find(u => u.id === jp.userId) || null;
+}
+function isAgentOwner(jp) {
+  const user = getAuthUser(jp);
+  return !!(user && String(user.email || '').toLowerCase().trim() === AGENT_OWNER_EMAIL);
+}
+function requireAgentOwner(jp, res) {
+  if (isAgentOwner(jp)) return true;
+  res.writeHead(403, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ ok:false, error:'Este agente esta reservado para gsanchez@altritempi.com.do' }));
+  return false;
 }
 
 // ── Rate limiting para login ─────────────────────────────────────────────────
@@ -4214,6 +4350,615 @@ const server = http.createServer(async (req, res) => {
     });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, breaks:enriched, lunchTimeAllowed:user?.lunchTimeAllowed||60, totalMinutesToday:enriched.reduce((s,b)=>s+(b.totalMinutes||0),0)}));
+    return;
+  }
+
+  // GET /api/wwp/ops-agent — agente gerente de operaciones (admin)
+  if (reqPath === '/api/wwp/ops-agent' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ROLE_PERMISSIONS.dashboard)) return;
+    const report = computeOpsAgentReport();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), aiEnabled: !!anthropicClient, ...report }));
+    return;
+  }
+
+  // GET /api/wwp/ops-agent/brief — parte del día redactado por Claude (admin)
+  // Toma el reporte heurístico como insumo y genera un análisis en lenguaje natural.
+  // Cache server-side: 30 min o hasta que cambien los datos. ?refresh=1 fuerza regeneración.
+  if (reqPath === '/api/wwp/ops-agent/brief' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ROLE_PERMISSIONS.dashboard)) return;
+    if (!anthropicClient) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, reason: 'no_api_key', message: 'Configura ANTHROPIC_API_KEY para activar el análisis con IA.' }));
+      return;
+    }
+    try {
+      const report = computeOpsAgentReport();
+      const dataHash = crypto.createHash('sha256').update(JSON.stringify(report)).digest('hex');
+      const forceRefresh = (parsed.query || {}).refresh === '1';
+      const cacheValid = _opsBriefCache.brief && _opsBriefCache.hash === dataHash &&
+        (Date.now() - _opsBriefCache.generatedAt) < OPS_BRIEF_TTL;
+      if (cacheValid && !forceRefresh) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, cached: true, generatedAt: new Date(_opsBriefCache.generatedAt).toISOString(), brief: _opsBriefCache.brief }));
+        return;
+      }
+
+      // Sistema estable primero (cacheable); datos volátiles en el turno de usuario.
+      const systemPrompt =
+        'Eres "Marta", la Gerente de Operaciones IA de Altri Tempi (almacén y despachos de muebles en República Dominicana). ' +
+        'Cada mañana recibes el reporte operativo en JSON (tareas activas, vencidas, sin avance, sin responsable, evidencias pendientes, validaciones acumuladas y carga por persona) y redactas el PARTE DEL DÍA para el administrador.\n\n' +
+        'Reglas del parte:\n' +
+        '- Escribe en español, tono directo y profesional, como una gerente experimentada hablando con su jefe.\n' +
+        '- Estructura en Markdown: 1) "## Resumen del día" (2-3 frases con la foto general), 2) "## Lo urgente" (máx 4 puntos, lo que se debe atacar HOY, con nombres y números de tarea), 3) "## Equipo" (1-3 observaciones sobre carga de trabajo: quién está sobrecargado, quién libre, sugerencias de redistribución), 4) "## Recomendación" (1 decisión concreta que tomarías hoy).\n' +
+        '- Usa los nombres de pila de las personas y los números de tarea (#0026) cuando existan.\n' +
+        '- Sé concreto: cifras, horas sin avance, fechas. Nada de relleno ni frases genéricas.\n' +
+        '- Si la operación está sana, dilo claramente y felicita en una línea.\n' +
+        '- Máximo ~250 palabras en total.';
+
+      const response = await anthropicClient.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 4000,
+        thinking: { type: 'adaptive' },
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        messages: [{
+          role: 'user',
+          content: 'Reporte operativo de hoy (' + new Date().toISOString().slice(0, 10) + '):\n```json\n' + JSON.stringify(report, null, 1) + '\n```\nRedacta el parte del día.'
+        }]
+      });
+
+      const brief = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      _opsBriefCache = { hash: dataHash, brief, generatedAt: Date.now() };
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, cached: false, generatedAt: new Date().toISOString(), brief,
+        usage: { input: response.usage.input_tokens, output: response.usage.output_tokens, cacheRead: response.usage.cache_read_input_tokens || 0 } }));
+    } catch (e) {
+      // Errores de la API (rate limit, overload, key inválida): degradar con gracia — el panel
+      // heurístico sigue funcionando. Mensajes claros por tipo sin romper el dashboard.
+      let reason = 'api_error', msg = e.message || 'Error llamando a Claude';
+      if (Anthropic && e instanceof Anthropic.AuthenticationError) { reason = 'bad_api_key'; msg = 'La ANTHROPIC_API_KEY no es válida.'; }
+      else if (Anthropic && e instanceof Anthropic.RateLimitError) { reason = 'rate_limited'; msg = 'Límite de uso alcanzado; intenta en unos minutos.'; }
+      else if (Anthropic && e.status === 529) { reason = 'overloaded'; msg = 'Claude está saturado; intenta en unos minutos.'; }
+      console.error('[ops-brief]', reason, e.message);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, reason, message: msg }));
+    }
+    return;
+  }
+
+  // POST /api/wwp/ops-agent/follow-up — asistente del gerente solicita actualizaciones por chat
+  if (reqPath === '/api/wwp/ops-agent/follow-up' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ROLE_PERMISSIONS.dashboard)) return;
+    try {
+      const d = await readBody(req);
+      const requestedIds = Array.isArray(d.taskIds) ? d.taskIds : [d.taskId];
+      const taskIds = [...new Set(requestedIds.filter(Boolean).map(String))].slice(0, 20);
+      if (!taskIds.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Selecciona al menos una tarea' }));
+        return;
+      }
+
+      const mode = String(d.mode || 'general');
+      const modeText = {
+        critical: 'Esta tarea requiere atencion inmediata.',
+        high: 'Esta tarea necesita actualizacion prioritaria.',
+        medium: 'Esta tarea necesita seguimiento operativo.',
+        low: 'Favor confirmar avance cuando sea posible.',
+        overdue: 'Esta tarea esta vencida y requiere plan de cierre hoy.',
+        stale: 'Esta tarea no registra avance reciente.',
+        evidence: 'Hay evidencia pendiente antes del cierre.',
+        validation: 'La tarea esta lista para validacion o devolucion.',
+        general: 'Favor actualizar el estado de esta tarea.'
+      };
+      const intro = modeText[mode] || modeText.general;
+      const text = (d.text || '').trim() || `${intro} Indica avance actual, bloqueo si existe, evidencia pendiente y hora estimada de cierre.`;
+
+      const tasks = loadWwpTasks();
+      const sent = [];
+      const missing = [];
+      const nowIso = new Date().toISOString();
+
+      taskIds.forEach(taskId => {
+        const idx = tasks.findIndex(t => t.id === taskId);
+        if (idx === -1) { missing.push(taskId); return; }
+        const task = tasks[idx];
+        const msg = {
+          id: wwpId('msg'),
+          fromId: 'ops_assistant',
+          fromName: 'Asistente de Operaciones',
+          text,
+          createdAt: nowIso,
+          system: true,
+          source: 'ops-agent',
+          requestedBy: jp.userId,
+          requestedByName: jp.name,
+          followUpType: mode
+        };
+        if (!task.messages) task.messages = [];
+        task.messages.push(msg);
+        task.updatedAt = nowIso;
+
+        const assigneeId = odooStrToAuthId(task.assignedTo);
+        const participants = new Set([task.managerId, assigneeId, task.createdBy].filter(Boolean));
+        (task.assignees || []).forEach(uid => participants.add(uid));
+        (task.executors || []).forEach(uid => participants.add(odooStrToAuthId(uid) || uid));
+        participants.delete(jp.userId);
+        participants.forEach(uid => createNotification(uid, {
+          type: 'comment_new',
+          title: 'Seguimiento operativo',
+          message: `Asistente de Operaciones: "${text.length > 80 ? text.slice(0, 77) + '...' : text}"`,
+          relatedTaskId: taskId,
+          priority: task.priority || null,
+          dueDate: task.dueDate || null,
+          by: jp.name
+        }));
+
+        const sseData = `data: ${JSON.stringify({ event: 'chat_message', taskId, message: msg })}\n\n`;
+        participants.add(jp.userId);
+        participants.forEach(uid => {
+          (sseClients.get(uid) || new Set()).forEach(r => { try { r.write(sseData); } catch {} });
+        });
+        broadcastWwpTasks('ops_follow_up_sent', task, { taskId, message: msg, mode });
+        appendAuditLog('ops_follow_up_sent', { by: jp.userId, byName: jp.name, taskId, mode, text });
+        sent.push({ taskId, message: msg });
+      });
+
+      saveWwpTasks(tasks);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, sent, missing }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // GET /api/wwp/process-auditor — auditor de procesos y manuales por rol
+  if (reqPath === '/api/wwp/process-auditor' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireAgentOwner(jp, res)) return;
+    try {
+      const tasks = loadWwpTasks();
+      const users = loadAuthUsers();
+      const auditLogs = loadJson(WWP_AUDIT_FILE, []);
+      const state = loadProcessAuditorState();
+      const now = Date.now();
+      const today = new Date().toISOString().slice(0, 10);
+      const closed = new Set(['completed', 'validated', 'cancelled']);
+      const active = tasks.filter(t => !closed.has(t.status));
+      const hoursSince = (value) => {
+        const ms = value ? now - new Date(value).getTime() : 0;
+        return Number.isFinite(ms) && ms > 0 ? Math.round(ms / 36e5) : 0;
+      };
+      const selectedItems = (t) => (t.items || []).filter(i => i.selected);
+      const selectedWithoutEvidence = (t) => selectedItems(t).filter(i => !(i.evidence_images || []).length);
+      const recentChanges = auditLogs.slice(-80).reverse().map(l => ({
+        at: l.timestamp || null,
+        event: l.event || 'evento',
+        summary: l.taskId ? `Tarea ${l.taskId}` : (l.email || l.byName || l.userId || 'Sistema'),
+        detail: l.newStatus ? `${l.prevStatus || 'estado'} -> ${l.newStatus}` : (l.mode || l.reason || l.role || '')
+      }));
+
+      const baseRecs = [];
+      const addRec = (id, priority, category, title, finding, recommendation, changeType, command, evidence) => {
+        baseRecs.push({ id, priority, category, title, finding, recommendation, changeType, command, evidence });
+      };
+
+      const overdue = active.filter(t => t.dueDate && t.dueDate < today);
+      if (overdue.length) addRec(
+        'PA-VENCIDAS',
+        'critica',
+        'Operacion',
+        'Tareas vencidas sin cierre operativo',
+        `${overdue.length} tarea(s) activas estan vencidas.`,
+        'Crear rutina diaria donde el responsable confirme bloqueo, ETA y evidencia antes del cierre del turno.',
+        'accion_personas',
+        'Codex, crea un control diario para tareas vencidas que obligue a registrar bloqueo, ETA y responsable antes de cerrar turno.',
+        overdue.slice(0, 5).map(t => t.title || t.id)
+      );
+
+      const stale = active.filter(t => ['assigned','in_progress'].includes(t.status) && hoursSince(t.updatedAt || t.createdAt) >= 8);
+      if (stale.length) addRec(
+        'PA-SIN-AVANCE',
+        'alta',
+        'Seguimiento',
+        'Tareas sin avance reciente',
+        `${stale.length} tarea(s) asignadas/en progreso llevan 8h o mas sin actualizacion.`,
+        'Agregar recordatorio automatico del asistente y tablero de responsables con tareas sin actualizacion.',
+        'funcionalidad',
+        'Codex, implementa recordatorios automaticos del Asistente de Operaciones para tareas sin avance mayor a 8 horas.',
+        stale.slice(0, 5).map(t => t.title || t.id)
+      );
+
+      const missingEvidence = active.filter(t => selectedWithoutEvidence(t).length);
+      if (missingEvidence.length) addRec(
+        'PA-EVIDENCIAS',
+        'alta',
+        'Calidad',
+        'Evidencias incompletas',
+        `${missingEvidence.length} tarea(s) tienen articulos seleccionados sin fotos/evidencia.`,
+        'Estandarizar manual por rol y mostrar checklist visible antes de permitir completar la tarea.',
+        'pantalla',
+        'Codex, agrega checklist visible de evidencia requerida por tipo de tarea antes del boton Completar.',
+        missingEvidence.slice(0, 5).map(t => t.title || t.id)
+      );
+
+      const completed = tasks.filter(t => t.status === 'completed');
+      if (completed.length) addRec(
+        'PA-VALIDACION',
+        'media',
+        'Control',
+        'Validaciones acumuladas',
+        `${completed.length} tarea(s) estan completadas y pendientes de validacion.`,
+        'Definir SLA de validacion por supervisor y alerta si una tarea completada pasa mas de 4 horas sin decision.',
+        'proceso',
+        'Codex, crea alerta de SLA para tareas completadas pendientes de validacion por mas de 4 horas.',
+        completed.slice(0, 5).map(t => t.title || t.id)
+      );
+
+      addRec(
+        'PA-MAPA-PLATAFORMA',
+        'alta',
+        'Documentacion',
+        'Mapa funcional completo de Workforce Platform',
+        'El auditor debe mantener inventario de pantallas, botones, permisos, datos usados y flujo esperado para toda la plataforma, no solo para agentes.',
+        'Crear una matriz viva de modulos con botones, acciones, prerequisitos, errores comunes y screenshots requeridos.',
+        'documentacion',
+        'Codex, genera una matriz completa de pantallas, botones, permisos, datos y screenshots requeridos para Workforce Platform.',
+        ['Tareas', 'Dashboard', 'Auditor', 'Usuarios', 'Vehiculos', 'Politicas', 'Impacto', 'Empaque', 'Historial operacional']
+      );
+
+      addRec(
+        'PA-DOC-POSICIONES',
+        'alta',
+        'Talento y Procesos',
+        'Documentos completos para creacion de posiciones',
+        'La plataforma necesita paquetes documentales acabados para crear posiciones operativas con responsabilidades, KPIs, permisos y capacitacion.',
+        'Generar documentos por posicion: proposito, responsabilidades, pantallas usadas, botones permitidos, indicadores, rutina diaria, checklist de entrenamiento y criterios de evaluacion.',
+        'documentacion',
+        'Codex, crea plantillas completas de descripcion de puesto, matriz RACI, KPIs, entrenamiento y permisos por posicion para Workforce Platform.',
+        ['Gerente de Operaciones', 'Encargado', 'Auxiliar', 'Almacen', 'Empaque', 'Auditor de Procesos']
+      );
+
+      const byType = {};
+      active.forEach(t => { byType[t.type || 'general'] = (byType[t.type || 'general'] || 0) + 1; });
+      if (!baseRecs.length) addRec(
+        'PA-SIN-HALLAZGOS',
+        'baja',
+        'Monitoreo',
+        'Operacion sin hallazgos criticos',
+        'No se detectaron brechas criticas en este analisis.',
+        'Mantener revision diaria de tareas, evidencias y aprobaciones.',
+        'monitoreo',
+        'Codex, refresca el auditor de procesos y compara contra el proximo ciclo operativo.',
+        []
+      );
+
+      const recommendations = baseRecs.map(r => ({
+        ...r,
+        status: state.recommendations?.[r.id]?.status || 'pendiente',
+        approvedAt: state.recommendations?.[r.id]?.approvedAt || null,
+        approvedBy: state.recommendations?.[r.id]?.approvedBy || null
+      }));
+
+      const platformModules = [
+        {
+          name: 'Tareas',
+          purpose: 'Gestionar trabajo operativo de punta a punta.',
+          screens: ['Lista', 'Tarjetas', 'Kanban', 'Por persona', 'Drawer de tarea', 'Wizard nueva tarea'],
+          buttons: ['Nueva Tarea', 'CSV', 'Lista', 'Tarjetas', 'Kanban', 'Por persona', 'Enviar chat', 'Adjuntar foto', 'Completar', 'Validar', 'Devolver', 'Agregar evidencia'],
+          auditFocus: ['responsable', 'fecha limite', 'estado', 'evidencia', 'chat', 'tiempo sin avance']
+        },
+        {
+          name: 'Dashboard',
+          purpose: 'Supervision gerencial y decisiones operativas.',
+          screens: ['Agente Gerente de Operaciones', 'Resumen de tareas', 'Almuerzos', 'Indicadores'],
+          buttons: ['Pedir updates urgentes', 'Seguimiento', 'Actualizar analisis', 'Abrir tarea'],
+          auditFocus: ['vencidas', 'sin avance', 'sin responsable', 'sin evidencia', 'pendiente de validacion']
+        },
+        {
+          name: 'Auditor de Procesos',
+          purpose: 'Gobernanza, mejora continua, manuales y recomendaciones aprobables.',
+          screens: ['Recomendaciones', 'Manuales', 'Mapa de plataforma', 'Documentos de posiciones', 'Cambios detectados'],
+          buttons: ['Actualizar', 'Aprobar', 'Rechazar'],
+          auditFocus: ['documentacion vigente', 'brechas de proceso', 'cambios de plataforma', 'paquetes de puesto']
+        },
+        {
+          name: 'Usuarios y roles',
+          purpose: 'Administrar accesos, permisos y estructura de responsabilidad.',
+          screens: ['Usuarios', 'Roles', 'Mapa GPS', 'Cambiar de usuario'],
+          buttons: ['Nuevo Usuario', 'Guardar usuario', 'Editar rol', 'Ver mapa', 'Cambiar de usuario'],
+          auditFocus: ['permisos correctos', 'usuarios activos', 'roles por posicion', 'trazabilidad de cambios']
+        },
+        {
+          name: 'Vehiculos',
+          purpose: 'Inspeccion y control de aptitud operativa de vehiculos.',
+          screens: ['Formulario de inspeccion', 'Listado admin', 'Cierre de inspeccion'],
+          buttons: ['Guardar inspeccion', 'Eliminar', 'Actualizar'],
+          auditFocus: ['apto para operar', 'evidencia de inspeccion', 'responsable', 'fecha y hora']
+        },
+        {
+          name: 'Politicas e Impacto',
+          purpose: 'Definir reglas operativas y medir impacto en flujo de trabajo.',
+          screens: ['Politicas', 'Impacto en flujo de trabajo'],
+          buttons: ['Nueva Politica', 'Guardar', 'Actualizar impacto'],
+          auditFocus: ['cumplimiento', 'friccion operacional', 'impacto por politica']
+        },
+        {
+          name: 'Empaque y almacenamiento',
+          purpose: 'Catalogo de materiales, preparacion, empaque y ubicacion.',
+          screens: ['Materiales de Empaque', 'Articulos a empacar', 'Articulos a almacenar'],
+          buttons: ['Agregar material', 'Seleccionar foto', 'Actualizar desde pick', 'Agregar foto de ubicacion'],
+          auditFocus: ['material asignado', 'condicion', 'evidencia', 'ubicacion destino']
+        },
+        {
+          name: 'Historial operacional',
+          purpose: 'Consultar flujo de ordenes, reposicion, solicitudes, pendientes y reportes.',
+          screens: ['Buscar', 'Devoluciones', 'Contenedores', 'Reposicion', 'Solicitudes', 'Pendientes', 'Reportes'],
+          buttons: ['Buscar', 'Actualizar', 'Exportar', 'Crear solicitud', 'Completar', 'Cancelar'],
+          auditFocus: ['pasos faltantes', 'documentos adjuntos', 'cierres incompletos', 'trazabilidad por orden']
+        }
+      ];
+
+      const positionDocuments = [
+        {
+          title: 'Gerente de Operaciones Workforce Platform',
+          file: '/manuales/posiciones/gerente-operaciones.md',
+          documents: ['Descripcion de puesto', 'Rutina diaria', 'KPI/SLA', 'Matriz de aprobaciones', 'Manual de dashboard', 'Plan de entrenamiento'],
+          requiredSections: ['Proposito', 'Responsabilidades', 'Pantallas usadas', 'Botones autorizados', 'Decisiones esperadas', 'Escalaciones', 'Indicadores', 'Evidencias de cumplimiento']
+        },
+        {
+          title: 'Auditor de Procesos Workforce Platform',
+          file: '/manuales/posiciones/auditor-procesos.md',
+          documents: ['Descripcion de puesto', 'Manual de auditoria', 'Checklist de revision', 'Formato de hallazgos', 'Formato de recomendacion', 'Matriz RACI'],
+          requiredSections: ['Objetivo del rol', 'Frecuencia de revision', 'Fuentes de datos', 'Criterios de severidad', 'Documentacion requerida', 'Control de cambios', 'Mejora continua']
+        },
+        {
+          title: 'Encargado Operativo',
+          file: '/manuales/posiciones/encargado-operativo.md',
+          documents: ['Descripcion de puesto', 'Manual de asignacion', 'Checklist de seguimiento', 'SLA por tarea', 'Guia de escalacion'],
+          requiredSections: ['Asignacion', 'Seguimiento', 'Uso del chat', 'Evidencias', 'Cierre', 'Errores comunes', 'KPIs']
+        },
+        {
+          title: 'Auxiliar / Almacen / Empaque',
+          file: '/manuales/posiciones/auxiliar-almacen-empaque.md',
+          documents: ['Manual de ejecucion', 'Checklist de evidencia', 'Manual de fotos', 'Guia de estados', 'Capacitacion inicial'],
+          requiredSections: ['Inicio de tarea', 'Confirmacion de articulos', 'Condicion', 'Fotos requeridas', 'Bloqueos', 'Cierre correcto']
+        }
+      ];
+
+      const documentationStandards = [
+        'Cada manual debe indicar objetivo, alcance, rol responsable, prerequisitos, pantallas, botones, paso a paso, evidencia requerida, errores comunes y criterios de cierre.',
+        'Cada flujo debe incluir inicio, decisiones, excepciones, responsable, SLA, datos usados, pantalla donde ocurre y resultado esperado.',
+        'Cada screenshot requerido debe tener nombre, pantalla, momento del proceso y elemento que debe verse resaltado.',
+        'Cada recomendacion de desarrollo debe traer problema, impacto, solucion propuesta, riesgo, pantallas afectadas y comando exacto para pedir implementacion a Codex.'
+      ];
+
+      const manuals = [
+        {
+          role: 'Admin / Gerencia',
+          scope: 'Gobierno completo de Workforce Platform',
+          steps: [
+            'Revisar Dashboard, Agente Gerente de Operaciones y Auditor de Procesos al iniciar el dia.',
+            'Validar tareas completadas, devolver con comentario si falta evidencia o aprobar si cumple.',
+            'Aprobar solo recomendaciones del auditor que tengan impacto claro en tiempo, calidad o control.',
+            'Crear usuarios, roles y permisos cuando el proceso requiera un responsable nuevo.'
+          ],
+          screenshots: ['Dashboard general', 'Auditor de Procesos', 'Detalle de tarea', 'Usuarios y permisos']
+        },
+        {
+          role: 'Encargado / Manager',
+          scope: 'Asignacion, seguimiento y cierre operativo',
+          steps: [
+            'Crear o revisar tareas del dia y confirmar responsable, prioridad y fecha limite.',
+            'Dar seguimiento por chat cuando exista bloqueo, atraso o falta de evidencia.',
+            'Verificar que cada articulo seleccionado tenga estado, confirmacion y foto cuando aplique.',
+            'Escalar al gerente si una tarea supera el SLA o no tiene responsable claro.'
+          ],
+          screenshots: ['Lista de tareas', 'Drawer de tarea', 'Chat de tarea', 'Evidencias por articulo']
+        },
+        {
+          role: 'Auxiliar / Operaciones',
+          scope: 'Ejecucion y evidencia',
+          steps: [
+            'Abrir la tarea asignada y marcar inicio cuando comience la actividad.',
+            'Actualizar el chat si hay bloqueo, diferencia de articulos o falta de ubicacion.',
+            'Subir fotos/evidencias solicitadas y confirmar articulos completados.',
+            'Marcar completada solo cuando todos los requisitos visibles esten listos.'
+          ],
+          screenshots: ['Tarea asignada', 'Carga de fotos', 'Confirmacion de articulo', 'Chat']
+        },
+        {
+          role: 'Almacen / Empaque',
+          scope: 'Preparacion, empaque y almacenamiento',
+          steps: [
+            'Validar origen/destino del pick o ubicacion antes de mover articulos.',
+            'Registrar condicion del articulo y evidencia de empaque o ubicacion.',
+            'Confirmar unidades y materiales de empaque cuando aplique.',
+            'Reportar averias o diferencias por chat antes de cerrar.'
+          ],
+          screenshots: ['Contexto de almacenamiento', 'Articulos a almacenar', 'Estado al almacenar', 'Foto de ubicacion']
+        }
+      ];
+
+      const flows = [
+        'Solicitud o necesidad operativa -> Creacion de tarea -> Asignacion de responsable.',
+        'Ejecucion -> Actualizaciones por chat -> Evidencia/fotos -> Confirmacion de articulos.',
+        'Completado -> Validacion gerencial -> Cierre o devolucion con comentario.',
+        'Auditor analiza ejecucion -> Genera recomendacion/manual -> Gabriel aprueba o descarta.',
+        'Cambio de plataforma -> Auditor detecta evento -> Actualiza mapa de pantallas/documentos -> Recomienda ajuste de manuales.',
+        'Creacion de posicion -> Auditor entrega descripcion, matriz de permisos, KPIs, rutina diaria, capacitacion y screenshots requeridos.'
+      ];
+
+      const summary = {
+        active: active.length,
+        overdue: overdue.length,
+        stale: stale.length,
+        missingEvidence: missingEvidence.length,
+        pendingValidation: completed.length,
+        users: users.filter(u => u.active !== false).length,
+        byType
+      };
+
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({
+        ok:true,
+        generatedAt:new Date().toISOString(),
+        owner:AGENT_OWNER_EMAIL,
+        summary,
+        recommendations,
+        manuals,
+        flows,
+        platformModules,
+        positionDocuments,
+        documentationStandards,
+        recentChanges: recentChanges.slice(0, 25)
+      }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:e.message }));
+    }
+    return;
+  }
+
+  // GET /api/wwp/process-auditor/ai — analisis IA del Auditor usando contexto del Gerente
+  if (reqPath === '/api/wwp/process-auditor/ai' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireAgentOwner(jp, res)) return;
+    if (!anthropicClient) {
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, reason:'no_api_key', message:'Configura ANTHROPIC_API_KEY para activar el analisis IA del Auditor.' }));
+      return;
+    }
+    try {
+      const tasks = loadWwpTasks();
+      const users = loadAuthUsers();
+      const auditLogs = loadJson(WWP_AUDIT_FILE, []);
+      const auditorState = loadProcessAuditorState();
+      const opsReport = computeOpsAgentReport();
+      const now = Date.now();
+      const today = new Date().toISOString().slice(0, 10);
+      const closed = new Set(['completed', 'validated', 'cancelled']);
+      const active = tasks.filter(t => !closed.has(t.status));
+      const selectedWithoutEvidence = (t) => (t.items || []).filter(i => i.selected && !(i.evidence_images || []).length);
+      const auditSnapshot = {
+        summary: {
+          active: active.length,
+          overdue: active.filter(t => t.dueDate && t.dueDate < today).length,
+          stale: active.filter(t => ['assigned','in_progress'].includes(t.status) && (now - new Date(t.updatedAt || t.createdAt).getTime()) >= 8 * 36e5).length,
+          missingEvidence: active.filter(t => selectedWithoutEvidence(t).length).length,
+          pendingValidation: tasks.filter(t => t.status === 'completed').length,
+          users: users.filter(u => u.active !== false).length
+        },
+        platformModules: ['Tareas','Dashboard','Auditor','Usuarios y roles','Vehiculos','Politicas','Impacto','Empaque','Historial operacional','Reportes'],
+        currentRecommendations: Object.entries(auditorState.recommendations || {}).map(([id, v]) => ({ id, status: v.status, approvedAt: v.approvedAt, rejectedAt: v.rejectedAt })).slice(-30),
+        recentEvents: auditLogs.slice(-40).map(l => ({ at:l.timestamp, event:l.event, taskId:l.taskId, by:l.byName || l.email || l.userId, detail:l.newStatus ? `${l.prevStatus || ''}->${l.newStatus}` : (l.mode || l.reason || '') }))
+      };
+      const hash = crypto.createHash('sha1').update(JSON.stringify({ auditSnapshot, ops: opsReport.summary })).digest('hex');
+      const force = (parsed.query && parsed.query.refresh === '1');
+      if (!force && _processAuditorAiCache.brief && _processAuditorAiCache.hash === hash && Date.now() - _processAuditorAiCache.generatedAt < PROCESS_AUDITOR_AI_TTL) {
+        res.writeHead(200, { 'Content-Type':'application/json' });
+        res.end(JSON.stringify({ ok:true, cached:true, generatedAt:new Date(_processAuditorAiCache.generatedAt).toISOString(), brief:_processAuditorAiCache.brief }));
+        return;
+      }
+
+      const systemPrompt = [
+        'Eres el Agente Auditor de Procesos de Workforce Platform.',
+        'Trabajas junto al Agente Gerente de Operaciones y con Codex como implementador controlado.',
+        'Tu objetivo es mejorar documentacion, flujos, pantallas, botones, permisos, posiciones y recomendaciones de desarrollo.',
+        'No debes decir que ejecutaras cambios automaticamente. Toda implementacion requiere aprobacion humana y luego una instruccion explicita a Codex.',
+        'Responde en español, con recomendaciones concretas y accionables.'
+      ].join(' ');
+      const userPrompt = [
+        'Analiza este contexto del Auditor y del Gerente de Operaciones.',
+        'Devuelve un JSON valido con esta forma exacta:',
+        '{"executiveSummary":"","collaborationNotes":[],"documentationGaps":[],"processRisks":[],"developmentRecommendations":[{"title":"","impact":"","commandForCodex":""}],"nextBestActions":[]}',
+        'No incluyas markdown fuera del JSON.',
+        JSON.stringify({ auditor: auditSnapshot, opsAgent: opsReport }, null, 2).slice(0, 50000)
+      ].join('\n\n');
+
+      const response = await anthropicClient.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 4000,
+        thinking: { type: 'adaptive' },
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: [{ type:'text', text:userPrompt }] }]
+      });
+      const text = response.content?.map(c => c.text || '').join('\n').trim() || '';
+      let brief;
+      try {
+        brief = JSON.parse(text.replace(/^```json\s*/i, '').replace(/```$/,'').trim());
+      } catch {
+        brief = { executiveSummary:text, collaborationNotes:[], documentationGaps:[], processRisks:[], developmentRecommendations:[], nextBestActions:[] };
+      }
+      _processAuditorAiCache = { hash, brief, generatedAt: Date.now() };
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:true, cached:false, generatedAt:new Date().toISOString(), brief }));
+    } catch(e) {
+      let reason = 'api_error', msg = e.message || 'Error llamando a Claude';
+      if (Anthropic && e instanceof Anthropic.AuthenticationError) { reason = 'bad_api_key'; msg = 'La ANTHROPIC_API_KEY no es valida.'; }
+      else if (Anthropic && e instanceof Anthropic.RateLimitError) { reason = 'rate_limited'; msg = 'Limite de uso alcanzado; intenta en unos minutos.'; }
+      else if (Anthropic && e.status === 529) { reason = 'overloaded'; msg = 'Claude esta saturado; intenta en unos minutos.'; }
+      console.error('[process-auditor-ai]', reason, e.message);
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, reason, message:msg }));
+    }
+    return;
+  }
+
+  // POST /api/wwp/process-auditor/recommendations/:id/approve — aprobar recomendacion
+  if (reqPath.match(/^\/api\/wwp\/process-auditor\/recommendations\/[^/]+\/approve$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireAgentOwner(jp, res)) return;
+    try {
+      const recId = decodeURIComponent(reqPath.split('/')[5]);
+      const state = loadProcessAuditorState();
+      if (!state.recommendations) state.recommendations = {};
+      state.recommendations[recId] = {
+        ...(state.recommendations[recId] || {}),
+        status: 'aprobada',
+        approvedAt: new Date().toISOString(),
+        approvedBy: jp.userId,
+        approvedByName: jp.name
+      };
+      saveProcessAuditorState(state);
+      appendAuditLog('process_auditor_recommendation_approved', { by: jp.userId, byName: jp.name, recommendationId: recId });
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:true, recommendationId: recId, state: state.recommendations[recId] }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:e.message }));
+    }
+    return;
+  }
+
+  // POST /api/wwp/process-auditor/recommendations/:id/reject — rechazar recomendacion
+  if (reqPath.match(/^\/api\/wwp\/process-auditor\/recommendations\/[^/]+\/reject$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireAgentOwner(jp, res)) return;
+    try {
+      const recId = decodeURIComponent(reqPath.split('/')[5]);
+      const state = loadProcessAuditorState();
+      if (!state.recommendations) state.recommendations = {};
+      state.recommendations[recId] = {
+        ...(state.recommendations[recId] || {}),
+        status: 'rechazada',
+        rejectedAt: new Date().toISOString(),
+        rejectedBy: jp.userId,
+        rejectedByName: jp.name
+      };
+      saveProcessAuditorState(state);
+      appendAuditLog('process_auditor_recommendation_rejected', { by: jp.userId, byName: jp.name, recommendationId: recId });
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:true, recommendationId: recId, state: state.recommendations[recId] }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:e.message }));
+    }
     return;
   }
 
