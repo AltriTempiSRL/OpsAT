@@ -352,7 +352,12 @@ body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 
 /* ── Sidebar layout ── */
 .page-layout{display:flex;align-items:flex-start}
-.sidebar{width:210px;min-width:210px;background:var(--accent);flex-shrink:0;position:sticky;top:0;height:100dvh;overflow-y:auto;border-right:1px solid rgba(0,0,0,.22);display:flex;flex-direction:column}
+.sidebar{width:210px;min-width:210px;background:var(--accent);flex-shrink:0;position:fixed;left:0;top:0;z-index:50;height:100dvh;overflow-y:auto;border-right:1px solid rgba(0,0,0,.22);display:flex;flex-direction:column}
+/* App-shell: el sidebar es un marco fijo persistente (Despachos + Workforce Labor).
+   Solo visible para usuarios que ya ven Despachos; el contenido se desplaza 210px. */
+body:not(.app-shell) .sidebar{display:none}
+body.app-shell #app{padding-left:210px}
+body.app-shell #screen-app{padding-left:210px}
 .sidebar-logo{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
 .sidebar-logo-title{font-size:12px;font-weight:800;color:#fff;letter-spacing:-.1px;margin:0 0 1px}
 .sidebar-logo-sub{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px}
@@ -2144,6 +2149,10 @@ body{font-family:var(--font);min-height:100dvh}
 /* Mark: "Reasignar" por fila → solo visible al pasar el cursor en desktop (no permanente) */
 .row-reassign{display:inline-flex;align-items:center;opacity:0;transition:opacity .12s;pointer-events:none}
 .task-list-row:hover .row-reassign,.task-list-row:focus-within .row-reassign{opacity:1;pointer-events:auto}
+.btn-reassign-soft{background:transparent!important;color:var(--text-2)!important;border:1px solid var(--border)!important;box-shadow:none!important;font-weight:650}
+.btn-reassign-soft:hover{background:var(--surface-2)!important;color:var(--text)!important;border-color:var(--border)!important}
+.btn-reassign-icon{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;padding:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-radius:8px!important;overflow:hidden!important}
+.btn-reassign-icon i{margin:0!important}
 @media(hover:none){.row-reassign{opacity:1;pointer-events:auto}}
 @media(max-width:720px){
   /* Mark: fila en móvil = 2 líneas claras (título arriba; estado + alerta abajo) */
@@ -2726,6 +2735,8 @@ body{font-family:var(--font);min-height:100dvh}
   .sidebar{display:none!important}
   .page-layout{display:block!important}
   #app{padding:0}
+  /* En móvil el sidebar se oculta (se usa la mob-nav): sin offset de 210px */
+  body.app-shell #app,body.app-shell #screen-app{padding-left:0}
   .hdr{padding:12px 14px}
   .hdr h1{font-size:16px}
   .hdr p{font-size:11px}
@@ -3353,6 +3364,8 @@ body{font-family:var(--font);min-height:100dvh}
 .wiz-sname{font-size:15px;font-weight:700;color:var(--text)}
 .wiz-arrow{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--text-3);margin:4px 0}
 .wiz-dep{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;background:rgba(245,158,11,.1);color:var(--amber-text);border:1px solid var(--amber-dot);border-radius:5px}
+.time12-control{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 82px;gap:8px}
+.time12-control .form-select{width:100%;min-width:0}
 @media(max-width:600px){
   /* ── Wizard mobile ─────────────────────────────────────── */
   .wiz-2col{grid-template-columns:1fr}
@@ -3392,6 +3405,7 @@ body{font-family:var(--font);min-height:100dvh}
   /* Bloque de resumen: texto algo más grande */
   .wiz-sname{font-size:14px}
   .wiz-srole{font-size:9px}
+  .time12-control{grid-template-columns:1fr 1fr 76px;gap:6px}
 }
 </style>
 <script>
@@ -3505,30 +3519,8 @@ body{font-family:var(--font);min-height:100dvh}
 <!-- ══════════════════════════════════════════════════════════════════
      HISTORIAL DE ORDEN — wraps in screen-historial (admin landing)
 ══════════════════════════════════════════════════════════════════ -->
-<div id="screen-historial">
-
-<div id="app">
-  <div class="hdr">
-    <div class="hdr-row">
-      <div>
-        <h1>Historial de Orden</h1>
-        <p>Trazabilidad · SharePoint · Google Sheets · Odoo</p>
-      </div>
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-        <span class="sim-notice" id="sheets-status"><span class="sim-dot"></span>Sheets verificando…</span>
-        <span class="sim-notice" id="odoo-status"><span class="sim-dot"></span>Odoo verificando…</span>
-        <a href="https://gjs6301-code.github.io/dashboard-despachos-live/" class="btn-back" target="_blank" rel="noopener">← Dashboard</a>
-        <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Guía</a>
-        <span id="hist-user-info" style="font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.2px"></span>
-        <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none"><i data-lucide="log-out" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Salir</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="page-layout">
-
-  <!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
-  <nav class="sidebar">
+<!-- ══ SIDEBAR GLOBAL (persistente en Despachos y Workforce Labor) ══ -->
+<nav class="sidebar">
 
     <div class="sidebar-logo">
       <div class="sidebar-logo-title">Despachos</div>
@@ -3593,6 +3585,31 @@ body{font-family:var(--font);min-height:100dvh}
     </div>
 
   </nav>
+
+<div id="screen-historial">
+
+<div id="app">
+  <div class="hdr">
+    <div class="hdr-row">
+      <div>
+        <h1>Historial de Orden</h1>
+        <p>Trazabilidad · SharePoint · Google Sheets · Odoo</p>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <span class="sim-notice" id="sheets-status"><span class="sim-dot"></span>Sheets verificando…</span>
+        <span class="sim-notice" id="odoo-status"><span class="sim-dot"></span>Odoo verificando…</span>
+        <a href="https://gjs6301-code.github.io/dashboard-despachos-live/" class="btn-back" target="_blank" rel="noopener">← Dashboard</a>
+        <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Guía</a>
+        <span id="hist-user-info" style="font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.2px"></span>
+        <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none"><i data-lucide="log-out" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-layout">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+  <!-- sidebar global: movido a nivel body (app-shell) -->
 
   <!-- ══ MOBILE NAV BAR (visible solo en móvil ≤767px) ══════════════ -->
   <div class="mob-nav" id="mob-nav">
@@ -5334,6 +5351,19 @@ function isHistorialUser(u) {
   return Object.keys(sp).some(function(k){ return !!sp[k]; });
 }
 
+// Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
+const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes',
+  'almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+/** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
+ *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
+ *  un usuario solo-WWP (sin secciones de Despachos) NO debe ver el marco lateral de Despachos. */
+function isDespachosUser(u) {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  var sp = u.sectionPerms || {};
+  return _DESPACHOS_SECTIONS.some(function(s){ return !!sp[s]; });
+}
+
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
@@ -5452,6 +5482,10 @@ function showScreen(id) {
       uiSetVisible(el, s === id, 'flex', 'ui-screen-enter');
     }
   });
+  // App-shell: el sidebar de Despachos acompaña SIEMPRE a su propia pantalla, y a Workforce
+  // Labor solo si el usuario pertenece a Despachos (un usuario solo-WWP no ve marco ajeno).
+  var _shell = (id === 'screen-historial') || (id === 'screen-app' && isDespachosUser(_user));
+  document.body.classList.toggle('app-shell', !!_shell);
 }
 function showLogin() { showScreen('screen-login'); }
 function showForgot() { showScreen('screen-forgot'); document.getElementById('forgot-success').classList.remove('show'); document.getElementById('forgot-error').classList.remove('show'); }
@@ -6975,24 +7009,60 @@ function overdueBadgeHtml(t) {
 
 function overdueReassignButtonHtml(t, opts) {
   opts = opts || {};
-  if (!isOverdueTask(t) || !can('edit_task')) return '';
-  const sug = t.escalation && t.escalation.suggestedUserId;
-  const label = opts.label || (sug ? 'Reasignar' : 'Escalar');
-  if (sug) {
-    return `<button class="btn-sm ${opts.primary?'primary':''}" onclick="quickReassignOverdue(event,'${t.id}','${sug}')" title="${esc(t.escalation.suggestedUserName || 'Responsable sugerido')}">
-      <i data-lucide="user-round-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> ${label}
-    </button>`;
-  }
-  return `<button class="btn-sm" onclick="event.stopPropagation();openDrawer('${t.id}')" title="Abrir para escalar manualmente">
-    <i data-lucide="shield-alert" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> ${label}
+  if (!isOverdueTask(t) || !canReassignTask()) return '';
+  const label = opts.label || 'Reasignar';
+  const compact = !!opts.compact;
+  return `<button class="btn-sm btn-reassign-soft ${compact?'btn-reassign-icon':''}" onclick="openTaskReassignPicker(event,'${t.id}')" title="Elegir otro responsable" aria-label="Reasignar tarea">
+    <i data-lucide="user-round-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>${compact ? '' : ' ' + esc(label)}
   </button>`;
 }
 
-async function quickReassignOverdue(ev, taskId, userId) {
+function canReassignTask() {
+  return !!(_user && (_user.role === 'admin' || _user.role === 'manager'));
+}
+
+function pickAssignableUsersForTask(taskId) {
+  const t = (_tasks||[]).find(x => x.id === taskId) || _drawerTask || {};
+  const currentIds = new Set([t.managerId, authIdFromOdooStr(t.assignedTo)].filter(Boolean));
+  return (_authUsers||[])
+    .filter(u => u && u.active !== false && u.id && !currentIds.has(u.id))
+    .sort((a,b) => String(a.name||'').localeCompare(String(b.name||'')));
+}
+
+function openTaskReassignPicker(ev, taskId) {
   if (ev) ev.stopPropagation();
-  if (!can('edit_task')) { toast('Sin permiso para reasignar'); return; }
+  if (!canReassignTask()) { toast('Solo encargados y administradores pueden reasignar'); return; }
+  const t = (_tasks||[]).find(x => x.id === taskId) || _drawerTask;
+  const label = t ? (seqLabel(t) ? seqLabel(t) + ' · ' + t.title : t.title) : 'esta tarea';
+  const users = pickAssignableUsersForTask(taskId);
+  if (!users.length) { toast('No hay otros usuarios disponibles para reasignar'); return; }
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:420px;box-shadow:0 18px 50px rgba(0,0,0,.25);padding:16px">
+    <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:4px">Reasignar tarea</div>
+    <div style="font-size:12px;color:var(--text-2);line-height:1.35;margin-bottom:12px">${esc(label)}</div>
+    <label style="display:block;font-size:10px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">Nuevo responsable</label>
+    <select id="_reassign_user_picker" class="form-select" style="width:100%;min-height:42px;margin-bottom:14px">
+      ${users.map(u => `<option value="${esc(u.id)}">${esc(u.name)}${u.role ? ' · '+esc(u.role) : ''}</option>`).join('')}
+    </select>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn-sm" id="_reassign_cancel" type="button">Cancelar</button>
+      <button class="btn-sm primary" id="_reassign_ok" type="button">Reasignar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('_reassign_cancel').onclick = () => document.body.removeChild(ov);
+  document.getElementById('_reassign_ok').onclick = async () => {
+    const userId = document.getElementById('_reassign_user_picker').value;
+    document.body.removeChild(ov);
+    await reassignTaskToUser(taskId, userId);
+  };
+}
+
+async function reassignTaskToUser(taskId, userId) {
+  if (!canReassignTask()) { toast('Solo encargados y administradores pueden reasignar'); return; }
   const u = (_authUsers||[]).find(x => x.id === userId);
-  if (!u) { toast('Responsable sugerido no disponible'); return; }
+  if (!u) { toast('Usuario no disponible'); return; }
   const t = (_tasks||[]).find(x => x.id === taskId) || _drawerTask;
   const label = t ? (seqLabel(t) ? seqLabel(t) + ' · ' + t.title : t.title) : 'esta tarea';
   if (!await _iosConfirm(`¿Reasignar ${label} a ${u.name}?`)) return;
@@ -7003,7 +7073,7 @@ async function quickReassignOverdue(ev, taskId, userId) {
       assignedTo: u.odooId ? ('oe_' + u.odooId) : undefined,
       by: _user.name,
       byUserId: _user.id,
-      note: 'Reasignacion por tarea overdue'
+      note: 'Reasignacion manual'
     };
     const r = await authFetch('/api/wwp/tasks/' + taskId, { method:'PATCH', body:JSON.stringify(payload) });
     const d = await r.json();
@@ -7098,7 +7168,7 @@ function renderKanbanView(tasks) {
           ${mgr?avatarHtml(mgr,17)+'<span>'+esc(mgr.name.split(' ')[0])+'</span>':''}
           ${t.dueDate?`<span style="margin-left:auto;${dateStyle}">${t.dueDate}</span>`:''}
         </div>
-        ${overdue?`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px">${overdueBadgeHtml(t)}${overdueReassignButtonHtml(t)}</div>`:''}
+        ${overdue?`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;min-width:0">${overdueBadgeHtml(t)}${overdueReassignButtonHtml(t,{compact:true})}</div>`:''}
       </div>`;
     }).join('');
     return `<div class="kanban-col">
@@ -7479,15 +7549,15 @@ function renderDrawer(t) {
       </div>
     </div>`;
 
-    // Encargado: reasignar la tarea a OTRO encargado (transfiere responsabilidad). Admin ya lo hace arriba.
-    if (_user.role === 'manager') {
-      const encOpts = (_authUsers||[]).filter(u => u.active!==false && u.role==='manager')
-        .map(u => `<option value="${u.id}" ${u.id===(t.managerId||'')?'selected':''}>${esc(u.name)}${u.id===_user.id?' (yo)':''}</option>`).join('');
+    // Reasignar responsable: solo encargado/admin; el destino puede ser cualquier usuario activo.
+    if (canReassignTask()) {
+      const encOpts = (_authUsers||[]).filter(u => u.active!==false && u.id)
+        .map(u => `<option value="${u.id}" ${u.id===(t.managerId||'')?'selected':''}>${esc(u.name)}${u.role?(' · '+esc(u.role)):''}${u.id===_user.id?' (yo)':''}</option>`).join('');
       actionHtml += `<div style="margin-bottom:16px;padding:10px 12px;background:var(--surface-2);border:1.5px solid var(--border);border-radius:8px">
         <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px"><i data-lucide="user-cog" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Encargado responsable</div>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="dr-reassign-mgr" class="form-select" style="flex:1;font-size:12px;padding:7px 9px">${encOpts}</select>
-          <button class="btn-primary" onclick="reassignManagerTo('${t.id}')" style="flex-shrink:0">Reasignar</button>
+          <button class="btn-sm btn-reassign-soft" onclick="reassignManagerTo('${t.id}')" style="flex-shrink:0">Reasignar</button>
         </div>
       </div>`;
     }
@@ -7514,6 +7584,11 @@ function renderDrawer(t) {
       actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">✓ Marcar Despacho Completado</button></div>`;
     }
   } else if (t.status==='in_progress'&&isResponsibleCloser) {
+    const completeVerb = (t.type === 'general' || t.taskConcept === 'free') ? 'Terminé mi parte' : 'Completar';
+    const completeButtonLabel = (t.type === 'general' || t.taskConcept === 'free') ? '✓ Terminé mi parte' : '✓ Marcar Completado';
+    const freeEvidenceHint = (t.type === 'general' || t.taskConcept === 'free')
+      ? '<div style="font-size:11px;color:var(--text-3);line-height:1.35;margin:-6px 0 8px 2px">Sube la foto requerida para poder marcar tu parte como terminada.</div>'
+      : '';
     // Fotos obligatorias: por articulo cuando hay articulos, o evidencia general si no hay articulos.
     const selItems = (t.items||[]).filter(i=>i.selected);
     const missingEv = selItems.filter(i=>!i.evidence_images||!i.evidence_images.length);
@@ -7525,15 +7600,15 @@ function renderDrawer(t) {
       const _missingEvText = isStorageFlow
         ? `${storageCopy.evidenceLock} en ${missingEv.length} articulo${missingEv.length>1?'s':''}`
         : `faltan ${missingEv.length} foto${missingEv.length>1?'s':''}`;
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${_missingEvText})</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (' + _missingEvText + ')'}</button></div>${freeEvidenceHint}`;
     } else if (selItems.length && missingConf.length) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
     } else if (selItems.length && missingCond.length) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${missingCond.length} sin indicar condición)</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingCond.length} sin indicar condición)</button></div>`;
     } else if (missingGeneralEv) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (falta evidencia fotográfica)</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
-      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">✓ Marcar Completado</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">${completeButtonLabel}</button></div>`;
     }
   }
   if (t.status==='completed' && isResponsibleCloser) {
@@ -8100,7 +8175,7 @@ function renderDrawer(t) {
       ${taskAuxiliaryIds(t).length?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Auxiliares</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${taskAuxiliaryIds(t).map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?'<span style="display:flex;align-items:center;gap:4px;margin-right:4px">'+avatarHtml(u,22)+'<span style="font-size:12px">'+esc(u.name.split(' ').slice(0,2).join(' '))+'</span></span>':'';}).join('')}</div></div>`:''}
       ${t.type==='staffing'&&t.requester?`<div class="info-cell"><div class="info-cell-label">Solicitante</div><div class="info-cell-val">${esc(t.requester)}</div></div>`:''}
       ${t.type==='staffing'&&t.staffStart?`<div class="info-cell"><div class="info-cell-label">Fechas</div><div class="info-cell-val">${esc(t.staffStart)}${t.staffEnd&&t.staffEnd!==t.staffStart?(' → '+esc(t.staffEnd)):''}</div></div>`:''}
-      ${t.type==='staffing'&&t.staffFrom?`<div class="info-cell"><div class="info-cell-label">Horario</div><div class="info-cell-val">${esc(t.staffFrom)} a ${esc(t.staffTo||'')}</div></div>`:''}
+      ${t.type==='staffing'&&t.staffFrom?`<div class="info-cell"><div class="info-cell-label">Horario</div><div class="info-cell-val">${esc(formatTime12(t.staffFrom)||t.staffFrom)} a ${esc(formatTime12(t.staffTo)||t.staffTo||'')}</div></div>`:''}
       ${t.type==='staffing'&&t.totalHours!=null?`<div class="info-cell"><div class="info-cell-label">Horas</div><div class="info-cell-val">⏱ ${t.totalHours}h</div></div>`:''}
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
       ${t.location?`<div class="info-cell"><div class="info-cell-label">Localidad</div><div class="info-cell-val">${esc(t.location)}</div></div>`:''}
@@ -8541,6 +8616,7 @@ async function cancelTask(taskId) {
 }
 // Reasignar la tarea a otro encargado (transfiere la responsabilidad)
 async function reassignManagerTo(taskId) {
+  if (!canReassignTask()) { toast('Solo encargados y administradores pueden reasignar'); return; }
   const sel = document.getElementById('dr-reassign-mgr');
   const newId = sel ? sel.value : '';
   if (!newId) { toast('Selecciona un encargado'); return; }
@@ -9687,6 +9763,54 @@ function wizStaffHours(){
   if(!(hpd>0)) return null;
   return Math.round(days*hpd*10)/10;
 }
+function time12Parts(value){
+  if(!/^\d{1,2}:\d{2}$/.test(value||'')) return {hour:'', minute:'', period:'AM'};
+  const parts=value.split(':');
+  const h24=Math.max(0, Math.min(23, parseInt(parts[0],10)||0));
+  const minute=String(Math.max(0, Math.min(59, parseInt(parts[1],10)||0))).padStart(2,'0');
+  const period=h24>=12?'PM':'AM';
+  const h12=h24%12 || 12;
+  return {hour:String(h12), minute, period};
+}
+function formatTime12(value){
+  const p=time12Parts(value);
+  return p.hour&&p.minute ? `${p.hour}:${p.minute} ${p.period}` : '';
+}
+function wizSetStaffTime12(key, part, value){
+  const p=time12Parts(_wizState[key]);
+  if(part==='hour') p.hour=value;
+  if(part==='minute') p.minute=value;
+  if(part==='period') p.period=value;
+  if(!p.hour && (p.minute || p.period)) p.hour='8';
+  if(!p.minute && (p.hour || p.period)) p.minute='00';
+  if(p.hour && p.minute && p.period){
+    let h=parseInt(p.hour,10);
+    if(p.period==='AM') h=(h===12)?0:h;
+    else h=(h===12)?12:h+12;
+    _wizState[key]=`${String(h).padStart(2,'0')}:${p.minute}`;
+  } else {
+    _wizState[key]='';
+  }
+  _wizS2Staffing(document.getElementById('wiz-body'));
+}
+function wizTime12Control(label, key){
+  const p=time12Parts(_wizState[key]);
+  const hours=['', '1','2','3','4','5','6','7','8','9','10','11','12'];
+  const minutes=[''].concat(Array.from({length:60},(_,i)=>String(i).padStart(2,'0')));
+  return `<div class="form-group"><label class="form-label">${label}</label>
+    <div class="time12-control">
+      <select class="form-select" aria-label="${label} hora" onchange="wizSetStaffTime12('${key}','hour',this.value)">
+        ${hours.map(h=>`<option value="${h}" ${p.hour===h?'selected':''}>${h||'Hora'}</option>`).join('')}
+      </select>
+      <select class="form-select" aria-label="${label} minutos" onchange="wizSetStaffTime12('${key}','minute',this.value)">
+        ${minutes.map(m=>`<option value="${m}" ${p.minute===m?'selected':''}>${m||'Min'}</option>`).join('')}
+      </select>
+      <select class="form-select" aria-label="${label} periodo" onchange="wizSetStaffTime12('${key}','period',this.value)">
+        <option value="AM" ${p.period==='AM'?'selected':''}>AM</option>
+        <option value="PM" ${p.period==='PM'?'selected':''}>PM</option>
+      </select>
+    </div></div>`;
+}
 function _wizS2Staffing(body){
   const aux=(_authUsers||[]).filter(u=>u.active!==false&&u.role==='assistant');
   const wl=_workloadMap||{};
@@ -9748,10 +9872,8 @@ function _wizS2Staffing(body){
         <input type="date" class="form-select" value="${_wizState.staffEnd}" onchange="_wizState.staffEnd=this.value;_wizS2Staffing(document.getElementById('wiz-body'))"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label class="form-label">Hora inicio *</label>
-        <input type="time" class="form-select" value="${_wizState.staffFrom}" onchange="_wizState.staffFrom=this.value;_wizS2Staffing(document.getElementById('wiz-body'))"></div>
-      <div class="form-group"><label class="form-label">Hora fin *</label>
-        <input type="time" class="form-select" value="${_wizState.staffTo}" onchange="_wizState.staffTo=this.value;_wizS2Staffing(document.getElementById('wiz-body'))"></div>
+      ${wizTime12Control('Hora inicio *','staffFrom')}
+      ${wizTime12Control('Hora fin *','staffTo')}
     </div>
     ${total!=null?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:700;margin:2px 0 12px"><i data-lucide="clock" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${total} horas totales</div>`:'<div style="height:8px"></div>'}
     <div class="wiz-role-lbl"><i data-lucide="users" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
@@ -10182,7 +10304,7 @@ function _wizS4(body){
   if(_wizState.concept==='staffing'){
     const total=wizStaffHours();
     const fechas=_wizState.staffStart?(_wizState.staffStart+(_wizState.staffEnd&&_wizState.staffEnd!==_wizState.staffStart?(' → '+_wizState.staffEnd):'')):'—';
-    const horario=(_wizState.staffFrom&&_wizState.staffTo)?(_wizState.staffFrom+' a '+_wizState.staffTo):'—';
+    const horario=(_wizState.staffFrom&&_wizState.staffTo)?((formatTime12(_wizState.staffFrom)||_wizState.staffFrom)+' a '+(formatTime12(_wizState.staffTo)||_wizState.staffTo)):'—';
     const releases=Object.entries(_wizState.staffReleases).filter(([id,r])=>_wizState.staffWorkers.some(w=>w.id===id) && wizStaffConflicts(id).length);
     body.innerHTML=`<div class="wiz-stitle">Resumen de la solicitud</div>
       <div class="wiz-sblock">
@@ -17082,6 +17204,9 @@ function devCdpCrearTareaSeleccion() {
 function navTo(section){
   // Bloquear acceso directo a secciones sin permiso
   if (!canSection(section)) { toast('Sin acceso a esta sección'); return; }
+  // Si venimos de Workforce Labor, volver a la pantalla de Despachos para mostrar la sección
+  var _appEl = document.getElementById('screen-app');
+  if (_appEl && _appEl.classList.contains('active')) showScreen('screen-historial');
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
   setNavActive(section);
@@ -17143,6 +17268,8 @@ function goToWWP() {
   } else if (_token) {
     loadTasks();
   }
+  // Marcar "Workforce Labor" como activo en el sidebar persistente
+  setNavActive('wwp');
 }
 function goBackToHistorial() {
   showScreen('screen-historial');
