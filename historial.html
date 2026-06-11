@@ -5351,6 +5351,19 @@ function isHistorialUser(u) {
   return Object.keys(sp).some(function(k){ return !!sp[k]; });
 }
 
+// Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
+const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes',
+  'almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+/** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
+ *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
+ *  un usuario solo-WWP (sin secciones de Despachos) NO debe ver el marco lateral de Despachos. */
+function isDespachosUser(u) {
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  var sp = u.sectionPerms || {};
+  return _DESPACHOS_SECTIONS.some(function(s){ return !!sp[s]; });
+}
+
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
@@ -5469,8 +5482,9 @@ function showScreen(id) {
       uiSetVisible(el, s === id, 'flex', 'ui-screen-enter');
     }
   });
-  // App-shell: mantener el sidebar de Despachos como marco fijo en Despachos y Workforce Labor
-  var _shell = (id === 'screen-historial' || id === 'screen-app') && isHistorialUser(_user);
+  // App-shell: el sidebar de Despachos acompaña SIEMPRE a su propia pantalla, y a Workforce
+  // Labor solo si el usuario pertenece a Despachos (un usuario solo-WWP no ve marco ajeno).
+  var _shell = (id === 'screen-historial') || (id === 'screen-app' && isDespachosUser(_user));
   document.body.classList.toggle('app-shell', !!_shell);
 }
 function showLogin() { showScreen('screen-login'); }
