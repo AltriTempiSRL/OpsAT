@@ -2590,6 +2590,48 @@ body{font-family:var(--font);min-height:100dvh}
 .auditor-ai-title{font-size:13px;font-weight:900;color:var(--text);display:flex;align-items:center;gap:6px}
 .auditor-ai-body{font-size:12px;color:var(--text-2);line-height:1.45}
 .auditor-ai-list{margin:6px 0 0 18px;padding:0}.auditor-ai-list li{margin-bottom:4px}
+.ops-agent-wrap,.auditor-page,.auditor-card,.auditor-ai-panel,.ops-agent-card{min-width:0}
+.ops-decision-title,.ops-decision-action,.ops-decision-meta,.auditor-rec-title,.auditor-rec-text,.auditor-flow,.auditor-command,.auditor-ai-body{overflow-wrap:anywhere}
+.auditor-command{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ops-agent-card .btn-sm,.auditor-card .btn-sm,.auditor-ai-panel .btn-sm{min-height:36px}
+.auditor-doc{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:12px;margin-bottom:10px}
+.auditor-doc-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px}
+.auditor-doc-title{font-size:14px;font-weight:900;color:var(--text);line-height:1.25}
+.auditor-doc-meta{font-size:10px;color:var(--text-3);font-weight:800;text-transform:uppercase;letter-spacing:.35px;margin-top:3px}
+.auditor-doc-section-title{font-size:10px;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.55px;margin:10px 0 4px}
+.auditor-doc p,.auditor-doc li{font-size:12px;color:var(--text-2);line-height:1.45}
+.auditor-doc ul,.auditor-doc ol{margin:4px 0 6px 18px;padding:0}
+.auditor-chat-box{display:flex;flex-direction:column;gap:8px}
+.auditor-chat-messages{max-height:360px;overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:10px}
+.auditor-chat-msg{padding:8px 10px;border-radius:8px;margin-bottom:8px;font-size:12px;line-height:1.45;white-space:pre-wrap}
+.auditor-chat-msg.user{background:#eff6ff;color:#1e3a8a;margin-left:24px}
+.auditor-chat-msg.assistant{background:var(--surface);color:var(--text-2);border:1px solid var(--border);margin-right:12px}
+.auditor-chat-meta{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);margin-bottom:3px}
+.auditor-chat-input{display:flex;gap:8px;align-items:flex-end}
+.auditor-chat-input textarea{flex:1;min-height:58px;max-height:150px;resize:vertical;border:1.5px solid var(--border);border-radius:8px;padding:9px 10px;font-family:inherit;font-size:12px;color:var(--text);background:var(--surface);outline:none}
+.auditor-chat-input textarea:focus{border-color:var(--border-focus)}
+.agent-group-card{border:1.5px solid var(--accent);background:linear-gradient(180deg,rgba(37,99,235,.045),var(--surface));border-radius:8px;padding:12px;margin-bottom:12px}
+.agent-roster{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+.agent-avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:16px;box-shadow:var(--shadow-sm)}
+.agent-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800;color:var(--text-2)}
+.agent-chip small{font-size:9px;color:var(--text-3);font-weight:700}
+.agent-group-msg{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.45;white-space:pre-wrap}
+.agent-group-msg.user{background:#eff6ff;color:#1e3a8a;margin-left:28px}
+.agent-group-msg.assistant{background:var(--surface-2)}
+.agent-consults{display:grid;gap:6px;margin:8px 0}
+.agent-consult{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:8px;white-space:normal}
+.agent-consult-body{min-width:0;flex:1;color:var(--text-2);font-size:12px;line-height:1.4}
+.agent-consult-name{font-size:10px;font-weight:900;color:var(--text);text-transform:uppercase;letter-spacing:.35px;margin-bottom:2px}
+.agent-msg-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;justify-content:flex-end}
+.agent-quality-pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:2px 7px;font-size:10px;font-weight:900;color:var(--text-3);background:var(--surface)}
+.agent-quality-pill.ok{color:#047857;border-color:#059669;background:#ecfdf5}.agent-quality-pill.warn{color:#92400e;border-color:#d97706;background:#fffbeb}
+.agent-routines{display:grid;gap:8px;margin:10px 0}
+.agent-routine{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:10px;display:grid;gap:8px}
+.agent-routine-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.agent-routine-title{font-size:12px;font-weight:900;color:var(--text);display:flex;align-items:center;gap:7px}
+.agent-routine-meta{font-size:10px;color:var(--text-3);line-height:1.35;margin-top:2px}
+.agent-routine-controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.agent-routine-controls input,.agent-routine-controls select{border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font-size:11px;padding:6px 8px;min-height:32px}
 
 /* ── USERS PANEL (admin) ─────────────────────────────────────────── */
 .user-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
@@ -2625,6 +2667,11 @@ body{font-family:var(--font);min-height:100dvh}
   .app-body{padding:16px;max-width:100%}
   #wwp-drawer{width:min(540px,80vw)}
   .modal-card{max-width:500px}
+  .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ops-agent-grid,.auditor-grid{grid-template-columns:1fr}
+  .ops-agent-top{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .auditor-hero{align-items:stretch}
+  .auditor-hero>div:first-child{flex:1 1 100%}
   /* — Reposición: tablet — ocultar Ubicación (col 7) para ganar espacio */
   .rs-table th:nth-child(7),.rs-table td:nth-child(7){display:none}
 }
@@ -2728,6 +2775,139 @@ body{font-family:var(--font);min-height:100dvh}
     max-width:100%;
     overflow-x:hidden;   /* evita la franja azul por overflow */
     box-sizing:border-box;
+  }
+
+  /* — Dashboard y Auditor: iOS/Android touch layout — */
+  .kpi-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .kpi-card{
+    padding:12px;
+    border-radius:8px;
+    min-width:0;
+  }
+  .kpi-val{font-size:24px}
+  .kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.25px}
+  .ops-agent-wrap{
+    padding:10px;
+    margin-bottom:14px;
+    border-radius:8px;
+  }
+  .ops-agent-top{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+  .ops-agent-metric{padding:9px;min-width:0}
+  .ops-agent-val{font-size:22px}
+  .ops-agent-label{font-size:9.5px;letter-spacing:.25px}
+  .ops-agent-grid,.auditor-grid{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .ops-agent-card,.auditor-card,.auditor-ai-panel{
+    padding:10px;
+    border-radius:8px;
+  }
+  .ops-assistant-bar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .ops-assistant-bar>div:last-child,
+  .auditor-ai-header>div:last-child{
+    justify-content:stretch!important;
+  }
+  .ops-assistant-bar .btn-sm,
+  .auditor-ai-header .btn-sm,
+  .ops-decision-actions .btn-sm,
+  .auditor-card .btn-sm{
+    min-height:44px;
+    justify-content:center;
+  }
+  .ops-assistant-bar .btn-sm,
+  .auditor-ai-header .btn-sm{
+    flex:1 1 auto;
+  }
+  .ops-decision{
+    align-items:flex-start;
+    flex-wrap:wrap;
+    padding:10px 0;
+  }
+  .ops-sev{height:auto;min-height:42px}
+  .ops-decision-main{flex:1 1 calc(100% - 18px)}
+  .ops-decision-actions{
+    width:100%;
+    justify-content:flex-start;
+    padding-left:16px;
+  }
+  .ops-work-row{
+    flex-wrap:wrap;
+    align-items:flex-start;
+  }
+  .ops-work-name{
+    flex-basis:100%;
+    white-space:normal;
+  }
+  .ops-pill{font-size:10px;padding:3px 7px}
+  .auditor-hero{
+    padding:12px;
+    gap:10px;
+  }
+  .auditor-title{
+    font-size:16px;
+    line-height:1.25;
+  }
+  .auditor-sub{
+    font-size:11.5px;
+    max-width:none;
+  }
+  .auditor-hero .btn-sm{
+    width:100%;
+    min-height:44px;
+    justify-content:center;
+  }
+  .auditor-ai-header{
+    align-items:stretch;
+  }
+  .auditor-ai-title{
+    font-size:12px;
+    line-height:1.3;
+  }
+  .auditor-rec-head{
+    flex-direction:column;
+    gap:6px;
+  }
+  .auditor-badge{align-self:flex-start}
+  .auditor-command{
+    font-size:10.5px;
+    white-space:pre-wrap;
+  }
+  .auditor-flow{
+    padding:9px 0;
+  }
+  .auditor-chip{
+    font-size:9.5px;
+    padding:3px 7px;
+  }
+  .auditor-chat-messages{max-height:300px}
+  .auditor-chat-input{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .auditor-chat-input textarea{
+    width:100%;
+    box-sizing:border-box;
+    min-height:86px;
+  }
+  .auditor-chat-input .btn-sm{
+    width:100%;
+    min-height:44px;
+  }
+  #process-auditor-panel,
+  #ops-agent-panel{
+    max-width:100%;
+    overflow-x:hidden;
   }
 
   /* — Evitar scroll horizontal global en #screen-app — */
@@ -4247,8 +4427,8 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- DASHBOARD TAB -->
     <div id="tab-dashboard" style="display:none">
-      <!-- Agente gerente de operaciones -->
-      <div class="sec-header" style="margin-bottom:12px"><i data-lucide="radar" class="sec-hdr-icon"></i>AGENTE GERENTE DE OPERACIONES</div>
+      <!-- Mesa unica de agentes -->
+      <div class="sec-header" style="margin-bottom:12px"><i data-lucide="radar" class="sec-hdr-icon"></i>MESA DE AGENTES</div>
       <div class="ops-agent-wrap" id="ops-agent-panel">
         <div class="loading"><div class="spinner"></div><br>Analizando tareas en vivo...</div>
       </div>
@@ -4340,22 +4520,6 @@ body{font-family:var(--font);min-height:100dvh}
               <tr><td colspan="7" class="veh-empty">Cargando…</td></tr>
             </tbody>
           </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- PROCESS AUDITOR TAB (owner only) -->
-    <div id="tab-auditor" style="display:none">
-      <div class="auditor-page">
-        <div class="auditor-hero">
-          <div>
-            <h2 class="auditor-title"><i data-lucide="file-search" class="tab-h2-icon"></i>Agente Auditor de Procesos</h2>
-            <div class="auditor-sub">Analiza toda Workforce Platform: pantallas, botones, permisos, flujos, tareas, evidencias, cambios de desarrollo y documentos para posiciones. Nada se implementa automaticamente: cada recomendacion requiere tu aprobacion y luego una instruccion explicita para que Codex ejecute.</div>
-          </div>
-          <button class="btn-sm" onclick="loadProcessAuditor()" title="Actualizar auditor"><i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Actualizar</button>
-        </div>
-        <div id="process-auditor-panel">
-          <div class="loading"><div class="spinner"></div><br>Analizando procesos...</div>
         </div>
       </div>
     </div>
@@ -5157,7 +5321,7 @@ function applyNavPerms() {
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
 function guardTab(tab) {
   if (tab === 'dashboard'  && !can('dashboard')) { switchTab('tasks'); return false; }
-  if (tab === 'auditor'    && !isAgentOwnerUser()) { switchTab('tasks'); return false; }
+  if (tab === 'auditor') { switchTab('dashboard'); return false; }
   if (tab === 'users'      && !can('users_tab')) { switchTab('tasks'); return false; }
   if (tab === 'politicas'  && !can('dashboard')) { switchTab('tasks'); return false; }
   if (tab === 'impacto'    && !can('dashboard')) { switchTab('tasks'); return false; }
@@ -5877,21 +6041,10 @@ function enterApp() {
     if (_currentTab === 'dashboard') switchTab('tasks');
   }
 
-  // Auditor de Procesos — solo Gabriel Sanchez
+  // Auditor de Procesos removido como seccion independiente: vive dentro de la Mesa de Agentes.
   let auditorTab = nav.querySelector('[data-tab="auditor"]');
-  if (isAgentOwnerUser()) {
-    if (!auditorTab) {
-      auditorTab = document.createElement('button');
-      auditorTab.className = 'nav-tab'; auditorTab.dataset.tab = 'auditor';
-      auditorTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="file-search"></i></span> Auditor';
-      auditorTab.onclick = () => switchTab('auditor');
-      const dashTabNow = nav.querySelector('[data-tab="dashboard"]');
-      dashTabNow ? dashTabNow.after(auditorTab) : nav.appendChild(auditorTab);
-    }
-  } else {
-    if (auditorTab) auditorTab.remove();
-    if (_currentTab === 'auditor') switchTab('tasks');
-  }
+  if (auditorTab) auditorTab.remove();
+  if (_currentTab === 'auditor') switchTab('dashboard');
 
   // Users tab — solo admin
   let usersTab = nav.querySelector('[data-tab="users"]');
@@ -6001,11 +6154,10 @@ function switchTab(tab) {
   if (!guardTab(tab)) return;
   _currentTab = tab;
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-  ['tasks','dashboard','auditor','users','vehiculos','politicas','impacto','empaque'].forEach(function(id) {
+  ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque'].forEach(function(id) {
     uiSetVisible(document.getElementById('tab-' + id), tab === id, '', 'ui-view-enter');
   });
   if (tab==='dashboard')  loadDashboard();
-  if (tab==='auditor')    loadProcessAuditor();
   if (tab==='users')      loadUsers();
   if (tab==='politicas')  { polLoadAll(); }
   else                    { polStopRefresh(); }
@@ -6723,6 +6875,61 @@ const DUE_DATE_COLOR = {
   ontime:  'color:#2e7050;',
 };
 
+function isOverdueTask(t) {
+  const today = new Date().toISOString().slice(0,10);
+  return !!(t && (t.overdue || (t.dueDate && t.dueDate < today && !['completed','validated','cancelled'].includes(t.status))));
+}
+
+function overdueBadgeHtml(t) {
+  if (!isOverdueTask(t)) return '';
+  const days = t.overdueDays || 1;
+  return `<span class="badge b-high" style="font-size:9px"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${days}d</span>`;
+}
+
+function overdueReassignButtonHtml(t, opts) {
+  opts = opts || {};
+  if (!isOverdueTask(t) || !can('edit_task')) return '';
+  const sug = t.escalation && t.escalation.suggestedUserId;
+  const label = opts.label || (sug ? 'Reasignar' : 'Escalar');
+  if (sug) {
+    return `<button class="btn-sm ${opts.primary?'primary':''}" onclick="quickReassignOverdue(event,'${t.id}','${sug}')" title="${esc(t.escalation.suggestedUserName || 'Responsable sugerido')}">
+      <i data-lucide="user-round-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> ${label}
+    </button>`;
+  }
+  return `<button class="btn-sm" onclick="event.stopPropagation();openDrawer('${t.id}')" title="Abrir para escalar manualmente">
+    <i data-lucide="shield-alert" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> ${label}
+  </button>`;
+}
+
+async function quickReassignOverdue(ev, taskId, userId) {
+  if (ev) ev.stopPropagation();
+  if (!can('edit_task')) { toast('Sin permiso para reasignar'); return; }
+  const u = (_authUsers||[]).find(x => x.id === userId);
+  if (!u) { toast('Responsable sugerido no disponible'); return; }
+  const t = (_tasks||[]).find(x => x.id === taskId) || _drawerTask;
+  const label = t ? (seqLabel(t) ? seqLabel(t) + ' · ' + t.title : t.title) : 'esta tarea';
+  if (!await _iosConfirm(`¿Reasignar ${label} a ${u.name}?`)) return;
+  try {
+    const payload = {
+      managerId: u.id,
+      managerName: u.name,
+      assignedTo: u.odooId ? ('oe_' + u.odooId) : undefined,
+      by: _user.name,
+      byUserId: _user.id,
+      note: 'Reasignacion por tarea overdue'
+    };
+    const r = await authFetch('/api/wwp/tasks/' + taskId, { method:'PATCH', body:JSON.stringify(payload) });
+    const d = await r.json();
+    if (!d.ok && !d.task) { toast(d.error || 'No se pudo reasignar'); return; }
+    toast('Reasignada a ' + u.name.split(' ')[0]);
+    await loadTasks();
+    if (_drawerTask && _drawerTask.id === taskId) openDrawer(taskId);
+    if (_currentTab === 'dashboard') loadOpsAgent();
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+}
+
 /* Vista Lista — fila compacta, mismo tamaño de fuente */
 // Etiqueta del número de secuencia: #0042 (madre) o #0042·1 (subtarea/cadena)
 function seqLabel(t){
@@ -6762,7 +6969,8 @@ function renderListRow(t) {
       ${meta.length?`<div class="task-list-meta">${meta.join('<span class="task-list-sep">·</span>')}</div>`:''}
     </div>
     <div class="task-list-badges">
-      ${overdue?'<span class="badge b-high" style="font-size:9px">Vencida</span>':''}
+      ${overdueBadgeHtml(t)}
+      ${overdueReassignButtonHtml(t)}
       <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
       <i data-lucide="${typeEmoji}" style="width:13px;height:13px;stroke:var(--text-muted);display:inline-block;vertical-align:-2px;flex-shrink:0"></i>
     </div>
@@ -6796,6 +7004,7 @@ function renderKanbanView(tasks) {
           ${mgr?avatarHtml(mgr,17)+'<span>'+esc(mgr.name.split(' ')[0])+'</span>':''}
           ${t.dueDate?`<span style="margin-left:auto;${dateStyle}">${t.dueDate}</span>`:''}
         </div>
+        ${overdue?`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px">${overdueBadgeHtml(t)}${overdueReassignButtonHtml(t)}</div>`:''}
       </div>`;
     }).join('');
     return `<div class="kanban-col">
@@ -6903,7 +7112,7 @@ function renderTaskCard(t) {
   return `<div class="task-card" data-status="${t.status}" onclick="openDrawer('${t.id}')" style="${tier?DUE_CARD_STYLE[tier]:''}">
     <div class="tc-header">
       <div class="tc-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:6px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
-      ${overdue ? '<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Vencida</span>' : ''}
+      ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
     </div>
     ${subs.length ? `<div class="tc-progress"><div class="tc-progress-bar" style="width:${progPct}%"></div></div>` : ''}
     <div class="tc-grid">
@@ -6921,6 +7130,7 @@ function renderTaskCard(t) {
       </div>
       ${fields.join('')}
     </div>
+    ${overdue ? `<div style="display:flex;justify-content:flex-end;margin-top:10px">${overdueReassignButtonHtml(t, {primary:true})}</div>` : ''}
   </div>`;
 }
 
@@ -7747,9 +7957,17 @@ function renderDrawer(t) {
   const _evHtml = _auxDispatchOnly ? '' : evHtml;
   const _subsHtml = _auxDispatchOnly ? '' : subsHtml;
   const _fotosEntregaHtml = isDispatch ? '' : fotosEntregaHtml; // en despacho va dentro del checklist
+  const overdueBannerHtml = isOverdueTask(t) ? `<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:9px;padding:10px 12px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <i data-lucide="alarm-clock" style="width:16px;height:16px;stroke:#dc2626;flex-shrink:0"></i>
+    <div style="flex:1;min-width:180px;font-size:12px;color:#991b1b">
+      <b>Tarea overdue ${t.overdueDays || 1} dia(s).</b> ${esc(t.escalation?.message || 'Requiere ETA, reasignacion o escalamiento hoy.')}
+    </div>
+    ${overdueReassignButtonHtml(t, {primary:true})}
+  </div>` : '';
 
   document.getElementById('drawer-body').innerHTML = isDispatch ? `
     <div class="status-progress">${stepHtml}</div>
+    ${overdueBannerHtml}
     <div class="info-grid">
       <div class="info-cell"><div class="info-cell-label">Estado</div><div class="info-cell-val"><span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span></div></div>
       <div class="info-cell"><div class="info-cell-label">Tipo</div><div class="info-cell-val">${TYPE_LABELS[t.type]||t.type}</div></div>
@@ -7781,6 +7999,7 @@ function renderDrawer(t) {
     </div>
   ` : `
     <div class="status-progress">${stepHtml}</div>
+    ${overdueBannerHtml}
     <div class="info-grid">
       <div class="info-cell"><div class="info-cell-label">Estado</div><div class="info-cell-val"><span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span></div></div>
       <div class="info-cell"><div class="info-cell-label">Tipo</div><div class="info-cell-val">${TYPE_LABELS[t.type]||t.type}</div></div>
@@ -10423,9 +10642,11 @@ async function loadDashboard() {
     const r = await authFetch('/api/wwp/dashboard');
     const d = await r.json();
     const bs = d.byStatus || {};
+    const overdueCount = (d.overdueTasks || []).length;
     document.getElementById('kpi-grid').innerHTML = `
       <div class="kpi-card"><div class="kpi-val">${bs.pending||0}</div><div class="kpi-label">Pendientes</div></div>
       <div class="kpi-card"><div class="kpi-val">${bs.in_progress||0}</div><div class="kpi-label">En Progreso</div></div>
+      <div class="kpi-card" style="${overdueCount?'border-color:#fecaca;background:#fef2f2':''}"><div class="kpi-val" style="color:${overdueCount?'#dc2626':'var(--brand)'}">${overdueCount}</div><div class="kpi-label">Overdue</div></div>
       <div class="kpi-card"><div class="kpi-val">${bs.completed||0}</div><div class="kpi-label">Completadas</div></div>
       <div class="kpi-card"><div class="kpi-val">${bs.validated||0}</div><div class="kpi-label">Validadas</div></div>
       <div class="kpi-card"><div class="kpi-val">${d.total||0}</div><div class="kpi-label">Total tareas</div></div>
@@ -10470,6 +10691,11 @@ async function loadDashboard() {
 async function loadOpsAgent() {
   const panel = document.getElementById('ops-agent-panel');
   if (!panel) return;
+  if (!isAgentOwnerUser()) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
   panel.innerHTML = '<div class="loading"><div class="spinner"></div><br>Analizando tareas en vivo...</div>';
   try {
     const r = await authFetch('/api/wwp/ops-agent');
@@ -10502,6 +10728,7 @@ async function loadOpsAgent() {
           ${taskLine?`<div class="ops-decision-meta">${esc(taskLine)}${x.reason?' · '+esc(x.reason):''}</div>`:''}
         </div>
         ${t?`<div class="ops-decision-actions">
+          ${t.overdue ? overdueReassignButtonHtml(t, {primary:true}) : ''}
           <button class="btn-sm" onclick="opsSendFollowUp('${t.id}','${followMode}')" title="Pedir actualizacion por chat"><i data-lucide="message-square-plus" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> Seguimiento</button>
           <button class="btn-sm" onclick="openDrawer('${t.id}')" title="Abrir tarea"><i data-lucide="external-link" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
         </div>`:''}
@@ -10517,11 +10744,17 @@ async function loadOpsAgent() {
     }).join('') : '<div class="ops-next-action">Sin carga activa.</div>';
     const nextHtml = (d.nextActions||[]).map(a => `<div class="ops-next-action">${esc(a)}</div>`).join('');
     const typeHtml = Object.entries(s.byType||{}).sort((a,b)=>b[1]-a[1]).map(([k,v]) => `<span class="ops-pill">${typeLabel[k]||k}: ${v}</span>`).join(' ');
+    const companyContext = d.companyContext || {};
+    const odooActive = !!(companyContext.odoo && companyContext.odoo.ok);
+    const companyContextHtml = `<div class="ops-agent-card" style="margin-bottom:12px">
+      <div class="ops-agent-card-title"><i data-lucide="network"></i>Contexto empresa / Odoo</div>
+      <div class="ops-next-action">${odooActive ? 'Activo en solo lectura: los agentes usan Odoo y documentos asociados para entender ordenes, picks, inventario y flujo de empresa.' : 'Contexto de empresa activo. Odoo no devolvio datos ahora mismo, pero los agentes siguen trabajando con Workforce Platform.'}</div>
+    </div>`;
     const urgentCount = decisions.filter(x => x.task && ['critical','high'].includes(x.severity)).length;
     const assistantHtml = `<div class="ops-agent-card ops-assistant-bar">
       <div class="ops-assistant-copy">
         <strong>Agente asistente de seguimiento</strong>
-        Solicita actualizaciones en el chat de las tareas y luego refresca este analisis para nuevas recomendaciones.
+        Solicita actualizaciones conversacionales en el chat de las tareas y luego refresca este analisis para nuevas recomendaciones.
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn-sm primary" onclick="opsSendBulkFollowUp()" ${urgentCount?'':'disabled'}><i data-lucide="send" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> Pedir updates urgentes${urgentCount?' ('+urgentCount+')':''}</button>
@@ -10529,7 +10762,9 @@ async function loadOpsAgent() {
       </div>
     </div>`;
     panel.innerHTML = `<div id="ops-ai-brief"></div>
+      <div id="agent-group-panel"></div>
       ${metricsHtml}
+      ${companyContextHtml}
       ${assistantHtml}
       <div class="ops-agent-grid">
         <div class="ops-agent-card">
@@ -10550,6 +10785,7 @@ async function loadOpsAgent() {
       </div>
       <div style="font-size:10px;color:var(--text-3);margin-top:10px">Actualizado: ${new Date(d.generatedAt).toLocaleString('es-DO')}</div>`;
     if (window.lucide) lucide.createIcons();
+    loadAgentGroupChat();
     // Parte del día con IA (Claude) — carga async para no bloquear el panel heurístico
     if (d.aiEnabled) loadOpsBrief(false);
   } catch(e) {
@@ -10641,6 +10877,336 @@ async function opsSendBulkFollowUp() {
   }
 }
 
+function renderOpsAgentChat(agent, messages) {
+  const box = document.getElementById(agent === 'assistant' ? 'ops-assistant-chat' : 'ops-manager-chat');
+  if (!box) return;
+  const label = agent === 'assistant' ? 'Asistente de Operaciones' : 'Gerente de Operaciones';
+  const starter = agent === 'assistant'
+    ? 'Puedo ayudarte a redactar mensajes humanos para pedir avances, desbloquear tareas y dar seguimiento sin sonar robotico.'
+    : 'Puedo decirte con sinceridad como va la operacion, que decidir hoy, que riesgo atender y a quien dar seguimiento.';
+  const list = (messages || []).slice(-20);
+  if (!list.length) {
+    box.innerHTML = `<div class="auditor-chat-msg assistant"><div class="auditor-chat-meta">${label}</div>${starter}</div>`;
+    return;
+  }
+  box.innerHTML = list.map(m => `<div class="auditor-chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">
+    <div class="auditor-chat-meta">${esc(m.role === 'user' ? (m.by || 'Tu') : (m.by || label))}${m.createdAt ? ' · ' + new Date(m.createdAt).toLocaleString('es-DO') : ''}</div>
+    ${esc(m.text || '')}
+  </div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendOpsAgentChat(agent) {
+  if (!isAgentOwnerUser()) return;
+  const input = document.getElementById(agent === 'assistant' ? 'ops-assistant-chat-input' : 'ops-manager-chat-input');
+  const box = document.getElementById(agent === 'assistant' ? 'ops-assistant-chat' : 'ops-manager-chat');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) { toast('Escribe tu solicitud'); return; }
+  input.value = '';
+  const label = agent === 'assistant' ? 'Asistente de Operaciones' : 'Gerente de Operaciones';
+  if (box) {
+    box.innerHTML += `<div class="auditor-chat-msg user"><div class="auditor-chat-meta">${esc(_user?.name || 'Tu')}</div>${esc(text)}</div>
+      <div class="auditor-chat-msg assistant"><div class="auditor-chat-meta">${label}</div>Procesando con el contexto operativo...</div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  try {
+    const r = await authFetch('/api/wwp/ops-agent/chat', {
+      method: 'POST',
+      body: JSON.stringify({ agent, text })
+    }, 90000);
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo consultar el agente'); return; }
+    renderOpsAgentChat(agent, d.chat || []);
+  } catch(e) {
+    toast('Error consultando agente');
+  }
+}
+
+function agentByIdMap(agents) {
+  return Object.fromEntries((agents || []).map(a => [a.id, a]));
+}
+
+function extractMarkdownTable(text) {
+  const lines = String(text || '').split('\n');
+  const start = lines.findIndex(line => line.includes('|') && /\S/.test(line));
+  if (start < 0) return '';
+  const out = [];
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line.includes('|')) break;
+    if (/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(line)) continue;
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+function markdownTableToCsv(tableText) {
+  return String(tableText || '').split('\n').filter(Boolean).map(line => {
+    let cells = line.trim();
+    if (cells.startsWith('|')) cells = cells.slice(1);
+    if (cells.endsWith('|')) cells = cells.slice(0, -1);
+    return cells.split('|').map(c => {
+      const value = c.trim().replace(/"/g, '""');
+      return /[",\n]/.test(value) ? `"${value}"` : value;
+    }).join(',');
+  }).join('\n');
+}
+
+function agentCopyText(btn) {
+  const text = btn?.dataset?.text || '';
+  navigator.clipboard?.writeText(text).then(() => toast('Copiado')).catch(() => toast('No se pudo copiar'));
+}
+
+function agentDownloadCsv(btn) {
+  const text = btn?.dataset?.text || '';
+  const table = extractMarkdownTable(text);
+  const csv = markdownTableToCsv(table || text);
+  if (!csv.trim()) { toast('No hay tabla para descargar'); return; }
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mesa-agentes-reporte.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function routineScheduleText(r) {
+  const s = r?.schedule || {};
+  if (s.type === 'interval') return `Cada ${s.minutes || 60} min`;
+  if (s.type === 'weekly') {
+    const days = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+    return `${days[s.weekday || 1]} ${s.time || '08:00'}`;
+  }
+  return `Diario ${s.time || '08:00'}`;
+}
+
+function renderAgentRoutines(routines) {
+  const list = routines || [];
+  if (!list.length) return '';
+  return `<div class="agent-routines">${list.map(r => {
+    const s = r.schedule || {};
+    return `<div class="agent-routine" data-routine-id="${esc(r.id)}">
+      <div class="agent-routine-head">
+        <div>
+          <div class="agent-routine-title"><span class="agent-avatar">${esc(r.avatar || '◇')}</span>${esc(r.name || r.id)}</div>
+          <div class="agent-routine-meta">${esc(r.outputFormat || '')} · ${routineScheduleText(r)} · ${r.enabled ? 'Activa' : 'Apagada'}</div>
+          <div class="agent-routine-meta">Ultima ejecucion: ${r.lastRunAt ? new Date(r.lastRunAt).toLocaleString('es-DO') : 'Nunca'} · Proxima: ${r.nextRunAt ? new Date(r.nextRunAt).toLocaleString('es-DO') : 'No programada'}</div>
+        </div>
+        <label class="agent-chip"><input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="saveAgentRoutine('${r.id}')"> Activa</label>
+      </div>
+      <div class="agent-routine-controls">
+        <select onchange="saveAgentRoutine('${r.id}')" data-field="type">
+          <option value="daily" ${s.type === 'daily' ? 'selected' : ''}>Diaria</option>
+          <option value="weekly" ${s.type === 'weekly' ? 'selected' : ''}>Semanal</option>
+          <option value="interval" ${s.type === 'interval' ? 'selected' : ''}>Cada X min</option>
+        </select>
+        <input type="time" value="${esc(s.time || '08:00')}" onchange="saveAgentRoutine('${r.id}')" data-field="time">
+        <input type="number" min="5" step="5" value="${esc(s.minutes || 60)}" onchange="saveAgentRoutine('${r.id}')" data-field="minutes" title="Minutos">
+        <select onchange="saveAgentRoutine('${r.id}')" data-field="weekday" title="Dia semanal">
+          ${['Dom','Lun','Mar','Mie','Jue','Vie','Sab'].map((d,i)=>`<option value="${i}" ${(s.weekday ?? 1) == i ? 'selected' : ''}>${d}</option>`).join('')}
+        </select>
+        <button class="btn-sm" onclick="runAgentRoutine('${r.id}')"><i data-lucide="play" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Ejecutar</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderAgentGroupPanel(data) {
+  const panel = document.getElementById('agent-group-panel');
+  if (!panel) return;
+  const incomingChat = Array.isArray(data?.chat) ? data.chat : [];
+  const pendingChat = Array.isArray(window._agentGroupPending) ? window._agentGroupPending : [];
+  const incomingIds = new Set(incomingChat.map(m => m.id).filter(Boolean));
+  const mergedChat = incomingChat.length
+    ? [...incomingChat, ...pendingChat.filter(m => !incomingIds.has(m.id))]
+    : (pendingChat.length ? pendingChat : ((window._agentGroupLast && window._agentGroupLast.chat) || []));
+  window._agentGroupLast = {
+    ...(window._agentGroupLast || {}),
+    ...(data || {}),
+    chat: mergedChat
+  };
+  data = window._agentGroupLast;
+  const agents = data.agents || [];
+  const byId = agentByIdMap(agents);
+  const chat = data.chat || [];
+  const knowledgePack = data.knowledgePack || {};
+  const routines = data.routines || [];
+  const odooActive = !!(data.companyContext && data.companyContext.odoo && data.companyContext.odoo.ok);
+  const rosterHtml = agents.map(a => `<span class="agent-chip" title="${esc(a.description || '')}">
+    <span class="agent-avatar">${esc(a.avatar || '◇')}</span>
+    <span>${esc(a.name || 'Agente')}<br><small>${esc(a.specialty || '')}</small></span>
+  </span>`).join('');
+  const starter = `<div class="agent-group-msg assistant">
+    <div class="auditor-chat-meta">🧭 Coordinador de Agentes</div>
+    Escribeme en una sola conversacion. Yo decido si consulto a Operaciones, Auditoria, Odoo/Historial, Almacen/Empaque o Documentacion, y te devuelvo la respuesta terminada.
+  </div>`;
+  const messagesHtml = chat.length ? chat.map(m => {
+    if (m.role === 'user') {
+      return `<div class="agent-group-msg user">
+        <div class="auditor-chat-meta">${esc(m.by || 'Tu')}${m.createdAt ? ' · ' + new Date(m.createdAt).toLocaleString('es-DO') : ''}</div>
+        ${esc(m.text || '')}
+      </div>`;
+    }
+    const participantHtml = (m.participantIds || []).map(id => {
+      const a = byId[id] || { name:id, avatar:'◇' };
+      return `<span class="agent-chip"><span class="agent-avatar">${esc(a.avatar || '◇')}</span>${esc(a.name || id)}</span>`;
+    }).join('');
+    const newAgentsHtml = (m.newAgents || []).length ? `<div class="agent-consults">${m.newAgents.map(a => `<div class="agent-consult">
+      <span class="agent-avatar">${esc(a.avatar || '◇')}</span>
+      <div class="agent-consult-body"><div class="agent-consult-name">Nuevo agente creado: ${esc(a.name || a.id || 'Agente')}</div>${esc(a.specialty || a.description || '')}</div>
+    </div>`).join('')}</div>` : '';
+    const msgText = String(m.text || '');
+    const tableText = extractMarkdownTable(msgText);
+    const quality = m.quality || {};
+    const qualityHtml = quality.score ? `<span class="agent-quality-pill ${quality.passed ? 'ok' : 'warn'}">Calidad ${quality.score}% · ${esc(m.format || quality.format || 'respuesta')}</span>` : '';
+    const actionsHtml = `<div class="agent-msg-actions">
+      ${qualityHtml}
+      <button class="btn-sm" data-text="${esc(msgText)}" onclick="agentCopyText(this)"><i data-lucide="copy" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Copiar</button>
+      ${tableText ? `<button class="btn-sm" data-text="${esc(tableText)}" onclick="agentCopyText(this)"><i data-lucide="table" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Copiar tabla</button>
+      <button class="btn-sm" data-text="${esc(msgText)}" onclick="agentDownloadCsv(this)"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>CSV</button>` : ''}
+    </div>`;
+    return `<div class="agent-group-msg assistant">
+      <div class="auditor-chat-meta">🧭 Coordinador de Agentes${m.createdAt ? ' · ' + new Date(m.createdAt).toLocaleString('es-DO') : ''}</div>
+      ${participantHtml ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px">${participantHtml}</div>` : ''}
+      ${newAgentsHtml}
+      <div style="margin-top:8px">${esc(msgText)}</div>
+      ${actionsHtml}
+    </div>`;
+  }).join('') : starter;
+  panel.innerHTML = `<div class="agent-group-card">
+    <div class="ops-agent-card-title"><i data-lucide="sparkles"></i>Mesa de Agentes</div>
+    <div class="ops-next-action">${odooActive ? 'Contexto Odoo activo en solo lectura.' : 'Contexto empresa activo; Odoo no devolvio muestra ahora mismo.'} Las rutinas automaticas estan disponibles y empiezan apagadas hasta que las actives.</div>
+    ${knowledgePack.name ? `<div class="ops-next-action" style="margin-top:6px"><b>${esc(knowledgePack.name)}</b> activo: respuestas enfocadas, datos en formato presentable y fuentes correctas.</div>` : ''}
+    <div class="agent-roster">${rosterHtml}</div>
+    <details style="margin:8px 0 10px">
+      <summary class="ops-agent-card-title" style="cursor:pointer;margin-bottom:0"><i data-lucide="calendar-clock"></i>Rutinas automaticas</summary>
+      <div class="ops-next-action" style="margin:8px 0">Se ejecutan en Railway aunque tu computadora este apagada. Todas empiezan apagadas hasta que las actives.</div>
+      ${renderAgentRoutines(routines)}
+    </details>
+    <div class="auditor-chat-box">
+      <div class="auditor-chat-messages" id="agent-group-chat">${messagesHtml}</div>
+      <div class="auditor-chat-input">
+        <textarea id="agent-group-input" placeholder="Ej: consulta en Odoo los articulos en ubicacion obsoleto y preparame el reporte para ventas..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentGroupChat()}"></textarea>
+        <button class="btn-sm primary" onclick="sendAgentGroupChat()"><i data-lucide="send" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Enviar</button>
+      </div>
+    </div>
+  </div>`;
+  const box = document.getElementById('agent-group-chat');
+  if (box) box.scrollTop = box.scrollHeight;
+  if (window.lucide) lucide.createIcons();
+}
+
+async function saveAgentRoutine(routineId) {
+  const card = document.querySelector(`.agent-routine[data-routine-id="${CSS.escape(routineId)}"]`);
+  if (!card) return;
+  const enabled = !!card.querySelector('input[type="checkbox"]')?.checked;
+  const type = card.querySelector('[data-field="type"]')?.value || 'daily';
+  const time = card.querySelector('[data-field="time"]')?.value || '08:00';
+  const minutes = Number(card.querySelector('[data-field="minutes"]')?.value || 60);
+  const weekday = Number(card.querySelector('[data-field="weekday"]')?.value || 1);
+  try {
+    const r = await authFetch('/api/wwp/agent-group/routines/' + encodeURIComponent(routineId), {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled, schedule: { type, time, minutes, weekday } })
+    });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo guardar rutina'); return; }
+    toast(enabled ? 'Rutina activa' : 'Rutina apagada');
+    loadAgentGroupChat();
+  } catch(e) {
+    toast('Error guardando rutina');
+  }
+}
+
+async function runAgentRoutine(routineId) {
+  try {
+    toast('Ejecutando rutina...');
+    const r = await authFetch('/api/wwp/agent-group/routines/' + encodeURIComponent(routineId) + '/run', { method: 'POST' }, 120000);
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo ejecutar'); return; }
+    toast('Rutina ejecutada');
+    renderAgentGroupPanel(d);
+  } catch(e) {
+    toast('Error ejecutando rutina');
+  }
+}
+
+async function loadAgentGroupChat() {
+  if (!isAgentOwnerUser()) return;
+  const panel = document.getElementById('agent-group-panel');
+  if (!panel) return;
+  if (!window._agentGroupLast) {
+    panel.innerHTML = '<div class="agent-group-card"><div class="loading"><div class="spinner"></div><br>Cargando Mesa de Agentes...</div></div>';
+  }
+  try {
+    const r = await authFetch('/api/wwp/agent-group');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'No se pudo cargar la Mesa de Agentes');
+    renderAgentGroupPanel(d);
+  } catch(e) {
+    panel.innerHTML = '<div class="agent-group-card">Error cargando Mesa de Agentes: '+esc(e.message)+'</div>';
+  }
+}
+
+async function sendAgentGroupChat() {
+  if (!isAgentOwnerUser()) return;
+  const input = document.getElementById('agent-group-input');
+  const box = document.getElementById('agent-group-chat');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) { toast('Escribe tu solicitud para la Mesa de Agentes'); return; }
+  input.value = '';
+  const optimisticUser = {
+    id: 'local_' + Date.now(),
+    role: 'user',
+    by: _user?.name || 'Tu',
+    text,
+    createdAt: new Date().toISOString()
+  };
+  const optimisticAssistant = {
+    id: 'local_wait_' + Date.now(),
+    role: 'assistant',
+    by: 'Coordinador de Agentes',
+    agentId: 'coordinator',
+    participantIds: ['coordinator'],
+    text: 'Consultando al equipo correcto...',
+    createdAt: new Date().toISOString()
+  };
+  window._agentGroupPending = [...(window._agentGroupPending || []), optimisticUser, optimisticAssistant];
+  window._agentGroupLast = {
+    ...(window._agentGroupLast || {}),
+    chat: [...((window._agentGroupLast && window._agentGroupLast.chat) || []), optimisticUser, optimisticAssistant]
+  };
+  if (box) {
+    renderAgentGroupPanel(window._agentGroupLast);
+  }
+  try {
+    const r = await authFetch('/api/wwp/agent-group/chat', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    }, 120000);
+    const d = await r.json();
+    if (!d.ok) {
+      toast(d.error || 'No se pudo consultar la Mesa de Agentes');
+      window._agentGroupPending = (window._agentGroupPending || []).map(m => m.id === optimisticAssistant.id ? { ...m, text: 'No pude completar la consulta. Reintenta o revisa la conexion.' } : m);
+      window._agentGroupLast.chat = (window._agentGroupLast.chat || []).map(m => m.id === optimisticAssistant.id ? { ...m, text: 'No pude completar la consulta. Reintenta o revisa la conexion.' } : m);
+      renderAgentGroupPanel(window._agentGroupLast);
+      return;
+    }
+    window._agentGroupPending = [];
+    renderAgentGroupPanel(d);
+  } catch(e) {
+    toast('Error consultando Mesa de Agentes');
+    window._agentGroupPending = (window._agentGroupPending || []).map(m => m.id === optimisticAssistant.id ? { ...m, text: 'Error consultando la Mesa de Agentes: ' + (e.message || e) } : m);
+    window._agentGroupLast.chat = (window._agentGroupLast.chat || []).map(m => m.id === optimisticAssistant.id ? { ...m, text: 'Error consultando la Mesa de Agentes: ' + (e.message || e) } : m);
+    renderAgentGroupPanel(window._agentGroupLast);
+  }
+}
+
 async function loadProcessAuditor() {
   const panel = document.getElementById('process-auditor-panel');
   if (!panel) return;
@@ -10656,11 +11222,20 @@ async function loadProcessAuditor() {
     const s = d.summary || {};
     const recs = d.recommendations || [];
     const manuals = d.manuals || [];
+    const processDocs = d.processDocuments || [];
     const flows = d.flows || [];
     const changes = d.recentChanges || [];
     const modules = d.platformModules || [];
     const positionDocs = d.positionDocuments || [];
     const standards = d.documentationStandards || [];
+    const overdueTasks = d.overdueTasks || [];
+    const auditorChat = d.chat || [];
+    const companyContext = d.companyContext || {};
+    const odooActive = !!(companyContext.odoo && companyContext.odoo.ok);
+    const companyContextHtml = `<div class="ops-agent-card" style="margin-bottom:12px">
+      <div class="ops-agent-card-title"><i data-lucide="network"></i>Contexto empresa / Odoo</div>
+      <div class="ops-next-action">${odooActive ? 'Activo en solo lectura: el Auditor Codex usa Odoo y documentos asociados para entender la empresa, pero sus acciones siguen limitadas a Workforce Platform.' : 'Contexto de empresa activo. Odoo no devolvio datos ahora mismo; el Auditor sigue usando tareas, eventos y documentos de Workforce Platform.'}</div>
+    </div>`;
     const metricsHtml = `<div class="ops-agent-top">
       <div class="ops-agent-metric"><div class="ops-agent-val">${s.active||0}</div><div class="ops-agent-label">Activas</div></div>
       <div class="ops-agent-metric"><div class="ops-agent-val" style="color:${s.overdue?'#dc2626':'var(--brand)'}">${s.overdue||0}</div><div class="ops-agent-label">Vencidas</div></div>
@@ -10690,12 +11265,44 @@ async function loadProcessAuditor() {
                <button class="btn-sm" onclick="rejectProcessRecommendation('${rec.id}')" style="color:#6b7280"><i data-lucide="x" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Rechazar</button>`)}
       </div>
     </div>`).join('');
-    const manualsHtml = manuals.map(m => `<div class="auditor-manual">
-      <h4>${esc(m.role||'Rol')}</h4>
-      <p>${esc(m.scope||'')}</p>
-      <ol style="margin:6px 0 6px 18px;padding:0">${(m.steps||[]).map(step => `<li>${esc(step)}</li>`).join('')}</ol>
-      <p><b>Screenshots requeridos:</b> ${(m.screenshots||[]).map(esc).join(' · ')}</p>
-    </div>`).join('');
+    const docList = processDocs.length ? processDocs : manuals.map(m => ({
+      id: m.role,
+      title: 'Manual operativo - ' + (m.role || 'Rol'),
+      audience: m.role || '',
+      status: 'base',
+      purpose: m.scope || '',
+      scope: m.scope || '',
+      roles: [m.role || 'Rol operativo'],
+      prerequisites: ['Usuario activo', 'Acceso a Workforce Platform'],
+      steps: m.steps || [],
+      exceptions: ['Registrar bloqueo por chat si el proceso no puede continuar.'],
+      closeCriteria: ['Proceso completado con evidencia suficiente.'],
+      evidence: ['Screenshots requeridos: ' + (m.screenshots || []).join(' · ')],
+      screenshots: m.screenshots || []
+    }));
+    const renderDocList = (label, items, ordered) => items && items.length
+      ? `<div class="auditor-doc-section-title">${label}</div>${ordered ? '<ol>' : '<ul>'}${items.map(x => `<li>${esc(x)}</li>`).join('')}${ordered ? '</ol>' : '</ul>'}`
+      : '';
+    const documentsHtml = docList.map(doc => `<article class="auditor-doc" id="aud-doc-${esc(doc.id||'doc')}">
+      <div class="auditor-doc-head">
+        <div>
+          <div class="auditor-doc-title">${esc(doc.title || 'Documento operativo')}</div>
+          <div class="auditor-doc-meta">${esc(doc.audience || 'Usuarios operativos')} · ${esc(doc.status || 'terminado')}</div>
+        </div>
+        <span class="auditor-badge aprobada">Documento terminado</span>
+      </div>
+      <div class="auditor-doc-section-title">Objetivo</div>
+      <p>${esc(doc.purpose || '')}</p>
+      <div class="auditor-doc-section-title">Alcance</div>
+      <p>${esc(doc.scope || '')}</p>
+      ${renderDocList('Roles y responsabilidades', doc.roles, false)}
+      ${renderDocList('Prerequisitos', doc.prerequisites, false)}
+      ${renderDocList('Paso a paso operativo', doc.steps, true)}
+      ${renderDocList('Excepciones y manejo de errores', doc.exceptions, false)}
+      ${renderDocList('Criterios de cierre', doc.closeCriteria, false)}
+      ${renderDocList('Evidencias obligatorias', doc.evidence, false)}
+      ${renderDocList('Screenshots requeridos', doc.screenshots, false)}
+    </article>`).join('');
     const modulesHtml = modules.map(m => `<div class="auditor-module">
       <div class="auditor-module-title">${esc(m.name||'Modulo')}</div>
       <div class="auditor-rec-text">${esc(m.purpose||'')}</div>
@@ -10715,16 +11322,30 @@ async function loadProcessAuditor() {
       <b>${esc(c.event||'evento')}</b> · ${c.at ? new Date(c.at).toLocaleString('es-DO') : ''}<br>
       <span style="color:var(--text-3)">${esc(c.summary||'')} ${c.detail?'- '+esc(c.detail):''}</span>
     </div>`).join('') : '<div class="auditor-flow">Sin cambios recientes registrados.</div>';
+    const overdueHtml = overdueTasks.length ? overdueTasks.map(t => `<div class="auditor-flow" style="border-color:#fecaca;background:#fef2f2">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <b>${t.seq ? '#'+String(t.seq).padStart(4,'0')+' · ' : ''}${esc(t.title||'Tarea')}</b><br>
+          <span style="color:#991b1b">${t.overdueDays||1} dia(s) overdue · vence ${esc(t.dueDate||'')}</span>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px">${esc(t.escalation?.message || 'Revisar reasignacion o escalamiento.')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          ${overdueReassignButtonHtml(t, {primary:true})}
+          <button class="btn-sm" onclick="openDrawer('${t.id}')"><i data-lucide="external-link" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+        </div>
+      </div>
+    </div>`).join('') : '<div class="auditor-flow">No hay tareas overdue activas.</div>';
     panel.innerHTML = `${metricsHtml}
+      ${companyContextHtml}
       <div class="auditor-ai-panel" id="process-auditor-ai-panel">
         <div class="auditor-ai-header">
-          <div class="auditor-ai-title"><i data-lucide="brain-circuit"></i>Analisis IA Codex + Gerente de Operaciones</div>
+          <div class="auditor-ai-title"><i data-lucide="brain-circuit"></i>Auditor Codex + contexto del Gerente Claude</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn-sm primary" onclick="loadProcessAuditorAi(false)"><i data-lucide="sparkles" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Generar analisis IA</button>
             <button class="btn-sm" onclick="loadProcessAuditorAi(true)" title="Forzar nuevo analisis"><i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
           </div>
         </div>
-        <div class="auditor-ai-body" id="process-auditor-ai-body">Usa el contexto del Auditor y del Agente Gerente de Operaciones para detectar brechas de documentacion, riesgos de proceso y recomendaciones de desarrollo. No ejecuta cambios automaticamente.</div>
+        <div class="auditor-ai-body" id="process-auditor-ai-body">Codex analiza, redacta y procesa la auditoria con los datos reales de Workforce Platform. Si el Gerente de Operaciones manejado por Claude responde, su contexto se usa como apoyo; si no responde, Codex sigue auditando de forma autonoma. No ejecuta cambios automaticamente.</div>
       </div>
       <div class="auditor-grid">
         <div class="auditor-card">
@@ -10733,8 +11354,12 @@ async function loadProcessAuditor() {
         </div>
         <div style="display:grid;gap:14px">
           <div class="auditor-card">
-            <div class="auditor-card-title"><i data-lucide="book-open"></i>Manuales por rol</div>
-            ${manualsHtml}
+            <div class="auditor-card-title"><i data-lucide="alarm-clock"></i>Tareas overdue y escalamiento</div>
+            ${overdueHtml}
+          </div>
+          <div class="auditor-card">
+            <div class="auditor-card-title"><i data-lucide="book-open"></i>Documentos terminados de procesos</div>
+            ${documentsHtml}
           </div>
           <div class="auditor-card">
             <div class="auditor-card-title"><i data-lucide="layout-dashboard"></i>Mapa de plataforma, pantallas y botones</div>
@@ -10790,6 +11415,76 @@ async function rejectProcessRecommendation(recId) {
     loadProcessAuditor();
   } catch(e) {
     toast('Error al rechazar recomendacion');
+  }
+}
+
+async function loadProcessAuditorAi(force) {
+  const body = document.getElementById('process-auditor-ai-body');
+  if (!body) return;
+  body.innerHTML = '<div class="loading" style="padding:10px"><div class="spinner"></div><br>Consultando IA...</div>';
+  try {
+    const r = await authFetch('/api/wwp/process-auditor/ai' + (force ? '?refresh=1' : ''));
+    const d = await r.json();
+    if (!d.ok) {
+      body.innerHTML = `<b>IA no disponible:</b> ${esc(d.message || d.reason || 'No se pudo generar analisis')}`;
+      return;
+    }
+    const b = d.brief || {};
+    const list = (arr) => (arr || []).length ? `<ul class="auditor-ai-list">${arr.map(x => `<li>${esc(typeof x === 'string' ? x : JSON.stringify(x))}</li>`).join('')}</ul>` : '<div style="color:var(--text-3)">Sin hallazgos.</div>';
+    const dev = (b.developmentRecommendations || []).length
+      ? `<ul class="auditor-ai-list">${b.developmentRecommendations.map(x => `<li><b>${esc(x.title||'Recomendacion')}</b><br>${esc(x.impact||'')}<div class="auditor-command">${esc(x.commandForCodex||'')}</div></li>`).join('')}</ul>`
+      : '<div style="color:var(--text-3)">Sin recomendaciones de desarrollo.</div>';
+    body.innerHTML = `
+      <div><b>Resumen:</b> ${esc(b.executiveSummary || '')}</div>
+      <div style="margin-top:8px"><b>Trabajo conjunto Codex Auditor + Gerente Claude:</b>${list(b.collaborationNotes)}</div>
+      <div style="margin-top:8px"><b>Brechas documentales:</b>${list(b.documentationGaps)}</div>
+      <div style="margin-top:8px"><b>Riesgos de proceso:</b>${list(b.processRisks)}</div>
+      <div style="margin-top:8px"><b>Recomendaciones para Codex:</b>${dev}</div>
+      <div style="margin-top:8px"><b>Proximas acciones:</b>${list(b.nextBestActions)}</div>
+      <div style="font-size:10px;color:var(--text-3);margin-top:8px">Generado: ${d.generatedAt ? new Date(d.generatedAt).toLocaleString('es-DO') : ''}${d.cached?' · cache':''}</div>`;
+    if (window.lucide) lucide.createIcons();
+  } catch(e) {
+    body.innerHTML = 'Error llamando IA: ' + esc(e.message || e);
+  }
+}
+
+function renderProcessAuditorChat(messages) {
+  const box = document.getElementById('process-auditor-chat');
+  if (!box) return;
+  const list = (messages || []).slice(-20);
+  if (!list.length) {
+    box.innerHTML = '<div class="auditor-chat-msg assistant"><div class="auditor-chat-meta">Auditor Codex</div>Solicitame documentos terminados, estatus de procesos, analisis de una recomendacion o mejoras para un flujo especifico.</div>';
+    return;
+  }
+  box.innerHTML = list.map(m => `<div class="auditor-chat-msg ${m.role === 'user' ? 'user' : 'assistant'}">
+    <div class="auditor-chat-meta">${esc(m.role === 'user' ? (m.by || 'Tu') : (m.by || 'Auditor Codex'))}${m.createdAt ? ' · ' + new Date(m.createdAt).toLocaleString('es-DO') : ''}</div>
+    ${esc(m.text || '')}
+  </div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendProcessAuditorChat() {
+  const input = document.getElementById('process-auditor-chat-input');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) { toast('Escribe una solicitud para el Auditor'); return; }
+  const box = document.getElementById('process-auditor-chat');
+  input.value = '';
+  if (box) {
+    box.innerHTML += `<div class="auditor-chat-msg user"><div class="auditor-chat-meta">${esc(_user?.name || 'Tu')}</div>${esc(text)}</div>
+      <div class="auditor-chat-msg assistant"><div class="auditor-chat-meta">Auditor Codex</div>Procesando solicitud...</div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  try {
+    const r = await authFetch('/api/wwp/process-auditor/chat', {
+      method: 'POST',
+      body: JSON.stringify({ text })
+    }, 90000);
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo consultar el Auditor'); return; }
+    renderProcessAuditorChat(d.chat || []);
+  } catch(e) {
+    toast('Error consultando Auditor');
   }
 }
 

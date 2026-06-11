@@ -31,7 +31,10 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 - El servidor sirve desde **la raíz** (no desde ningún worktree)
 - Datos persistentes: disco montado vía env var `DATA_DIR`
 - Datos en local: carpeta `data-local/` (se pasa `DATA_DIR=...data-local` al correr)
-- **Deploy**: Railway despliega desde la rama `master` (GitHub). Flujo: commit en `dev` → `git checkout master && git merge dev --no-edit && git push origin master` → volver a `dev`. Verificar SIEMPRE en la URL de Railway después del deploy.
+- **Deploy a Railway**: vía CLI desde la raíz del proyecto (NO desde GitHub):
+  `railway up --service dashboard-despachos --detach` (ver `RAILWAY.md`; CLI en `C:\Users\Gabriel Ramirez\AppData\Roaming\npm\railway.cmd`).
+  GitHub (`dev`→`master`→push) es respaldo del código, NO dispara deploys. ⚠️ Commitear SIEMPRE antes de deployar para que el repo no quede detrás de producción.
+  Verificar tras deploy: `/api/health` y `/historial.html` en la URL de Railway.
 
 ## Convenciones de código
 
