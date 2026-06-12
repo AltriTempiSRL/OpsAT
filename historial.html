@@ -361,7 +361,10 @@ body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 .btn-back{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.22);padding:6px 13px;border-radius:var(--radius);font-weight:600;cursor:pointer;font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:background .15s}
 .btn-back:hover{background:rgba(255,255,255,.22)}
 .sim-notice{font-size:10px;opacity:.7;display:flex;align-items:center;gap:4px;text-transform:uppercase;letter-spacing:.4px}
-.sim-dot{width:5px;height:5px;border-radius:50%;background:#f6c34a;display:inline-block}
+.sim-dot{width:7px;height:7px;border-radius:50%;background:#f6c34a;display:inline-block;flex-shrink:0}
+.conn-dot-wrap{display:inline-flex;align-items:center;cursor:default;position:relative}
+.conn-dot-wrap .sim-dot{width:8px;height:8px;transition:background 0.4s}
+.hdr-conn-group{display:flex;align-items:center;gap:8px;padding:4px 8px;background:rgba(0,0,0,.18);border-radius:var(--radius-full)}
 
 /* ── Layout ── */
 /* ── Mobile top nav (reemplaza sidebar en móvil) ── */
@@ -3684,6 +3687,10 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="sidebar-logo-sub">Trazabilidad · ERP</div>
     </div>
 
+    <a class="nav-item" href="https://gjs6301-code.github.io/dashboard-despachos-live/" target="_blank" rel="noopener" style="margin-bottom:4px">
+      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard
+    </a>
+
     <div class="sidebar-group" id="navg-consultar">Consultar</div>
     <a class="nav-item active" id="nav-buscar" href="#sec-buscar" onclick="navTo('buscar');return false;">
       <span class="nav-icon"><i data-lucide="search"></i></span>Buscador
@@ -3751,14 +3758,11 @@ body{font-family:var(--font);min-height:100dvh}
 <div id="app">
   <div class="hdr">
     <div class="hdr-row">
-      <div>
-        <h1>Historial de Orden</h1>
-        <p>Trazabilidad · SharePoint · Google Sheets · Odoo</p>
+      <div class="hdr-conn-group">
+        <span class="conn-dot-wrap" id="sheets-status" title="Sheets verificando…"><span class="sim-dot"></span></span>
+        <span class="conn-dot-wrap" id="odoo-status" title="Odoo verificando…"><span class="sim-dot"></span></span>
       </div>
-      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-        <span class="sim-notice" id="sheets-status"><span class="sim-dot"></span>Sheets verificando…</span>
-        <span class="sim-notice" id="odoo-status"><span class="sim-dot"></span>Odoo verificando…</span>
-        <a href="https://gjs6301-code.github.io/dashboard-despachos-live/" class="btn-back" target="_blank" rel="noopener">← Dashboard</a>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <a id="hist-guide-btn" href="wwp-guide.html" target="_blank" class="btn-back" style="background:rgba(255,255,255,.15);text-decoration:none"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Guía</a>
         <span id="hist-user-info" style="font-size:11px;color:rgba(255,255,255,.85);font-weight:700;letter-spacing:.2px"></span>
         <button class="btn-back" onclick="doLogout()" id="hist-logout-btn" style="display:none"><i data-lucide="log-out" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Salir</button>
@@ -12863,21 +12867,19 @@ async function checkOdooConnection(retries, delay){
     var res=await fetch('/api/odoo/auth',{headers:_headers});
     var data=await res.json();
     ODOO_LIVE=data.ok;
-    if(el) el.innerHTML=data.ok
-      ?'<span class="sim-dot" style="background:var(--green-dot)"></span><span style="color:var(--green-text)">Odoo conectado</span>'
-      :'<span class="sim-dot"></span><span style="color:var(--amber-text)">Odoo sin conexión</span>';
+    if(el){var d=el.querySelector('.sim-dot');if(data.ok){el.title='Odoo conectado';if(d)d.style.background='var(--green-dot)';}else{el.title='Odoo sin conexión';if(d)d.style.background='';}}
     // Si falló pero quedan reintentos, volver a intentar
     if(!data.ok && retries > 0){
-      if(el) el.innerHTML='<span class="sim-dot" style="background:var(--amber-dot,#f59e0b)"></span><span style="color:var(--text-muted)">Conectando… ('+retries+')</span>';
+      if(el){el.title='Conectando Odoo… ('+retries+')';var d=el.querySelector('.sim-dot');if(d)d.style.background='var(--amber-dot,#f59e0b)';}
       setTimeout(function(){ checkOdooConnection(retries-1, delay); }, delay);
     }
   }catch(e){
     ODOO_LIVE=false;
     if(retries > 0){
-      if(el) el.innerHTML='<span class="sim-dot" style="background:var(--amber-dot,#f59e0b)"></span><span style="color:var(--text-muted)">Conectando… ('+retries+')</span>';
+      if(el){el.title='Conectando Odoo… ('+retries+')';var d=el.querySelector('.sim-dot');if(d)d.style.background='var(--amber-dot,#f59e0b)';}
       setTimeout(function(){ checkOdooConnection(retries-1, delay); }, delay);
     } else {
-      if(el) el.innerHTML='<span class="sim-dot"></span><span style="color:var(--amber-text)">Odoo sin conexión</span>';
+      if(el){el.title='Odoo sin conexión';var d=el.querySelector('.sim-dot');if(d)d.style.background='';}
     }
   }
 }
@@ -12893,7 +12895,7 @@ async function checkSheetsConnection(retries, delay){
       GS_CACHE=data.result;
       SHEETS_LIVE=true;
       var n=Object.keys(GS_CACHE).length;
-      if(el) el.innerHTML='<span class="sim-dot" style="background:var(--green-dot)"></span><span style="color:var(--green-text)">Sheets en vivo</span>';
+      if(el){el.title='Sheets en vivo ('+n+' entradas)';var d=el.querySelector('.sim-dot');if(d)d.style.background='var(--green-dot)';}
       console.log('[Sheets] Cargado — '+n+' entradas');
     } else {
       throw new Error(data.error||'sin datos');
@@ -12901,10 +12903,10 @@ async function checkSheetsConnection(retries, delay){
   }catch(e){
     SHEETS_LIVE=false;
     if(retries > 0){
-      if(el) el.innerHTML='<span class="sim-dot" style="background:var(--amber-dot,#f59e0b)"></span><span style="color:var(--text-muted)">Conectando… ('+retries+')</span>';
+      if(el){el.title='Conectando Sheets… ('+retries+')';var d=el.querySelector('.sim-dot');if(d)d.style.background='var(--amber-dot,#f59e0b)';}
       setTimeout(function(){ checkSheetsConnection(retries-1, delay); }, delay);
     } else {
-      if(el) el.innerHTML='<span class="sim-dot"></span><span style="color:var(--amber-text)">Sheets sin conexión</span>';
+      if(el){el.title='Sheets sin conexión';var d=el.querySelector('.sim-dot');if(d)d.style.background='';}
       console.warn('Sheets sin conexión:',e.message);
     }
   }
