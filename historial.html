@@ -3795,8 +3795,7 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── BUSCADOR ─────────────────────────────────────────── -->
     <div id="section-buscar" class="page-section">
-    <div id="sec-buscar" style="padding:12px 0 0">
-      <p class="section-title" style="margin-bottom:8px">Consultar</p>
+    <div id="sec-buscar" style="padding:20px 0 0">
       <div class="search-type-toggle">
         <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">Orden</button>
         <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
@@ -3841,10 +3840,9 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── ANALYTICS ──────────────────────────────────────── -->
     <div id="section-devoluciones" class="page-section" style="display:none">
-    <div id="sec-devoluciones" class="divider"><div class="divider-line"></div><span class="divider-label">ANÁLISIS OPERACIONAL</span><div class="divider-line"></div></div>
 
     <!-- Devoluciones por mes -->
-    <div class="dev-card" style="margin-bottom:12px">
+    <div class="dev-card" style="margin-bottom:12px;margin-top:20px">
       <div class="dev-header">
         <h3>Devoluciones por mes</h3>
         <div style="display:flex;align-items:center;gap:8px">
@@ -3868,8 +3866,7 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── VALIDACIÓN ESCANEO ────────────────────────────── -->
     <div id="section-validacion" class="page-section" style="display:none">
-    <div id="sec-validacion" class="divider"><div class="divider-line"></div><span class="divider-label">VALIDACIÓN DE ESCANEO — TRANSFERENCIAS</span><div class="divider-line"></div></div>
-    <div class="cont-card" style="padding:0;overflow:visible">
+    <div class="cont-card" style="padding:0;overflow:visible;margin-top:20px">
 
       <!-- Buscador -->
       <div class="val-search-wrap">
@@ -3894,10 +3891,9 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── ARTÍCULOS AVERIADOS ───────────────────────────── -->
     <div id="section-averias" class="page-section" style="display:none">
-    <div id="sec-averias" class="divider"><div class="divider-line"></div><span class="divider-label">ARTÍCULOS AVERIADOS</span><div class="divider-line"></div></div>
 
     <!-- Formulario de registro -->
-    <div class="cont-card" style="margin-bottom:16px">
+    <div class="cont-card" style="margin-top:20px;margin-bottom:16px">
       <div class="av-form-grid">
         <!-- columna izquierda: lookup -->
         <div class="av-col-lookup">
@@ -3996,9 +3992,8 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── SOLICITUDES DE REPOSICIÓN (D5) ──────────────────── -->
     <div id="section-solicitudes-reposicion" class="page-section" style="display:none">
-    <div class="divider"><div class="divider-line"></div><span class="divider-label">SOLICITUDES DE REPOSICIÓN</span><div class="divider-line"></div></div>
 
-    <div class="cont-card">
+    <div class="cont-card" style="margin-top:20px">
       <div class="rep-header">
         <span class="rep-header-title">Solicitudes de Reposición</span>
         <button class="rep-new-btn" id="rep-btn-nueva" onclick="repAbrirModal()" style="display:none">
@@ -4100,8 +4095,7 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── CONTENEDORES ──────────────────────────────────── -->
     <div id="section-contenedores" class="page-section" style="display:none">
-    <div id="sec-contenedores" class="divider"><div class="divider-line"></div><span class="divider-label">CONTROL DE IMPORTACIONES — COMPRAS</span><div class="divider-line"></div></div>
-    <div class="cont-card">
+    <div class="cont-card" style="margin-top:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
         <h3 style="margin:0">Control de Contenedores</h3>
         <button class="btn-consultar" onclick="cargarContenedores()" style="padding:4px 12px;font-size:10px">↻ Actualizar</button>
@@ -4123,8 +4117,7 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── REPOSICIÓN SHOWROOM ──────────────────────────── -->
     <div id="section-reposicion" class="page-section" style="display:none">
-    <div id="sec-reposicion" class="divider"><div class="divider-line"></div><span class="divider-label">REPOSICIÓN SHOWROOM — COMPRAS</span><div class="divider-line"></div></div>
-    <div class="cont-card">
+    <div class="cont-card" style="margin-top:20px">
       <div class="rs-card-hdr">
         <h3 style="margin:0">Reposición Showroom</h3>
         <div class="rs-card-controls">
@@ -4219,8 +4212,7 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── SOLICITUDES SHOWROOM ─────────────────────────── -->
     <div id="section-solicitudes" class="page-section" style="display:none">
-    <div id="sec-solicitudes" class="divider"><div class="divider-line"></div><span class="divider-label">SOLICITUDES SHOWROOM — COMPRAS</span><div class="divider-line"></div></div>
-    <div class="cont-card">
+    <div class="cont-card" style="margin-top:20px">
       <div class="rs-card-hdr" style="flex-wrap:wrap;gap:10px">
         <div>
           <div style="font-size:13px;font-weight:700;color:var(--text-primary)">Lista de Solicitudes</div>
@@ -4284,17 +4276,15 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ── MAPA ALMACÉN CDP ────────────────────────────────── -->
     <div id="section-almacen-mapa" class="page-section" style="display:none">
-    <div id="sec-almacen-mapa" class="divider"><div class="divider-line"></div><span class="divider-label">MAPA DE ALMACÉN — CDP</span><div class="divider-line"></div></div>
-    <div class="card" style="padding:0;overflow:hidden;height:calc(100vh - 120px);min-height:500px">
+    <div class="card" style="padding:0;overflow:hidden;height:calc(100vh - 120px);min-height:500px;margin-top:20px">
       <iframe id="almacen-mapa-iframe" style="width:100%;height:100%;border:none" loading="lazy"></iframe>
     </div>
     </div><!-- /section-almacen-mapa -->
 
     <!-- ── DESPACHOS SIN COMPROBANTE ────────────────────────── -->
     <div id="section-sin-adjuntos" class="page-section" style="display:none">
-    <div id="sec-sin-adjuntos" class="divider"><div class="divider-line"></div><span class="divider-label">DESPACHOS — COMPROBANTES</span><div class="divider-line"></div></div>
 
-    <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+    <div class="card" style="margin-top:20px;margin-bottom:12px;padding:0;overflow:hidden">
       <div class="rpt-filter-bar">
         <span style="font-size:12px;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:5px"><i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor"></i>Transferencias OUT sin adjunto</span>
         <div class="rpt-filter-sep"></div>
@@ -4339,9 +4329,8 @@ body{font-family:var(--font);min-height:100dvh}
          DEV → CDP  (Devoluciones de tiendas en almacén)
          ══════════════════════════════════════════════════ -->
     <div id="section-dev-cdp" class="page-section" style="display:none">
-    <div id="sec-dev-cdp" class="divider"><div class="divider-line"></div><span class="divider-label">DEVOLUCIONES PTN EN CDP</span><div class="divider-line"></div></div>
 
-    <div style="padding:18px 0 0">
+    <div style="padding:20px 0 0">
 
       <!-- Header + controles -->
       <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
