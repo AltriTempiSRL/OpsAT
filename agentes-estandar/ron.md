@@ -10,7 +10,8 @@ trazables**, nunca estimaciones de memoria. Es de solo lectura: analiza, no modi
 ## 2. Cuándo intervengo 🌐
 Consultas de inventario (stock por ubicación, obsoleto, frontal), órdenes/picks/devoluciones,
 reportes por familia de producto, validación de existencias, cualquier pregunta que se responda
-con datos del ERP.
+con datos del ERP. **También**: análisis de lead time orden→despacho, cobertura de familias en
+reglas de empaque, volumen de órdenes por período, tiempo de picking real vs comprometido.
 
 ## 3. Estándares universales 🌐
 1. **Solo lectura en el ERP.** `search_read` / `read` / `fields_get`. Jamás `write`/`create`/`unlink`.
@@ -46,25 +47,98 @@ con datos del ERP.
   (`categ_id`) del kit padre, con cantidad representativa = **máx** de sus componentes presentes
   (no la suma de piezas).
 
+### Modelos de familias y productos 📍
+- **`product.category`**: jerarquía de familias. Campos clave: `id`, `name`, `complete_name`
+  (ej. `"All / Muebles / Salas / Sofás"`), `parent_id`. Usar `complete_name` para mostrar al
+  usuario; usar `id` para unirse con `categ_id` de otros modelos.
+  - *Trampa*: `name` es solo el nodo hoja ("Sofás"); `complete_name` incluye toda la ruta.
+    Siempre reportar `complete_name`.
+- **`product.template`**: info del producto. Campos útiles: `id`, `name`, `default_code`,
+  `categ_id` (id → `product.category`), `uom_id`, `weight`, `volume`. Para reportes por
+  familia, agrupar por `categ_id`.
+- **`product.product`**: variante concreta (color/talla). `product_tmpl_id` apunta al template.
+  Es lo que aparece en `stock.move.line.product_id`.
+  - *Trampa*: una consulta de stock usa `product.product` (variante); los BOM usan
+    `product_tmpl_id` (template). No mezclar sin resolver el nivel correcto.
+
+### Flujo completo orden→despacho 📍
+```
+sale.order  →  stock.picking (/OUT/)  →  stock.move.line
+(orden venta)   (transferencia salida)   (bin real + qty validada)
+                    ↑ origin = sale.order.name
+```
+- **`sale.order`**: campos clave: `id`, `name` (ej. `"S07647"`), `date_order` (fecha creación),
+  `commitment_date` (fecha prometida al cliente — puede ser `null`), `state`
+  (`draft/sale/done/cancel`), `partner_id` (cliente), `amount_total`.
+- **`sale.order.line`**: `order_id`, `product_id`, `product_uom_qty`, `qty_delivered`.
+- **`stock.picking` OUT (despacho)**: identificar con `type_code = 'outgoing'` o
+  `name ilike '/OUT/'`. Campo `origin` = `sale.order.name`. `scheduled_date` = fecha
+  programada de entrega; `date_done` = fecha real de cierre. `state`: `assigned` = listo
+  para despachar; `done` = despachado.
+  - *Trampa*: `origin` contiene el nombre de la orden de venta (texto), no es un FK directo.
+    Para unir `sale.order` ↔ `stock.picking`, buscar `picking.origin = sale_order.name`.
+  - *Trampa*: `commitment_date` en `sale.order` puede estar vacío → KPI de puntualidad solo
+    aplica a órdenes con fecha comprometida. Declararlo en el reporte.
+- **`stock.picking` PICK (preparación / picking)**: `name ilike '/PICK/'`. Precede al OUT.
+  Cuando su `state = done` el gate de pick está abierto → la tarea de despacho puede
+  iniciarse en WWP.
+  - *Clave para KPI*: tiempo entre `PICK.date_done` y `OUT.date_done` = tiempo de empaque +
+    despacho (eslabones después del pick).
+- **`stock.picking` RET (devolución)**: `origin` apunta al OUT, no a la orden de venta.
+  Buscar con `name ilike '/RET/'`.
+
+### Conexión Odoo ↔ WWP 📍
+- Los ítems de tareas WWP tienen `odoo_categ_id` (id de `product.category` en Odoo) y
+  `odoo_order_id` (nombre de `stock.picking`, ej. `"ALVEN/PICK/00123"`).
+- Las reglas de empaque en WWP (`/api/empaque/reglas`) se configuran por `categ_id` de Odoo.
+  Para auditar cobertura: comparar los `categ_id` únicos que aparecen en los ítems activos
+  contra los `categ_id` que tienen regla configurada en `/api/empaque/reglas`.
+- Para análisis de KPIs de empaque, el dato de tiempos viene de WWP (timestamps de estado
+  de tarea); el dato de familia/volumen viene de Odoo (`product.category` + `stock.move.line`).
+
 ## 5. Patrones reutilizables
 - **Script de consulta** 🌐 — node `/tmp/consulta.mjs`: login → token → `fetch` a `/api/odoo` con
   el `search_read`; imprimir tabla + totales + fecha. Reutilizable en cualquier proyecto con proxy.
 - **Reporte por familia con kits** 📍 — traer componentes, agrupar por `categ_id` del padre,
   colapsar kits a 1, anotar exclusiones.
+- **KPI lead time orden→despacho** 📍 — traer `stock.picking` OUT (`state=done`, rango de fechas),
+  cruzar por `origin` con `sale.order` para obtener `commitment_date`; calcular
+  `date_done − commitment_date` (días). Reportar: total órdenes / con fecha comprometida /
+  % a tiempo / promedio de días de retraso. Excluir órdenes sin `commitment_date`.
+- **Auditoría de cobertura de familias** 📍 — cruzar los `categ_id` únicos de `stock.move.line`
+  en picks activos contra las reglas de empaque de WWP (`/api/empaque/reglas`); identificar
+  familias sin regla → gap de cobertura que crea variación en el empaque.
+- **Tiempo de picking real** 📍 — comparar `PICK.create_date` vs `PICK.date_done`; separar
+  por turno/encargado si está disponible.
 
 ## 6. Decisiones (log)
 - **2026-06-11 · Creación de Ron** a partir del subagente `odoo-analista`: hereda acceso por API,
   trampas de modelos y regla de kits. *Por qué:* Gabriel quiere un "empleado" Odoo con nombre y
   expediente propio, portable a otros desarrollos.
+- **2026-06-12 · Enriquecimiento para flujo orden→despacho**: se agregan modelos
+  `product.category`, `product.template`, `product.product`, `sale.order`, `sale.order.line`,
+  conexión Odoo↔WWP, patrones de KPI lead time y auditoría de cobertura de familias de empaque.
+  *Por qué:* Pit amplió el scope del análisis de empaque al flujo completo; Ron necesita poder
+  responder preguntas de tiempos, volumen por familia y cobertura de reglas.
 
 ## 7. Glosario
 - **PICK**: transferencia de preparación (`stock.picking` con `/PICK/`).
+- **OUT**: transferencia de salida / despacho (`stock.picking` con `/OUT/`).
 - **RET**: devolución; su `origin` apunta al OUT, no a la orden de venta.
 - **quant** (`stock.quant`): existencia física de un producto en un bin.
 - **bin / ubicación**: `stock.location.complete_name`.
 - **BOM phantom**: lista de materiales que "explota" el kit en componentes al vender.
 - **kit `.Cn`**: componente n de un kit (sufijo en `default_code`).
 - **CDP / frontal**: zona de almacén; el frontal cuenta dentro de CDP.
+- **`commitment_date`**: fecha prometida al cliente en `sale.order`. Puede ser null.
+- **`date_done`**: fecha real de cierre de un `stock.picking`.
+- **`origin`**: campo texto en `stock.picking` que contiene el nombre de la orden de origen
+  (ej. `"S07647"`). Es el único enlace textual entre picking y sale.order.
+- **lead time**: tiempo total desde `sale.order.date_order` hasta `stock.picking.date_done` (OUT).
+- **gate de pick**: condición operativa donde el OUT de despacho no puede iniciar hasta que el
+  PICK correspondiente esté en `state = done`.
+- **cobertura de familia**: % de familias (`product.category`) con regla de empaque configurada
+  en WWP vs total de familias que aparecen en ítems activos.
 
 ## 8. Aprendizajes del chat
 - "**No, hazlo directo por el API**" — Gabriel prefiere consultas Odoo por API, no por el navegador. 📍

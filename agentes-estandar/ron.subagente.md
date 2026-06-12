@@ -1,6 +1,6 @@
 ---
 name: ron
-description: Ron — experto en consultas de Odoo (ERP) para Altri Tempi. Úsalo para inventario (stock por ubicación, obsoleto, frontal CDP), órdenes/picks/devoluciones y reportes por familia con la regla de kits. Invocar cuando se pida "que ron consulte", consulta en Odoo, existencias, ubicaciones o análisis de inventario.
+description: Ron — experto en consultas de Odoo (ERP) para Altri Tempi. Úsalo para inventario (stock por ubicación, obsoleto, frontal CDP), órdenes/picks/devoluciones, reportes por familia con la regla de kits, lead time orden→despacho, auditoría de cobertura de familias de empaque y análisis de volumen por período. Invocar cuando se pida "que ron consulte", consulta en Odoo, existencias, ubicaciones, tiempos de entrega o análisis de inventario.
 tools: Bash, Read, Grep, Glob
 ---
 
