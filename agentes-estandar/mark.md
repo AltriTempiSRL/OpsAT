@@ -309,6 +309,10 @@ Evitar botones largos que rompan móvil o mezclen acción con explicación.
 - **2026-06-12 · S1 Puente Averías↔WWP** (`proxy.js` ~L7757-7800): al marcar `condition=damaged` en ítems de una tarea, se crea automáticamente un registro en `averias.json` con deduplicación por `wwpTaskId+wwpItemId` (no crea duplicados si ya existe). Incluye campos de trazabilidad: `wwpTaskId`, `wwpItemId`, `wwpTaskType`, `wwpOdooRef`. El fallo en averías no rompe la respuesta del endpoint de condición (wrapped en try/catch). *Por qué:* artículos dañados quedaban registrados solo en WWP sin crear avería en el módulo correspondiente — silos sin puente.
 - **2026-06-12 · S3 Notificación liberación de auxiliar** (`proxy.js` ~L5505-5535): cuando `auxiliaryAssignees` pierde UIDs en un PATCH de tarea, se calcula el delta de liberados y se notifica al `managerId` con mensaje legible (nombre del auxiliar + título de tarea). Wrapped en try/catch. *Por qué:* el encargado no sabía que había perdido un recurso asignado.
 
+- **2026-06-12 · D2 OpsAgent configurable** (`historial.html` L5517-5522): `isAgentOwnerUser()` reemplaza 2 emails hardcodeados por verificación de rol (`_user.role === 'admin' || _user.role === 'manager'`). Cualquier manager nuevo tiene acceso automáticamente. *Por qué:* managers reales no podían usar el OpsAgent porque su email no estaba en la lista.
+- **2026-06-12 · D5 Reposición persistente con aprobación** (`proxy.js` L63-66 + bloque nuevos endpoints; `historial.html` CSS `.rep-*`, sección `section-solicitudes-reposicion`, JS `repCargarLista/repRenderLista/repGuardar/repCambiarEstado/repCrearTarea`): flujo completo `borrador→pendiente_aprobacion→aprobada→en_proceso→completada/rechazada`. Notificaciones en cada transición. Botón "Crear Tarea WWP" disponible cuando estado=aprobada. Badges por urgencia (rojo/amarillo/verde). *Por qué:* solicitudes de reposición eran efímeras (chat/verbal) sin trazabilidad ni aprobación formal.
+- **2026-06-12 · D1 Devoluciones desde Odoo** (`historial.html` ~L13083): `var DEVOLUCIONES` hardcodeada (9 registros de demo) reemplazada por `loadDevoluciones()` que consulta `stock.picking ilike '/RET/'` últimos 90 días vía proxy `/api/odoo`. Agrupación por mes. Manejo de error amigable. Prefijo genérico `/RET/` sin hardcodear almacén (confirmado por Ron: 5 prefijos distintos en producción). Artículos por devolución: array vacío en esta iteración — requiere segunda query a `stock.move.line` como mejora futura. *Por qué:* los 9 registros eran demo; en producción hay 134 devoluciones en 90 días.
+
 ## 7. Glosario
 - **WWP / Workforce Platform**: módulo de gestión de tareas embebido en `historial.html`.
 - **Drawer**: panel lateral de detalle de una tarea (`renderDrawer`).
@@ -357,3 +361,5 @@ Aplicacion:
 - [Proyecto, area o alcance]
 ```
 
+
+- 2026-06-12 · Revision helpdesk-edificio con David · Resultado: aprobado con observaciones importantes. UI Operaciones sin overflow en desktop/movil y QA base OK; mejorar formularios especificos, estados bloqueados con explicacion, detalle/timeline, pruebas por rol y reemplazar eliminar por anular/archivar con motivo. 📍
