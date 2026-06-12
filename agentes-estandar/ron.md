@@ -96,6 +96,29 @@ sale.order  →  stock.picking (/OUT/)  →  stock.move.line
 - Para análisis de KPIs de empaque, el dato de tiempos viene de WWP (timestamps de estado
   de tarea); el dato de familia/volumen viene de Odoo (`product.category` + `stock.move.line`).
 
+### Devoluciones en Odoo 📍
+- **Modelo**: `stock.picking` con `name ilike '/RET/'` — son transferencias de entrada (tipo `incoming`) que representan la devolución física del artículo al almacén.
+- **Campos clave**:
+  - `name`: número de devolución (ej. `"ALVEN/RET/00045"`)
+  - `origin`: referencia de la orden de salida original (OUT que se está devolviendo). **Trampa**: es texto libre, no un FK. Puede incluir prefijos adicionales.
+  - `partner_id`: cliente que devuelve.
+  - `scheduled_date` / `date_done`: fecha programada y real de recepción.
+  - `state`: `draft`, `waiting`, `confirmed`, `assigned`, `done`, `cancel`.
+  - `move_lines` → `stock.move.line`: artículos, cantidades y ubicaciones de destino.
+- **¿Se necesita `account.move`?**: Solo si se quiere mostrar la nota de crédito (monto). Para gestión operativa (artículos devueltos, estado, ubicación) basta con `stock.picking` RET. Si se necesita el monto del crédito, cruzar por `invoice_origin` o buscar `account.move` de tipo `credit_note` con el mismo `origin`.
+- **Mapeo Odoo → UI WWP Devoluciones**:
+  | Campo UI | Fuente Odoo |
+  |---|---|
+  | N° devolución | `stock.picking.name` |
+  | Fecha | `stock.picking.date_done` o `scheduled_date` |
+  | Cliente | `stock.picking.partner_id.name` |
+  | Orden origen | `stock.picking.origin` |
+  | Estado | `stock.picking.state` |
+  | Artículos | `stock.move.line` (producto + qty) |
+  | Monto (opcional) | `account.move` credit_note cruzado por origin |
+- **Trampa importante**: los RET del almacén de Altri Tempi pueden tener nombre `ALVEN/RET/...`; verificar el prefijo real con una consulta de muestra antes de asumir el formato.
+- **Decisión aprobada 2026-06-12**: Gabriel aprobó conectar el módulo de Devoluciones a datos reales de Odoo. Reemplaza `var DEVOLUCIONES` hardcoded en `historial.html` L12905.
+
 ## 5. Patrones reutilizables
 - **Script de consulta** 🌐 — node `/tmp/consulta.mjs`: login → token → `fetch` a `/api/odoo` con
   el `search_read`; imprimir tabla + totales + fecha. Reutilizable en cualquier proyecto con proxy.
@@ -107,6 +130,7 @@ sale.order  →  stock.picking (/OUT/)  →  stock.move.line
   % a tiempo / promedio de días de retraso. Excluir órdenes sin `commitment_date`.
 - **Auditoría de cobertura de familias** 📍 — cruzar los `categ_id` únicos de `stock.move.line`
   en picks activos contra las reglas de empaque de WWP (`/api/empaque/reglas`); identificar
+- **Consulta de devoluciones por período** 📍 — `stock.picking` con `name ilike '/RET/'` + `state=done` + rango de `date_done`; incluir `partner_id`, `origin`, `move_line_ids` para artículos. Opcional: cruzar con `account.move` tipo credit_note para montos.
   familias sin regla → gap de cobertura que crea variación en el empaque.
 - **Tiempo de picking real** 📍 — comparar `PICK.create_date` vs `PICK.date_done`; separar
   por turno/encargado si está disponible.
@@ -115,6 +139,7 @@ sale.order  →  stock.picking (/OUT/)  →  stock.move.line
 - **2026-06-11 · Creación de Ron** a partir del subagente `odoo-analista`: hereda acceso por API,
   trampas de modelos y regla de kits. *Por qué:* Gabriel quiere un "empleado" Odoo con nombre y
   expediente propio, portable a otros desarrollos.
+- **2026-06-12 · Devoluciones aprobadas desde Odoo**: Gabriel aprobó conectar el módulo de Devoluciones a `stock.picking` tipo RET en Odoo, reemplazando los 9 registros hardcoded en `historial.html`. Se agrega mapeo de campos y trampa del prefijo `ALVEN/RET/`. Opcional: cruzar con `account.move` credit_note para montos.
 - **2026-06-12 · Enriquecimiento para flujo orden→despacho**: se agregan modelos
   `product.category`, `product.template`, `product.product`, `sale.order`, `sale.order.line`,
   conexión Odoo↔WWP, patrones de KPI lead time y auditoría de cobertura de familias de empaque.
@@ -145,3 +170,35 @@ sale.order  →  stock.picking (/OUT/)  →  stock.move.line
 - "**Valida con la regla de kits que usa el desarrollo**" — aplicar la consolidación de kits que ya
   usan otras secciones del proyecto. 📍
 - Responder en **español**, con números verificados y notas de método. 🌐
+## Protocolo para agregar memoria desde texto
+
+Cuando Gabriel indique **"agrega a memoria de [nombre del agente]"** o una instruccion equivalente y pegue texto, articulo, fragmento de libro, nota, conversacion o documento:
+
+1. Leer el texto completo disponible.
+2. No pegar articulos/libros largos completos en el expediente del agente.
+3. Convertir la informacion en memoria util: resumen, aprendizajes, reglas practicas, decisiones y forma de aplicarlo.
+4. Guardar el aprendizaje en el expediente canonico del agente correspondiente dentro de `agentes-estandar/`.
+5. Usar fecha, fuente y alcance: global, proyecto especifico o tema especifico.
+6. Si el texto es muy largo, conservar solo citas breves imprescindibles y priorizar resumen accionable.
+7. Si la informacion aplica a varios agentes, registrar en cada expediente solo lo que ese agente debe recordar y usar.
+
+Formato recomendado:
+
+```md
+### YYYY-MM-DD - [Tema]
+
+Fuente:
+- [Articulo, libro, conversacion, documento, enlace o nota]
+
+Resumen:
+- [Idea principal]
+- [Idea principal]
+
+Aprendizajes para [Agente]:
+- [Regla o criterio que debe recordar]
+- [Como debe aplicarlo]
+
+Aplicacion:
+- [Proyecto, area o alcance]
+```
+

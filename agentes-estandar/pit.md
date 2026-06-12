@@ -125,6 +125,15 @@ rutinas de seguimiento, supervisión y retroalimentación.
   tablero KPI). *Por qué:* Gabriel pidió un gerente de operaciones experimentado, no solo un
   reportero de estado. Se mantiene la regla de solo lectura: Pit diseña y supervisa, no ejecuta.
 
+- **2026-06-12 · Barrido completo WWP + 5 decisiones de Gabriel**:
+  - D1 ✅ Devoluciones → Odoo (`stock.picking` RET). Ron diseña la consulta, Mark implementa.
+  - D2 ⏳ OpsAgent configurable: Gabriel pidió descripción operativa antes de decidir. Pit explicó sin tecnicismos. Pendiente respuesta.
+  - D3 ✅ S1 Puente Averías↔WWP (`notifyDamage`). Mark implementó en `proxy.js` ~L7757-7800.
+  - D4 ✅ S3 Notificación liberación auxiliar en Staffing. Mark implementó en `proxy.js` ~L5505-5535.
+  - D5 ✅ Reposición persistente con aprobación. Diseño operativo (Pit) y desarrollo (Mark) aprobados.
+  *Por qué:* Gabriel revisó el barrido completo de 13 flujos/secciones y aprobó las mejoras de mayor impacto.
+- **2026-06-12 · Diseño flujo de Reposición (D5)** — Estados: `borrador → pendiente_aprobacion → aprobada → en_proceso → completada / rechazada`. Quién solicita: encargado/manager. Captura: artículo/ref, cantidad, ubicación destino, urgencia (baja/media/alta), motivo. Quién aprueba: admin. Al aprobar: se puede convertir en tarea WWP (tipo `pack_store` o `free`) vía botón. Notificaciones: al solicitar → admin; al aprobar/rechazar → solicitante; al crear tarea → encargado asignado. Persistencia: nueva tabla en JSON del proxy (`reposiciones.json`). Endpoints mínimos: `GET /api/reposicion`, `POST /api/reposicion`, `PATCH /api/reposicion/:id` (estado + comentario aprobador). *Por qué:* solicitudes efímeras actuales no dejan trazabilidad ni proceso de aprobación.
+
 ## 7. Glosario
 - **Encargado / manager**: responsable de la tarea (`managerId`).
 - **Auxiliar**: ejecutor asignado (`auxiliaryAssignees`).
@@ -185,6 +194,9 @@ rutinas de seguimiento, supervisión y retroalimentación.
 - 📍 Cuando da "revelaciones" sobre el código ("X ya está implementado"), espera que Pit LO VERIFIQUE en código antes de aceptarlo como hecho — no asumir que la revelación es completa. Aquí H1 estaba implementado en código pero el gap es de configuración/datos, distinción que Gabriel valorará.
 - 🌐 Alcances aprobados por Gabriel se registran explícitamente ("Gabriel aprobó ampliar el scope…") → señal de que toma decisiones de scope de forma declarativa. Pit debe registrar cada aprobación como decisión.
 - 🌐 Prefiere equipos de agentes con roles claros (Pit=operaciones, Ron=Odoo, Mark=UI) y que cada uno sepa cuándo derivar.
+- 🌐 Toma decisiones de scope con respuestas cortas y directas (5 preguntas → 5 respuestas en 1 mensaje). No necesita ver el plan técnico detallado para aprobar cuando confía en el equipo.
+- 🌐 Cuando un agente no puede completar su trabajo (límite de sesión, permiso denegado), espera que el coordinador (Claude) lo cubra sin que Gabriel tenga que intervenir.
+- 📍 Pide que cada agente aprenda su parte y actualice su expediente después de cada iteración. El conocimiento acumulado en `agentes-estandar/` es más valioso que cualquier entrega individual.
 
 ## 6. Decisiones (log) — 2026-06-12 barrido completo de flujos WWP
 
@@ -233,3 +245,35 @@ rutinas de seguimiento, supervisión y retroalimentación.
 - 📍 Patron de escritura de archivos grandes en Windows: usar node - con heredoc (ENDNODE) para bloques
   de texto; no usar bash heredoc con variables JS (conflicto de comillas). Partir el contenido en bloques
   de ~100 lineas y usar appendFileSync iterativamente.
+## Protocolo para agregar memoria desde texto
+
+Cuando Gabriel indique **"agrega a memoria de [nombre del agente]"** o una instruccion equivalente y pegue texto, articulo, fragmento de libro, nota, conversacion o documento:
+
+1. Leer el texto completo disponible.
+2. No pegar articulos/libros largos completos en el expediente del agente.
+3. Convertir la informacion en memoria util: resumen, aprendizajes, reglas practicas, decisiones y forma de aplicarlo.
+4. Guardar el aprendizaje en el expediente canonico del agente correspondiente dentro de `agentes-estandar/`.
+5. Usar fecha, fuente y alcance: global, proyecto especifico o tema especifico.
+6. Si el texto es muy largo, conservar solo citas breves imprescindibles y priorizar resumen accionable.
+7. Si la informacion aplica a varios agentes, registrar en cada expediente solo lo que ese agente debe recordar y usar.
+
+Formato recomendado:
+
+```md
+### YYYY-MM-DD - [Tema]
+
+Fuente:
+- [Articulo, libro, conversacion, documento, enlace o nota]
+
+Resumen:
+- [Idea principal]
+- [Idea principal]
+
+Aprendizajes para [Agente]:
+- [Regla o criterio que debe recordar]
+- [Como debe aplicarlo]
+
+Aplicacion:
+- [Proyecto, area o alcance]
+```
+

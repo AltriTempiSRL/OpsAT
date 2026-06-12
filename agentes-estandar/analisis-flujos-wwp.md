@@ -323,4 +323,79 @@ Los datos se cargan desde var DEVOLUCIONES (L12905) — un array JavaScript hard
 
 4. Solicitudes de reposicion: deben persistir en la base de datos (requiere desarrollo del endpoint) o es suficiente que sean efimeras (la persona toma nota y crea la tarea manual)?
 
-5. Tareas libres sin estandar: hay tipos de actividad recurrentes que se crean como tareas libres hoy que merezcan convertirse en flujos propios? Identificar los 3 mas frecuentes permitiria estandarizarlos sin gran esfuerzo.
+5. Tareas libres sin estandar: hay tipos de actividad recurrentes que se crean como tareas libres hoy que merezcan convertirse en flujos propios? Identificar los 3 mas frecuentes permitiria estandarizarlos sin gran esfuertar.
+
+---
+
+## Decisiones aprobadas — 2026-06-12
+
+| # | Decisión | Estado | Dueño técnico | Notas |
+|---|---|---|---|---|
+| D1 | Devoluciones → conectar a Odoo (`stock.picking` RET) | ✅ Aprobado | Ron + Mark | Reemplaza `var DEVOLUCIONES` hardcoded L12905 |
+| D2 | OpsAgent configurable vía permiso en lugar de emails hardcoded | ⏳ Pendiente | Mark | Gabriel pidió descripción sin tecnicismos antes de decidir |
+| D3 | S1 Puente Averías↔WWP: `notifyDamage()` centralizado | ✅ Implementado | Mark | `proxy.js` ~L7757-7800. Deduplicación + trazabilidad |
+| D4 | S3 Notificación liberación auxiliar en Staffing | ✅ Implementado | Mark | `proxy.js` ~L5505-5535. Notifica al managerId |
+| D5 | Reposición persistente con proceso de aprobación | ✅ Aprobado | Pit (diseño) + Mark (dev) | Diseño operativo documentado en §pit.md §6 |
+
+### Diseño operativo de Reposición (D5)
+
+**Quién solicita**: encargado o manager.
+
+**Datos que captura la solicitud**:
+- Artículo o referencia Odoo
+- Cantidad necesaria
+- Ubicación de destino
+- Urgencia: baja / media / alta
+- Motivo (texto libre)
+
+**Flujo de estados**:
+```
+borrador → pendiente_aprobacion → aprobada → en_proceso → completada
+                                           → rechazada (con comentario)
+```
+
+**Notificaciones**:
+- Al crear solicitud → notifica a admin para aprobar
+- Al aprobar/rechazar → notifica al solicitante
+- Al crear tarea WWP desde la solicitud → notifica al encargado asignado
+
+**Persistencia**: `reposiciones.json` en el proxy. Endpoints mínimos:
+- `GET /api/reposicion` — lista por estado/fecha
+- `POST /api/reposicion` — nueva solicitud
+- `PATCH /api/reposicion/:id` — cambio de estado + comentario aprobador
+- `POST /api/reposicion/:id/crear-tarea` — convierte la solicitud aprobada en tarea WWP
+
+**Vínculo con WWP**: botón "Crear tarea" disponible cuando estado = `aprobada`; pre-popula el wizard de nueva tarea con tipo `pack_store` o `free`, artículo y ubicación.
+
+## Protocolo para agregar memoria desde texto
+
+Cuando Gabriel indique **"agrega a memoria de [nombre del agente]"** o una instruccion equivalente y pegue texto, articulo, fragmento de libro, nota, conversacion o documento:
+
+1. Leer el texto completo disponible.
+2. No pegar articulos/libros largos completos en el expediente del agente.
+3. Convertir la informacion en memoria util: resumen, aprendizajes, reglas practicas, decisiones y forma de aplicarlo.
+4. Guardar el aprendizaje en el expediente canonico del agente correspondiente dentro de `agentes-estandar/`.
+5. Usar fecha, fuente y alcance: global, proyecto especifico o tema especifico.
+6. Si el texto es muy largo, conservar solo citas breves imprescindibles y priorizar resumen accionable.
+7. Si la informacion aplica a varios agentes, registrar en cada expediente solo lo que ese agente debe recordar y usar.
+
+Formato recomendado:
+
+```md
+### YYYY-MM-DD - [Tema]
+
+Fuente:
+- [Articulo, libro, conversacion, documento, enlace o nota]
+
+Resumen:
+- [Idea principal]
+- [Idea principal]
+
+Aprendizajes para [Agente]:
+- [Regla o criterio que debe recordar]
+- [Como debe aplicarlo]
+
+Aplicacion:
+- [Proyecto, area o alcance]
+```
+
