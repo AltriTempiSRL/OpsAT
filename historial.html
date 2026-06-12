@@ -1458,8 +1458,8 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .av-status-sel{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface-2);color:var(--text-primary)}
 .av-textarea{width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;font-family:inherit;background:var(--surface-2);color:var(--text-primary);resize:vertical;margin-bottom:12px}
 .av-textarea:focus{border-color:var(--text-secondary);background:var(--surface);outline:none}
-.av-register-btn{width:100%;padding:11px 16px;background:var(--amber-bg,var(--amber-bg));color:var(--amber-text,var(--amber-text));border:1.5px solid #fcd34d;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s}
-.av-register-btn:hover{background:#fde68a}
+.av-register-btn{width:100%;padding:11px 16px;background:var(--amber-bg);color:var(--amber-text);border:1.5px solid var(--amber-dot);border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s}
+.av-register-btn:hover{background:color-mix(in srgb,var(--amber-bg) 78%,var(--amber-dot))}
 .av-list-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border-light)}
 .av-list-title{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
 .av-filter-row{display:flex;gap:6px;flex-wrap:wrap}
@@ -1481,8 +1481,8 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .av-status-btn.current{cursor:default;pointer-events:none}
 .av-item-right{padding:12px 14px 12px 0;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:100px}
 .av-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;text-align:center;white-space:nowrap}
-.avb-recibido{background:#dbeafe;color:#1e40af}
-.avb-taller{background:var(--amber-bg,var(--amber-bg));color:var(--amber-text,var(--amber-text))}
+.avb-recibido{background:var(--blue-bg);color:var(--blue-text)}
+.avb-taller{background:var(--amber-bg);color:var(--amber-text)}
 .avb-reparado{background:var(--green-bg);color:var(--green-text)}
 .avb-descartado{background:var(--red-bg);color:var(--red-text)}
 .av-item-qty{font-size:11px;color:var(--text-muted)}
@@ -1555,6 +1555,22 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .av-dur-dot.reparado{background:#10b981}
 .av-dur-dot.descartado{background:#ef4444}
 .av-dur-days{font-weight:700;color:var(--text-primary)}
+@media(max-width:700px){
+  .av-list-header{align-items:flex-start}
+  .av-filter-row{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .av-filter-btn{min-height:36px;flex-shrink:0}
+  .av-item{grid-template-columns:56px minmax(0,1fr);gap:0}
+  .av-item-img-wrap{padding:12px 8px 8px 12px}
+  .av-item-img,.av-item-ph{width:44px;height:44px}
+  .av-item-body{padding:12px 12px 8px 0}
+  .av-item-name{white-space:normal;line-height:1.3}
+  .av-item-actions{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .av-status-btn{min-height:34px;flex-shrink:0}
+  .av-item-right{grid-column:2;padding:0 12px 12px 0;min-width:0;flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .av-item-qty,.av-item-date{font-size:10px}
+  .av-duration-wrap{padding:9px 12px 12px}
+  .av-dur-bar-wrap{height:18px}
+}
 /* Upload inline en item */
 .av-inline-upload{display:none;padding:10px 14px;border-top:1px solid var(--border-light);background:var(--surface)}
 .av-inline-upload.open{display:block}
@@ -1569,13 +1585,19 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rep-filter-btn{padding:4px 12px;border:1.5px solid var(--border);border-radius:20px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-secondary);cursor:pointer;transition:all .15s}
 .rep-filter-btn.active{background:var(--text-primary);color:var(--surface);border-color:var(--text-primary)}
 /* Lista */
-.rep-item{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:14px 16px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
+.rep-item{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:14px 16px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s,border-color .12s;border-left:3px solid transparent}
+.rep-item-active{background:var(--surface-2);border-left-color:var(--accent)}
 .rep-item:last-child{border-bottom:none}
 .rep-item:hover{background:var(--surface-2)}
 .rep-item-ref{font-family:monospace;font-size:10px;font-weight:700;color:var(--accent);margin-bottom:2px}
 .rep-item-nombre{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:3px}
-.rep-item-meta{font-size:11px;color:var(--text-muted)}
-.rep-item-badges{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.rep-item-meta{font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.rep-item-dot{width:3px;height:3px;border-radius:50%;background:var(--border);display:inline-block}
+.rep-item-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.rep-urg-inline{font-size:10px;font-weight:700;color:var(--text-muted);white-space:nowrap}
+.rep-urg-inline-alta{color:var(--red-text)}
+.rep-urg-inline-media{color:var(--amber-text)}
+.rep-urg-inline-baja{color:var(--text-muted)}
 /* Badges urgencia */
 .rep-urg{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
 .rep-urg-alta{background:var(--red-bg);color:var(--red-text)}
@@ -1584,17 +1606,18 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 /* Badges estado */
 .rep-est{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
 .rep-est-borrador{background:var(--surface-3,var(--surface-2));color:var(--text-muted);border:1px solid var(--border)}
-.rep-est-pendiente{background:#dbeafe;color:#1e40af}
+.rep-est-pendiente{background:var(--blue-bg);color:var(--blue-text)}
 .rep-est-aprobada{background:var(--green-bg);color:var(--green-text)}
-.rep-est-en_proceso{background:#ede9fe;color:#5b21b6}
+.rep-est-en_proceso{background:var(--purple-bg);color:var(--purple-text)}
 .rep-est-completada{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
 .rep-est-rechazada{background:var(--red-bg);color:var(--red-text)}
 /* Modal nueva solicitud */
-.rep-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;display:none;align-items:center;justify-content:center}
+.rep-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;display:none;align-items:center;justify-content:center;padding:20px}
 .rep-modal-overlay.open{display:flex}
 .rep-modal{background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(540px,96vw);max-height:90vh;overflow-y:auto;padding:24px}
 .rep-modal-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between}
-.rep-modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:0}
+.rep-modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:4px;min-width:36px;min-height:36px;border-radius:var(--radius-sm)}
+.rep-modal-close:hover{background:var(--surface-2);color:var(--text-primary)}
 .rep-field{margin-bottom:14px}
 .rep-lbl{display:block;font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
 .rep-input,.rep-select,.rep-textarea{width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface-2);color:var(--text-primary);font-family:inherit}
@@ -1617,9 +1640,9 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rep-btn-aprobar:hover{opacity:.85}
 .rep-btn-rechazar{padding:7px 16px;background:var(--red-bg);color:var(--red-text);border:1.5px solid var(--red-dot,#f87171);border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
 .rep-btn-rechazar:hover{opacity:.85}
-.rep-btn-enviar{padding:7px 16px;background:#dbeafe;color:#1e40af;border:1.5px solid #93c5fd;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-enviar{padding:7px 16px;background:var(--blue-bg);color:var(--blue-text);border:1.5px solid var(--blue-dot);border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
 .rep-btn-enviar:hover{opacity:.85}
-.rep-btn-crear-tarea{padding:7px 16px;background:#ede9fe;color:#5b21b6;border:1.5px solid #a78bfa;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-crear-tarea{padding:7px 16px;background:var(--purple-bg);color:var(--purple-text);border:1.5px solid var(--purple-dot);border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
 .rep-btn-crear-tarea:hover{opacity:.85}
 .rep-historial{margin-top:12px}
 .rep-hist-row{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border-light)}
@@ -1627,7 +1650,32 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .rep-hist-fecha{color:var(--text-muted);white-space:nowrap;min-width:100px}
 .rep-hist-estado{font-weight:700;color:var(--text-primary);min-width:110px}
 .rep-hist-por{color:var(--text-secondary)}
-@media(max-width:600px){.rep-item{grid-template-columns:1fr}.rep-item-badges{flex-direction:row;margin-top:6px}}
+.op-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.op-modal-card{background:var(--surface);border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.op-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.op-modal-title-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+.op-modal-icon{font-size:18px;color:var(--red-text);line-height:1}
+.op-modal-title{font-size:15px;font-weight:700;color:var(--text-primary)}
+.op-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);line-height:1;padding:4px;min-width:36px;min-height:36px;border-radius:var(--radius-sm)}
+.op-modal-close:hover{background:var(--surface-2);color:var(--text-primary)}
+.op-modal-body{padding:20px}
+.op-modal-copy{font-size:13px;color:var(--text-secondary);margin:0 0 14px;line-height:1.5}
+.op-modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)}
+.op-modal-danger{padding:8px 18px;background:var(--red-text);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff}
+.op-modal-secondary{padding:8px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-secondary)}
+.op-modal-secondary:hover{background:var(--border-light)}
+.op-modal-danger:hover{opacity:.9}
+@media(max-width:600px){
+  .rep-item{grid-template-columns:1fr;gap:8px}
+  .rep-item-side{flex-direction:row;align-items:center;justify-content:space-between}
+  .rep-modal-overlay{align-items:flex-end;padding:0}
+  .rep-modal{width:100%;max-width:100%;max-height:92dvh;border-radius:18px 18px 0 0;padding:22px 18px calc(18px + env(safe-area-inset-bottom))}
+  .rep-modal-actions{position:sticky;bottom:0;background:var(--surface);padding-top:12px}
+  .op-modal-overlay{align-items:flex-end;padding:0}
+  .op-modal-card{max-width:100%;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .op-modal-footer{flex-direction:column-reverse}
+  .op-modal-footer button{width:100%;min-height:44px}
+}
 
 /* ════════════════════════════════════════════════════
    WAREHOUSE WORKFORCE PLATFORM — CSS
@@ -18289,19 +18337,18 @@ function repRenderLista() {
   }
   body.innerHTML = lista.map(function(rep) {
     var fecha = rep.creadoEn ? new Date(rep.creadoEn).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-    var urgCss = REP_URG_CSS[rep.urgencia] || 'rep-urg-baja';
     var urgLbl = REP_URG_LABEL[rep.urgencia] || rep.urgencia;
     var estCss = REP_ESTADO_CSS[rep.estado] || 'rep-est-borrador';
     var estLbl = REP_ESTADO_LABEL[rep.estado] || rep.estado;
     var isActive = _repSelected === rep.id;
-    return '<div class="rep-item' + (isActive ? ' rep-item-active' : '') + '" onclick="repAbrirDetalle(\'' + rep.id + '\')" style="' + (isActive ? 'background:var(--surface-2)' : '') + '">'
+    var urgMeta = '<span class="rep-urg-inline rep-urg-inline-' + escHtml(rep.urgencia || 'baja') + '">Urgencia: ' + escHtml(urgLbl) + '</span>';
+    return '<div class="rep-item' + (isActive ? ' rep-item-active' : '') + '" onclick="repAbrirDetalle(\'' + rep.id + '\')">'
       + '<div>'
       + '<div class="rep-item-ref">' + escHtml(rep.articuloRef) + '</div>'
       + '<div class="rep-item-nombre">' + escHtml(rep.articuloNombre) + '</div>'
-      + '<div class="rep-item-meta">Cant: ' + rep.cantidad + ' · ' + escHtml(rep.ubicacionDestino) + ' · ' + fecha + '</div>'
+      + '<div class="rep-item-meta"><span>Cant: ' + rep.cantidad + '</span><span class="rep-item-dot"></span><span>' + escHtml(rep.ubicacionDestino) + '</span><span class="rep-item-dot"></span><span>' + fecha + '</span><span class="rep-item-dot"></span>' + urgMeta + '</div>'
       + '</div>'
-      + '<div class="rep-item-badges">'
-      + '<span class="rep-urg ' + urgCss + '">' + urgLbl + '</span>'
+      + '<div class="rep-item-side">'
       + '<span class="rep-est ' + estCss + '">' + estLbl + '</span>'
       + '</div>'
       + '</div>';
@@ -18334,13 +18381,16 @@ function repAbrirDetalle(id) {
   var urgCss = REP_URG_CSS[rep.urgencia] || 'rep-urg-baja';
   var estLbl = REP_ESTADO_LABEL[rep.estado] || rep.estado;
   var estCss = REP_ESTADO_CSS[rep.estado] || 'rep-est-borrador';
+  var urgHtml = rep.urgencia === 'alta'
+    ? '<span class="rep-urg ' + urgCss + '">' + urgLbl + '</span>'
+    : '<span class="rep-urg-inline rep-urg-inline-' + escHtml(rep.urgencia || 'baja') + '">' + escHtml(urgLbl) + '</span>';
 
   content.innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:4px">'
     + repDetailField('Referencia', '<span style="font-family:monospace;font-weight:700;color:var(--accent)">' + escHtml(rep.articuloRef) + '</span>')
     + repDetailField('Artículo', escHtml(rep.articuloNombre))
     + repDetailField('Cantidad', rep.cantidad)
-    + repDetailField('Urgencia', '<span class="rep-urg ' + urgCss + '">' + urgLbl + '</span>')
+    + repDetailField('Urgencia', urgHtml)
     + repDetailField('Ubicación destino', escHtml(rep.ubicacionDestino))
     + repDetailField('Estado', '<span class="rep-est ' + estCss + '">' + estLbl + '</span>')
     + repDetailField('Solicitante', escHtml(rep.solicitanteNombre || rep.solicitanteId))
@@ -21403,7 +21453,7 @@ async function confirmDevolver() {
   const taskId = document.getElementById('devolver-task-id').value;
   const razon  = (document.getElementById('devolver-razon').value || '').trim();
   if (!razon) {
-    document.getElementById('devolver-razon').style.borderColor = 'var(--red)';
+    document.getElementById('devolver-razon').style.borderColor = 'var(--red-dot)';
     document.getElementById('devolver-razon').placeholder = 'El motivo es obligatorio';
     document.getElementById('devolver-razon').focus();
     return;
@@ -21424,29 +21474,30 @@ document.getElementById('devolver-modal') && document.getElementById('devolver-m
 </script>
 
 <!-- ── Modal: Devolver tarea ─────────────────────────────────────────────── -->
-<div id="devolver-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;align-items:center;justify-content:center;padding:20px">
-  <div style="background:var(--surface);border-radius:14px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">↩</span>
-        <span style="font-size:15px;font-weight:700;color:var(--text-primary)">Devolver tarea</span>
+<div id="devolver-modal" class="op-modal-overlay">
+  <div class="op-modal-card" role="dialog" aria-modal="true" aria-labelledby="devolver-modal-title">
+    <div class="op-modal-header">
+      <div class="op-modal-title-wrap">
+        <span class="op-modal-icon" aria-hidden="true">↩</span>
+        <span class="op-modal-title" id="devolver-modal-title">Devolver tarea</span>
       </div>
-      <button onclick="closeDevolverModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);line-height:1;padding:2px">×</button>
+      <button onclick="closeDevolverModal()" class="op-modal-close" aria-label="Cerrar">×</button>
     </div>
-    <div style="padding:20px">
-      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px">
-        Esta tarea regresará a <strong>En Progreso</strong>. Indica el motivo de la devolución — quedará registrado en el historial.
+    <div class="op-modal-body">
+      <p class="op-modal-copy">
+        Esta tarea regresará a <strong>En Progreso</strong>. Indica el motivo de la devolución. Quedará registrado en el historial.
       </p>
-      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Motivo de devolución <span style="color:var(--red)">*</span></label>
+      <label class="rep-lbl" for="devolver-razon">Motivo de devolución <span style="color:var(--red-text)">*</span></label>
       <textarea id="devolver-razon"
         placeholder="Ej: Falta foto de evidencia del artículo B, se requiere re-verificar..."
-        style="width:100%;min-height:100px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;outline:none;color:var(--text-primary)"
+        class="rep-textarea"
+        style="min-height:100px"
         onfocus="this.style.borderColor='var(--border-focus)'"
         onblur="this.style.borderColor='var(--border)'"></textarea>
     </div>
-    <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border)">
-      <button onclick="closeDevolverModal()" style="padding:8px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-secondary)">Cancelar</button>
-      <button onclick="confirmDevolver()" style="padding:8px 18px;background:#dc2626;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#fff">↩ Confirmar devolución</button>
+    <div class="op-modal-footer">
+      <button onclick="closeDevolverModal()" class="op-modal-secondary">Cancelar</button>
+      <button onclick="confirmDevolver()" class="op-modal-danger">Confirmar devolución</button>
     </div>
   </div>
 </div>
