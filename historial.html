@@ -1560,6 +1560,75 @@ main{flex:1;padding:18px 20px;overflow-x:hidden;min-width:0}
 .av-inline-upload.open{display:block}
 .av-upload-progress{font-size:11px;color:var(--text-muted);margin-top:4px;min-height:14px}
 
+/* ── Solicitudes de Reposición (D5) ──────────────────────────────────────────── */
+.rep-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.rep-header-title{font-size:14px;font-weight:700;color:var(--text-primary)}
+.rep-new-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:var(--brand-primary,var(--accent));color:#fff;border:none;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-new-btn:hover{opacity:.87}
+.rep-filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.rep-filter-btn{padding:4px 12px;border:1.5px solid var(--border);border-radius:20px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-secondary);cursor:pointer;transition:all .15s}
+.rep-filter-btn.active{background:var(--text-primary);color:var(--surface);border-color:var(--text-primary)}
+/* Lista */
+.rep-item{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:14px 16px;border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
+.rep-item:last-child{border-bottom:none}
+.rep-item:hover{background:var(--surface-2)}
+.rep-item-ref{font-family:monospace;font-size:10px;font-weight:700;color:var(--accent);margin-bottom:2px}
+.rep-item-nombre{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:3px}
+.rep-item-meta{font-size:11px;color:var(--text-muted)}
+.rep-item-badges{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+/* Badges urgencia */
+.rep-urg{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.rep-urg-alta{background:var(--red-bg);color:var(--red-text)}
+.rep-urg-media{background:var(--amber-bg);color:var(--amber-text)}
+.rep-urg-baja{background:var(--green-bg);color:var(--green-text)}
+/* Badges estado */
+.rep-est{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.rep-est-borrador{background:var(--surface-3,var(--surface-2));color:var(--text-muted);border:1px solid var(--border)}
+.rep-est-pendiente{background:#dbeafe;color:#1e40af}
+.rep-est-aprobada{background:var(--green-bg);color:var(--green-text)}
+.rep-est-en_proceso{background:#ede9fe;color:#5b21b6}
+.rep-est-completada{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
+.rep-est-rechazada{background:var(--red-bg);color:var(--red-text)}
+/* Modal nueva solicitud */
+.rep-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;display:none;align-items:center;justify-content:center}
+.rep-modal-overlay.open{display:flex}
+.rep-modal{background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:min(540px,96vw);max-height:90vh;overflow-y:auto;padding:24px}
+.rep-modal-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:18px;display:flex;align-items:center;justify-content:space-between}
+.rep-modal-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:0}
+.rep-field{margin-bottom:14px}
+.rep-lbl{display:block;font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.rep-input,.rep-select,.rep-textarea{width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface-2);color:var(--text-primary);font-family:inherit}
+.rep-input:focus,.rep-select:focus,.rep-textarea:focus{border-color:var(--text-secondary);background:var(--surface);outline:none}
+.rep-textarea{resize:vertical;min-height:72px}
+.rep-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.rep-btn-cancel{padding:8px 16px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface-2);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer}
+.rep-btn-cancel:hover{background:var(--border-light)}
+.rep-btn-submit{padding:8px 18px;background:var(--brand-primary,var(--accent));color:#fff;border:none;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-submit:hover{opacity:.87}
+.rep-btn-submit:disabled{opacity:.45;cursor:not-allowed}
+/* Panel de detalle */
+.rep-detail-panel{background:var(--surface-2);border-radius:var(--radius);padding:16px;margin-top:16px;display:none}
+.rep-detail-panel.open{display:block}
+.rep-detail-field{margin-bottom:10px;font-size:13px}
+.rep-detail-key{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.rep-detail-val{color:var(--text-primary)}
+.rep-detail-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-light)}
+.rep-btn-aprobar{padding:7px 16px;background:var(--green-bg);color:var(--green-text);border:1.5px solid var(--green-dot,#34d399);border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-aprobar:hover{opacity:.85}
+.rep-btn-rechazar{padding:7px 16px;background:var(--red-bg);color:var(--red-text);border:1.5px solid var(--red-dot,#f87171);border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-rechazar:hover{opacity:.85}
+.rep-btn-enviar{padding:7px 16px;background:#dbeafe;color:#1e40af;border:1.5px solid #93c5fd;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-enviar:hover{opacity:.85}
+.rep-btn-crear-tarea{padding:7px 16px;background:#ede9fe;color:#5b21b6;border:1.5px solid #a78bfa;border-radius:var(--radius);font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.rep-btn-crear-tarea:hover{opacity:.85}
+.rep-historial{margin-top:12px}
+.rep-hist-row{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border-light)}
+.rep-hist-row:last-child{border-bottom:none}
+.rep-hist-fecha{color:var(--text-muted);white-space:nowrap;min-width:100px}
+.rep-hist-estado{font-weight:700;color:var(--text-primary);min-width:110px}
+.rep-hist-por{color:var(--text-secondary)}
+@media(max-width:600px){.rep-item{grid-template-columns:1fr}.rep-item-badges{flex-direction:row;margin-top:6px}}
+
 /* ════════════════════════════════════════════════════
    WAREHOUSE WORKFORCE PLATFORM — CSS
    ════════════════════════════════════════════════════ */
@@ -3560,6 +3629,9 @@ body{font-family:var(--font);min-height:100dvh}
     <a class="nav-item" id="nav-reposicion" href="#sec-reposicion" onclick="navTo('reposicion');return false;">
       <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
     </a>
+    <a class="nav-item" id="nav-solicitudes-reposicion" href="#" onclick="navTo('solicitudes-reposicion');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="package-plus"></i></span>Solicitudes Repos.
+    </a>
     <a class="nav-item" id="nav-solicitudes" href="#sec-solicitudes" onclick="navTo('solicitudes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-check"></i></span>Solicitudes Showroom
     </a>
@@ -3683,7 +3755,16 @@ body{font-family:var(--font);min-height:100dvh}
     <div class="dev-card" style="margin-bottom:12px">
       <div class="dev-header">
         <h3>Devoluciones por mes</h3>
-        <span class="dev-total" id="dev-total-label"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="dev-total" id="dev-total-label"></span>
+          <button onclick="_devRecargar()" title="Actualizar desde Odoo"
+            style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:4px 8px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:4px">
+            <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor"></i>Actualizar
+          </button>
+        </div>
+      </div>
+      <div id="dev-odoo-note" style="font-size:11px;color:var(--text-muted);padding:0 0 8px;display:none">
+        Últimos 90 días · Fuente: Odoo (<code>stock.picking</code> con <code>/RET/</code>)
       </div>
       <div class="dev-filter" id="dev-filter"></div>
       <div id="dev-list"></div>
@@ -3820,6 +3901,110 @@ body{font-family:var(--font);min-height:100dvh}
     </div>
 
 
+
+    <!-- ── SOLICITUDES DE REPOSICIÓN (D5) ──────────────────── -->
+    <div id="section-solicitudes-reposicion" class="page-section" style="display:none">
+    <div class="divider"><div class="divider-line"></div><span class="divider-label">SOLICITUDES DE REPOSICIÓN</span><div class="divider-line"></div></div>
+
+    <div class="cont-card">
+      <div class="rep-header">
+        <span class="rep-header-title">Solicitudes de Reposición</span>
+        <button class="rep-new-btn" id="rep-btn-nueva" onclick="repAbrirModal()" style="display:none">
+          <i data-lucide="plus" style="width:14px;height:14px"></i>Nueva Solicitud
+        </button>
+      </div>
+
+      <!-- Filtros por estado -->
+      <div class="rep-filter-row">
+        <button class="rep-filter-btn active" onclick="repSetFilter('')" id="repf-todos">Todos</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('borrador')" id="repf-borrador">Borrador</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('pendiente_aprobacion')" id="repf-pendiente">Pendiente</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('aprobada')" id="repf-aprobada">Aprobada</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('en_proceso')" id="repf-en_proceso">En Proceso</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('completada')" id="repf-completada">Completada</button>
+        <button class="rep-filter-btn" onclick="repSetFilter('rechazada')" id="repf-rechazada">Rechazada</button>
+      </div>
+
+      <!-- Lista -->
+      <div id="rep-list-body" style="min-height:60px"></div>
+
+      <!-- Panel de detalle (inline, se muestra al seleccionar) -->
+      <div class="rep-detail-panel" id="rep-detail-panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px">Detalle de solicitud</span>
+          <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1" onclick="repCerrarDetalle()">✕</button>
+        </div>
+        <div id="rep-detail-content"></div>
+        <div class="rep-detail-actions" id="rep-detail-actions"></div>
+        <div class="rep-historial" id="rep-detail-historial"></div>
+      </div>
+    </div>
+
+    <!-- Modal nueva solicitud -->
+    <div class="rep-modal-overlay" id="rep-modal-overlay" onclick="if(event.target===this)repCerrarModal()">
+      <div class="rep-modal" role="dialog" aria-modal="true" aria-labelledby="rep-modal-title">
+        <div class="rep-modal-title">
+          <span id="rep-modal-title">Nueva Solicitud de Reposición</span>
+          <button class="rep-modal-close" onclick="repCerrarModal()" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="rep-field">
+          <label class="rep-lbl" for="rep-articulo-ref">Referencia del artículo</label>
+          <input id="rep-articulo-ref" class="rep-input" type="text" placeholder="Ej. SILL-001" autocomplete="off">
+        </div>
+        <div class="rep-field">
+          <label class="rep-lbl" for="rep-articulo-nombre">Nombre del artículo</label>
+          <input id="rep-articulo-nombre" class="rep-input" type="text" placeholder="Descripción del artículo…" autocomplete="off">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="rep-field">
+            <label class="rep-lbl" for="rep-cantidad">Cantidad</label>
+            <input id="rep-cantidad" class="rep-input" type="number" min="1" value="1">
+          </div>
+          <div class="rep-field">
+            <label class="rep-lbl" for="rep-urgencia">Urgencia</label>
+            <select id="rep-urgencia" class="rep-select">
+              <option value="baja">Baja</option>
+              <option value="media" selected>Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
+        </div>
+        <div class="rep-field">
+          <label class="rep-lbl" for="rep-ubicacion">Ubicación de destino</label>
+          <input id="rep-ubicacion" class="rep-input" type="text" placeholder="Ej. Showroom Piso 2" autocomplete="off">
+        </div>
+        <div class="rep-field">
+          <label class="rep-lbl" for="rep-motivo">Motivo (opcional)</label>
+          <textarea id="rep-motivo" class="rep-textarea" placeholder="Razón de la solicitud…"></textarea>
+        </div>
+        <div id="rep-modal-msg" style="font-size:12px;min-height:16px;margin-bottom:4px"></div>
+        <div class="rep-modal-actions">
+          <button class="rep-btn-cancel" onclick="repCerrarModal()">Cancelar</button>
+          <button class="rep-btn-submit" id="rep-btn-guardar" onclick="repGuardar()">Guardar solicitud</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal comentario aprobador -->
+    <div class="rep-modal-overlay" id="rep-comentario-overlay" onclick="if(event.target===this)repCerrarComentario()">
+      <div class="rep-modal" style="max-width:420px" role="dialog" aria-modal="true">
+        <div class="rep-modal-title">
+          <span id="rep-comentario-titulo">Comentario del aprobador</span>
+          <button class="rep-modal-close" onclick="repCerrarComentario()">✕</button>
+        </div>
+        <div class="rep-field">
+          <label class="rep-lbl" for="rep-comentario-input">Comentario</label>
+          <textarea id="rep-comentario-input" class="rep-textarea" placeholder="Opcional para aprobar, requerido para rechazar…"></textarea>
+        </div>
+        <div id="rep-comentario-msg" style="font-size:12px;min-height:16px;margin-bottom:4px"></div>
+        <div class="rep-modal-actions">
+          <button class="rep-btn-cancel" onclick="repCerrarComentario()">Cancelar</button>
+          <button class="rep-btn-submit" id="rep-comentario-confirmar" onclick="repConfirmarCambioEstado()">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /section-solicitudes-reposicion -->
 
     <!-- ── CONTENEDORES ──────────────────────────────────── -->
     <div id="section-contenedores" class="page-section" style="display:none">
@@ -5339,8 +5524,10 @@ function canSection(key) {
 }
 
 function isAgentOwnerUser() {
-  const email = String((_user && _user.email) || '').toLowerCase().trim();
-  return email === 'gsanchez@altritempi.com.do' || email === 'jbencini@altritempi.com.do';
+  // D2: OpsAgent configurable — cualquier admin o manager tiene acceso.
+  // Se eliminaron los emails hardcodeados; el acceso se rige por rol.
+  if (!_user) return false;
+  return _user.role === 'admin' || _user.role === 'manager';
 }
 
 /** Devuelve true si el usuario debe entrar al historial (admin o con sectionPerms asignados) */
@@ -5352,8 +5539,8 @@ function isHistorialUser(u) {
 }
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
-const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes',
-  'almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion',
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
  *  un usuario solo-WWP (sin secciones de Despachos) NO debe ver el marco lateral de Despachos. */
@@ -5367,7 +5554,7 @@ function isDespachosUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'buscar','devoluciones','contenedores','reposicion','solicitudes',
+    'buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp',
     'validacion','averias','reportes','wwp'
   ];
@@ -5384,7 +5571,7 @@ function applyNavPerms() {
     'navg-reportes':    ['reportes'],
     'navg-analisis':    ['devoluciones','validacion','averias'],
     'navg-plataforma':  ['wwp'],
-    'navg-compras':     ['contenedores','reposicion','solicitudes','almacen-mapa'],
+    'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['sin-adjuntos','dev-cdp']
   };
   Object.keys(GROUPS).forEach(function(gid) {
@@ -12638,7 +12825,7 @@ async function checkSheetsConnection(retries, delay){
 
 window.addEventListener('DOMContentLoaded',function(){
   if (window.lucide) lucide.createIcons();
-  renderDevoluciones();
+  loadDevoluciones();   // D1: carga desde Odoo; llama renderDevoluciones() al terminar
   initDespFiltro();
   // Fecha default del reporte Dev→CDP: último mes
   (function(){
@@ -12902,41 +13089,10 @@ var ARTICULOS={
 };
 
 /* ── Devoluciones por mes (SharePoint "Tipo de Solicitud"=Devolucion) ── */
-var DEVOLUCIONES=[
-  {mes:'Enero 2026', items:[
-    {orden:'S07892',cliente:'JULIA MORALES',vendedor:'Heidy Nuñez',valor:45000,motivo:'Producto con defecto de fábrica — pieza de madera rota',
-     fechaSP:'15/01/2026',fechaOdoo:'17/01/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'SET-SALA-VIN-3P',nombre:'Set Sala Vintage 3 Piezas',qty:1,motivo:'Pata delantera izquierda fracturada al desempacar'}]},
-  ]},
-  {mes:'Febrero 2026', items:[
-    {orden:'S08201',cliente:'CAROLINA THEN',vendedor:'Heidy Nuñez',valor:22400,motivo:'Color no corresponde a muestra aprobada',
-     fechaSP:'03/02/2026',fechaOdoo:'05/02/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'CORTINA-LINO-240-BEIGE',nombre:'Cortina Lino 240cm Beige',qty:4,motivo:'Tono beige arena vs. beige hueso — diferencia notoria'}]},
-    {orden:'8312',cliente:'Roberto Méndez',vendedor:'Daniela Castillo',valor:67500,motivo:'Daño en transporte — vidrio lateral roto',
-     fechaSP:'21/02/2026',fechaOdoo:'24/02/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'MESA-COMEDOR-VDR-6P',nombre:'Mesa Comedor Vidrio 6 Personas',qty:1,motivo:'Panel de vidrio lateral roto en el traslado'}]},
-  ]},
-  {mes:'Marzo 2026', items:[
-    {orden:'S08540',cliente:'DIANA UREÑA',vendedor:'Jhonathan Martinez',valor:89000,motivo:'Dimensiones no coinciden con especificaciones de orden',
-     fechaSP:'10/03/2026',fechaOdoo:'13/03/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'ARMARIO-WALK-IN-4P',nombre:'Armario Walk-in 4 Puertas',qty:1,motivo:'Ancho 220cm entregado vs. 200cm solicitado en OV'}]},
-    {orden:'8603',cliente:'Ana Santana',vendedor:'Daniela Castillo',valor:58000,motivo:'Cliente rechaza por retraso excesivo en entrega',
-     fechaSP:'27/03/2026',fechaOdoo:'01/04/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'SOFA-MOD-L-GRY',nombre:'Sofá Modular en L Gris',qty:1,motivo:'Entrega 35 días después de fecha prometida — cliente desiste'}]},
-  ]},
-  {mes:'Abril 2026', items:[
-    {orden:'8870',cliente:'Iranna Canaan',vendedor:'Daniela Castillo',valor:12500,motivo:'Mesa lateral — pintura levantada al destapar la mercancía',
-     fechaSP:'07/04/2026',fechaOdoo:'09/04/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'VPF.MIA.SDTBL.CER.SAND.P',nombre:'Mesa Lateral Cerámica Sand',qty:1,motivo:'Pintura del borde superior levantada — defecto de fábrica'}]},
-    {orden:'S08984',cliente:'MILDRED MINAYA',vendedor:'Jhonathan Martinez',valor:31000,motivo:'Alfombra llegó manchada — requiere cambio',
-     fechaSP:'18/04/2026',fechaOdoo:'21/04/2026',estadoOdoo:'Aplicada',
-     articulos:[{ref:'ALFOMBRA-PERSA-250X350',nombre:'Alfombra Persa 250×350cm',qty:1,motivo:'Mancha de origen desconocido en esquina superior — fábrica o transporte'}]},
-    {orden:'8951',cliente:'MARI PILY DE MONTES',vendedor:'Heidy Nuñez',valor:64000,motivo:'Devolución de mercancía — cliente cambió de opinión',
-     fechaSP:'22/04/2026',fechaOdoo:'—',estadoOdoo:'Pendiente',
-     articulos:[{ref:'MESA-CENTRO-MRM-BLK',nombre:'Mesa Centro Mármol Negro',qty:1,motivo:'Cambio de opinión — no combina con decoración final'},{ref:'LAMPARA-TECHO-RATTAN-L',nombre:'Lámpara Techo Rattan Grande',qty:2,motivo:'Idem — cliente redecora con otro estilo'}]},
-  ]},
-  {mes:'Mayo 2026', items:[]}
-];
+// D1: DEVOLUCIONES — datos reales de Odoo (stock.picking ilike '/RET/')
+// El array se llena desde loadDevoluciones(); arranca vacío para evitar datos demo.
+var DEVOLUCIONES=[];
+var _devLoading=false;
 
 /* ── Pendientes por departamento ── */
 var PENDIENTES=[
@@ -13090,8 +13246,9 @@ function devItemHtml(it){
     // ── cabecera: orden + vendedor | valor + estado
     +'<div class="dev-card-head">'
     +'<div class="dev-card-head-left">'
-    +'<a href="#" class="dev-orden" onclick="buscarDirecta(\''+it.orden+'\');return false;">'+it.orden+'</a>'
-    +'<span class="dev-vend-chip">'+it.vendedor+'</span>'
+    +(it.numDev?'<span class="dev-vend-chip" style="font-family:monospace;font-size:10px;font-weight:700;color:var(--text-secondary)">'+it.numDev+'</span>':'')
+    +(it.orden&&it.orden!=='—'?'<a href="#" class="dev-orden" onclick="buscarDirecta(\''+it.orden+'\');return false;">'+it.orden+'</a>':'')
+    +(it.vendedor?'<span class="dev-vend-chip">'+it.vendedor+'</span>':'')
     +'</div>'
     +'<div class="dev-card-head-right">'
     +(it.valor?'<span class="dev-valor-chip">'+fmtMoney(it.valor)+'</span>':'')
@@ -13235,10 +13392,97 @@ function renderComparativo(mesA, mesB){
     +'</div>';
 }
 
+// ── D1: Recarga forzada desde Odoo ──
+function _devRecargar(){
+  _devLoading = false;
+  loadDevoluciones();
+}
+
+// ── D1: Carga devoluciones desde Odoo (stock.picking ilike '/RET/', últimos 90 días) ──
+async function loadDevoluciones(){
+  if(_devLoading) return;
+  _devLoading = true;
+  // Mostrar estado de carga en el módulo
+  var listEl = document.getElementById('dev-list');
+  var lblEl  = document.getElementById('dev-total-label');
+  if(listEl) listEl.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text-muted);font-size:13px">Cargando devoluciones desde Odoo…</div>';
+  if(lblEl)  lblEl.textContent = 'cargando…';
+  try {
+    // Rango: últimos 90 días
+    var _since = new Date(); _since.setDate(_since.getDate()-90);
+    var _sinceStr = _since.toISOString().slice(0,10)+' 00:00:00';
+    // stock.picking con name ilike '/RET/' — sin prefijo fijo (múltiples almacenes)
+    var picks = await odooSearch('stock.picking',
+      [['name','ilike','/RET/'],['date_done','>=',_sinceStr]],
+      ['name','origin','partner_id','scheduled_date','date_done','state'],
+      200);
+    if(!Array.isArray(picks)) throw new Error('Respuesta inesperada de Odoo');
+    // Mapear estado Odoo a texto legible
+    var PICK_STATE = {
+      draft:'Borrador', waiting:'En espera', confirmed:'Confirmado',
+      assigned:'Listo', done:'Aplicada', cancel:'Cancelado'
+    };
+    // Agrupar por mes (basado en date_done o scheduled_date)
+    var mesMap = {};
+    picks.forEach(function(p){
+      var fechaRaw = p.date_done || p.scheduled_date || '';
+      var fechaFmt = fmtOdooDate(fechaRaw);
+      var mesKey = '—';
+      if(fechaRaw && fechaRaw !== 'false' && fechaRaw !== false){
+        var d = new Date(fechaRaw.replace(' ','T'));
+        var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        mesKey = meses[d.getMonth()] + ' ' + d.getFullYear();
+      }
+      if(!mesMap[mesKey]) mesMap[mesKey] = { mes:mesKey, items:[] };
+      var cliente = Array.isArray(p.partner_id) ? p.partner_id[1] : (p.partner_id || '—');
+      var ordenOrigen = p.origin || '—';
+      mesMap[mesKey].items.push({
+        orden:    ordenOrigen,
+        cliente:  cliente,
+        vendedor: '',            // stock.picking no lleva vendedor; campo reservado para futura mejora
+        valor:    0,             // monto requiere cruzar account.move (fuera del alcance D1)
+        motivo:   '',            // no disponible en stock.picking
+        fechaSP:  '—',          // SharePoint no integrado en D1
+        fechaOdoo: fechaFmt,
+        estadoOdoo: PICK_STATE[p.state] || p.state || '—',
+        numDev:   p.name,       // campo extra: número de devolución Odoo
+        articulos: []            // artículos: requeriría query adicional a stock.move.line
+      });
+    });
+    // Ordenar meses cronológicamente (más reciente primero)
+    var ORDEN_MES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    DEVOLUCIONES = Object.values(mesMap).sort(function(a,b){
+      var partsA = a.mes.split(' '); var partsB = b.mes.split(' ');
+      var yearA = parseInt(partsA[1]||0); var yearB = parseInt(partsB[1]||0);
+      if(yearA !== yearB) return yearB - yearA;
+      return ORDEN_MES.indexOf(partsB[0]) - ORDEN_MES.indexOf(partsA[0]);
+    });
+    if(!DEVOLUCIONES.length){
+      DEVOLUCIONES = [{ mes: 'Sin registros', items:[] }];
+    }
+  } catch(e) {
+    console.warn('D1 loadDevoluciones error:', e.message);
+    // Mostrar error amigable sin romper la UI
+    DEVOLUCIONES = [{ mes: 'Error al cargar', items:[] }];
+    if(listEl) listEl.innerHTML = '<div style="padding:28px;text-align:center;color:var(--red-text,#dc2626);font-size:13px">'
+      +'No se pudieron cargar las devoluciones desde Odoo.'
+      +'<br><span style="font-size:11px;color:var(--text-muted)">'+e.message+'</span></div>';
+    if(lblEl) lblEl.textContent = 'sin datos';
+    _devLoading = false;
+    return;
+  }
+  _devLoading = false;
+  var noteEl = document.getElementById('dev-odoo-note');
+  if(noteEl) noteEl.style.display = '';
+  renderDevoluciones();
+}
+
 function renderDevoluciones(){
   var total=0;
   DEVOLUCIONES.forEach((m) => {total+=m.items.length;});
-  document.getElementById('dev-total-label').textContent=total+' total en 2026';
+  document.getElementById('dev-total-label').textContent=total+' en últimos 90 días';
 
   // ── filtro buttons
   var filterHtml='<button class="dev-fbtn'+(_devFilter.length===0?' active':'')+'" onclick="devFilterTodos()">Todos</button>';
@@ -16963,21 +17207,22 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
-  'buscar':          'buscar',
-  'devoluciones':    'devoluciones',
-  'contenedores':    'contenedores',
-  'reposicion':      'reposicion',
-  'solicitudes':     'solicitudes',
-  'almacen-mapa':    'almacen-mapa',
-  'sin-adjuntos':    'sin-adjuntos',
-  'validacion':      'validacion',
-  'averias':         'averias',
-  'reportes':        'reportes',
-  'dev-cdp':         'dev-cdp'
+  'buscar':                  'buscar',
+  'devoluciones':            'devoluciones',
+  'contenedores':            'contenedores',
+  'reposicion':              'reposicion',
+  'solicitudes-reposicion':  'solicitudes-reposicion',
+  'solicitudes':             'solicitudes',
+  'almacen-mapa':            'almacen-mapa',
+  'sin-adjuntos':            'sin-adjuntos',
+  'validacion':              'validacion',
+  'averias':                 'averias',
+  'reportes':                'reportes',
+  'dev-cdp':                 'dev-cdp'
 };
 
 var CURRENT_SECTION='buscar';
@@ -17212,6 +17457,7 @@ function navTo(section){
   setNavActive(section);
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
   if(target==='reposicion') { initReposicion(); loadSolicitudes(false); }
+  if(target==='solicitudes-reposicion') { repCargarLista(); }
   if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
@@ -17981,6 +18227,336 @@ function avSearchBlock(averias){
   return '<div class="av-search-block">'
     +'<div class="av-search-block-title"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Artículos Averiados ('+averias.length+')</div>'
     +rows+'</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SOLICITUDES DE REPOSICIÓN (D5) ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+var _repFilter = '';
+var _repList   = [];
+var _repSelected = null;  // id de la solicitud abierta en el panel de detalle
+var _repPendingEstado = null;  // { id, estado } para el modal de comentario
+
+/* Mapa de etiquetas legibles */
+var REP_ESTADO_LABEL = {
+  'borrador':             'Borrador',
+  'pendiente_aprobacion': 'Pendiente aprobación',
+  'aprobada':             'Aprobada',
+  'en_proceso':           'En proceso',
+  'completada':           'Completada',
+  'rechazada':            'Rechazada'
+};
+var REP_ESTADO_CSS = {
+  'borrador':             'rep-est-borrador',
+  'pendiente_aprobacion': 'rep-est-pendiente',
+  'aprobada':             'rep-est-aprobada',
+  'en_proceso':           'rep-est-en_proceso',
+  'completada':           'rep-est-completada',
+  'rechazada':            'rep-est-rechazada'
+};
+var REP_URG_LABEL = { 'baja':'Baja', 'media':'Media', 'alta':'Alta' };
+var REP_URG_CSS   = { 'baja':'rep-urg-baja', 'media':'rep-urg-media', 'alta':'rep-urg-alta' };
+
+/* Carga y renderiza la lista */
+async function repCargarLista() {
+  var body = document.getElementById('rep-list-body');
+  if (!body) return;
+  body.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:13px">Cargando…</div>';
+  // Mostrar/ocultar botón Nueva Solicitud según rol
+  var btnNueva = document.getElementById('rep-btn-nueva');
+  if (btnNueva) btnNueva.style.display = (_user && (_user.role === 'admin' || _user.role === 'manager')) ? '' : 'none';
+  try {
+    var url = '/api/reposicion';
+    var r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + (_token || '') } });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al cargar');
+    _repList = d.reposiciones || [];
+    repRenderLista();
+  } catch(e) {
+    body.innerHTML = '<div style="padding:24px;color:var(--red-text,#dc2626);font-size:13px">Error: ' + e.message + '</div>';
+  }
+}
+
+function repRenderLista() {
+  var body = document.getElementById('rep-list-body');
+  if (!body) return;
+  var lista = _repFilter ? _repList.filter(function(r){ return r.estado === _repFilter; }) : _repList;
+  if (!lista.length) {
+    body.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px">'
+      + (_repFilter ? 'No hay solicitudes con estado "' + (REP_ESTADO_LABEL[_repFilter]||_repFilter) + '".' : 'Aún no hay solicitudes de reposición.')
+      + '</div>';
+    return;
+  }
+  body.innerHTML = lista.map(function(rep) {
+    var fecha = rep.creadoEn ? new Date(rep.creadoEn).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var urgCss = REP_URG_CSS[rep.urgencia] || 'rep-urg-baja';
+    var urgLbl = REP_URG_LABEL[rep.urgencia] || rep.urgencia;
+    var estCss = REP_ESTADO_CSS[rep.estado] || 'rep-est-borrador';
+    var estLbl = REP_ESTADO_LABEL[rep.estado] || rep.estado;
+    var isActive = _repSelected === rep.id;
+    return '<div class="rep-item' + (isActive ? ' rep-item-active' : '') + '" onclick="repAbrirDetalle(\'' + rep.id + '\')" style="' + (isActive ? 'background:var(--surface-2)' : '') + '">'
+      + '<div>'
+      + '<div class="rep-item-ref">' + escHtml(rep.articuloRef) + '</div>'
+      + '<div class="rep-item-nombre">' + escHtml(rep.articuloNombre) + '</div>'
+      + '<div class="rep-item-meta">Cant: ' + rep.cantidad + ' · ' + escHtml(rep.ubicacionDestino) + ' · ' + fecha + '</div>'
+      + '</div>'
+      + '<div class="rep-item-badges">'
+      + '<span class="rep-urg ' + urgCss + '">' + urgLbl + '</span>'
+      + '<span class="rep-est ' + estCss + '">' + estLbl + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function repSetFilter(estado) {
+  _repFilter = estado;
+  document.querySelectorAll('.rep-filter-btn').forEach(function(b){ b.classList.remove('active'); });
+  var idMap = { '':'repf-todos', 'borrador':'repf-borrador', 'pendiente_aprobacion':'repf-pendiente',
+    'aprobada':'repf-aprobada', 'en_proceso':'repf-en_proceso', 'completada':'repf-completada', 'rechazada':'repf-rechazada' };
+  var btn = document.getElementById(idMap[estado] || 'repf-todos');
+  if (btn) btn.classList.add('active');
+  repRenderLista();
+}
+
+/* Abrir/cerrar panel de detalle */
+function repAbrirDetalle(id) {
+  _repSelected = id;
+  var rep = _repList.find(function(r){ return r.id === id; });
+  if (!rep) return;
+  var panel = document.getElementById('rep-detail-panel');
+  var content = document.getElementById('rep-detail-content');
+  var actions = document.getElementById('rep-detail-actions');
+  var histEl  = document.getElementById('rep-detail-historial');
+  if (!panel || !content || !actions || !histEl) return;
+
+  var fecha = rep.creadoEn ? new Date(rep.creadoEn).toLocaleDateString('es-DO',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+  var urgLbl = REP_URG_LABEL[rep.urgencia] || rep.urgencia;
+  var urgCss = REP_URG_CSS[rep.urgencia] || 'rep-urg-baja';
+  var estLbl = REP_ESTADO_LABEL[rep.estado] || rep.estado;
+  var estCss = REP_ESTADO_CSS[rep.estado] || 'rep-est-borrador';
+
+  content.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:4px">'
+    + repDetailField('Referencia', '<span style="font-family:monospace;font-weight:700;color:var(--accent)">' + escHtml(rep.articuloRef) + '</span>')
+    + repDetailField('Artículo', escHtml(rep.articuloNombre))
+    + repDetailField('Cantidad', rep.cantidad)
+    + repDetailField('Urgencia', '<span class="rep-urg ' + urgCss + '">' + urgLbl + '</span>')
+    + repDetailField('Ubicación destino', escHtml(rep.ubicacionDestino))
+    + repDetailField('Estado', '<span class="rep-est ' + estCss + '">' + estLbl + '</span>')
+    + repDetailField('Solicitante', escHtml(rep.solicitanteNombre || rep.solicitanteId))
+    + repDetailField('Fecha', fecha)
+    + (rep.tareaWwpId ? repDetailField('Tarea WWP', '<span style="font-family:monospace;font-size:11px">' + rep.tareaWwpId + '</span>') : '')
+    + '</div>'
+    + (rep.motivo ? '<div class="rep-detail-field"><div class="rep-detail-key">Motivo</div><div class="rep-detail-val" style="font-style:italic">' + escHtml(rep.motivo) + '</div></div>' : '')
+    + (rep.comentarioAprobador ? '<div class="rep-detail-field"><div class="rep-detail-key">Comentario aprobador</div><div class="rep-detail-val">' + escHtml(rep.comentarioAprobador) + '</div></div>' : '');
+
+  // Botones de acción según rol y estado
+  var btns = '';
+  var isAdmin = _user && _user.role === 'admin';
+  var isManagerOrAdmin = _user && (_user.role === 'admin' || _user.role === 'manager');
+  var isMio = _user && rep.solicitanteId === (_user && _user.id || '');
+
+  if (rep.estado === 'borrador' && (isManagerOrAdmin || isMio)) {
+    btns += '<button class="rep-btn-enviar" onclick="repCambiarEstado(\'' + rep.id + '\',\'pendiente_aprobacion\')">Enviar a aprobación</button>';
+  }
+  if (rep.estado === 'pendiente_aprobacion' && isAdmin) {
+    btns += '<button class="rep-btn-aprobar" onclick="repSolicitarComentario(\'' + rep.id + '\',\'aprobada\')">Aprobar</button>';
+    btns += '<button class="rep-btn-rechazar" onclick="repSolicitarComentario(\'' + rep.id + '\',\'rechazada\')">Rechazar</button>';
+  }
+  if (rep.estado === 'aprobada' && isManagerOrAdmin && !rep.tareaWwpId) {
+    btns += '<button class="rep-btn-crear-tarea" onclick="repCrearTarea(\'' + rep.id + '\')">Crear tarea WWP</button>';
+  }
+  if (rep.estado === 'rechazada' && (isManagerOrAdmin || isMio)) {
+    btns += '<button class="rep-btn-enviar" onclick="repCambiarEstado(\'' + rep.id + '\',\'borrador\')">Volver a borrador</button>';
+  }
+  actions.innerHTML = btns;
+
+  // Historial de estados
+  var hist = rep.historialEstados || [];
+  histEl.innerHTML = hist.length ? '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;margin-top:4px">Historial</div>'
+    + hist.map(function(h){
+      var hFecha = h.fecha ? new Date(h.fecha).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      return '<div class="rep-hist-row">'
+        + '<span class="rep-hist-fecha">' + hFecha + '</span>'
+        + '<span class="rep-hist-estado">' + (REP_ESTADO_LABEL[h.estado]||h.estado) + '</span>'
+        + '<span class="rep-hist-por">' + escHtml(h.por||'') + (h.nota ? ' — ' + escHtml(h.nota) : '') + '</span>'
+        + '</div>';
+    }).join('') : '';
+
+  panel.classList.add('open');
+  repRenderLista();  // re-renderizar para marcar el item activo
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (window.lucide) lucide.createIcons();
+}
+
+function repDetailField(key, val) {
+  return '<div class="rep-detail-field"><div class="rep-detail-key">' + key + '</div><div class="rep-detail-val">' + val + '</div></div>';
+}
+
+function repCerrarDetalle() {
+  _repSelected = null;
+  var panel = document.getElementById('rep-detail-panel');
+  if (panel) panel.classList.remove('open');
+  repRenderLista();
+}
+
+/* Modal nueva solicitud */
+function repAbrirModal() {
+  var overlay = document.getElementById('rep-modal-overlay');
+  if (overlay) { overlay.classList.add('open'); }
+  var msg = document.getElementById('rep-modal-msg');
+  if (msg) msg.textContent = '';
+  // Limpiar campos
+  ['rep-articulo-ref','rep-articulo-nombre','rep-ubicacion','rep-motivo'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var qty = document.getElementById('rep-cantidad');
+  if (qty) qty.value = '1';
+  var urg = document.getElementById('rep-urgencia');
+  if (urg) urg.value = 'media';
+  var btn = document.getElementById('rep-btn-guardar');
+  if (btn) btn.disabled = false;
+}
+
+function repCerrarModal() {
+  var overlay = document.getElementById('rep-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function repGuardar() {
+  var ref    = (document.getElementById('rep-articulo-ref') && document.getElementById('rep-articulo-ref').value || '').trim();
+  var nombre = (document.getElementById('rep-articulo-nombre') && document.getElementById('rep-articulo-nombre').value || '').trim();
+  var qty    = parseInt(document.getElementById('rep-cantidad') && document.getElementById('rep-cantidad').value) || 1;
+  var urg    = document.getElementById('rep-urgencia') && document.getElementById('rep-urgencia').value || 'media';
+  var ubic   = (document.getElementById('rep-ubicacion') && document.getElementById('rep-ubicacion').value || '').trim();
+  var motivo = (document.getElementById('rep-motivo') && document.getElementById('rep-motivo').value || '').trim();
+  var msg    = document.getElementById('rep-modal-msg');
+  var btn    = document.getElementById('rep-btn-guardar');
+
+  if (!ref || !nombre || !ubic) {
+    if (msg) { msg.style.color = 'var(--red-text,#dc2626)'; msg.textContent = 'Completa los campos obligatorios: referencia, nombre y ubicación.'; }
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (msg) { msg.style.color = 'var(--text-muted)'; msg.textContent = 'Guardando…'; }
+  try {
+    var payload = {
+      articuloRef: ref,
+      articuloNombre: nombre,
+      cantidad: qty,
+      urgencia: urg,
+      ubicacionDestino: ubic,
+      motivo: motivo,
+      solicitanteId: (_user && _user.id) || '',
+      solicitanteNombre: (_user && _user.name) || ''
+    };
+    var r = await fetch('/api/reposicion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_token || '') },
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al guardar');
+    repCerrarModal();
+    await repCargarLista();
+    toast('Solicitud creada correctamente');
+  } catch(e) {
+    if (msg) { msg.style.color = 'var(--red-text,#dc2626)'; msg.textContent = 'Error: ' + e.message; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* Cambio directo de estado (sin comentario requerido) */
+async function repCambiarEstado(id, nuevoEstado) {
+  try {
+    var r = await fetch('/api/reposicion/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_token || '') },
+      body: JSON.stringify({ estado: nuevoEstado })
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al actualizar');
+    await repCargarLista();
+    if (_repSelected === id) repAbrirDetalle(id);
+    toast('Estado actualizado: ' + (REP_ESTADO_LABEL[nuevoEstado] || nuevoEstado));
+  } catch(e) { toast('Error: ' + e.message, true); }
+}
+
+/* Modal de comentario aprobador */
+function repSolicitarComentario(id, estado) {
+  _repPendingEstado = { id: id, estado: estado };
+  var titulo = document.getElementById('rep-comentario-titulo');
+  if (titulo) titulo.textContent = estado === 'aprobada' ? 'Aprobar solicitud' : 'Rechazar solicitud';
+  var input = document.getElementById('rep-comentario-input');
+  if (input) input.value = '';
+  var msg = document.getElementById('rep-comentario-msg');
+  if (msg) msg.textContent = '';
+  var btn = document.getElementById('rep-comentario-confirmar');
+  if (btn) { btn.textContent = estado === 'aprobada' ? 'Aprobar' : 'Rechazar'; btn.disabled = false; }
+  var overlay = document.getElementById('rep-comentario-overlay');
+  if (overlay) overlay.classList.add('open');
+}
+
+function repCerrarComentario() {
+  _repPendingEstado = null;
+  var overlay = document.getElementById('rep-comentario-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+async function repConfirmarCambioEstado() {
+  if (!_repPendingEstado) return;
+  var id = _repPendingEstado.id;
+  var estado = _repPendingEstado.estado;
+  var comentario = (document.getElementById('rep-comentario-input') && document.getElementById('rep-comentario-input').value || '').trim();
+  var msg = document.getElementById('rep-comentario-msg');
+  var btn = document.getElementById('rep-comentario-confirmar');
+
+  if (estado === 'rechazada' && !comentario) {
+    if (msg) { msg.style.color = 'var(--red-text,#dc2626)'; msg.textContent = 'El motivo de rechazo es obligatorio.'; }
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (msg) { msg.style.color = 'var(--text-muted)'; msg.textContent = 'Guardando…'; }
+  try {
+    var r = await fetch('/api/reposicion/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_token || '') },
+      body: JSON.stringify({ estado: estado, comentarioAprobador: comentario })
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al actualizar');
+    repCerrarComentario();
+    await repCargarLista();
+    if (_repSelected === id) repAbrirDetalle(id);
+    toast('Solicitud ' + (estado === 'aprobada' ? 'aprobada' : 'rechazada') + ' correctamente');
+  } catch(e) {
+    if (msg) { msg.style.color = 'var(--red-text,#dc2626)'; msg.textContent = 'Error: ' + e.message; }
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* Crear tarea WWP desde solicitud aprobada */
+async function repCrearTarea(id) {
+  if (!confirm('¿Crear tarea en Workforce Platform para esta solicitud de reposición?')) return;
+  try {
+    var r = await fetch('/api/reposicion/' + id + '/crear-tarea', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_token || '') },
+      body: JSON.stringify({ managerId: (_user && _user.id) || null, managerName: (_user && _user.name) || null })
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error al crear tarea');
+    await repCargarLista();
+    if (_repSelected === id) repAbrirDetalle(id);
+    toast('Tarea WWP creada: ' + d.tarea.id);
+  } catch(e) { toast('Error: ' + e.message, true); }
+}
+
+/* Helper: escapa HTML para evitar XSS en datos del usuario */
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Validación de Escaneo ─────────────────────────────────────────────────────

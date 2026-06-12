@@ -62,6 +62,11 @@ if (!fs.existsSync(AV_FOTOS_DIR)) fs.mkdirSync(AV_FOTOS_DIR, { recursive: true }
 function loadAverias() { return loadJson(AVERIAS_FILE, []); }
 function saveAverias(list) { saveJson(AVERIAS_FILE, list); }
 
+// ── Reposición — persistencia ─────────────────────────────────────────────────
+const REPOSICIONES_FILE = path.join(DATA_DIR, 'reposiciones.json');
+function loadReposiciones() { return loadJson(REPOSICIONES_FILE, []); }
+function saveReposiciones(list) { saveJson(REPOSICIONES_FILE, list); }
+
 // ── Empaque — persistencia ────────────────────────────────────────────────────
 const EMP_MATERIALES_FILE = path.join(DATA_DIR, 'emp-materiales.json');
 const EMP_REGLAS_FILE     = path.join(DATA_DIR, 'emp-reglas.json');
@@ -275,9 +280,10 @@ try { Anthropic = require('@anthropic-ai/sdk'); } catch { /* SDK no instalado */
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const anthropicClient = (Anthropic && ANTHROPIC_KEY) ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
 
-// ── OpenAI / Codex — cerebro del Agente Auditor de Procesos ──────────────────
+// ── OpenAI / Codex — cerebro unificado de todos los agentes ──────────────────
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const CODEX_AUDITOR_MODEL = process.env.CODEX_AUDITOR_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const CODEX_AUDITOR_MODEL = process.env.CODEX_AUDITOR_MODEL || process.env.OPENAI_MODEL || 'gpt-5.5';
+const CODEX_BRIDGE_TOKEN = process.env.CODEX_BRIDGE_TOKEN || '';
 
 // ── Cerebro de IA unificado ───────────────────────────────────────────────────
 // Hoy TODO corre con OpenAI (una sola clave). Más adelante se puede volver a Anthropic.
@@ -389,6 +395,26 @@ function computeOpsAgentReport() {
   readyToValidate.forEach(t => pushDecision('high', 'Pendiente de validacion', 'Validar, devolver o documentar causa de espera.', t, 'La tarea ya fue marcada completada.'));
 
   const byOwner = {};
+  const peopleBreakdown = {};
+  const ensurePerson = (owner) => {
+    if (!peopleBreakdown[owner]) {
+      peopleBreakdown[owner] = {
+        owner,
+        active: 0,
+        overdue: 0,
+        inProgress: 0,
+        assigned: 0,
+        completedToday: 0,
+        updatedToday: 0,
+        stale: 0,
+        missingEvidence: 0,
+        readyToValidate: 0,
+        tasks: [],
+        issues: []
+      };
+    }
+    return peopleBreakdown[owner];
+  };
   active.forEach(t => {
     const owner = taskOwner(t);
     if (!byOwner[owner]) byOwner[owner] = { owner, total: 0, overdue: 0, inProgress: 0, assigned: 0, stale: 0 };
@@ -397,8 +423,33 @@ function computeOpsAgentReport() {
     if (t.status === 'in_progress') byOwner[owner].inProgress++;
     if (t.status === 'assigned') byOwner[owner].assigned++;
     if (hoursSince(t.updatedAt || t.createdAt) >= 8 && !closedStatuses.has(t.status)) byOwner[owner].stale++;
+
+    const person = ensurePerson(owner);
+    const selected = (t.items || []).filter(i => i.selected);
+    const hasMissingEvidence = !!(selected.length && selected.some(i => !(i.evidence_images || []).length));
+    person.active++;
+    if (t.dueDate && t.dueDate < today) person.overdue++;
+    if (t.status === 'in_progress') person.inProgress++;
+    if (t.status === 'assigned') person.assigned++;
+    if ((t.updatedAt || '').startsWith(today)) person.updatedToday++;
+    if (hoursSince(t.updatedAt || t.createdAt) >= 8 && !closedStatuses.has(t.status)) person.stale++;
+    if (hasMissingEvidence) person.missingEvidence++;
+    if (person.tasks.length < 8) person.tasks.push(taskUrl(t));
+    if (t.dueDate && t.dueDate < today && person.issues.length < 8) person.issues.push({ type: 'overdue', task: taskUrl(t), note: `Vencio el ${t.dueDate}` });
+    if (hasMissingEvidence && person.issues.length < 8) person.issues.push({ type: 'missing_evidence', task: taskUrl(t), note: 'Tiene articulos seleccionados sin evidencia.' });
+  });
+  tasks.filter(t => (t.status === 'completed' || t.status === 'validated') && (t.updatedAt || '').startsWith(today)).forEach(t => {
+    const person = ensurePerson(taskOwner(t));
+    person.completedToday++;
+    if (person.tasks.length < 8) person.tasks.push(taskUrl(t));
+  });
+  readyToValidate.forEach(t => {
+    const person = ensurePerson(taskOwner(t));
+    person.readyToValidate++;
+    if (person.issues.length < 8) person.issues.push({ type: 'ready_to_validate', task: taskUrl(t), note: 'Completada pendiente de validacion.' });
   });
   const workload = Object.values(byOwner).sort((a, b) => (b.overdue - a.overdue) || (b.total - a.total) || a.owner.localeCompare(b.owner));
+  const people = Object.values(peopleBreakdown).sort((a, b) => (b.overdue - a.overdue) || (b.active - a.active) || a.owner.localeCompare(b.owner));
 
   const byType = {};
   active.forEach(t => { byType[t.type || 'general'] = (byType[t.type || 'general'] || 0) + 1; });
@@ -427,7 +478,7 @@ function computeOpsAgentReport() {
     missingEvidence.length ? `Pedir evidencia en ${missingEvidence.length} tarea(s) antes del cierre.` : 'No hay evidencia pendiente detectada en tareas activas.'
   ];
 
-  return { summary, decisions: decisions.slice(0, 30), workload, nextActions };
+  return { summary, decisions: decisions.slice(0, 30), workload, people, nextActions };
 }
 
 // Normaliza una referencia de orden a su número (S06031 / 6031 / 06031 → "6031")
@@ -631,6 +682,34 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function requireCodexBridge(req, res) {
+  if (!CODEX_BRIDGE_TOKEN) {
+    sendJson(res, 503, { ok:false, error:'Codex Bridge no configurado: falta CODEX_BRIDGE_TOKEN.' });
+    return false;
+  }
+  const auth = String(req.headers['authorization'] || '');
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
+  const supplied = String(req.headers['x-codex-bridge-token'] || bearer || '').trim();
+  const expected = String(CODEX_BRIDGE_TOKEN || '').trim();
+  try {
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(expected);
+    if (!supplied || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      sendJson(res, 401, { ok:false, error:'Token Codex Bridge invalido.' });
+      return false;
+    }
+  } catch (_) {
+    sendJson(res, 401, { ok:false, error:'Token Codex Bridge invalido.' });
+    return false;
+  }
+  return true;
+}
+
+function csvCell(value) {
+  const s = String(value ?? '');
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 // ── Audit log ───────────────────────────────────────────────────────────────
 const WWP_AUDIT_FILE = path.join(DATA_DIR, 'wwp-audit.json');
 function appendAuditLog(event, data) {
@@ -646,6 +725,11 @@ function appendAuditLog(event, data) {
 
 const PROCESS_AUDITOR_FILE = path.join(DATA_DIR, 'wwp-process-auditor.json');
 const AGENT_OWNER_EMAIL = 'gsanchez@altritempi.com.do';
+const AGENT_ALLOWED_EMAIL_LIST = [
+  'gsanchez@altritempi.com.do',
+  'jbencini@altritempi.com.do'
+];
+const AGENT_ALLOWED_EMAILS = new Set(AGENT_ALLOWED_EMAIL_LIST);
 function loadProcessAuditorState() {
   const state = loadJson(PROCESS_AUDITOR_FILE, { recommendations: {}, chat: [], opsChats: { manager: [], assistant: [] } });
   return ensureAgentGroupState(state);
@@ -658,12 +742,12 @@ function getAuthUser(jp) {
 }
 function isAgentOwner(jp) {
   const user = getAuthUser(jp);
-  return !!(user && String(user.email || '').toLowerCase().trim() === AGENT_OWNER_EMAIL);
+  return !!(user && AGENT_ALLOWED_EMAILS.has(String(user.email || '').toLowerCase().trim()));
 }
 function requireAgentOwner(jp, res) {
   if (isAgentOwner(jp)) return true;
   res.writeHead(403, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ ok:false, error:'Este agente esta reservado para gsanchez@altritempi.com.do' }));
+  res.end(JSON.stringify({ ok:false, error:'Esta Mesa de Agentes esta reservada para usuarios ejecutivos autorizados.' }));
   return false;
 }
 
@@ -905,6 +989,50 @@ function shouldIncludeOdooForAgentRequest(text) {
   return /odoo|orden|pick|picking|inventario|stock|ubicaci[oó]n|familia|producto|art[ií]culo|obsoleto|venta|cliente|disponible|cantidad/.test(q);
 }
 
+function classifyAgentRequestIntent(text) {
+  const raw = String(text || '').trim();
+  const q = raw.toLowerCase();
+  const cleanAfter = (pattern) => raw.replace(pattern, '').trim().replace(/^[:,-]\s*/, '').trim();
+  if (/^(anota|apunta|toma nota|recuerda)(\s+esto)?\b/i.test(raw)) {
+    return { type: 'quick_note', label: 'Nota rapida', content: cleanAfter(/^(anota|apunta|toma nota|recuerda)(\s+esto)?\b/i) };
+  }
+  if (/(agrega|añade|incluye|pon).{0,80}\b(lista|listado)\b/i.test(raw)) {
+    const listMatch = raw.match(/\b(?:lista|listado)\s+(?:de\s+)?([a-záéíóúñ0-9 _-]{3,60})/i);
+    return { type: 'list_update', label: 'Actualizar lista', listName: (listMatch?.[1] || 'general').trim(), content: raw };
+  }
+  if (/\b(grafico|gr[aá]fico|chart|rendimiento|performance|productividad)\b/i.test(q)) return { type: 'performance_chart', label: 'Grafico o rendimiento' };
+  if (/\b(falta|faltas|errores|incumplimientos|cometieron hoy|hoy)\b/i.test(q) && /\b(equipo|usuario|responsable|operaci[oó]n|tareas?)\b/i.test(q)) return { type: 'daily_mistakes', label: 'Faltas del dia' };
+  if (/\b(reporte|tabla|excel|csv|ventas|gerencia)\b/i.test(q)) return { type: 'report', label: 'Reporte presentable' };
+  if (/\b(odoo|inventario|stock|ubicaci[oó]n|orden|pick|picking|cliente|producto)\b/i.test(q)) return { type: 'data_query', label: 'Consulta de datos' };
+  if (/\b(mensaje|escribe|redacta|pide|solicita|seguimiento|actualizaci[oó]n|eta)\b/i.test(q)) return { type: 'human_followup', label: 'Seguimiento humano' };
+  if (isConversationalAgentMessage(raw)) return { type: 'conversation', label: 'Conversacion humana' };
+  return { type: 'open_instruction', label: 'Instruccion abierta' };
+}
+
+function applyAgentMemoryAction(state, intent, jp) {
+  if (!state.agentGroup.memory || typeof state.agentGroup.memory !== 'object') {
+    state.agentGroup.memory = { notes: [], lists: {} };
+  }
+  if (!Array.isArray(state.agentGroup.memory.notes)) state.agentGroup.memory.notes = [];
+  if (!state.agentGroup.memory.lists || typeof state.agentGroup.memory.lists !== 'object') state.agentGroup.memory.lists = {};
+  const now = new Date().toISOString();
+  if (intent?.type === 'quick_note' && intent.content) {
+    const note = { id: wwpId('agentnote'), text: intent.content, createdAt: now, createdBy: jp?.name || 'Gabriel' };
+    state.agentGroup.memory.notes.push(note);
+    state.agentGroup.memory.notes = state.agentGroup.memory.notes.slice(-200);
+    return { saved: true, kind: 'note', note };
+  }
+  if (intent?.type === 'list_update') {
+    const listName = String(intent.listName || 'general').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!Array.isArray(state.agentGroup.memory.lists[listName])) state.agentGroup.memory.lists[listName] = [];
+    const item = { id: wwpId('agentlist'), text: intent.content, createdAt: now, createdBy: jp?.name || 'Gabriel' };
+    state.agentGroup.memory.lists[listName].push(item);
+    state.agentGroup.memory.lists[listName] = state.agentGroup.memory.lists[listName].slice(-200);
+    return { saved: true, kind: 'list', listName, item };
+  }
+  return { saved: false };
+}
+
 async function getOdooObsoleteStockReport() {
   const report = {
     ok: false,
@@ -1062,6 +1190,9 @@ function ensureAgentGroupState(state) {
   // Aprendizajes capturados desde el propio chat (hechos, preferencias, correcciones de tono).
   // Crece solo; se inyecta en cada prompt para que los agentes recuerden sin reconfigurarlos.
   if (!Array.isArray(state.agentGroup.learnings)) state.agentGroup.learnings = [];
+  if (!state.agentGroup.memory || typeof state.agentGroup.memory !== 'object') state.agentGroup.memory = { notes: [], lists: {} };
+  if (!Array.isArray(state.agentGroup.memory.notes)) state.agentGroup.memory.notes = [];
+  if (!state.agentGroup.memory.lists || typeof state.agentGroup.memory.lists !== 'object') state.agentGroup.memory.lists = {};
   if (!Array.isArray(state.agentGroup.preferences)) state.agentGroup.preferences = [
     'Responder 100% la solicitud exacta de Gabriel.',
     'No agregar dashboard, tareas vencidas, auditoria ni recomendaciones operativas si no fueron solicitadas.',
@@ -1091,6 +1222,13 @@ function ensureAgentGroupState(state) {
       'Agrupacion por familia/categoria/estado',
       'Texto corto listo para ventas/correo/WhatsApp',
       'Documento operativo completo'
+    ],
+    operatingIdentity: [
+      'La Mesa no es un bot de datos: es un equipo de confianza para Gabriel.',
+      'Cada agente debe actuar como experto de su area, con criterio, sinceridad y sentido de responsabilidad.',
+      'Interpretar mensajes escritos desde celular, incompletos o rapidos: "anota esto", "agrega esto a la lista", "hazme un grafico", "que faltas hubo hoy".',
+      'Cuando la intencion sea clara, actuar; cuando falte un dato importante, preguntar una sola cosa concreta.',
+      'Mantener Workforce Platform funcionando y mejorarla continuamente: detectar friccion, proponer mejoras y preparar comandos para Codex cuando Gabriel apruebe.'
     ],
     templateLibrary: [
       {
@@ -1273,6 +1411,10 @@ function pickAgentParticipants(text, agents) {
   const q = String(text || '').toLowerCase();
   const ids = new Set(['coordinator']);
   const hasAny = (words) => words.some(w => q.includes(w));
+  const intent = classifyAgentRequestIntent(text);
+  if (['quick_note', 'list_update', 'human_followup', 'conversation'].includes(intent.type)) ids.add('ops_assistant');
+  if (['performance_chart', 'daily_mistakes'].includes(intent.type)) ids.add('ops_manager');
+  if (intent.type === 'performance_chart') ids.add('documenter');
   if (isConversationalAgentMessage(text)) {
     ids.add('ops_assistant');
     const availableQuick = new Set((agents || []).map(a => a.id));
@@ -1361,6 +1503,147 @@ function evaluateAgentAnswerQuality(request, answer, context = {}) {
   };
 }
 
+function resolveTaskOwnerName(t, users = loadAuthUsers()) {
+  if (t.managerId) {
+    const u = users.find(x => x.id === t.managerId);
+    if (u) return u.name;
+  }
+  if (t.managerName) return t.managerName;
+  if (t.assignedTo && String(t.assignedTo).startsWith('oe_')) {
+    const odooId = String(t.assignedTo).slice(3);
+    const u = users.find(x => String(x.odooId || '') === odooId);
+    if (u) return u.name;
+  }
+  return 'Sin responsable';
+}
+
+function taskForCodexBridge(t, users = loadAuthUsers()) {
+  const selected = (t.items || []).filter(i => i.selected);
+  const missingEvidence = selected.filter(i => !(i.evidence_images || []).length).length;
+  return {
+    id: t.id,
+    seq: t.seq || null,
+    title: t.title || t.odooRef || t.id,
+    type: t.type || 'general',
+    status: t.status || 'pending',
+    priority: t.priority || 'medium',
+    owner: resolveTaskOwnerName(t, users),
+    managerId: t.managerId || null,
+    managerName: t.managerName || null,
+    assignedTo: t.assignedTo || null,
+    odooRef: t.odooRef || '',
+    client: t.client || '',
+    salesperson: t.salesperson || '',
+    location: t.location || '',
+    dueDate: t.dueDate || null,
+    overdue: !!t.overdue,
+    overdueDays: t.overdueDays || 0,
+    parentId: t.parentId || null,
+    subIndex: t.subIndex || null,
+    actionNote: t.actionNote || '',
+    createdAt: t.createdAt || null,
+    updatedAt: t.updatedAt || null,
+    itemsSelected: selected.length,
+    itemsMissingEvidence: missingEvidence,
+    evidenceCount: (t.evidence || []).length + (t.fotos_guia || []).length,
+    escalation: t.escalation || null
+  };
+}
+
+function filterCodexBridgeTasks(tasks, q = {}) {
+  let out = tasks;
+  const today = new Date().toISOString().slice(0, 10);
+  if (q.status) out = out.filter(t => t.status === q.status);
+  if (q.type) out = out.filter(t => t.type === q.type);
+  if (q.owner) out = out.filter(t => String(t.owner || '').toLowerCase().includes(String(q.owner).toLowerCase()));
+  if (q.overdue === '1' || q.overdue === 'true') out = out.filter(t => t.overdue || (t.dueDate && t.dueDate < today && !['completed','validated','cancelled'].includes(t.status)));
+  if (q.active === '1' || q.active === 'true') out = out.filter(t => !['completed','validated','cancelled'].includes(t.status));
+  if (q.q) {
+    const term = String(q.q).toLowerCase();
+    out = out.filter(t => [t.title, t.odooRef, t.client, t.owner, t.location, t.type, t.status].some(v => String(v || '').toLowerCase().includes(term)));
+  }
+  const limit = Math.max(1, Math.min(500, Number(q.limit || 120)));
+  return out.slice(0, limit);
+}
+
+function buildCodexBridgeContext({ query = {} } = {}) {
+  const users = loadAuthUsers();
+  const report = computeOpsAgentReport();
+  const tasks = enrichOverdueTasks(loadWwpTasks(), { persist: true }).map(t => taskForCodexBridge(t, users));
+  const filteredTasks = filterCodexBridgeTasks(tasks, query);
+  const state = loadProcessAuditorState();
+  return {
+    ok: true,
+    source: 'Workforce Platform Codex Bridge',
+    generatedAt: new Date().toISOString(),
+    currentDate: new Date().toISOString().slice(0, 10),
+    instructionsForCodex: [
+      'El analisis lo hace Codex en este chat usando estos datos vivos.',
+      'No necesitas llamar OpenAI desde Railway para analizar.',
+      'Para preguntas de tareas atrasadas usa summary, decisions, people y tasks filtradas.',
+      'Para graficos o archivos descargables, usa tasks/people y genera tabla, CSV o instrucciones claras aqui.'
+    ],
+    agents: {
+      owner: 'Codex en este chat',
+      meetingMode: true,
+      suggestedNames: [
+        { name:'Marta', role:'Gerente de Operaciones', use:'estatus, prioridades, riesgos y decisiones' },
+        { name:'Lia', role:'Asistente de Operaciones', use:'seguimiento humano, mensajes y actualizaciones' },
+        { name:'Sofia', role:'Analista Odoo/Historial', use:'ordenes, stock, picks y trazabilidad' },
+        { name:'Tomas', role:'Auditor de Procesos', use:'flujos, controles, documentos y mejoras' },
+        { name:'Mark', role:'CSS/UI independiente', use:'solo cambios visuales, responsive y claridad de interfaz' }
+      ]
+    },
+    summary: report.summary,
+    decisions: report.decisions || [],
+    people: report.people || [],
+    workload: report.workload || [],
+    nextActions: report.nextActions || [],
+    tasks: filteredTasks,
+    totals: {
+      tasksReturned: filteredTasks.length,
+      allTasks: tasks.length
+    },
+    agentMemory: {
+      learnings: (state.agentGroup?.learnings || []).slice(-40),
+      preferences: (state.agentGroup?.preferences || []).slice(-20),
+      notes: (state.agentGroup?.memory?.notes || []).slice(-30),
+      lists: state.agentGroup?.memory?.lists || {}
+    }
+  };
+}
+
+function codexTasksCsv(tasks) {
+  const headers = ['seq','title','type','status','priority','owner','odooRef','client','location','dueDate','overdue','overdueDays','itemsSelected','itemsMissingEvidence','updatedAt'];
+  return [
+    headers.join(','),
+    ...tasks.map(t => headers.map(h => csvCell(t[h])).join(','))
+  ].join('\n');
+}
+
+function parseAgentAiResult(out, fallback = {}) {
+  const text = String(out || '').trim();
+  if (!text) return fallback;
+  const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/,'').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) {
+    const first = cleaned.indexOf('{');
+    const last = cleaned.lastIndexOf('}');
+    if (first !== -1 && last > first) {
+      try { return JSON.parse(cleaned.slice(first, last + 1)); } catch {}
+    }
+  }
+  return {
+    participantIds: fallback.participantIds || ['coordinator'],
+    consultations: fallback.consultations || [],
+    newAgents: [],
+    learn: [],
+    format: detectAgentOutputFormat(text),
+    finalAnswer: text
+  };
+}
+
 async function runAgentRoutineById(routineId, { manualBy = null } = {}) {
   const state = loadProcessAuditorState();
   const routine = (state.agentGroup.routines || []).find(r => r.id === routineId);
@@ -1418,7 +1701,7 @@ async function runAgentRoutineById(routineId, { manualBy = null } = {}) {
       const out = payload.output_text
         || (payload.output || []).flatMap(o => o.content || []).map(c => c.text || '').join('\n').trim()
         || '';
-      result = JSON.parse(out.replace(/^```json\s*/i, '').replace(/```$/,'').trim());
+      result = parseAgentAiResult(out, result);
     } catch(e) {
       ai = false;
       result = fallbackAgentGroupReply(request, agents, report, companyContext, specialReports);
@@ -1465,13 +1748,14 @@ async function runAgentRoutineById(routineId, { manualBy = null } = {}) {
   saveProcessAuditorState(state);
   appendAuditLog('agent_routine_run', { routineId, routineName: routine.name, by: manualBy || 'scheduler', messageId: msg.id });
 
-  const owner = loadAuthUsers().find(u => String(u.email || '').toLowerCase().trim() === AGENT_OWNER_EMAIL);
-  if (owner) createNotification(owner.id, {
-    type: 'agent_routine',
-    title: 'Rutina automatica ejecutada',
-    message: routine.name,
-    by: 'Mesa de Agentes'
-  });
+  loadAuthUsers()
+    .filter(u => AGENT_ALLOWED_EMAILS.has(String(u.email || '').toLowerCase().trim()))
+    .forEach(owner => createNotification(owner.id, {
+      type: 'agent_routine',
+      title: 'Rutina automatica ejecutada',
+      message: routine.name,
+      by: 'Mesa de Agentes'
+    }));
   return { routine: state.agentGroup.routines.find(r => r.id === routineId), message: msg, chat: state.agentGroup.chat.slice(-40) };
 }
 
@@ -1479,7 +1763,62 @@ function fallbackAgentGroupReply(text, agents, report, companyContext, specialRe
   const participantIds = pickAgentParticipants(text, agents);
   const byId = Object.fromEntries((agents || []).map(a => [a.id, a]));
   const s = report.summary || {};
+  const intent = classifyAgentRequestIntent(text);
+  if (intent.type === 'quick_note') {
+    return {
+      participantIds,
+      consultations: participantIds.filter(id => id !== 'coordinator').map(id => ({ agentId: id, message: 'Confirmo la nota y la dejo disponible para seguimiento.' })),
+      newAgents: [],
+      format: 'note',
+      finalAnswer: intent.content
+        ? `Anotado, Gabriel: ${intent.content}`
+        : 'Listo, Gabriel. Enviame el texto que quieres que anote.'
+    };
+  }
+  if (intent.type === 'list_update') {
+    return {
+      participantIds,
+      consultations: participantIds.filter(id => id !== 'coordinator').map(id => ({ agentId: id, message: 'Actualizo la lista indicada y confirmo el registro.' })),
+      newAgents: [],
+      format: 'list',
+      finalAnswer: `Listo, Gabriel. Agregue eso a la lista ${intent.listName || 'general'}.`
+    };
+  }
+  if (['performance_chart', 'daily_mistakes'].includes(intent.type)) {
+    const people = Array.isArray(report.people) ? report.people : [];
+    const rows = people.slice(0, 12).map(p =>
+      `${p.owner} | ${p.active || 0} | ${p.overdue || 0} | ${p.stale || 0} | ${p.missingEvidence || 0} | ${p.completedToday || 0}`
+    );
+    return {
+      participantIds,
+      consultations: participantIds.filter(id => id !== 'coordinator').map(id => ({ agentId: id, message: 'Uso el detalle por responsable de Workforce Platform para responder sin pedir export.' })),
+      newAgents: [],
+      format: 'table',
+      finalAnswer: [
+        intent.type === 'daily_mistakes'
+          ? 'Con los datos actuales de Workforce Platform, este es el corte por responsable para revisar faltas o incumplimientos de hoy:'
+          : 'Con los datos actuales de Workforce Platform, este es el rendimiento/carga por responsable:',
+        '',
+        'Responsable | Activas | Vencidas | Sin avance | Sin evidencia | Completadas hoy',
+        '---|---:|---:|---:|---:|---:',
+        ...(rows.length ? rows : ['Sin datos por responsable | 0 | 0 | 0 | 0 | 0']),
+        '',
+        'Nota: si necesitas un periodo historico exacto, dime el rango de fechas y preparo el corte con ese criterio.'
+      ].join('\n')
+    };
+  }
   if (isConversationalAgentMessage(text)) {
+    const q = String(text || '').trim().toLowerCase();
+    let conversationalAnswer = 'Hola Gabriel, te leo. Que necesitas que revisemos ahora?';
+    if (/como estas|cómo estás|que tal|qué tal/.test(q)) {
+      conversationalAnswer = 'Estoy bien, Gabriel. Hoy estoy atento a la operacion y listo para ayudarte sin dar vueltas. Si quieres, podemos revisar algo puntual de Odoo, tareas, reportes o algun mensaje para el equipo.';
+    } else if (/gracias/.test(q)) {
+      conversationalAnswer = 'Con gusto, Gabriel. Seguimos afinando esto hasta que se sienta natural y util para el trabajo diario.';
+    } else if (/^(ok|perfecto|listo|entendido)[.!?¡¿\s]*$/.test(q)) {
+      conversationalAnswer = 'Perfecto. Quedo pendiente de la proxima instruccion.';
+    } else if (/^(hola|buenas|buenos dias|buenos días|buenas tardes|buenas noches|saludos|hey|hello|hi)/.test(q)) {
+      conversationalAnswer = 'Hola Gabriel. Estoy aqui, listo para trabajar contigo. Dime que necesitas y lo organizo con el agente correcto.';
+    }
     return {
       participantIds,
       consultations: participantIds.filter(id => id !== 'coordinator').map(id => ({
@@ -1488,13 +1827,7 @@ function fallbackAgentGroupReply(text, agents, report, companyContext, specialRe
       })),
       newAgents: [],
       format: 'conversation',
-      finalAnswer: [
-        'Hola Gabriel. Estoy aqui y te leo.',
-        '',
-        'Puedes hablarme normal: pedirme un reporte, una consulta en Odoo, seguimiento de tareas, preparar un mensaje para alguien, crear un documento o revisar una decision operativa.',
-        '',
-        'Si lo que necesitas requiere datos, te dire exactamente que voy a consultar y te lo devuelvo en un formato claro para usar.'
-      ].join('\n')
+      finalAnswer: conversationalAnswer
     };
   }
   if (specialReports.obsoleteStock) {
@@ -2511,6 +2844,50 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(429, {'Content-Type': 'application/json', 'Retry-After': '60'});
     res.end(JSON.stringify({ ok: false, error: 'Demasiadas solicitudes. Espera un momento.' }));
     return;
+  }
+
+  // ── Codex Bridge — datos vivos para reuniones desde este chat/Codex ────────
+  // No ejecuta IA en Railway. Solo entrega contexto estructurado protegido.
+  if (reqPath === '/api/codex/agents/context' && req.method === 'GET') {
+    if (!requireCodexBridge(req, res)) return;
+    try {
+      const context = buildCodexBridgeContext({ query: parsed.query || {} });
+      appendAuditLog('codex_bridge_context', { by: 'codex_bridge', tasksReturned: context.totals.tasksReturned });
+      return sendJson(res, 200, context);
+    } catch (e) {
+      return sendJson(res, 500, { ok:false, error:safeError(e) });
+    }
+  }
+
+  if (reqPath === '/api/codex/agents/tasks' && req.method === 'GET') {
+    if (!requireCodexBridge(req, res)) return;
+    try {
+      const users = loadAuthUsers();
+      const all = enrichOverdueTasks(loadWwpTasks(), { persist: true }).map(t => taskForCodexBridge(t, users));
+      const tasks = filterCodexBridgeTasks(all, parsed.query || {});
+      appendAuditLog('codex_bridge_tasks', { by: 'codex_bridge', tasksReturned: tasks.length });
+      return sendJson(res, 200, { ok:true, generatedAt:new Date().toISOString(), tasks, total:tasks.length, allTasks:all.length });
+    } catch (e) {
+      return sendJson(res, 500, { ok:false, error:safeError(e) });
+    }
+  }
+
+  if (reqPath === '/api/codex/agents/export/tasks.csv' && req.method === 'GET') {
+    if (!requireCodexBridge(req, res)) return;
+    try {
+      const users = loadAuthUsers();
+      const all = enrichOverdueTasks(loadWwpTasks(), { persist: true }).map(t => taskForCodexBridge(t, users));
+      const tasks = filterCodexBridgeTasks(all, parsed.query || {});
+      appendAuditLog('codex_bridge_export_csv', { by: 'codex_bridge', tasksReturned: tasks.length });
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="workforce-tasks.csv"'
+      });
+      res.end(codexTasksCsv(tasks));
+      return;
+    } catch (e) {
+      return sendJson(res, 500, { ok:false, error:safeError(e) });
+    }
   }
 
   // ── /api/odoo/auth — verificar conexión (cualquier usuario autenticado) ──────
@@ -3804,6 +4181,244 @@ const server = http.createServer(async (req, res) => {
     saveAverias(list);
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    return;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ── REPOSICIÓN API (D5) ──────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/reposicion — lista todas (filtrar por ?estado= y/o ?solicitanteId=)
+  if (reqPath === '/api/reposicion' && req.method === 'GET') {
+    const _jpRG = requireJwt(req, res); if (!_jpRG) return;
+    let list = loadReposiciones();
+    const qEstado = (parsed.query.estado||'').trim();
+    const qSolic  = (parsed.query.solicitanteId||'').trim();
+    if (qEstado) list = list.filter(r => r.estado === qEstado);
+    if (qSolic)  list = list.filter(r => r.solicitanteId === qSolic);
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true, reposiciones:list}));
+    return;
+  }
+
+  // POST /api/reposicion — crear nueva solicitud en estado borrador
+  if (reqPath === '/api/reposicion' && req.method === 'POST') {
+    const _jpRP = requireJwt(req, res); if (!_jpRP) return;
+    try {
+      const d = await readBody(req);
+      const URGENCIAS_VALIDAS = ['baja','media','alta'];
+      if (!d.articuloRef || !d.articuloNombre || !d.cantidad || !d.ubicacionDestino || !d.urgencia || !d.solicitanteId) {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Faltan campos requeridos: articuloRef, articuloNombre, cantidad, ubicacionDestino, urgencia, solicitanteId'}));
+        return;
+      }
+      if (!URGENCIAS_VALIDAS.includes(d.urgencia)) {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'urgencia debe ser baja, media o alta'}));
+        return;
+      }
+      const now = new Date().toISOString();
+      const id = Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      const rec = {
+        id,
+        articuloRef: String(d.articuloRef).trim(),
+        articuloNombre: String(d.articuloNombre).trim(),
+        cantidad: parseInt(d.cantidad)||1,
+        ubicacionDestino: String(d.ubicacionDestino).trim(),
+        urgencia: d.urgencia,
+        motivo: String(d.motivo||'').trim(),
+        solicitanteId: String(d.solicitanteId).trim(),
+        solicitanteNombre: String(d.solicitanteNombre||'').trim(),
+        estado: 'borrador',
+        comentarioAprobador: '',
+        tareaWwpId: null,
+        creadoEn: now,
+        actualizadoEn: now,
+        historialEstados: [{ estado:'borrador', fecha:now, por:d.solicitanteNombre||d.solicitanteId }]
+      };
+      const list = loadReposiciones();
+      list.unshift(rec);
+      saveReposiciones(list);
+      // Notificar a admins
+      try {
+        const _admins = loadAuthUsers().filter(u => u.role === 'admin');
+        _admins.forEach(adm => {
+          createNotification(adm.id, {
+            type: 'task_assigned',
+            title: 'Nueva solicitud de reposición',
+            message: `${rec.solicitanteNombre||rec.solicitanteId} solicitó reposición de ${rec.articuloNombre} (${rec.articuloRef}) — urgencia: ${rec.urgencia}.`,
+            relatedTaskId: null,
+            priority: rec.urgencia === 'alta' ? 'urgent' : rec.urgencia === 'media' ? 'medium' : 'low',
+            by: rec.solicitanteNombre||rec.solicitanteId
+          });
+        });
+      } catch(_nErr) { console.error('D5 notify create error:', _nErr.message); }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, reposicion:rec}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+    return;
+  }
+
+  // PATCH /api/reposicion/:id — actualizar estado y/o comentarioAprobador
+  if (reqPath.match(/^\/api\/reposicion\/[a-z0-9]+$/) && req.method === 'PATCH') {
+    const _jpRPA = requireJwt(req, res); if (!_jpRPA) return;
+    const _repId = reqPath.split('/')[3];
+    const ESTADOS_VALIDOS = ['borrador','pendiente_aprobacion','aprobada','en_proceso','completada','rechazada'];
+    const TRANSICIONES = {
+      'borrador':             ['pendiente_aprobacion'],
+      'pendiente_aprobacion': ['aprobada','rechazada','borrador'],
+      'aprobada':             ['en_proceso','rechazada'],
+      'en_proceso':           ['completada'],
+      'completada':           [],
+      'rechazada':            ['borrador']
+    };
+    try {
+      const d = await readBody(req);
+      const list = loadReposiciones();
+      const idx = list.findIndex(r => r.id === _repId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
+      const rec = list[idx];
+      const now = new Date().toISOString();
+      const por = _jpRPA.name || _jpRPA.email || _jpRPA.id || 'Sistema';
+
+      if (d.estado !== undefined) {
+        if (!ESTADOS_VALIDOS.includes(d.estado)) {
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false,error:'Estado inválido'}));
+          return;
+        }
+        const permitidos = TRANSICIONES[rec.estado] || [];
+        if (!permitidos.includes(d.estado)) {
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false,error:`Transición no permitida: ${rec.estado} → ${d.estado}`}));
+          return;
+        }
+        const estadoPrev = rec.estado;
+        rec.estado = d.estado;
+        rec.historialEstados = rec.historialEstados || [];
+        rec.historialEstados.push({ estado:d.estado, fecha:now, por, nota:d.comentarioAprobador||'' });
+
+        // Notificaciones según transición
+        try {
+          if (d.estado === 'aprobada' || d.estado === 'rechazada') {
+            // Notificar al solicitante
+            createNotification(rec.solicitanteId, {
+              type: 'task_status',
+              title: d.estado === 'aprobada' ? 'Solicitud de reposición aprobada' : 'Solicitud de reposición rechazada',
+              message: d.estado === 'aprobada'
+                ? `Tu solicitud de reposición de ${rec.articuloNombre} fue aprobada. Ya puedes crear la tarea en WWP.`
+                : `Tu solicitud de reposición de ${rec.articuloNombre} fue rechazada.${d.comentarioAprobador ? ' Motivo: '+d.comentarioAprobador : ''}`,
+              relatedTaskId: null,
+              by: por
+            });
+          }
+          if (d.estado === 'pendiente_aprobacion') {
+            // Notificar a admins
+            const _admins2 = loadAuthUsers().filter(u => u.role === 'admin');
+            _admins2.forEach(adm => {
+              createNotification(adm.id, {
+                type: 'task_assigned',
+                title: 'Solicitud de reposición pendiente de aprobación',
+                message: `${rec.solicitanteNombre||rec.solicitanteId} envió a aprobación: ${rec.articuloNombre} (${rec.articuloRef}).`,
+                relatedTaskId: null,
+                priority: rec.urgencia === 'alta' ? 'urgent' : rec.urgencia === 'media' ? 'medium' : 'low',
+                by: rec.solicitanteNombre||rec.solicitanteId
+              });
+            });
+          }
+        } catch(_nE2) { console.error('D5 notify patch error:', _nE2.message); }
+      }
+
+      if (d.comentarioAprobador !== undefined) rec.comentarioAprobador = String(d.comentarioAprobador||'').trim();
+      rec.actualizadoEn = now;
+      list[idx] = rec;
+      saveReposiciones(list);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, reposicion:rec}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+    return;
+  }
+
+  // POST /api/reposicion/:id/crear-tarea — crea tarea WWP tipo free desde una solicitud aprobada
+  if (reqPath.match(/^\/api\/reposicion\/[a-z0-9]+\/crear-tarea$/) && req.method === 'POST') {
+    const _jpRCT = requireJwt(req, res); if (!_jpRCT) return;
+    const _repIdCT = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      const list = loadReposiciones();
+      const idx = list.findIndex(r => r.id === _repIdCT);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
+      const rep = list[idx];
+      if (rep.estado !== 'aprobada') {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Solo se puede crear tarea si la solicitud está aprobada'}));
+        return;
+      }
+      if (rep.tareaWwpId) {
+        res.writeHead(409,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Ya existe una tarea WWP para esta solicitud: '+rep.tareaWwpId}));
+        return;
+      }
+      const now = new Date().toISOString();
+      const tasks = loadWwpTasks();
+      const newTask = {
+        id: wwpId('wt'),
+        seq: nextTaskSeq(),
+        parentId: null,
+        title: `Reposición: ${rep.articuloNombre} (${rep.articuloRef})`,
+        type: 'general',
+        description: `Reposición solicitada por ${rep.solicitanteNombre||rep.solicitanteId}.\nCantidad: ${rep.cantidad}\nUbicación destino: ${rep.ubicacionDestino}\nUrgencia: ${rep.urgencia}\nMotivo: ${rep.motivo||'—'}`,
+        priority: rep.urgencia === 'alta' ? 'urgent' : rep.urgencia === 'media' ? 'medium' : 'low',
+        status: 'pending',
+        assignedTo: d.assignedTo || null,
+        managerId: d.managerId || null,
+        managerName: d.managerName || null,
+        executors: [],
+        assignees: [],
+        odooRef: rep.articuloRef || '',
+        client: '',
+        salesperson: '',
+        deliveryAddress: '',
+        phone: '',
+        location: rep.ubicacionDestino || '',
+        dueDate: d.dueDate || null,
+        actionNote: `Solicitud de reposición #${rep.id}`,
+        requester: rep.solicitanteNombre || rep.solicitanteId,
+        staffStart: null, staffEnd: null, staffFrom: '', staffTo: '', totalHours: null,
+        dependsOnPrev: false, subIndex: null,
+        evidence: [], fotos_guia: [],
+        statusHistory: [{ status:'pending', date:now, by:_jpRCT.name||_jpRCT.email||'Sistema', note:'Creada desde solicitud de reposición' }],
+        createdBy: _jpRCT.name || _jpRCT.email || 'Sistema',
+        createdAt: now, updatedAt: now,
+        // vínculo con la solicitud de reposición
+        reposicionId: rep.id
+      };
+      if (newTask.managerId || newTask.assignedTo) {
+        newTask.status = 'assigned';
+        newTask.statusHistory.push({ status:'assigned', date:now, by:_jpRCT.name||_jpRCT.email||'Sistema', note:'' });
+      }
+      tasks.push(newTask);
+      saveWwpTasks(tasks);
+      // Actualizar la solicitud
+      list[idx].tareaWwpId = newTask.id;
+      list[idx].estado = 'en_proceso';
+      list[idx].actualizadoEn = now;
+      list[idx].historialEstados = list[idx].historialEstados || [];
+      list[idx].historialEstados.push({ estado:'en_proceso', fecha:now, por:_jpRCT.name||_jpRCT.email||'Sistema', nota:'Tarea WWP creada: '+newTask.id });
+      saveReposiciones(list);
+      // Notificar al solicitante
+      try {
+        createNotification(list[idx].solicitanteId, {
+          type: 'task_assigned',
+          title: 'Tarea WWP creada para tu reposición',
+          message: `Se creó la tarea "${newTask.title}" en Workforce Platform para tu solicitud de reposición.`,
+          relatedTaskId: newTask.id,
+          by: _jpRCT.name || _jpRCT.email || 'Sistema'
+        });
+      } catch(_nE3) { console.error('D5 notify crear-tarea error:', _nE3.message); }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, tarea:newTask, reposicion:list[idx]}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
     return;
   }
 
@@ -5132,6 +5747,30 @@ const server = http.createServer(async (req, res) => {
       // y al liberar/reemplazar un auxiliar no quede residual en el campo crudo.
       if (d.auxiliaryAssignees!==undefined) {
         const _aux=Array.isArray(d.auxiliaryAssignees)?d.auxiliaryAssignees:[];
+        // ── S3: Notificar al encargado cuando se libera/reasigna un auxiliar ──
+        try {
+          const _prevAux = Array.isArray(oldTask?.auxiliaryAssignees) ? oldTask.auxiliaryAssignees
+                         : Array.isArray(oldTask?.assignees) ? oldTask.assignees : [];
+          const _liberados = _prevAux.filter(uid => uid && !_aux.includes(uid));
+          if (_liberados.length > 0) {
+            const _managerId = tasks[idx].managerId || oldTask?.managerId;
+            if (_managerId) {
+              const _auxNames = _liberados.map(uid => {
+                const _u = loadAuthUsers().find(u => u.id === uid);
+                return _u ? (_u.name || uid) : uid;
+              }).join(', ');
+              createNotification(_managerId, {
+                type: 'task_assigned',
+                title: 'Auxiliar liberado de tu tarea',
+                message: `${_auxNames} fue liberado de "${tasks[idx].title || taskId}". Revisa si necesitas reasignar.`,
+                relatedTaskId: tasks[idx].id,
+                priority: tasks[idx].priority,
+                dueDate: tasks[idx].dueDate,
+                by: d.by || 'Sistema'
+              });
+            }
+          }
+        } catch(_s3Err) { console.error('S3 staffing notify error:', _s3Err.message); }
         tasks[idx].assignees=_aux;
         tasks[idx].auxiliaryAssignees=_aux;
       }
@@ -5597,6 +6236,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         generatedAt: new Date().toISOString(),
         owner: AGENT_OWNER_EMAIL,
+        owners: AGENT_ALLOWED_EMAIL_LIST,
         agents: state.agentGroup.agents,
         chat: state.agentGroup.chat.slice(-40),
         knowledgePack: state.agentGroup.knowledgePack,
@@ -5630,6 +6270,7 @@ const server = http.createServer(async (req, res) => {
       const includeOdooContext = shouldIncludeOdooForAgentRequest(text);
       const companyContext = await getAgentCompanyContext({ includeOdoo: includeOdooContext });
       const agents = state.agentGroup.agents || getDefaultAgentRoster();
+      const intent = classifyAgentRequestIntent(text);
       const userMsg = {
         id: wwpId('grpchat'),
         role: 'user',
@@ -5651,6 +6292,11 @@ const server = http.createServer(async (req, res) => {
         const pref = 'Gabriel prefiere reportes presentables: resumen ejecutivo, tablas limpias tipo Excel, totales, agrupaciones y texto listo para enviar; no formato de base de datos cruda.';
         if (!state.agentGroup.preferences.includes(pref)) state.agentGroup.preferences.push(pref);
       }
+      if (/robotic|rob[oó]tico|suena.*ia|muy seco|muy formal|natural|humano|conversaci[oó]n/i.test(text)) {
+        const pref = 'Gabriel quiere que la Mesa converse como un equipo humano: responder saludos y preguntas sociales con naturalidad, sin listar capacidades ni repetir plantillas de ayuda.';
+        if (!state.agentGroup.preferences.includes(pref)) state.agentGroup.preferences.push(pref);
+      }
+      const memoryAction = applyAgentMemoryAction(state, intent, jp);
       state.agentGroup.routines = mergeAgentRoutines(state.agentGroup.routines);
       saveProcessAuditorState(state);
 
@@ -5661,10 +6307,15 @@ const server = http.createServer(async (req, res) => {
           const systemPrompt = [
             'Eres el Coordinador de Agentes de Altri Tempi. Moderas un group chat de agentes especializados.',
             AGENT_HUMAN_TONE,
+            'IDENTIDAD: la Mesa de Agentes es un equipo de confianza de Gabriel, no un chatbot. Debe entender mensajes humanos, escritos rapido o desde celular, y convertirlos en acciones utiles.',
+            'Interpreta intencion antes de responder: conversacion, nota rapida, lista, reporte, grafico, faltas del dia, seguimiento humano, consulta en Odoo, mejora de plataforma o documento.',
+            'Si Gabriel dice "anota esto", confirma que quedo anotado y resume la nota. Si dice "agrega esto a X lista", confirma la lista y el contenido. Si pide grafico/rendimiento/faltas, usa tareas y datos disponibles; si falta la fuente, pide solo el dato especifico.',
+            'Tu meta no es contestar por contestar: es simplificar el trabajo de Gabriel, cuidar Workforce Platform, anticipar fricciones y ayudar a que la operacion avance.',
             'APRENDIZAJE CONTINUO: del propio chat extraes lo que debes recordar para SIEMPRE — preferencias de Gabriel, correcciones de tono o formato, datos de negocio, nombres y roles, reglas nuevas. Devuelve esos aprendizajes en el campo "learn" (frases cortas y accionables). No repitas lo que ya está en "learnings". Aplica de inmediato lo aprendido; Gabriel NO debería tener que repetir una instrucción dos veces.',
             'Ya tienes una lista "learnings" con lo aprendido antes: respétala y trátala como reglas vigentes.',
             'Tienes un knowledgePack y fullKnowledgeBase. Tratalos como manual interno obligatorio para todos los agentes.',
             'Tambien eres capaz de conversar con humanos de forma natural. Si Gabriel saluda, agradece, prueba el chat o conversa, responde con calidez, brevedad y utilidad; no generes reportes ni consultes fuentes innecesarias.',
+            'Si Gabriel pregunta "como estas" o algo social, responde esa pregunta como compañero de trabajo en 1-3 frases. No enumeres capacidades ni digas "puedes pedirme..." salvo que Gabriel pregunte que puedes hacer.',
             'Los agentes deben poder pedir informacion a usuarios con tono humano: saludo breve, motivo claro, dato solicitado, urgencia/ETA si aplica y cierre respetuoso. Pueden sonar preocupados, tranquilos o firmes segun la situacion, pero siempre profesionales.',
             'Si el mensaje es ambiguo o conversacional, no inventes una tarea: responde, orienta y ofrece caminos concretos. Si falta informacion, pregunta una sola cosa clara.',
             'Tu regla principal: responde 100% la solicitud exacta de Gabriel. No agregues temas de dashboard, tareas vencidas, evidencias, auditoria o recomendaciones si Gabriel no los pidio.',
@@ -5677,6 +6328,8 @@ const server = http.createServer(async (req, res) => {
             'No respondas como todos a la vez si no hace falta. Evita ruido y duplicacion.',
             'Las consultas internas deben ser invisibles para Gabriel excepto la lista breve de agentes consultados. La respuesta final debe ser el entregable listo.',
             'Si hace falta un dato para responder, primero intenta consultar la fuente disponible. Si aun falta, declara la limitante exacta y pide solo ese dato.',
+            'Para preguntas por usuario, responsables, rendimiento, faltas del dia, carga de trabajo o periodo actual, usa opsPeople, opsWorkload y opsDecisions de Workforce Platform. No pidas export si esos datos ya estan en el contexto.',
+            'Si Gabriel pide un periodo historico especifico y el contexto no cubre ese periodo completo, entrega primero lo disponible y al final pide el rango/export faltante de forma concreta.',
             'Si la solicitud dice "consulta en Odoo", usa el contexto o reportes Odoo entregados. No reemplaces la solicitud por un resumen operativo.',
             'Si detectas que falta una especialidad recurrente o necesaria, crea un agente nuevo con id, avatar elegante, nombre, especialidad y descripcion. Debe quedar especializado y permanente.',
             'Los agentes no desaparecen: se especializan. Las tareas diarias y rutinas periodicas estan vacias por ahora y no debes asignarlas todavia.',
@@ -5689,14 +6342,24 @@ const server = http.createServer(async (req, res) => {
           // El systemPrompt ya codifica las reglas; aquí solo va lo esencial del momento.
           const payloadContext = {
             request: text,
+            intent,
+            memoryAction,
             isConversational: isConversationalAgentMessage(text),
             agents: agents.map(a => ({ id:a.id, name:a.name, specialty:a.specialty })),
             preferences: (state.agentGroup.preferences || []).slice(-8),
             learnings: (state.agentGroup.learnings || []).slice(-25),
+            memory: {
+              recentNotes: (state.agentGroup.memory?.notes || []).slice(-12),
+              lists: Object.fromEntries(Object.entries(state.agentGroup.memory?.lists || {}).slice(-8).map(([k, v]) => [k, (v || []).slice(-8)]))
+            },
             recentChat: state.agentGroup.chat.slice(-5).map(m => ({ role:m.role, text:(m.text||'').slice(0,400) })),
             odooAvailable: !!(companyContext && companyContext.odoo && companyContext.odoo.ok),
             specialReports,
             opsSummary: Object.keys(specialReports).length ? null : report.summary,
+            opsWorkload: Object.keys(specialReports).length ? [] : (report.workload || []).slice(0, 30),
+            opsPeople: Object.keys(specialReports).length ? [] : (report.people || []).slice(0, 30),
+            opsDecisions: Object.keys(specialReports).length ? [] : (report.decisions || []).slice(0, 20),
+            opsNextActions: Object.keys(specialReports).length ? [] : (report.nextActions || []),
             currentDate: new Date().toISOString()
           };
           const response = await fetch('https://api.openai.com/v1/responses', {
@@ -5719,7 +6382,7 @@ const server = http.createServer(async (req, res) => {
           const out = payload.output_text
             || (payload.output || []).flatMap(o => o.content || []).map(c => c.text || '').join('\n').trim()
             || '';
-          result = JSON.parse(out.replace(/^```json\s*/i, '').replace(/```$/,'').trim());
+          result = parseAgentAiResult(out, result);
         } catch(e) {
           ai = false;
           result = fallbackAgentGroupReply(text, agents, report, companyContext, specialReports);
@@ -5781,6 +6444,7 @@ const server = http.createServer(async (req, res) => {
         ok:true,
         generatedAt: new Date().toISOString(),
         owner: AGENT_OWNER_EMAIL,
+        owners: AGENT_ALLOWED_EMAIL_LIST,
         agents: state.agentGroup.agents,
         chat: state.agentGroup.chat.slice(-40),
         knowledgePack: state.agentGroup.knowledgePack,
@@ -5858,6 +6522,7 @@ const server = http.createServer(async (req, res) => {
         ok:true,
         generatedAt: new Date().toISOString(),
         owner: AGENT_OWNER_EMAIL,
+        owners: AGENT_ALLOWED_EMAIL_LIST,
         agents: state.agentGroup.agents,
         chat: state.agentGroup.chat.slice(-40),
         knowledgePack: state.agentGroup.knowledgePack,
@@ -6289,18 +6954,18 @@ const server = http.createServer(async (req, res) => {
         {
           id: 'DOC-FLUJO-GERENCIA-AUDITORIA',
           title: 'Manual completo de gerencia, auditoria y mejora continua',
-          audience: 'Gabriel, gerencia, auditor de procesos y encargados',
+          audience: 'Usuarios ejecutivos autorizados, gerencia, auditor de procesos y encargados',
           status: 'terminado',
           purpose: 'Definir como se supervisa la operacion, se revisan recomendaciones, se solicitan documentos y se aprueban mejoras.',
           scope: 'Aplica a Dashboard, Agente Gerente de Operaciones, Auditor Codex, recomendaciones y documentos.',
           roles: [
             'Gerente de Operaciones Claude: analiza avance operativo y seguimiento.',
             'Auditor Codex: documenta, audita, recomienda y conversa sobre procesos.',
-            'Gabriel: aprueba o rechaza recomendaciones y solicita cambios a Codex.',
+            'Usuarios ejecutivos autorizados: aprueban o rechazan recomendaciones y solicitan cambios a Codex.',
             'Encargados: ejecutan acciones correctivas en tareas.'
           ],
           prerequisites: [
-            'Acceso con usuario gsanchez@altritempi.com.do para el Auditor.',
+            'Acceso con usuario ejecutivo autorizado para la Mesa de Agentes y Auditor.',
             'Datos de tareas actualizados.',
             'OPENAI_API_KEY configurada para analisis y chat IA.',
             'ANTHROPIC_API_KEY configurada para parte del gerente si aplica.'
@@ -6413,6 +7078,7 @@ const server = http.createServer(async (req, res) => {
         ok:true,
         generatedAt:new Date().toISOString(),
         owner:AGENT_OWNER_EMAIL,
+        owners:AGENT_ALLOWED_EMAIL_LIST,
         companyContext,
         summary,
         overdueTasks,
@@ -7356,6 +8022,48 @@ const server = http.createServer(async (req, res) => {
       tasks[idx].items[itemIdx].damageType = damageType;
       tasks[idx].updatedAt=new Date().toISOString();
       saveWwpTasks(tasks);
+      // ── S1: Puente Averías — crear registro automático cuando un artículo se marca como dañado ──
+      if (condition === 'damaged') {
+        try {
+          const _task = tasks[idx];
+          const _item = _task.items[itemIdx];
+          const _avList = loadAverias();
+          // Evitar duplicado: si ya existe una avería para este itemId + taskId, no crear otra
+          const _alreadyExists = _avList.some(a => a.wwpTaskId === taskId && a.wwpItemId === itemId);
+          if (!_alreadyExists) {
+            const _avNow = new Date().toISOString();
+            const _avId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+            const _avComentario = [
+              damageType || '',
+              _item.description || _item.name || '',
+              `Tarea: ${_task.title || taskId}`,
+              _task.odooRef ? `Ref: ${_task.odooRef}` : ''
+            ].filter(Boolean).join(' · ');
+            const _avRec = {
+              id: _avId,
+              productId: _item.productId || null,
+              ref: _item.ref || _item.item_id || '',
+              name: _item.name || _item.description || '',
+              barcode: _item.barcode || '',
+              image: _item.image || null,
+              location: _task.location || '',
+              qty: parseInt(_item.qty) || 1,
+              comentario: _avComentario,
+              status: 'Recibido',
+              statusHistory: [{ status: 'Recibido', date: _avNow, nota: _avComentario }],
+              createdAt: _avNow, updatedAt: _avNow,
+              // Campos de trazabilidad WWP
+              wwpTaskId: taskId,
+              wwpTaskTitle: _task.title || '',
+              wwpItemId: itemId,
+              wwpTaskType: _task.type || '',
+              wwpOdooRef: _task.odooRef || ''
+            };
+            _avList.unshift(_avRec);
+            saveAverias(_avList);
+          }
+        } catch(_avErr) { console.error('S1 notifyDamage error:', _avErr.message); }
+      }
       broadcastWwpTasks('items_updated', tasks[idx], { taskId, itemId });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, condition, damageType}));
@@ -8079,7 +8787,7 @@ const server = http.createServer(async (req, res) => {
     '.env.txt', '.env', '.env.local', '.env.production', '.jwt-secret',
     'wwp-users-auth.json', 'wwp-sessions.json', 'wwp-audit.json',
     'wwp-roles.json', 'wwp-tasks.json', 'wwp-lunch-breaks.json',
-    'wwp-inspecciones.json', 'averias.json', 'package.json',
+    'wwp-inspecciones.json', 'averias.json', 'reposiciones.json', 'package.json',
     'package-lock.json', '.gitignore'
   ]);
   const _ALLOWED_EXT = new Set([
