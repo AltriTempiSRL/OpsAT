@@ -113,6 +113,34 @@ rutinas de seguimiento, supervisión y retroalimentación.
     falta accesorio/herraje/manual/módulo · hay daño sin decisión · empaque insuficiente ·
     ruta no validada · no hay equipo/personas suficientes · pieza mal asignada a orden ·
     duda de referencia/color/acabado/tela · composición incompleta · pieza en cuarentena.
+25. **Odoo como mapa operativo** 📍: Odoo no es solo base de datos de inventario. Es el mapa
+    del movimiento físico. Cada pieza debe tener historia en Odoo: qué es · dónde está · de dónde
+    vino · para qué orden está reservada · quién la movió · cuándo · por qué · en qué condición.
+    Si algo se mueve físicamente y no hay transferencia en Odoo, se crea inventario fantasma.
+    **Separación Odoo vs WWP:**
+    - **Odoo** = fuente de verdad para: producto, variante, referencia, SKU, stock, ubicación,
+      reserva, pick, delivery order, recepción, devolución, transferencia interna, lote, serial,
+      paquete, historial de movimientos, disponibilidad, reabastecimiento, valor de inventario, scrap.
+    - **WWP** = capa de ejecución humana: asignación de personas, tareas, subtareas, evidencia
+      fotográfica, comentarios operativos, responsables, estados de trabajo, carga por persona,
+      seguimiento de empaque, avisos, validación operativa, alertas de piso.
+    - Regla: Odoo dice **dónde está y qué estado logístico** tiene. WWP dice **quién está haciendo
+      el trabajo, con qué evidencia y qué falta para cerrar.**
+    - **No duplicar verdades**: si Odoo dice una cosa y WWP dice otra, Pit investiga la causa antes
+      de recomendar. El piso es la realidad; Odoo debe reflejarla.
+26. **Tipos de stock que Pit debe separar** 📍:
+    - **Físico**: lo que realmente está en una ubicación.
+    - **Disponible**: lo que se puede usar/vender sin reservar.
+    - **Reservado**: apartado para una orden específica.
+    - **En tránsito**: salió de una ubicación pero no llegó a otra.
+    - **Pronosticado (forecast)**: lo que quedará después de entradas y salidas futuras.
+    - **En pérdida / scrap**: ajustado, dañado, desechado.
+    - Pit NUNCA toma decisiones basado solo en "on hand". Para prometer, despachar o priorizar,
+      revisa disponibilidad, reservas, entregas pendientes y forecast.
+    - **Errores comunes a evitar**: on hand ≠ disponible · reservado ≠ entregado ·
+      delivery ready ≠ delivery done · picking ≠ despacho final · scrap ≠ avería ·
+      devolución ≠ nota de crédito · paquete ≠ packaging · lote ≠ serial ·
+      Odoo validado ≠ cliente conforme.
 20. **Lenguaje ejecutivo — frases de Pit**: preferir "El cuello está en…" / "El riesgo principal
     es…" / "No recomiendo automatizar esto todavía porque…" / "Primero midamos la línea base…" /
     "La acción prioritaria es…" / "Esto requiere decisión del admin…" / "No hay datos suficientes
@@ -170,8 +198,81 @@ rutinas de seguimiento, supervisión y retroalimentación.
 - **Cadencia de supervisión** 📍: barrido diario (vencidas/atascadas/por validar/sin encargado) →
   huddle corto con encargados → seguimiento de los hallazgos de ayer → retro semanal con tendencia
   de KPIs y 1-2 acciones de mejora (Kaizen) priorizadas.
+- **Diseño de ubicaciones Odoo para Altri Tempi** 📍 (recomendado por Pit):
+  `WH/Recepción` · `WH/Inspección` · `WH/Cuarentena` · `WH/Cuarentena/Avería` · `WH/Cuarentena/Faltante` ·
+  `WH/Cuarentena/Humedad` · `WH/Stock` · `WH/Stock/Tapicería` · `WH/Stock/Madera` · `WH/Stock/Mármol` ·
+  `WH/Stock/Vidrio` · `WH/Stock/Outdoor` · `WH/Stock/Iluminación` · `WH/Stock/Decoración Frágil` ·
+  `WH/Stock/Boffi-Proyectos` · `WH/Showroom` · `WH/Showroom/Reservado` · `WH/Staging` ·
+  `WH/Staging/Ruta 1` · `WH/Staging/Ruta 2` · `WH/Staging/Instalación` · `WH/Staging/Pendiente Reempaque` ·
+  `WH/Packing` · `WH/Salida` · `WH/Tránsito` · `WH/Devoluciones` · `WH/Reparación` · `WH/Scrap`.
+  Regla: ninguna pieza premium sin ubicación. "Está en almacén" no es ubicación.
+- **Flujos de recepción y despacho por nivel de riesgo** 📍:
+  - *1 paso*: directo a stock. Solo para artículos de bajo riesgo y alta rotación.
+  - *2 pasos*: recepción → zona intermedia → stock. Para revisar antes de guardar.
+  - *3 pasos recepción*: recepción → QC → stock. **Obligatorio para** vidrio, mármol, tapicería clara, cuero, iluminación, Boffi, piezas custom, importaciones de alto valor, empaque golpeado.
+  - *3 pasos despacho*: Pick → Pack → Ship. **Preferido para muebles premium** — control en cada etapa.
+  - *Pit favorece 2-3 pasos* para cualquier pieza H3-H5 o de alto valor. El 1 paso es para accesorios de bajo riesgo.
+- **Gates de calidad (QC) obligatorios** 📍: activar control de calidad en Odoo para estas
+  categorías antes de mover a stock disponible: vidrio · mármol · espejos · tapicería clara ·
+  cuero · iluminación · decoración frágil · cerámica · cristal · Boffi · muebles customizados ·
+  piezas de showroom · piezas con empaque golpeado · importaciones de alto valor.
+  Tipos de check útiles: foto de empaque · foto de esquinas · pass/fail condición ·
+  checklist de accesorios/herrajes · instrucciones por material · comentario de excepción.
+- **Gestión de backorders y entregas parciales** 📍:
+  - Permitir entrega parcial solo si: cliente/ventas lo aprueban · la pieza parcial tiene sentido ·
+    no rompe set o composición · se informa el faltante · se genera backorder · se actualiza promesa.
+  - Bloquear si: es set indivisible · proyecto modular que requiere instalación completa · falta
+    pieza estructural · cliente espera completo · puede generar daño por instalación parcial.
+  - Backorder requiere: motivo · responsable · fecha estimada · comunicación a ventas · alerta en dashboard.
+- **Scrap vs ajuste vs devolución** 📍:
+  - *Scrap*: producto dañado, inutilizable. Requiere motivo, evidencia, responsable y aprobación si el valor es alto.
+  - *Ajuste*: corrige diferencia entre Odoo y conteo físico. No oculta problemas de proceso.
+  - *Devolución*: retorno desde cliente. Requiere reverse transfer + decisión de destino (stock/reparación/scrap).
+  - Pit NO permite usar ajustes para ocultar movimientos no registrados.
+- **Conteos cíclicos — cadencia por riesgo** 📍:
+  - Diario: staging, salida, cuarentena crítica.
+  - Semanal: productos de alto movimiento.
+  - Mensual: piezas premium y showroom.
+  - Trimestral: zonas generales.
+  - Por evento: después de mudanza, importación, daño, devolución o auditoría.
+- **Quick wins Odoo para Altri Tempi** 📍: etiquetar ubicaciones físicas · crear WH/Cuarentena ·
+  separar staging por ruta · habilitar Barcode en picking · limpiar productos duplicados ·
+  exigir ubicación obligatoria · crear reporte de piezas sin ubicación · dashboard de deliveries
+  listas · reporte de backorders · control de devoluciones con reverse transfer ·
+  materiales de empaque como productos internos · conteo cíclico de showroom ·
+  regla de QC para vidrio y mármol · conectar averías WWP con Odoo.
+- **Señales de mala configuración Odoo** 📍: productos duplicados · variantes mezcladas ·
+  referencias inconsistentes · stock negativo · muchas piezas sin ubicación · delivery orders
+  pendientes aunque ya se entregó · físico existe pero Odoo no lo tiene · Odoo disponible
+  pero físico no aparece · scrap usado como basurero · picks hechos por WhatsApp ·
+  devoluciones fuera de Odoo · ajustes frecuentes sin causa documentada.
+- **Preguntas de Pit antes de diseñar un flujo Odoo** 📍: ¿qué problema se quiere resolver? ·
+  ¿qué módulo participa? · ¿qué documento inicia el flujo? · ¿qué ubicación de origen/destino
+  existe? · ¿qué producto o categoría aplica? · ¿qué rol ejecuta y valida? · ¿qué dato viene
+  de Odoo y qué de WWP? · ¿qué evidencia se necesita? · ¿qué excepción puede ocurrir? ·
+  ¿qué estado bloquea? · ¿qué reporte medirá el resultado? · ¿qué no debe automatizarse todavía?
+- **KPIs Odoo para Pit** 📍: exactitud de inventario · piezas sin ubicación · piezas en cuarentena ·
+  tiempo en cuarentena · picks pendientes/parciales/bloqueados · deliveries listas no despachadas ·
+  backorders · devoluciones por causa · scrap por etapa · stock negativo · tiempo recepción→stock ·
+  movimientos físicos con transferencia registrada · picks por Barcode · ajustes con causa documentada.
 
 ## 5. Patrones reutilizables
+
+### Patrones Odoo
+- **SOP recepción Odoo** — Objetivo: garantizar que todo ingreso físico quede registrado en Odoo antes de mover a almacén. Entrada: camión confirmado en puerta. Pasos: (1) abrir PO/BO en Odoo → (2) validar cantidades con albarán del proveedor → (3) fotografiar daños si H3+ → (4) validar recepción parcial o total en Odoo → (5) crear backorder si falta mercancía → (6) imprimir etiquetas de ubicación → (7) putaway a zona correcta. Salida: stock disponible en ubicación asignada, LOT/SN registrado, backorder documentado con fecha esperada. KPI: tiempo recepción→stock disponible ≤ 2h.
+- **SOP picking Odoo** — Objetivo: 0 errores de referencia/cantidad en la preparación. Entrada: orden de entrega validada en Odoo. Pasos: (1) imprimir o abrir picking en tablet → (2) confirmar ubicación origen por Barcode o manual → (3) registrar cantidad real tomada → (4) marcar lote/serial si aplica → (5) si falta unidad, crear backorder con motivo → (6) llevar a zona de staging con etiqueta de orden. Salida: movimiento confirmed en Odoo, cantidad reservada liberada, backorder si hubo faltante. KPI: tasa de completitud picking ≥ 97%.
+- **SOP packing Odoo-WWP** — Objetivo: evidencia física y digital sincronizada antes del despacho. Entrada: pick completado en staging. Pasos: (1) registrar fotos en WWP (tarea de empaque) → (2) crear paquete en Odoo con contenido → (3) verificar peso/dimensiones si ruta lo requiere → (4) generar etiqueta de paquete → (5) validar operación de pack en Odoo. Salida: paquete registrado, tarea WWP evidenciada, listo para delivery. KPI: % empaques con foto en WWP ≥ 95%.
+- **SOP delivery (despacho)** — Objetivo: cero devoluciones por error de dirección/artículo. Entrada: pack listo + orden de entrega. Pasos: (1) verificar dirección vs. orden → (2) cargar en camión confirmando paquetes → (3) validar delivery en Odoo → (4) generar remisión/proof of delivery → (5) cerrar tarea de despacho en WWP con firma/foto cliente. Salida: delivery validado en Odoo, stock sale del sistema, tarea WWP cerrada con evidencia. KPI: entregas sin incidente ≥ 98%.
+- **SOP devolución Odoo** — Objetivo: que toda devolución de cliente quede trazada y no cree stock fantasma. Entrada: cliente notifica o aparece en puerta. Pasos: (1) verificar orden original en Odoo → (2) crear reverse transfer (RET) desde la entrega original → (3) inspección física con fotos → (4) definir destino: WH/Stock si es A, WH/Cuarentena si dañado, WH/Scrap si irrecuperable → (5) validar reverse transfer → (6) iniciar NC o nota de crédito si procede. Salida: stock actualizado, motivo documentado, decisión comercial iniciada. KPI: tiempo devolución→decisión comercial ≤ 48h.
+- **SOP scrap Odoo** — Objetivo: bajar formalmente el inventario sin crear diferencias contables ocultas. Entrada: pieza confirmada como irrecuperable (foto + aprobación). Pasos: (1) documentar evidencia fotográfica → (2) obtener aprobación del responsable → (3) abrir orden de scrap en Odoo con motivo (daño transporte, defecto fábrica, accidente almacén) → (4) validar → (5) conservar etiqueta física o registrar número de serie scrapeado. Salida: stock reducido, movimiento contable generado, causa registrada. KPI: scrap documentado con causa 100%.
+- **SOP conteo cíclico Odoo** — Objetivo: mantener exactitud de inventario sin parar operaciones. Entrada: calendario de conteo (ver cadencias §4). Pasos: (1) generar ajuste de inventario en Odoo para ubicaciones del día → (2) auxiliar cuenta físico sin ver Odoo → (3) registrar conteo → (4) Odoo muestra diferencias → (5) para diferencias >$5000 o >2u, re-contar antes de validar → (6) validar ajuste con motivo → (7) investigar causas si >2 diferencias en misma ubicación. Salida: inventario teórico alineado, diferencias documentadas. KPI: exactitud inventario ≥ 98%, diferencias >2% en semana = alerta.
+- **Batch picking (accesorios/decoración)** — Cuando usar: ≥5 órdenes con artículos similares, peso <10kg por artículo, zona de almacén compacta. Cómo: agrupar picks por zona de almacén → un recorrido, varias órdenes. Riesgo en muebles: mezclar piezas de distintas órdenes (H3+ NUNCA en batch). Ganancia: -40% tiempo de recorrido.
+- **Cluster picking** — Cuando usar: decoración pequeña o accesorios, clasificación inmediata por orden en bins etiquetados. No usar: artículos >50cm, vidrio, mármol, cualquier H3+. Ganancia: menor error de separación vs. batch puro.
+- **Wave picking** — Cuando usar: múltiples rutas de entrega el mismo día (ej. ruta AM + ruta PM + instalaciones). Cómo: crear wave por ruta → asignar pickers por ola → staging diferenciado por horario. Impacto: reduce congestión de staging y errores de carga.
+- **Integración Odoo-WWP** — Qué lee WWP de Odoo: delivery orders para panel de despacho, RET para devoluciones, stock disponible para alertas de reposición. Qué puede enviar WWP hacia Odoo (vía coordinador): actualizar estado de tarea, registrar evidencia de daño como avería. Qué requiere autorización humana antes de tocar Odoo: crear scrap, validar devolución, ajustar inventario. Regla de oro: WWP es evidencia humana, Odoo es el libro mayor logístico — nunca reemplazar uno con el otro.
+- **Putaway rules por material** — Vidrio/mármol → WH/Stock/Zona-Vidrio (vertical, espuma entre piezas). Cuero/tela → WH/Stock/Zona-Tela (horizontal, sin peso encima, lejos de humedad). Boffi/proyectos → WH/Proyectos/[código-proyecto] (acceso restringido, etiqueta proyecto). Accesorios pequeños → WH/Stock/Mezzanine (bins por colección). Devueltos → WH/Cuarentena (hasta inspección). Scrap → WH/Scrap (no mezclar con stock activo).
+- **Reservas strategy** — Cuándo reservar manualmente: H3+ confirmados en proyecto (reservar al recibir, no al agendar entrega). Cuándo dejar automático: accesorios con stock amplio. Cuándo bloquear la reserva automática: artículos MTO (Make to Order) — reservar solo cuando el proveedor confirma fecha. Regla: nunca confirmar fecha de entrega al cliente sin verificar forecast en Odoo (on hand − reservas actuales = disponible real).
+
 - **Barrido operativo** 🌐 — un script que tira tareas + workload + usuarios y clasifica:
   vencidas / atascadas / por validar / sin encargado / sobrecarga. Reutilizable donde haya API de tareas.
 - **Resumen ejecutivo primero** 🌐 — 3-5 líneas de lo crítico antes de cualquier tabla.
@@ -333,6 +434,20 @@ rutinas de seguimiento, supervisión y retroalimentación.
 - **Entrega perfecta de muebles**: pieza correcta + cliente correcto + completa + sin daño + a tiempo + instalación correcta si aplica + evidencia antes/después + sin reclamo + recepción conforme.
 - **Picking avanzado**: validación que va más allá del SKU — acabado, color, tela, módulo (izq/der), orden, cliente, avería, estado.
 - **Líder de maniobra**: persona responsable de dirigir el movimiento de una pieza H4/H5.
+- **Lote**: grupo de productos con trazabilidad común (mismo embarque, proveedor, fecha). Útil para investigar si varios daños vienen del mismo contenedor.
+- **Serial**: identificador único de una unidad específica. Para piezas de alto valor, únicas o con garantía.
+- **Paquete (Odoo)**: contenedor físico con uno o más productos. Puede representar caja, crate, pallet, set de accesorios.
+- **Putaway**: regla que dirige productos a la ubicación correcta al recibirlos. Ej: vidrio → zona vidrio vertical; Boffi → zona proyecto.
+- **Removal strategy**: regla para decidir desde dónde sacar inventario (FIFO, FEFO, LIFO, ubicación más cercana).
+- **MTO (Make to Order)**: reabastecer solo bajo pedido confirmado. Aplica a muebles especiales, configuraciones custom, Boffi, importaciones dedicadas.
+- **Backorder**: entrega pendiente creada cuando no se puede completar toda la cantidad de una orden. Requiere motivo, fecha y seguimiento.
+- **Scrap**: baja formal de inventario inutilizable. Decisión administrativa — requiere evidencia y aprobación.
+- **Reverse transfer**: operación Odoo para procesar la devolución física de un cliente. Precede a la nota de crédito si ya hubo factura.
+- **Batch picking**: un picker atiende varias órdenes en un recorrido. Útil para accesorios pequeños; riesgoso para piezas grandes o H4/H5.
+- **Cluster picking**: batch con clasificación inmediata por orden usando contenedores/bins. Útil para decoración; no recomendable para sofás o vidrio.
+- **Wave**: agrupación de operaciones por ola (ruta mañana, ruta tarde, instalaciones). Coordina personas, staging, camión y horario.
+- **Forecast (pronosticado)**: stock proyectado considerando on hand + entradas futuras − salidas futuras. Usar antes de prometer disponibilidad.
+- **On hand**: cantidad físicamente en almacén. No es lo mismo que disponible (puede haber reservas).
 
 ## 8. Aprendizajes del chat
 - Gabriel opera con **urgencia real** (reuniones, decisiones del día) → priorizar lo accionable. 🌐
@@ -479,4 +594,21 @@ Aprendizajes para [Agente]:
 Aplicacion:
 - [Proyecto, area o alcance]
 ```
+
+## 6. Decisiones (log) — 2026-06-12 enriquecimiento desde INFORMACIÓN COMPLEMENTARIA PARA PIT 3.txt
+
+- **2026-06-12 · Enriquecimiento Pit desde documento Odoo ERP funcional (2570+ líneas)**: Se analizó
+  el documento completo de conocimiento Odoo funcional preparado para Pit. Decisión: agregar a Pit
+  (no crear agente nuevo) porque es conocimiento de diseño de proceso y decisión operativa — dominio
+  de Pit, no de Ron (que hace consultas de datos) ni de Mark (que valida UI). División confirmada:
+  **Pit diseña los flujos Odoo → Ron consulta los datos → Mark valida la implementación en WWP**.
+  Contenido agregado: §3 Std 25 (Odoo como mapa operativo) + §3 Std 26 (tipos de stock y errores
+  comunes) + §4 (diseño de ubicaciones, flujos 1-2-3 pasos, QC gates, backorders, scrap, conteos
+  cíclicos, quick wins, señales de mala configuración, preguntas de diseño, KPIs Odoo) + §5 (SOPs
+  recepción/picking/packing/delivery/devolución/scrap/conteo, batch/cluster/wave picking,
+  integración Odoo-WWP, putaway rules, reservas strategy) + §7 (15 nuevos términos: lote, serial,
+  paquete, putaway, removal strategy, MTO, backorder, scrap, reverse transfer, batch picking,
+  cluster picking, wave, forecast, on hand, QC). *Por qué:* Gabriel pidió evaluar si crear agente
+  nuevo o agregar a Pit; análisis de dominio confirmó que es conocimiento del gerente de operaciones.
+  Convertido a memoria accionable; no se pegó el texto completo.
 
