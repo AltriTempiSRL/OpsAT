@@ -15,6 +15,8 @@ Cuando un agente sea invocado, su informacion persistente no debe quedar solo en
 - Mark: `mark.md`
 - Pit: `pit.md`
 - Ron: `ron.md`
+- David: `david.md`
+- QA-WWP: `qa-wwp.md`
 - Nuevo agente: `<nombre-del-agente>.md`, creado desde `_PLANTILLA-EXPEDIENTE.md`
 
 ## Antes de actuar
@@ -48,3 +50,15 @@ No guardar ruido temporal, errores descartados, datos sensibles innecesarios ni 
 ## Regla para Codex/Claude
 
 Si Gabriel pide "invoca a Mark", "que Pit revise", "consulta con Ron" o equivalente, el asistente debe tratar esta carpeta como memoria canónica de agentes. Si descubre informacion durable, debe escribirla en el expediente del agente correspondiente, no solo responder en el chat.
+## Regla permanente: agregar memoria desde texto
+
+Cuando Gabriel diga **"agrega a memoria de X agente"**, **"guarda esto en el cerebro de X"**, **"que X aprenda esto"** o una instruccion equivalente, y pegue texto, articulo, fragmento de libro, nota o documento:
+
+1. Identificar el agente destino y abrir su expediente canonico.
+2. Leer el material disponible.
+3. Convertir el material en aprendizaje operativo, no en copia completa.
+4. Guardar: fecha, fuente, resumen, aprendizajes, reglas practicas y aplicacion.
+5. Para articulos/libros largos, resumir y evitar copiar contenido extenso.
+6. Si aplica a varios agentes, escribir memorias separadas segun la especialidad de cada uno.
+7. Confirmar al final en que archivo se guardo.
+
