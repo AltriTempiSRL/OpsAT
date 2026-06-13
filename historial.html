@@ -5767,7 +5767,7 @@ function checkStoredSession() {
         // Token válido: mostrar con permisos cacheados y refrescar en segundo plano
         // para que cambios de rol (ej. nuevas secciones) se apliquen sin re-login
         if (isHistorialUser(_user)) { setHistorialUser(); }
-        enterApp(); showScreen('screen-app'); _wwpEntered = true;
+        enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
         doRefresh().then(function(ok) {
           if (ok) {
             // Re-aplicar con permisos frescos del servidor
@@ -5780,7 +5780,7 @@ function checkStoredSession() {
       doRefresh().then(function(ok) {
         if (ok) {
           if (isHistorialUser(_user)) { setHistorialUser(); }
-          enterApp(); showScreen('screen-app'); _wwpEntered = true;
+          enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
         } else { showScreen('screen-login'); }
       });
       return;
@@ -5805,7 +5805,7 @@ async function doLogin() {
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
     if (isHistorialUser(_user)) { setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true;
+    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
   } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
 }
 
@@ -12456,7 +12456,7 @@ async function impersonateUser(id){
     setHeaderAvatar(_user);
     _wwpEntered=false;
     if(isHistorialUser(_user)){ setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true;
+    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
@@ -12472,7 +12472,7 @@ async function stopImpersonate(){
     setHeaderAvatar(_user);
     _wwpEntered=false;
     if(isHistorialUser(_user)){ setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true;
+    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
