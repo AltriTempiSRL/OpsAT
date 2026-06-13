@@ -43,20 +43,25 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 - **Colores**: variables CSS semánticas (`--green-bg`, `--amber-text`, etc.), nunca hex hardcodeados
 - **Tema**: clave localStorage `wwp_theme`, atributo `data-theme` en `<html>`
 
-## Mark — consultor independiente CSS/UI, QA funcional y UX operativa
+## Agentes — cerebro canónico fuera del proyecto
 
-Mark es el especialista independiente de CSS/UI, QA funcional, experiencia de usuario y flujo operativo del proyecto. No pertenece a la Mesa de Agentes ni al chat operativo; es una regla de trabajo para cualquier cambio visual o desarrollo que deba probarse antes de producción.
+Los agentes (Mark, Pit, Ron, David, QA-WWP, Alpha) **no guardan conocimiento en este proyecto**.
+Su cerebro único, compartido entre Claude y Codex, vive en:
 
-- Todo cambio que toque CSS, layout, responsive, densidad visual, estados, colores, tarjetas, tablas, modales, dashboards o componentes móviles debe consultarse mentalmente con Mark antes de implementarse.
-- Todo desarrollo que afecte botones, permisos, formularios, estados, errores, flujos, tareas, evidencia, reasignación, validación, chat, Odoo o experiencia de usuario puede pedirse como `Mark, prueba este desarrollo`.
-- Mark prioriza claridad operativa, jerarquía visual, escaneo rápido, bajo ruido, accesibilidad táctil y compatibilidad desktop/tablet/iOS/Android.
-- Mark valida funcionalidad, flujo por rol, estados vacíos/cargando/error/éxito, copy, responsive móvil y riesgo de producción.
-- Mark debe emitir decisión clara: `Aprobado para deploy`, `Aprobado con observaciones menores` o `No aprobado para deploy`.
-- Evitar interfaces cargadas: no convertir cada dato en una pastilla/badge si una etiqueta discreta o una columna clara comunica mejor.
-- Badges/pastillas se reservan para estado, alerta, prioridad crítica o acciones. Los metadatos normales deben ser discretos y fáciles de leer.
-- Todo diseño nuevo debe revisarse en móvil: sin solapes, sin texto cortado en botones, con targets táctiles cómodos y contenido que fluya en varias líneas.
+```
+C:\Users\Gabriel Ramirez\Agentes-Estandar\
+```
 
-Mark ahora es además un **subagente real** (`.claude/agents/mark.md`) con **expediente propio** en `agentes-estandar/mark.md` (librería portátil de agentes; ver `agentes-estandar/README.md`). El expediente guarda sus estándares universales, la capa específica del proyecto, patrones reutilizables, decisiones (con fecha y por qué) y aprendizajes de los chats. Antes de cualquier cambio visual se lee ese expediente; al terminar se registra ahí la decisión.
+Antes de actuar como un agente, leer su expediente `<agente>.md` + `_NUCLEO-CARACTER.md` +
+`_PERFIL-GABRIEL.md` y su sección **"No repetir"**. Al terminar, escribir los aprendizajes de
+vuelta ahí, nunca en el proyecto. Ver `Agentes-Estandar\README.md`. Los subagentes de Claude
+(`~/.claude/agents/<agente>.md`) ya apuntan a esa carpeta.
+
+- **Mark** — CSS/UI, QA funcional, UX, diseño visual; decisión explícita de salida a producción.
+- **Pit** — gerente de operaciones (WWP en vivo, cuellos de botella, KPIs, Odoo).
+- **Ron** — analista Odoo/ERP (inventario, picks, devoluciones, trazabilidad).
+- **David** — administración de edificios.
+- **QA-WWP** — auditor de calidad (end-to-end, RBAC, gates HTTP, TDZ).
 
 ## Codex Bridge — reuniones desde este chat
 
@@ -70,23 +75,5 @@ La plataforma expone endpoints seguros para que Codex pueda consultar datos vivo
   - `GET /api/codex/agents/export/tasks.csv` — CSV descargable de tareas filtradas.
 - Estos endpoints no llaman IA. Codex interpreta los datos y genera respuestas, gráficos o archivos desde el chat.
 
-## Invocación de agentes desde este chat
-
-El usuario puede invocar especialistas por nombre en este chat. Estos agentes son independientes de la Mesa de Agentes de la app; trabajan del lado de Codex/chat usando sus expedientes.
-
-- **Mark**: CSS/UI, layout, responsive, densidad visual, móvil, componentes y claridad de interfaz.
-- **Pit**: gerente de operaciones. Analiza Workforce Platform en vivo, vencidas, carga por responsable, cuellos de botella, prioridades y seguimiento.
-- **Ron**: analista Odoo/ERP. Consulta inventario, ubicaciones, órdenes, picks, obsoleto, familias de producto y trazabilidad.
-- **QA-WWP**: auditor de calidad. Prueba flujos end-to-end, caza errores de JS (TDZ), valida RBAC por rol, verifica gates HTTP y confirma deploys en Railway.
-
-Cuando el usuario diga `Mark`, `Pit`, `Ron` o `QA`, tratarlo como permiso para consultar ese especialista. Para trabajos no triviales, usar su definición en `.claude/agents/<nombre>.md` y su expediente en `agentes-estandar/<nombre>.md`. Codex integra la respuesta final, implementa cambios aprobados y despliega si se solicita.
-
-Si una solicitud involucra varios dominios, coordinar varios especialistas:
-
-- Mark valida impacto visual.
-- Pit valida impacto operativo.
-- Ron valida datos/Odoo.
-- QA-WWP prueba y confirma que el desarrollo está listo para producción.
-- Codex integra, cambia código y publica.
-
-Estos agentes usan esta sesión de Codex/chat. No consumen créditos de OpenAI API en Railway salvo que se llame explícitamente a endpoints de la plataforma que usen IA.
+> Nota: el roster y el protocolo de invocación de agentes ahora viven en el cerebro canónico
+> (`C:\Users\Gabriel Ramirez\Agentes-Estandar\`) y en la guía global, no duplicados aquí.

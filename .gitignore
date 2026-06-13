@@ -47,3 +47,6 @@ stress-test.js
 wwp-audit.json
 proxy.js.tmp.*
 .compare-render/
+
+# ── Cerebro de agentes: vive en C:\Users\Gabriel Ramirez\Agentes-Estandar (fuera del proyecto) ──
+agentes-estandar/
