@@ -387,9 +387,11 @@ body:not(.app-shell) .sidebar{display:none}
 .sidebar-backdrop{display:none}
 body.app-shell #app{padding-left:210px}
 body.app-shell #screen-app{padding-left:210px}
-.sidebar-logo{padding:14px 16px 10px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
-.sidebar-logo-title{font-size:12px;font-weight:800;color:#fff;letter-spacing:-.1px;margin:0 0 1px}
-.sidebar-logo-sub{font-size:9px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px}
+.sidebar-brand{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
+.sidebar-brand-text{display:flex;flex-direction:column;gap:3px}
+.sidebar-brand-name{font-size:13px;font-weight:700;color:#fff;letter-spacing:.5px;font-family:Georgia,'Times New Roman',serif;line-height:1}
+.sidebar-brand-sub{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px}
+.sidebar-brand-conn{display:flex;align-items:center;gap:6px}
 .sidebar-group{padding:10px 14px 4px;font-size:9px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:0.8px}
 .nav-item{display:flex;align-items:center;gap:9px;padding:10px 12px 10px 16px;font-size:var(--fs-base);font-weight:500;color:rgba(255,255,255,.65);cursor:pointer;transition:background .12s;border-left:3px solid transparent;border-radius:var(--radius-sm);text-decoration:none;user-select:none;line-height:1.35}
 .nav-item:hover{background:var(--sidebar-item-hover);color:rgba(255,255,255,.95)}
@@ -401,7 +403,6 @@ body.app-shell #screen-app{padding-left:210px}
 .login-logo-icon svg{width:26px;height:26px;stroke:currentColor;color:#fff}
 .sidebar-spacer{flex:1}
 .sidebar-footer{padding:12px 14px;border-top:1px solid rgba(255,255,255,.1);font-size:10px;color:rgba(255,255,255,.3)}
-.sidebar-conn-bar{display:flex;align-items:center;gap:8px;padding:6px 16px 10px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:2px}
 .sidebar-user{font-size:11px;font-weight:700;color:rgba(255,255,255,.75);padding-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sidebar-logout{display:flex;align-items:center;gap:6px;width:100%;padding:7px 10px;margin-bottom:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);color:rgba(255,255,255,.55);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-align:left}
 .sidebar-logout:hover{background:rgba(255,255,255,.14);color:#fff}
@@ -3709,12 +3710,15 @@ body{font-family:var(--font);min-height:100dvh}
 <div class="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
 <nav class="sidebar" onclick="if(event.target.closest('.nav-item'))toggleSidebar(false)">
 
-    <div class="sidebar-logo" style="display:flex;align-items:center;justify-content:center;padding:12px 16px">
-      <img src="/descarga.png" alt="Altri Tempi" style="height:54px;width:54px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.4)">
-    </div>
-    <div class="sidebar-conn-bar">
-      <span class="conn-dot-wrap" id="sheets-status" title="Sheets verificando…"><span class="sim-dot"></span></span>
-      <span class="conn-dot-wrap" id="odoo-status" title="Odoo verificando…"><span class="sim-dot"></span></span>
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">ALTRI TEMPI</span>
+        <span class="sidebar-brand-sub">Dashboard Operativo</span>
+      </div>
+      <div class="sidebar-brand-conn">
+        <span class="conn-dot-wrap" id="sheets-status" title="Sheets verificando…"><span class="sim-dot"></span></span>
+        <span class="conn-dot-wrap" id="odoo-status" title="Odoo verificando…"><span class="sim-dot"></span></span>
+      </div>
     </div>
 
     <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;" style="margin-bottom:4px">
