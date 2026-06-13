@@ -2010,16 +2010,16 @@ body{font-family:var(--font);min-height:100dvh}
 .app-header-sub{font-size:11px;opacity:.7;font-weight:400}
 .app-header-right{display:flex;align-items:center;gap:12px}
 .user-pill{
-  display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);
+  display:flex;align-items:center;gap:8px;background:var(--surface-2);
   padding:6px 12px;border-radius:20px;cursor:pointer;transition:background .2s;
 }
-.user-pill:hover{background:rgba(255,255,255,.2)}
+.user-pill:hover{background:var(--surface-3)}
 .user-avatar{
   width:28px;height:28px;border-radius:50%;background:var(--brand-light);
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white;overflow:hidden;
 }
 .user-avatar img{width:100%;height:100%;object-fit:cover}
-.user-name{font-size:13px;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-name{font-size:13px;font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 .role-badge{
   font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.4px;
 }
@@ -2028,10 +2028,17 @@ body{font-family:var(--font);min-height:100dvh}
 .role-assistant{background:var(--green);color:white}
 
 /* Nav tabs */
+.app-topbar{
+  display:flex;align-items:center;justify-content:flex-end;
+  background:var(--surface);border-bottom:1px solid var(--border-light);
+  padding:6px 16px;gap:8px;position:sticky;top:0;z-index:100;
+}
 .app-nav{
   display:flex;background:var(--surface);border-bottom:1px solid var(--border);
-  padding:0 20px;overflow-x:auto;gap:0;
+  padding:0 20px;overflow-x:auto;gap:0;align-items:flex-end;
+  scrollbar-width:none;position:sticky;top:44px;z-index:99;
 }
+.app-nav::-webkit-scrollbar{display:none}
 .nav-tab{
   padding:12px 18px;font-size:13px;font-weight:600;color:var(--text-3);
   border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;
@@ -2570,7 +2577,7 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* Profile dropdown */
 .profile-menu{
-  position:absolute;right:16px;top:60px;background:var(--surface);
+  position:absolute;right:0;top:calc(100% + 6px);background:var(--surface);
   border:1px solid var(--border);border-radius:var(--radius);
   box-shadow:0 4px 16px rgba(0,0,0,.12),0 1px 4px rgba(0,0,0,.08);min-width:220px;z-index:150;display:none;
 }
@@ -2585,23 +2592,23 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* ── NOTIFICACIONES ──────────────────────────────────────────────── */
 .notif-btn{
-  position:relative;background:rgba(255,255,255,.12);border:none;
+  position:relative;background:transparent;border:none;
   border-radius:50%;width:36px;height:36px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;font-size:18px;
-  transition:background .2s;color:white;flex-shrink:0;
+  transition:background .2s;color:var(--text-2);flex-shrink:0;
 }
-.notif-btn:hover{background:rgba(255,255,255,.22)}
+.notif-btn:hover{background:var(--surface-2)}
 .notif-badge{
   position:absolute;top:-4px;right:-4px;
   background:#ef4444;color:white;font-size:9px;font-weight:800;
   min-width:17px;height:17px;border-radius:9px;
   display:flex;align-items:center;justify-content:center;
-  padding:0 4px;border:2px solid var(--brand-dark);
+  padding:0 4px;border:2px solid var(--surface);
   line-height:1;display:none;
 }
 .notif-badge.show{display:flex}
 .notif-panel{
-  position:fixed;top:56px;right:12px;width:360px;max-height:520px;
+  position:fixed;top:44px;right:12px;width:360px;max-height:520px;
   background:var(--surface);border:1px solid var(--border);
   border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);
   z-index:200;display:none;flex-direction:column;overflow:hidden;
@@ -2950,7 +2957,7 @@ body{font-family:var(--font);min-height:100dvh}
   .app-header-right{gap:8px}
   .user-name,.role-badge{display:none}
   .user-pill{padding:4px;gap:0;background:transparent}
-  .user-pill:hover{background:rgba(255,255,255,.12)}
+  .user-pill:hover{background:var(--surface-2)}
   .user-avatar{width:32px;height:32px;font-size:13px}
   #presence-label{display:none}
   .presence-btn{padding:6px 8px;border-radius:50%;width:36px;height:36px;justify-content:center}
@@ -3692,9 +3699,8 @@ body{font-family:var(--font);min-height:100dvh}
 <!-- ══ SIDEBAR GLOBAL (persistente en Despachos y Workforce Labor) ══ -->
 <nav class="sidebar">
 
-    <div class="sidebar-logo">
-      <div class="sidebar-logo-title">Despachos</div>
-      <div class="sidebar-logo-sub">Trazabilidad · ERP</div>
+    <div class="sidebar-logo" style="display:flex;align-items:center;justify-content:center;padding:12px 16px">
+      <img src="/descarga.png" alt="Altri Tempi" style="height:54px;width:54px;border-radius:6px;object-fit:cover;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.4)">
     </div>
     <div class="sidebar-conn-bar">
       <span class="conn-dot-wrap" id="sheets-status" title="Sheets verificando…"><span class="sim-dot"></span></span>
@@ -4499,52 +4505,6 @@ body{font-family:var(--font);min-height:100dvh}
 </div><!-- /screen-historial -->
 
 <div id="screen-app">
-  <header class="app-header">
-    <div class="app-header-left">
-      <span class="app-header-icon"><i data-lucide="building-2"></i></span>
-      <div>
-        <div class="app-header-title">Workforce Platform</div>
-        <div class="app-header-sub">Altritempi · Operaciones</div>
-      </div>
-    </div>
-    <div class="app-header-right">
-      <!-- Botón Historial (visible solo para admin) -->
-      <button id="btn-back-historial" onclick="goBackToHistorial()" style="display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.22);padding:6px 13px;border-radius:8px;font-weight:600;cursor:pointer;font-size:11px;margin-right:4px">← Historial</button>
-      <!-- Botón Guía de Usuario — URL dinámica según rol, se actualiza en enterApp() -->
-      <a id="btn-guide" href="wwp-guide-staff.html" target="_blank" title="Guía de Usuario" style="background:rgba(255,255,255,.12);color:white;border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,.22)'" onmouseout="this.style.background='rgba(255,255,255,.12)'"><i data-lucide="book-open" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>Guía</a>
-      <!-- Timer de almuerzo (visible solo cuando status=lunch) -->
-      <span id="lunch-timer-wrap" title="Tiempo en almuerzo">
-        <i data-lucide="utensils"></i><span id="lunch-timer-display">00:00</span>
-      </span>
-      <!-- Botón de presencia con dropdown de 4 estados -->
-      <div style="position:relative" id="presence-wrap">
-        <button class="presence-btn active" id="presence-btn" onclick="openPresenceMenu(event)" style="display:none" title="Cambiar estado de presencia">
-          <span class="presence-dot active" id="presence-dot"></span>
-          <span id="presence-label">Activo</span>
-        </button>
-        <div class="presence-menu" id="presence-menu">
-          <div class="presence-option" onclick="setPresence('active')">
-            <span class="p-opt-dot" style="background:#059669"></span> Disponible
-          </div>
-          <div class="presence-option" onclick="setPresence('lunch')">
-            <span class="p-opt-dot" style="background:#d97706"></span> <i data-lucide="utensils" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>En Almuerzo
-          </div>
-          <div class="presence-option" onclick="setPresence('offline')">
-            <span class="p-opt-dot" style="background:#9ca3af"></span> Fuera de Línea
-          </div>
-        </div>
-      </div>
-      <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
-        <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge"></span>
-      </button>
-      <div class="user-pill" onclick="toggleProfileMenu()" id="user-pill">
-        <div class="user-avatar" id="user-avatar"></div>
-        <span class="user-name" id="user-name-hdr">—</span>
-        <span class="role-badge" id="role-badge-hdr"></span>
-        <span style="font-size:10px;opacity:.7">▼</span>
-      </div>
-    </div>
-  </header>
 
   <!-- Notification panel -->
   <div class="notif-panel" id="notif-panel">
@@ -4558,19 +4518,6 @@ body{font-family:var(--font);min-height:100dvh}
     <div class="notif-list" id="notif-list"><div class="notif-empty">Sin notificaciones</div></div>
   </div>
 
-  <!-- Profile dropdown -->
-  <div class="profile-menu" id="profile-menu">
-    <div class="pm-header">
-      <div class="pm-name" id="pm-name"></div>
-      <div class="pm-email" id="pm-email"></div>
-    </div>
-    <div class="pm-item" id="pm-switch-user" onclick="openUserSwitcher()" style="display:none"><i data-lucide="users"></i>Cambiar de usuario</div>
-    <div class="pm-item" id="pm-stop-imp" onclick="stopImpersonate()" style="display:none;color:var(--accent)"><i data-lucide="rotate-ccw"></i>Volver a mi cuenta</div>
-    <div class="pm-item" onclick="showChangePassword()"><i data-lucide="key"></i>Cambiar contraseña</div>
-    <div class="pm-item" id="btn-install-pwa" onclick="installPWA();closeProfileMenu()" style="display:none"><i data-lucide="smartphone"></i>Instalar como app</div>
-    <div class="pm-sep"></div>
-    <div class="pm-item danger" onclick="doLogout()"><i data-lucide="log-out"></i>Cerrar sesión</div>
-  </div>
 
   <!-- Pantalla de bienvenida + consentimiento de permisos (primera vez) -->
   <div id="wwp-welcome" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
@@ -4643,6 +4590,50 @@ body{font-family:var(--font);min-height:100dvh}
     <button onclick="stopImpersonate()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">↩ Volver a mi cuenta</button>
   </div>
 
+  <div class="app-topbar">
+    <!-- Timer de almuerzo -->
+    <span id="lunch-timer-wrap" title="Tiempo en almuerzo">
+      <i data-lucide="utensils"></i><span id="lunch-timer-display">00:00</span>
+    </span>
+    <!-- Presencia -->
+    <div style="position:relative" id="presence-wrap">
+      <button class="presence-btn active" id="presence-btn" onclick="openPresenceMenu(event)" style="display:none" title="Cambiar estado de presencia">
+        <span class="presence-dot active" id="presence-dot"></span>
+        <span id="presence-label">Activo</span>
+      </button>
+      <div class="presence-menu" id="presence-menu">
+        <div class="presence-option" onclick="setPresence('active')"><span class="p-opt-dot" style="background:#059669"></span> Disponible</div>
+        <div class="presence-option" onclick="setPresence('lunch')"><span class="p-opt-dot" style="background:#d97706"></span> <i data-lucide="utensils" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>En Almuerzo</div>
+        <div class="presence-option" onclick="setPresence('offline')"><span class="p-opt-dot" style="background:#9ca3af"></span> Fuera de Línea</div>
+      </div>
+    </div>
+    <!-- Notificaciones -->
+    <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
+      <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge"></span>
+    </button>
+    <!-- Usuario + dropdown de perfil -->
+    <div style="position:relative">
+      <div class="user-pill" onclick="toggleProfileMenu()" id="user-pill">
+        <div class="user-avatar" id="user-avatar"></div>
+        <span class="user-name" id="user-name-hdr">—</span>
+        <span class="role-badge" id="role-badge-hdr"></span>
+        <span style="font-size:10px;color:var(--text-3)">▼</span>
+      </div>
+      <div class="profile-menu" id="profile-menu">
+        <div class="pm-header">
+          <div class="pm-name" id="pm-name"></div>
+          <div class="pm-email" id="pm-email"></div>
+        </div>
+        <div class="pm-item" id="pm-switch-user" onclick="openUserSwitcher()" style="display:none"><i data-lucide="users"></i>Cambiar de usuario</div>
+        <div class="pm-item" id="pm-stop-imp" onclick="stopImpersonate()" style="display:none;color:var(--accent)"><i data-lucide="rotate-ccw"></i>Volver a mi cuenta</div>
+        <div class="pm-item" onclick="showChangePassword()"><i data-lucide="key"></i>Cambiar contraseña</div>
+        <div class="pm-item" id="btn-install-pwa" onclick="installPWA();closeProfileMenu()" style="display:none"><i data-lucide="smartphone"></i>Instalar como app</div>
+        <div class="pm-sep"></div>
+        <div class="pm-item danger" onclick="doLogout()"><i data-lucide="log-out"></i>Cerrar sesión</div>
+      </div>
+    </div>
+  </div>
+
   <nav class="app-nav" id="app-nav">
     <button class="nav-tab active" data-tab="tasks" onclick="switchTab('tasks')" style="position:relative"><span class="nav-tab-icon"><i data-lucide="clipboard-list"></i></span> Tareas<span id="tasks-overdue-badge" style="display:none;position:absolute;top:4px;right:4px;background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:20px;line-height:1.4;pointer-events:none"></span></button>
     <!-- Dashboard y Usuarios se añaden dinámicamente en enterApp() según el rol -->
@@ -4656,6 +4647,7 @@ body{font-family:var(--font);min-height:100dvh}
           <span class="search-icon"><i data-lucide="search"></i></span>
           <input id="task-search" type="text" placeholder="Buscar tarea, orden…" oninput="filterTasks()" autocomplete="off" autocorrect="off">
         </div>
+        <button class="btn-new" id="btn-new-task" onclick="openNewTaskModal()" style="display:none">+ Nueva Tarea</button>
         <button class="filters-toggle" id="filters-toggle" type="button" onclick="toggleFilters()" aria-expanded="false">
           <i data-lucide="sliders-horizontal" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
           Filtros<span class="filters-count" id="filters-count" style="display:none">0</span>
@@ -4698,29 +4690,12 @@ body{font-family:var(--font);min-height:100dvh}
           </select>
           </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn-new" id="btn-new-task" onclick="openNewTaskModal()" style="display:none">+ Nueva Tarea</button>
-          <button class="btn-export-tasks" id="btn-export-tasks" onclick="exportTasksCSV()" title="Exportar tareas filtradas a CSV" style="display:none">
-            <i data-lucide="download" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>CSV
-          </button>
+        <div style="display:flex;gap:3px">
+          <button class="tv-btn active" data-view="list" onclick="setTaskView('list')" title="Lista"><i data-lucide="list"></i> Lista</button>
+          <button class="tv-btn" data-view="cards" onclick="setTaskView('cards')" title="Tarjetas"><i data-lucide="layout-grid"></i> Tarjetas</button>
+          <button class="tv-btn" data-view="kanban" onclick="setTaskView('kanban')" title="Kanban"><i data-lucide="columns-3"></i> Kanban</button>
+          <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona"><i data-lucide="users"></i> Por persona</button>
         </div>
-      </div>
-      <div class="tasks-view-bar">
-        <button class="tv-btn active" data-view="list" onclick="setTaskView('list')" title="Lista">
-          <i data-lucide="list"></i> Lista
-        </button>
-        <button class="tv-btn" data-view="cards" onclick="setTaskView('cards')" title="Tarjetas">
-          <i data-lucide="layout-grid"></i> Tarjetas
-        </button>
-        <button class="tv-btn" data-view="kanban" onclick="setTaskView('kanban')" title="Kanban">
-          <i data-lucide="columns-3"></i> Kanban
-        </button>
-        <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona">
-          <i data-lucide="users"></i> Por persona
-        </button>
-        <button class="tv-btn tv-guided-btn" id="btn-guided-mode" onclick="toggleGuidedMode()" title="Modo Guiado" style="margin-left:auto">
-          <i data-lucide="compass"></i> Guía
-        </button>
       </div>
 
       <!-- ── MODO GUIADO ──────────────────────────────────────── -->
@@ -6175,7 +6150,7 @@ function connectWwpRealtime() {
 
       if ((msg.event === 'hello' || msg.event === 'tasks:changed') && Array.isArray(msg.tasks)) {
         _tasks = msg.tasks;
-        renderTasks();
+        if (!_drawerTask) renderTasks();
         if (_drawerTask) {
           const fresh = _tasks.find(t => t.id === _drawerTask.id);
           if (fresh) {
@@ -6658,12 +6633,18 @@ function renderGroupedByType(visible, rowRenderer) {
     <span style="font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.4px">${g.label}</span>
     <span style="font-size:11px;font-weight:700;color:#fff;background:${g.color};border-radius:20px;padding:1px 8px">${n}</span>
   </div>`;
+  const byDue = (a, b) => {
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return a.dueDate.localeCompare(b.dueDate);
+  };
   _TYPE_GROUPS.forEach(g => {
-    const rows = visible.filter(t => t.type === g.type);
+    const rows = visible.filter(t => t.type === g.type).sort(byDue);
     if (!rows.length) return;
     html += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
   });
-  const others = visible.filter(t => !known.has(t.type));
+  const others = visible.filter(t => !known.has(t.type)).sort(byDue);
   if (others.length) {
     html += groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, others.length) + others.map(rowRenderer).join('');
   }
