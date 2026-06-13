@@ -2906,6 +2906,24 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /api/sheets-csv-index — proxy CSV del Dashboard Ventas (index.html) ──
+  if (reqPath === '/api/sheets-csv-index' && req.method === 'GET') {
+    const INDEX_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRGtrgzYY0kHkDkM6tEwt69panoQsyLdWlL0ytJ5Y3WRTkOnBQBXnbEjR2WsnQ2hw/pub?gid=246525732&single=true&output=csv';
+    try {
+      const csv = await fetchText(INDEX_CSV_URL + '&_t=' + Date.now());
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(csv);
+    } catch (e) {
+      res.writeHead(502, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({error: e.message}));
+    }
+    return;
+  }
+
   // ── /api/health — validar conexión con Odoo y Google Sheets ─────────────
   if (reqPath === '/api/health' && req.method === 'GET') {
     const health = {
