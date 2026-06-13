@@ -3697,8 +3697,8 @@ body{font-family:var(--font);min-height:100dvh}
       <span class="conn-dot-wrap" id="odoo-status" title="Odoo verificando…"><span class="sim-dot"></span></span>
     </div>
 
-    <a class="nav-item" href="https://gjs6301-code.github.io/dashboard-despachos-live/" target="_blank" rel="noopener" style="margin-bottom:4px">
-      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard
+    <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;" style="margin-bottom:4px">
+      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard Ventas
     </a>
 
     <div class="sidebar-group" id="navg-consultar">Consultar</div>
@@ -4486,6 +4486,11 @@ body{font-family:var(--font);min-height:100dvh}
       </div>
 
     </div><!-- /section-reportes -->
+
+    <!-- ── DASHBOARD VENTAS ────────────────────────────────────── -->
+    <div id="section-dashboard-ventas" class="page-section" style="display:none">
+      <iframe id="dashboard-ventas-iframe" style="width:100%;height:100dvh;border:none;display:block" loading="lazy"></iframe>
+    </div><!-- /section-dashboard-ventas -->
 
   </main>
   </div><!-- /page-layout -->
@@ -5619,7 +5624,7 @@ function isHistorialUser(u) {
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
 const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
  *  un usuario solo-WWP (sin secciones de Despachos) NO debe ver el marco lateral de Despachos. */
@@ -17284,7 +17289,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -17299,7 +17304,8 @@ var NAV_SECTION_MAP={
   'validacion':              'validacion',
   'averias':                 'averias',
   'reportes':                'reportes',
-  'dev-cdp':                 'dev-cdp'
+  'dev-cdp':                 'dev-cdp',
+  'dashboard-ventas':        'dashboard-ventas'
 };
 
 var CURRENT_SECTION='buscar';
@@ -17541,6 +17547,10 @@ function navTo(section){
   if(target==='almacen-mapa') {
     var iframe = document.getElementById('almacen-mapa-iframe');
     if (iframe && !iframe.src) iframe.src = '/almacen-mapa.html';
+  }
+  if(target==='dashboard-ventas') {
+    var dvIframe = document.getElementById('dashboard-ventas-iframe');
+    if (dvIframe && !dvIframe.src) dvIframe.src = 'https://gjs6301-code.github.io/dashboard-despachos-live/';
   }
 }
 
