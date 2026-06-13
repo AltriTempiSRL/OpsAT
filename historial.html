@@ -5766,21 +5766,21 @@ function checkStoredSession() {
       if (payload.exp * 1000 > Date.now()) {
         // Token válido: mostrar con permisos cacheados y refrescar en segundo plano
         // para que cambios de rol (ej. nuevas secciones) se apliquen sin re-login
-        if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
-        else { enterApp(); showScreen('screen-app'); }
+        if (isHistorialUser(_user)) { setHistorialUser(); }
+        enterApp(); showScreen('screen-app'); _wwpEntered = true;
         doRefresh().then(function(ok) {
           if (ok) {
             // Re-aplicar con permisos frescos del servidor
             if (isHistorialUser(_user)) { setHistorialUser(); }
-            else { enterApp(); }
+            enterApp();
           }
         });
         return;
       }
       doRefresh().then(function(ok) {
         if (ok) {
-          if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
-          else { enterApp(); showScreen('screen-app'); }
+          if (isHistorialUser(_user)) { setHistorialUser(); }
+          enterApp(); showScreen('screen-app'); _wwpEntered = true;
         } else { showScreen('screen-login'); }
       });
       return;
@@ -5804,8 +5804,8 @@ async function doLogin() {
     if (!d.ok) { showErr(errEl, d.error||'Error al iniciar sesión'); btn.disabled=false; btn.textContent='Entrar'; return; }
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
-    if (isHistorialUser(_user)) { setHistorialUser(); showScreen('screen-historial'); }
-    else { enterApp(); showScreen('screen-app'); }
+    if (isHistorialUser(_user)) { setHistorialUser(); }
+    enterApp(); showScreen('screen-app'); _wwpEntered = true;
   } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
 }
 
@@ -12455,8 +12455,8 @@ async function impersonateUser(id){
     toast('Ahora actúas como '+d.user.name);
     setHeaderAvatar(_user);
     _wwpEntered=false;
-    if(isHistorialUser(_user)){ setHistorialUser(); showScreen('screen-historial'); }
-    else { enterApp(); showScreen('screen-app'); }
+    if(isHistorialUser(_user)){ setHistorialUser(); }
+    enterApp(); showScreen('screen-app'); _wwpEntered = true;
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
@@ -12471,8 +12471,8 @@ async function stopImpersonate(){
     toast('Volviste a tu cuenta: '+d.user.name);
     setHeaderAvatar(_user);
     _wwpEntered=false;
-    if(isHistorialUser(_user)){ setHistorialUser(); showScreen('screen-historial'); }
-    else { enterApp(); showScreen('screen-app'); }
+    if(isHistorialUser(_user)){ setHistorialUser(); }
+    enterApp(); showScreen('screen-app'); _wwpEntered = true;
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
