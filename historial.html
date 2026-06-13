@@ -420,9 +420,13 @@ main{flex:1;padding:0;overflow-x:hidden;min-width:0}
 .ac-item-detail{color:var(--text-secondary);font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ac-empty{padding:20px 16px;font-size:14px;color:var(--text-muted);text-align:center;font-style:italic}
 .ac-hint{padding:7px 16px 5px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:var(--surface-2);border-bottom:1px solid var(--border-light)}
-.recent-tags{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:5px;margin-bottom:14px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.search-block{border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:20px}
+.search-block .search-type-toggle{margin-bottom:10px}
+.search-block .search-bar-row{margin-bottom:10px}
+.recent-label{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.recent-tags{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:5px;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .recent-tags::-webkit-scrollbar{display:none}
-.tag{padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);cursor:pointer;transition:all .12s;white-space:nowrap;flex-shrink:0}
+.tag{padding:4px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;color:var(--text-secondary);cursor:pointer;transition:all .12s;white-space:nowrap;flex-shrink:0}
 .tag:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 
 /* ── Search type toggle ── */
@@ -3794,29 +3798,25 @@ body{font-family:var(--font);min-height:100dvh}
     <!-- ── BUSCADOR ─────────────────────────────────────────── -->
     <div id="section-buscar" class="page-section">
     <div id="sec-buscar" style="padding:20px 0 0">
-      <div class="search-type-toggle">
-        <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">Orden</button>
-        <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
-        <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">Artículo</button>
-      </div>
-      <div class="search-bar-row">
-        <div class="ac-wrap">
-          <input type="text" id="order-input" placeholder="Buscar orden, transferencia, artículo…"
-            maxlength="60" onkeydown="if(event.key==='Enter')buscarOrden()" autocomplete="off" spellcheck="false">
-          <div class="ac-dropdown" id="ac-dropdown" role="listbox" aria-label="Sugerencias"></div>
+      <div class="search-block">
+        <div class="search-type-toggle">
+          <button class="stype-btn active" id="stype-orden"         onclick="setSearchMode('orden')">Orden</button>
+          <button class="stype-btn"        id="stype-transferencia" onclick="setSearchMode('transferencia')">Transferencia</button>
+          <button class="stype-btn"        id="stype-articulo"      onclick="setSearchMode('articulo')">Artículo</button>
         </div>
-        <button onclick="buscarOrden()">Buscar</button>
+        <div class="search-bar-row">
+          <div class="ac-wrap">
+            <input type="text" id="order-input" placeholder="Buscar orden, transferencia, artículo…"
+              maxlength="60" onkeydown="if(event.key==='Enter')buscarOrden()" autocomplete="off" spellcheck="false">
+            <div class="ac-dropdown" id="ac-dropdown" role="listbox" aria-label="Sugerencias"></div>
+          </div>
+          <button onclick="buscarOrden()">Buscar</button>
+        </div>
+        <div class="recent-label">Recientes</div>
+        <div class="recent-tags" id="recent-tags-row"></div>
       </div>
       <!-- Resultados de búsqueda por descripción (artículo) -->
       <div id="art-desc-results" style="display:none"></div>
-      <div class="recent-tags" id="recent-tags-row">
-        <span class="tag" onclick="buscarDirecta('8949')">8949 · Lissette Polanco</span>
-        <span class="tag" onclick="buscarDirecta('9115')">9115 · Andrea Hormazabal</span>
-        <span class="tag" onclick="buscarDirecta('9003')">9003 · Carlos Matamoros</span>
-        <span class="tag" onclick="buscarDirecta('8946')">8946 · Dianne Bisono</span>
-        <span class="tag" onclick="buscarDirecta('S09059')">S09059 · CBELL EVENT</span>
-        <span class="tag" onclick="buscarDirecta('8867')">8867 · ZUNIFLOR</span>
-      </div>
     </div>
 
     <!-- Nav back bar -->
@@ -12907,6 +12907,7 @@ async function checkSheetsConnection(retries, delay){
 
 window.addEventListener('DOMContentLoaded',function(){
   if (window.lucide) lucide.createIcons();
+  renderRecentTags();
   loadDevoluciones();   // D1: carga desde Odoo; llama renderDevoluciones() al terminar
   initDespFiltro();
   // Fecha default del reporte Dev→CDP: último mes
@@ -15714,6 +15715,32 @@ function artDescSelect(ref, skipInputUpdate){
 // ════════════════════════════════════════════════════
 //  SEARCH
 // ════════════════════════════════════════════════════
+function saveRecentSearch(term, label) {
+  try {
+    var recents = JSON.parse(localStorage.getItem('hist_recents') || '[]');
+    recents = recents.filter(function(r){ return r.term !== term; });
+    recents.unshift({term: term, label: label || term});
+    recents = recents.slice(0, 8);
+    localStorage.setItem('hist_recents', JSON.stringify(recents));
+    renderRecentTags();
+  } catch(e) {}
+}
+function renderRecentTags() {
+  var row = document.getElementById('recent-tags-row');
+  if (!row) return;
+  try {
+    var recents = JSON.parse(localStorage.getItem('hist_recents') || '[]');
+    if (!recents.length) {
+      row.innerHTML = '<span style="font-size:11px;color:var(--text-muted);font-style:italic">Sin búsquedas recientes</span>';
+      return;
+    }
+    row.innerHTML = recents.map(function(r) {
+      var safe = r.term.replace(/'/g,"\\'");
+      return '<span class="tag" onclick="buscarDirecta(\''+safe+'\')">'+r.label+'</span>';
+    }).join('');
+  } catch(e) { if(row) row.innerHTML=''; }
+}
+
 function buscarOrden(){
   var v=document.getElementById('order-input').value.trim();
   if(!v) return;
@@ -15740,6 +15767,7 @@ function buscarOrden(){
 //  BÚSQUEDA DE TRANSFERENCIAS (Odoo stock.picking)
 // ════════════════════════════════════════════════════
 async function buscarTransferencia(name){
+  saveRecentSearch(name, 'T · '+name);
   goToBuscar();
   var rs=document.getElementById('result-section');
   var rBanner=document.getElementById('r-banner');
@@ -16745,6 +16773,8 @@ async function buscarDirecta(num){
   document.getElementById('r-banner').style.display='none';
   var devLinked=[];
   DEVOLUCIONES.forEach((mes) => {mes.items.forEach((it) => {if(it.orden.toUpperCase()===(key||num).toUpperCase())devLinked.push(it);});});
+  var _recentCliente=sp&&sp.cliente?sp.cliente:(od&&(od.cliente||od.responsable)?od.cliente||od.responsable:'');
+  saveRecentSearch(num, num+(_recentCliente?' · '+_recentCliente:''));
   renderReport(sp,gs,od,devLinked,wwpTasks);
 }
 
@@ -16759,6 +16789,7 @@ function cerrarResultado(){
 //  BÚSQUEDA ORDEN DE COMPRA (purchase.order)
 // ════════════════════════════════════════════════════
 async function buscarOrdenCompra(num){
+  saveRecentSearch(num, 'OC · '+num);
   goToBuscar();
   var rs=document.getElementById('result-section');
   var rBanner=document.getElementById('r-banner');
@@ -17538,6 +17569,7 @@ function navTo(section){
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
   setNavActive(section);
+  if(target==='buscar') renderRecentTags();
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
   if(target==='reposicion') { initReposicion(); loadSolicitudes(false); }
   if(target==='solicitudes-reposicion') { repCargarLista(); }
@@ -17550,7 +17582,7 @@ function navTo(section){
   }
   if(target==='dashboard-ventas') {
     var dvIframe = document.getElementById('dashboard-ventas-iframe');
-    if (dvIframe && !dvIframe.src) dvIframe.src = 'https://gjs6301-code.github.io/dashboard-despachos-live/';
+    if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
 }
 
