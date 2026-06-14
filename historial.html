@@ -20935,17 +20935,19 @@ function eqpRefresh() {
   var loc = (document.getElementById('eqp-loc') || {}).value || 'todas';
   if (body) body.innerHTML = '<div class="eqp-empty"><div class="spinner" style="width:22px;height:22px;margin:0 auto 10px"></div>Cargando equipo…</div>';
   var url = '/api/wwp/metrics/equipo' + (loc && loc !== 'todas' ? '?localidad=' + encodeURIComponent(loc) : '');
-  authGetJson(url, 15000).then(function(r) {
+  authGetJson(url, 15000).then(function(data) {
     _eqpLoaded = true;
-    if (r.status === 403) { eqpRenderDenied(); return; }
-    if (!r.ok || !r.data || !r.data.ok) throw new Error((r.data && r.data.error) || ('HTTP ' + r.status));
-    _eqpData = r.data;
+    // authGetJson ya devuelve el JSON desempaquetado (igual que loadTasks), no un wrapper {status,ok,data}.
+    if (!data || !data.ok) throw new Error((data && data.error) || 'Respuesta inválida del servidor');
+    _eqpData = data;
     eqpPopulateLocs(_eqpData.localidades, loc);
     _eqpLineSel = null;  // reset selección de líneas al recargar
     eqpRenderAll();
   }).catch(function(e) {
     _eqpLoaded = true;
-    if (body) body.innerHTML = '<div class="eqp-empty"><i data-lucide="alert-triangle"></i>No se pudo cargar el equipo: ' + esc(e.message) + '</div>';
+    var msg = (e && e.message) ? e.message : 'error';
+    if (/403|permiso|denegad/i.test(msg)) { eqpRenderDenied(); return; }
+    if (body) body.innerHTML = '<div class="eqp-empty"><i data-lucide="alert-triangle"></i>No se pudo cargar el equipo: ' + esc(msg) + '</div>';
     if (window.lucide) lucide.createIcons();
   });
 }

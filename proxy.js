@@ -6177,11 +6177,16 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/metrics/equipo' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin', 'manager'])) return;
-    const q = (parsed.query || {});
-    const loc = (q.localidad && q.localidad !== 'todas') ? q.localidad : null;
-    const data = computeTeamMetrics({ localidad: loc });
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, ...data }));
+    try {
+      const q = (parsed.query || {});
+      const loc = (q.localidad && q.localidad !== 'todas') ? q.localidad : null;
+      const data = computeTeamMetrics({ localidad: loc });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, ...data }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: 'Error al calcular métricas: ' + e.message }));
+    }
     return;
   }
 
