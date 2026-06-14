@@ -4875,7 +4875,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,sectionPerms:getRoleDefPerms(u.role)}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -5359,11 +5359,11 @@ const server = http.createServer(async (req, res) => {
     if (jwtPayload.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin'})); return; }
     try {
       const d = await readBody(req);
-      const { name, email, password, role, odooId } = d;
+      const { name, email, password, role, odooId, categoria } = d;
       if (!name||!email||!password) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'name, email y password son requeridos'})); return; }
       const users = loadAuthUsers();
       if (users.find(u => u.email === email.toLowerCase().trim())) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El correo ya está registrado'})); return; }
-      const newUser = {id:wwpId('au'),name,email:email.toLowerCase().trim(),passwordHash:hashPassword(password),role:role||'assistant',odooId:odooId||null,active:true,lastLogin:null,resetToken:null,resetTokenExpiry:null,createdAt:new Date().toISOString()};
+      const newUser = {id:wwpId('au'),name,email:email.toLowerCase().trim(),passwordHash:hashPassword(password),role:role||'assistant',odooId:odooId||null,categoria:categoria||null,active:true,lastLogin:null,resetToken:null,resetTokenExpiry:null,createdAt:new Date().toISOString()};
       users.push(newUser);
       saveAuthUsers(users);
       res.writeHead(201,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,user:{id:newUser.id,name:newUser.name,email:newUser.email,role:newUser.role}}));
@@ -5478,6 +5478,7 @@ const server = http.createServer(async (req, res) => {
       if (d.role)     users[idx].role   = d.role;
       if (d.odooId !== undefined) users[idx].odooId = d.odooId;
       if (d.active !== undefined) users[idx].active = d.active;
+      if (d.categoria !== undefined) users[idx].categoria = d.categoria;
       if (d.password) users[idx].passwordHash = hashPassword(d.password);
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
@@ -5491,6 +5492,22 @@ const server = http.createServer(async (req, res) => {
   // ════════════════════════════════════════════════════════════════════════════
   // ── WWP API ──────────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/wwp/auth/users/:id/odoo-photo — foto del empleado desde Odoo (hr.employee.image_256)
+  if (reqPath.match(/^\/api\/wwp\/auth\/users\/[^/]+\/odoo-photo$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const uid = reqPath.split('/')[5];
+      const u = loadAuthUsers().find(x => x.id === uid);
+      if (!u || u.odooId == null || u.odooId === '') { res.writeHead(404); res.end(); return; }
+      const emp = await odooCall('hr.employee', 'read', [[parseInt(u.odooId)]], { fields: ['image_256'] });
+      const img = emp && emp[0] && emp[0].image_256;
+      if (!img) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
+      res.end(Buffer.from(img, 'base64'));
+    } catch (e) { res.writeHead(502); res.end(); }
+    return;
+  }
 
   // GET /api/wwp/users — empleados de Odoo (Operaciones) + roles locales
   if (reqPath === '/api/wwp/users' && req.method === 'GET') {

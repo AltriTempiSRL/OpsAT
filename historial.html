@@ -2989,6 +2989,8 @@ body{font-family:var(--font);min-height:100dvh}
 .user-row-info{flex:1;min-width:0}
 .user-row-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .user-row-email{font-size:12px;color:var(--text-3)}
+.user-row-categoria{font-size:11px;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.user-avatar-slot{display:inline-flex;line-height:0}
 .user-row-actions{display:flex;gap:8px}
 .btn-sm{padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text)}
 .btn-sm:hover{background:var(--surface-2)}
@@ -5483,6 +5485,20 @@ body{font-family:var(--font);min-height:100dvh}
           <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label"><i data-lucide="users" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Categoría</label>
+        <input id="uf-categoria" class="form-input" list="uf-categoria-list" placeholder="Ej. Auxiliares Outlet" autocomplete="off">
+        <datalist id="uf-categoria-list">
+          <option value="Auxiliares Outlet"></option>
+          <option value="Almacén La Cuaba"></option>
+          <option value="Almacén Piantini"></option>
+          <option value="Administración / Operaciones"></option>
+        </datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label"><i data-lucide="link" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Odoo ID (empleado)</label>
+        <input id="uf-odooId" class="form-input" type="number" placeholder="ID del empleado en Odoo — conecta tareas y reportes" autocomplete="off">
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-primary" style="background:#6b7280" onclick="closeUserModal()">Cancelar</button>
@@ -5855,8 +5871,53 @@ function updateAvatarPreview() {
   const name = document.getElementById('uf-name').value;
   const el = document.getElementById('uf-avatar-preview');
   if (!el) return;
+  // Si el preview muestra la foto de Odoo, no la pisamos al teclear el nombre
+  if (el.dataset.odooPhoto === '1') return;
   el.textContent = initials(name) || '?';
   el.style.background = name ? avatarColor(name) : 'var(--brand-light)';
+}
+
+// Carga la foto del empleado desde Odoo (endpoint protegido por JWT → no se puede
+// usar <img src> directo: el navegador no manda el header Authorization y daría 401).
+// Trae la imagen vía authFetch y la inyecta como object URL DENTRO del .user-avatar
+// (conserva tamaño/borde/responsive del círculo y reusa la regla `.user-avatar img`).
+// Si no hay foto / odooId (404), o falla, deja intacto el avatar de iniciales ya renderizado.
+async function applyOdooAvatar(avatarEl, userId) {
+  if (!avatarEl || !userId || !_token) return;
+  try {
+    const r = await authFetch('/api/wwp/auth/users/' + encodeURIComponent(userId) + '/odoo-photo');
+    if (!r.ok) return;                 // 404 (sin foto/odooId) o error → quedan iniciales
+    const blob = await r.blob();
+    if (!blob || !blob.size) return;
+    const url = URL.createObjectURL(blob);
+    const prevText = avatarEl.textContent;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.onload = function(){ try { URL.revokeObjectURL(url); } catch(e){} };
+    // Si la imagen no decodifica, restauramos las iniciales que había
+    img.onerror = function(){ try { URL.revokeObjectURL(url); } catch(e){} avatarEl.textContent = prevText; };
+    img.src = url;
+    avatarEl.textContent = '';
+    avatarEl.appendChild(img);
+  } catch (e) { /* silencioso: fallback a iniciales */ }
+}
+
+// Aplica la foto de Odoo al círculo de preview del modal de usuario.
+async function applyOdooAvatarPreview(userId) {
+  const el = document.getElementById('uf-avatar-preview');
+  if (!el || !userId || !_token) return;
+  try {
+    const r = await authFetch('/api/wwp/auth/users/' + encodeURIComponent(userId) + '/odoo-photo');
+    if (!r.ok) return;
+    const blob = await r.blob();
+    if (!blob || !blob.size) return;
+    const url = URL.createObjectURL(blob);
+    el.style.background = 'transparent';
+    el.dataset.odooPhoto = '1';
+    el.innerHTML = '<img alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" src="' + url + '">';
+    const im = el.querySelector('img');
+    if (im) { im.onload = function(){ try{URL.revokeObjectURL(url);}catch(e){} }; im.onerror = function(){ try{URL.revokeObjectURL(url);}catch(e){} }; }
+  } catch (e) { /* silencioso */ }
 }
 const TYPE_LABELS = {dispatch_order:'Orden de Despacho',packaging:'Embalaje',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General',staffing:'Solicitud de Personal'};
 const STATUS_LABELS = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado',cancelled:'Cancelado'};
@@ -12295,8 +12356,9 @@ async function loadUsers() {
       const lunchLabel = lunchAllowed >= 60
         ? `${Math.floor(lunchAllowed/60)}:${String(lunchAllowed%60).padStart(2,'0')} h`
         : `${lunchAllowed} min`;
-      // Wrap avatar con dot de presencia
-      const avatarWrapped = `<div class="user-avatar-wrap">${avatarHtml(u, 44)}<span class="avatar-presence ${presence}" data-presence-dot="${u.id}"></span></div>`;
+      // Wrap avatar con dot de presencia. El avatar va en un slot identificable para
+      // poder sustituir las iniciales por la foto de Odoo tras el render (sin tocar el dot).
+      const avatarWrapped = `<div class="user-avatar-wrap"><span class="user-avatar-slot" data-odoo-avatar="${u.id}">${avatarHtml(u, 44)}</span><span class="avatar-presence ${presence}" data-presence-dot="${u.id}"></span></div>`;
       // Última ubicación GPS (si el usuario la compartió)
       let locHtml='';
       if (u.lastLocation && isFinite(u.lastLocation.lat) && isFinite(u.lastLocation.lng)) {
@@ -12312,6 +12374,7 @@ async function loadUsers() {
           <div class="user-row-email">${esc(u.email)}</div>
         </div>
         ${getRoleBadgeHtml(u.role)}
+        ${u.categoria?`<span class="user-row-categoria" title="Categoría">${esc(u.categoria)}</span>`:''}
         <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
         ${locHtml}
         <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
@@ -12321,6 +12384,12 @@ async function loadUsers() {
         </div>
       </div>`;
     }).join('');
+    if (window.lucide) lucide.createIcons();
+    // Sustituir iniciales por la foto de Odoo donde exista (404 → quedan las iniciales)
+    document.querySelectorAll('#users-list [data-odoo-avatar]').forEach(slot => {
+      const av = slot.querySelector('.user-avatar') || slot;
+      applyOdooAvatar(av, slot.getAttribute('data-odoo-avatar'));
+    });
   } catch(e) { document.getElementById('users-list').innerHTML='Error: '+e.message; }
 }
 
@@ -12499,9 +12568,11 @@ function openNewUserModal() {
   document.getElementById('uf-pw-wrap').style.display='';
   document.getElementById('uf-lunch-allowed').value='60';
   document.getElementById('uf-schedule-start').value='08:00';
+  const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value='';
+  const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value='';
   document.getElementById('user-modal-error').classList.remove('show');
   const prev = document.getElementById('uf-avatar-preview');
-  if (prev) { prev.textContent = '?'; prev.style.background = 'var(--brand-light)'; }
+  if (prev) { delete prev.dataset.odooPhoto; prev.innerHTML=''; prev.textContent = '?'; prev.style.background = 'var(--brand-light)'; }
   document.getElementById('modal-user').classList.add('open');
 }
 function openEditUserModal(uid) {
@@ -12519,10 +12590,13 @@ function openEditUserModal(uid) {
   const sel = document.getElementById('uf-lunch-allowed');
   sel.value = la;
   document.getElementById('uf-schedule-start').value = u.scheduleStart || '08:00';
+  const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value = u.categoria || '';
+  const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value = (u.odooId != null ? u.odooId : '');
   document.getElementById('user-modal-error').classList.remove('show');
-  // Update avatar preview
+  // Preview: iniciales primero; si el empleado tiene foto en Odoo, se sustituye al cargar
   const prev = document.getElementById('uf-avatar-preview');
-  if (prev) { prev.textContent = initials(u.name)||'?'; prev.style.background = avatarColor(u.name); }
+  if (prev) { delete prev.dataset.odooPhoto; prev.innerHTML=''; prev.textContent = initials(u.name)||'?'; prev.style.background = avatarColor(u.name); }
+  applyOdooAvatarPreview(u.id);
   document.getElementById('modal-user').classList.add('open');
 }
 function closeUserModal() { document.getElementById('modal-user').classList.remove('open'); _editingUser=null; }
@@ -12538,7 +12612,10 @@ async function saveUser() {
   if (!name||!email) { showErr(errEl,'Nombre y correo son requeridos'); return; }
   const lunchTimeAllowed = parseInt(document.getElementById('uf-lunch-allowed').value) || 60;
   const scheduleStart    = document.getElementById('uf-schedule-start').value || '08:00';
-  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart};
+  const categoria        = (document.getElementById('uf-categoria')?.value || '').trim() || null;
+  const odooIdRaw        = (document.getElementById('uf-odooId')?.value || '').trim();
+  const odooId           = odooIdRaw === '' ? null : (parseInt(odooIdRaw, 10) || null);
+  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,categoria,odooId};
   if (password) body.password=password;
   try {
     let r;
