@@ -5631,12 +5631,15 @@ function isDespachosUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
+    'dashboard-ventas','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp',
     'validacion','averias','reportes','wwp'
   ];
   sections.forEach(function(s) {
-    var show = canSection(s);
+    // "Workforce Labor" (wwp) es el módulo base donde aterrizan TODOS los usuarios
+    // autenticados; no depende de una clave de sección granular, así que se muestra
+    // siempre que haya sesión. El resto de secciones (Despachos) por canSection().
+    var show = (s === 'wwp') ? !!_user : canSection(s);
     var nav = document.getElementById('nav-' + s);
     if (nav) nav.style.display = show ? '' : 'none';
     var mob = document.getElementById('mob-nav-' + s);
@@ -5652,7 +5655,9 @@ function applyNavPerms() {
     'navg-despachos':   ['sin-adjuntos','dev-cdp']
   };
   Object.keys(GROUPS).forEach(function(gid) {
-    var anyVisible = GROUPS[gid].some(function(s){ return canSection(s); });
+    // Mismo criterio que arriba: 'wwp' (Workforce Labor) es visible para todo usuario
+    // autenticado, así que el grupo "Plataforma" siempre aparece cuando hay sesión.
+    var anyVisible = GROUPS[gid].some(function(s){ return s === 'wwp' ? !!_user : canSection(s); });
     var el = document.getElementById(gid);
     if (el) el.style.display = anyVisible ? '' : 'none';
   });
@@ -5746,9 +5751,10 @@ function showScreen(id) {
       uiSetVisible(el, s === id, 'flex', 'ui-screen-enter');
     }
   });
-  // App-shell: el sidebar de Despachos acompaña SIEMPRE a su propia pantalla, y a Workforce
-  // Labor solo si el usuario pertenece a Despachos (un usuario solo-WWP no ve marco ajeno).
-  var _shell = (id === 'screen-historial') || (id === 'screen-app' && isDespachosUser(_user));
+  // App-shell: el sidebar lateral fijo acompaña a ambas pantallas para TODOS los roles.
+  // applyNavPerms() ya filtra los ítems: cada usuario ve solo sus secciones (un auxiliar
+  // solo verá "Workforce Labor"; un encargado, eso + sus secciones de Despachos).
+  var _shell = (id === 'screen-historial') || (id === 'screen-app');
   document.body.classList.toggle('app-shell', !!_shell);
 }
 function showLogin() { showScreen('screen-login'); }
