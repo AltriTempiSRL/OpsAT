@@ -153,7 +153,7 @@ async function buildItemsFromPicks(orderName) {
   ];
   if(!pids.length) return { noPick:false, items:[], picks, pickNames:pickList.map(p=>p.name) };
 
-  const prods  = await odooCall('product.product','read',[pids],{fields:['id','barcode','default_code','image_128']});
+  const prods  = await odooCall('product.product','read',[pids],{fields:['id','barcode','default_code','image_128','categ_id']});
   const pm={}; prods.forEach(p=>{ pm[p.id]=p; });
   const kitMap = await resolveKitInfo(prods);
 
@@ -162,6 +162,7 @@ async function buildItemsFromPicks(orderName) {
     // item_id incluye el pick para que el mismo producto en dos picks sea item distinto
     const pickSuffix = g.pickName.replace(/[^A-Za-z0-9]/g,'_');
     return { item_id:'oi_'+g.pid+'_'+pickSuffix, odoo_product_id:g.pid, odoo_line_id:null,
+      odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
       sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
       product_name:g.name||'', quantity:units, units,
       image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
@@ -7631,6 +7632,7 @@ const server = http.createServer(async (req, res) => {
         const locations=stockMap[l.product_id[0]]||[];
         const units = resolveDemandQty(l);
         return { item_id:'oi_'+l.id, odoo_line_id:l.id, odoo_product_id:l.product_id[0],
+          odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
           sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',  // barcode explícito para escaneo
           product_name:l.product_id[1]||l.name||'',
           quantity:units, units,                 // units = unidades de la Demanda (editable)
@@ -7673,7 +7675,7 @@ const server = http.createServer(async (req, res) => {
         if (!lineIds.length) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({...baseResp,noPick:true,items:[]})); return; }
         const lines = await odooCall('sale.order.line','read',[lineIds],{fields:['product_id','product_uom_qty','name']});
         const productIds=[...new Set(lines.filter(l=>l.product_id).map(l=>l.product_id[0]))];
-        const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128']}) : [];
+        const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128','categ_id']}) : [];
         const prodMap={}; products.forEach(p=>{ prodMap[p.id]=p; });
         const stockMap = await fetchStockMap(productIds);
         const items = buildItems(lines, prodMap, stockMap);
@@ -7691,7 +7693,7 @@ const server = http.createServer(async (req, res) => {
           [[['picking_id','=',pick.id],['state','!=','cancel']]],
           {fields:['product_id','product_uom_qty','quantity_done','reserved_availability','name'],limit:100});
         const productIds=[...new Set(moves.filter(m=>m.product_id).map(m=>m.product_id[0]))];
-        const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128']}) : [];
+        const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128','categ_id']}) : [];
         const prodMap={}; products.forEach(p=>{ prodMap[p.id]=p; });
         const typeName = pick.picking_type_id?pick.picking_type_id[1]:'';
         // ¿Es una DEVOLUCIÓN (RET)? — por tipo o por nombre /RET/
@@ -7704,6 +7706,7 @@ const server = http.createServer(async (req, res) => {
             const prod=prodMap[m.product_id[0]]||{}, kit=kitMap[m.product_id[0]];
             const units=Math.max(1,Math.round(m.product_uom_qty||m.quantity_done||1));
             return { item_id:'oi_'+m.product_id[0], odoo_product_id:m.product_id[0], odoo_line_id:null,
+              odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
               sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
               product_name:m.product_id[1]||m.name||'', quantity:units, units,
               image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
