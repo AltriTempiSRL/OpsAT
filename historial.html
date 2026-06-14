@@ -846,6 +846,123 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .imp-riesgo-ok{background:var(--green-bg);color:var(--green-text)}
 .imp-empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
 @media(max-width:700px){.imp-kpi-row{grid-template-columns:1fr 1fr}.imp-emp-grid{grid-template-columns:1fr}}
+/* ── Equipo / Adopción (sub-vista del tab Impacto) ────────────────────────── */
+/* Segmented control: distinto de .nav-tab (esa es la nav de módulo). Esto comunica un sub-nivel. */
+.eqp-subtabs{display:inline-flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-full);margin-bottom:18px}
+.eqp-subtab{appearance:none;border:none;background:none;cursor:pointer;padding:7px 16px;border-radius:var(--radius-full);font-size:12px;font-weight:600;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:background .15s,color .15s}
+.eqp-subtab:hover:not(.active){color:var(--text-primary)}
+.eqp-subtab.active{background:var(--surface);color:var(--accent);box-shadow:var(--shadow)}
+.eqp-subtab i{width:14px;height:14px;stroke:currentColor}
+/* Toolbar: selector de localidad + ventana + refrescar */
+.eqp-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.eqp-toolbar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.eqp-loc-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.eqp-select{min-width:150px;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-primary);font-size:13px;font-family:inherit;cursor:pointer}
+.eqp-select:focus{outline:none;border-color:var(--border-focus)}
+.eqp-window-note{font-size:11px;color:var(--text-muted)}
+/* KPI resumen (semáforo agregado) */
+.eqp-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.eqp-kpi{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.eqp-kpi:hover{box-shadow:var(--shadow)}
+.eqp-kpi.sel{box-shadow:var(--shadow)}
+.eqp-kpi.s-activo{border-left-color:var(--green-dot)}
+.eqp-kpi.s-activo.sel{border-color:var(--green-dot)}
+.eqp-kpi.s-tibio{border-left-color:var(--amber-dot)}
+.eqp-kpi.s-tibio.sel{border-color:var(--amber-dot)}
+.eqp-kpi.s-inactivo{border-left-color:var(--red-dot)}
+.eqp-kpi.s-inactivo.sel{border-color:var(--red-dot)}
+.eqp-kpi.s-nunca{border-left-color:var(--text-3)}
+.eqp-kpi.s-nunca.sel{border-color:var(--text-3)}
+.eqp-kpi-val{font-size:26px;font-weight:800;line-height:1;color:var(--text-primary)}
+.eqp-kpi-label{font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;display:flex;align-items:center;gap:5px}
+.eqp-kpi-label .eqp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.eqp-dot.d-activo{background:var(--green-dot)}
+.eqp-dot.d-tibio{background:var(--amber-dot)}
+.eqp-dot.d-inactivo{background:var(--red-dot)}
+.eqp-dot.d-nunca{background:var(--text-3)}
+/* Panel genérico */
+.eqp-panel{margin:0 0 26px}
+.eqp-panel-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;flex-wrap:wrap}
+.eqp-panel-title{font-size:13px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:7px;margin:0}
+.eqp-panel-title i{width:15px;height:15px;stroke:currentColor;color:var(--text-secondary)}
+.eqp-panel-sub{font-size:11px;color:var(--text-muted);margin:-6px 0 12px}
+/* Semáforo de adopción: tarjetas por usuario, agrupadas por rol */
+.eqp-role-group{margin-bottom:16px}
+.eqp-role-group-hdr{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px}
+.eqp-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.eqp-card{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border);border-radius:var(--radius-md);padding:11px 13px;min-height:52px}
+.eqp-card.s-activo{border-left-color:var(--green-dot)}
+.eqp-card.s-tibio{border-left-color:var(--amber-dot)}
+.eqp-card.s-inactivo{border-left-color:var(--red-dot)}
+.eqp-card.s-nunca{border-left-color:var(--text-3)}
+.eqp-card-body{min-width:0;flex:1}
+.eqp-card-name{font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eqp-card-meta{font-size:11px;color:var(--text-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eqp-tag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--radius-full);font-size:10px;font-weight:700;white-space:nowrap}
+.eqp-tag.t-ascenso{background:var(--green-bg);color:var(--green-text)}
+.eqp-tag.t-sostenido_alto{background:var(--blue-bg);color:var(--blue-text)}
+.eqp-tag.t-estable_bajo{background:var(--surface-2);color:var(--text-secondary)}
+.eqp-tag.t-descenso{background:var(--red-bg);color:var(--red-text)}
+.eqp-tag.t-sin_historia{background:var(--surface-2);color:var(--text-muted)}
+.eqp-tag i{width:11px;height:11px;stroke:currentColor}
+/* Líneas de nivel de uso (SVG, estilo dash-trend, sin Chart.js) */
+.eqp-lines-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.eqp-lines-svg{width:100%;height:auto;display:block;overflow:visible}
+.eqp-lines-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.eqp-legend-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-full);border:1px solid var(--border);background:var(--surface-2);font-size:11px;color:var(--text-secondary);cursor:pointer;user-select:none;transition:opacity .15s,border-color .15s}
+.eqp-legend-chip.off{opacity:.4}
+.eqp-legend-chip .eqp-legend-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.eqp-lines-empty{text-align:center;padding:30px 20px;color:var(--text-muted);font-size:12px}
+/* Barras de tareas por usuario (apiladas por estado) */
+.eqp-bars{display:flex;flex-direction:column;gap:9px}
+.eqp-bar-row{display:grid;grid-template-columns:140px 1fr 48px;align-items:center;gap:10px}
+.eqp-bar-name{font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eqp-bar-track{display:flex;height:18px;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2)}
+.eqp-bar-seg{height:100%}
+.eqp-bar-seg.b-activas{background:var(--blue-dot)}
+.eqp-bar-seg.b-completadas{background:var(--amber-dot)}
+.eqp-bar-seg.b-validadas{background:var(--green-dot)}
+.eqp-bar-total{font-size:12px;font-weight:700;color:var(--text-secondary);text-align:right}
+.eqp-bars-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:11px;color:var(--text-muted)}
+.eqp-bars-legend span{display:inline-flex;align-items:center;gap:5px}
+.eqp-bars-legend .eqp-sw{width:10px;height:10px;border-radius:2px}
+/* Ranking por trayectoria (tabla ordenable) */
+.eqp-table-wrap{border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+.eqp-table{width:100%;border-collapse:collapse;font-size:12px}
+.eqp-table th{text-align:left;padding:9px 12px;background:var(--surface-2);color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;cursor:pointer;user-select:none;border-bottom:1px solid var(--border)}
+.eqp-table th .eqp-sort-ind{opacity:.5;font-size:9px;margin-left:3px}
+.eqp-table th.sorted{color:var(--text-primary)}
+.eqp-table th.num,.eqp-table td.num{text-align:right}
+.eqp-table td{padding:9px 12px;border-bottom:1px solid var(--border-light);color:var(--text-primary)}
+.eqp-table tr:last-child td{border-bottom:none}
+.eqp-table tbody tr:hover{background:var(--surface-2)}
+.eqp-it-bar{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;vertical-align:middle;margin-right:7px}
+.eqp-it-bar span{display:block;height:100%;background:var(--accent)}
+.eqp-delta-up{color:var(--green-text);font-weight:700}
+.eqp-delta-down{color:var(--red-text);font-weight:700}
+.eqp-delta-flat{color:var(--text-muted)}
+/* Panel de encargados */
+.eqp-mgr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.eqp-mgr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:13px 14px}
+.eqp-mgr-name{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.eqp-mgr-stats{display:flex;gap:16px}
+.eqp-mgr-stat{flex:1}
+.eqp-mgr-stat-val{font-size:22px;font-weight:800;color:var(--text-primary);line-height:1}
+.eqp-mgr-stat-lbl{font-size:10px;color:var(--text-muted);margin-top:3px}
+.eqp-empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+.eqp-empty i{width:30px;height:30px;stroke:currentColor;color:var(--text-3);margin-bottom:8px;display:block;margin-left:auto;margin-right:auto}
+.eqp-403{text-align:center;padding:44px 24px;color:var(--text-muted);font-size:13px;max-width:420px;margin:0 auto}
+.eqp-403 i{width:34px;height:34px;stroke:currentColor;color:var(--amber);margin-bottom:10px;display:block;margin-left:auto;margin-right:auto}
+@media(max-width:760px){
+  .eqp-kpi-row{grid-template-columns:1fr 1fr}
+  .eqp-toolbar{flex-direction:column;align-items:stretch}
+  .eqp-toolbar-left{justify-content:space-between}
+  .eqp-select{flex:1}
+  .eqp-bar-row{grid-template-columns:96px 1fr 40px;gap:7px}
+  .eqp-card-grid{grid-template-columns:1fr}
+  .eqp-table-wrap{overflow-x:auto}
+  .eqp-table{min-width:520px}
+}
 /* ── Empaque tab ──────────────────────────────────────────────────────────── */
 .emp-page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
 .emp-section-title{font-size:14px;font-weight:700;color:var(--text-primary);margin:20px 0 12px;display:flex;align-items:center;gap:7px}
@@ -4971,6 +5088,41 @@ body{font-family:var(--font);min-height:100dvh}
 
     <!-- ═══════════════ TAB IMPACTO ═══════════════ -->
     <div id="tab-impacto" style="display:none">
+
+      <!-- Sub-pestañas: Equipo (nueva, por defecto) · Impacto de políticas (existente) -->
+      <div class="eqp-subtabs" role="tablist">
+        <button class="eqp-subtab active" id="imp-subtab-equipo" role="tab" onclick="impSetSub('equipo')"><i data-lucide="users"></i>Equipo</button>
+        <button class="eqp-subtab" id="imp-subtab-politicas" role="tab" onclick="impSetSub('politicas')"><i data-lucide="zap"></i>Impacto de políticas</button>
+      </div>
+
+      <!-- ─────────── SUB-VISTA: EQUIPO / ADOPCIÓN ─────────── -->
+      <div id="imp-sub-equipo">
+        <div class="eqp-toolbar">
+          <div class="eqp-toolbar-left">
+            <span class="eqp-loc-label"><i data-lucide="map-pin" style="width:12px;height:12px;stroke:currentColor;vertical-align:-2px;margin-right:3px"></i>Localidad</span>
+            <select id="eqp-loc" class="eqp-select" onchange="eqpRefresh()"><option value="todas">Todas</option></select>
+            <span class="eqp-window-note" id="eqp-window-note"></span>
+          </div>
+          <button class="btn-sm" onclick="eqpRefresh()"><i data-lucide="refresh-cw" class="sec-hdr-icon"></i>Actualizar</button>
+        </div>
+
+        <!-- Resumen de adopción (semáforo agregado, filtra al hacer clic) -->
+        <div class="eqp-kpi-row" id="eqp-kpi-row">
+          <div class="eqp-kpi s-activo" onclick="eqpToggleSemFilter('activo')" title="Filtrar por activos"><div class="eqp-kpi-val" id="eqp-k-activo">—</div><div class="eqp-kpi-label"><span class="eqp-dot d-activo"></span>Activos</div></div>
+          <div class="eqp-kpi s-tibio" onclick="eqpToggleSemFilter('tibio')" title="Filtrar por tibios"><div class="eqp-kpi-val" id="eqp-k-tibio">—</div><div class="eqp-kpi-label"><span class="eqp-dot d-tibio"></span>Tibios</div></div>
+          <div class="eqp-kpi s-inactivo" onclick="eqpToggleSemFilter('inactivo')" title="Filtrar por inactivos"><div class="eqp-kpi-val" id="eqp-k-inactivo">—</div><div class="eqp-kpi-label"><span class="eqp-dot d-inactivo"></span>Inactivos</div></div>
+          <div class="eqp-kpi s-nunca" onclick="eqpToggleSemFilter('nunca')" title="Filtrar por quienes nunca entraron"><div class="eqp-kpi-val" id="eqp-k-nunca">—</div><div class="eqp-kpi-label"><span class="eqp-dot d-nunca"></span>Nunca entró</div></div>
+        </div>
+
+        <!-- Cuerpo dinámico (semáforo de tarjetas + líneas + barras + ranking + encargados) -->
+        <div id="eqp-body">
+          <div class="eqp-empty"><div class="spinner" style="width:22px;height:22px;margin:0 auto 10px"></div>Cargando equipo…</div>
+        </div>
+      </div>
+      <!-- /imp-sub-equipo -->
+
+      <!-- ─────────── SUB-VISTA: IMPACTO DE POLÍTICAS (existente, intacta) ─────────── -->
+      <div id="imp-sub-politicas" style="display:none">
       <div class="imp-page-hdr">
         <div>
           <h2><i data-lucide="zap" class="tab-h2-icon"></i>Impacto en Flujo de Trabajo</h2>
@@ -4991,6 +5143,8 @@ body{font-family:var(--font);min-height:100dvh}
       <div class="imp-emp-grid" id="imp-emp-grid">
         <div class="imp-empty">Selecciona una fecha y presiona Actualizar</div>
       </div>
+      </div>
+      <!-- /imp-sub-politicas -->
     </div>
     <!-- /tab-impacto -->
 
@@ -20573,7 +20727,27 @@ async function polDeletePolicy(polId) {
 function impInit() {
   var dateEl = document.getElementById('imp-date');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
-  impRefresh();
+  // Sub-vista por defecto: Equipo. La de "Impacto de políticas" se carga al activarla.
+  impSetSub(_impSub || 'equipo');
+}
+
+// ── Toggle de sub-pestañas del tab Impacto (Equipo / Impacto de políticas) ──
+var _impSub = 'equipo';
+function impSetSub(which) {
+  _impSub = (which === 'politicas') ? 'politicas' : 'equipo';
+  var eq = document.getElementById('imp-sub-equipo');
+  var po = document.getElementById('imp-sub-politicas');
+  var btnE = document.getElementById('imp-subtab-equipo');
+  var btnP = document.getElementById('imp-subtab-politicas');
+  if (eq) eq.style.display = (_impSub === 'equipo') ? '' : 'none';
+  if (po) po.style.display = (_impSub === 'politicas') ? '' : 'none';
+  if (btnE) btnE.classList.toggle('active', _impSub === 'equipo');
+  if (btnP) btnP.classList.toggle('active', _impSub === 'politicas');
+  if (_impSub === 'equipo') {
+    eqpRefresh();                             // panel de monitoreo en vivo: datos frescos al entrar
+  } else {
+    impRefresh();                             // función ORIGINAL intacta (prepara _polCtxData + grid)
+  }
 }
 
 function impRefresh() {
@@ -20711,6 +20885,351 @@ function impRenderGrid(results) {
 
   var grid = document.getElementById('imp-emp-grid');
   if (grid) { grid.innerHTML = cards || '<div class="imp-empty">Sin empleados activos</div>'; if(window.lucide) lucide.createIcons(); }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ── SUB-VISTA EQUIPO / ADOPCIÓN (tab Impacto) ────────────────────────────────
+// Consume GET /api/wwp/metrics/equipo[?localidad=]. Solo admin/manager (endpoint
+// exige rol; el tab ya está protegido por guardTab→can('dashboard')).
+// ════════════════════════════════════════════════════════════════════════════
+var _eqpLoaded = false;        // carga perezosa una vez
+var _eqpData = null;           // última respuesta del endpoint
+var _eqpSemFilter = null;      // filtro de semáforo activo (clic en KPI)
+var _eqpLineSel = null;        // set de ids visibles en el gráfico de líneas (null = top por IT)
+var _eqpSort = { key:'indiceTrayectoria', dir:'desc' };  // estado de orden del ranking
+
+var EQP_SEM_META = {
+  activo:  { label:'Activo',     cls:'s-activo',   dot:'d-activo',   color:'var(--green-dot)' },
+  tibio:   { label:'Tibio',      cls:'s-tibio',    dot:'d-tibio',    color:'var(--amber-dot)' },
+  inactivo:{ label:'Inactivo',   cls:'s-inactivo', dot:'d-inactivo', color:'var(--red-dot)' },
+  nunca:   { label:'Nunca entró',cls:'s-nunca',    dot:'d-nunca',    color:'var(--text-3)' }
+};
+var EQP_TRAY_META = {
+  ascenso:        { label:'En ascenso',    cls:'t-ascenso',        icon:'trending-up' },
+  sostenido_alto: { label:'Sostenido alto',cls:'t-sostenido_alto', icon:'activity' },
+  estable_bajo:   { label:'Estable bajo',  cls:'t-estable_bajo',   icon:'minus' },
+  descenso:       { label:'En descenso',   cls:'t-descenso',       icon:'trending-down' },
+  sin_historia:   { label:'Sin historia',  cls:'t-sin_historia',   icon:'circle-dashed' }
+};
+var EQP_ROLE_GROUPS = [
+  { keys:['admin','manager'], label:'Encargados y gerencia' },
+  { keys:['assistant'],       label:'Auxiliares' }
+];
+// Colores de línea por trayectoria (tokens; sin hex). Resuelve a su valor en runtime.
+function eqpTrayColor(tray) {
+  var map = {
+    ascenso:'--green-dot', sostenido_alto:'--blue-dot', descenso:'--red-dot',
+    estable_bajo:'--amber-dot', sin_historia:'--text-3'
+  };
+  return 'var(' + (map[tray] || '--text-3') + ')';
+}
+function eqpLocLabel(loc) {
+  if (loc === 'SIN_LOCALIDAD') return 'Sin localidad';
+  if (loc === 'todas' || !loc) return 'Todas';
+  return loc;
+}
+
+// ── Carga ───────────────────────────────────────────────────────────────────
+function eqpRefresh() {
+  var body = document.getElementById('eqp-body');
+  var loc = (document.getElementById('eqp-loc') || {}).value || 'todas';
+  if (body) body.innerHTML = '<div class="eqp-empty"><div class="spinner" style="width:22px;height:22px;margin:0 auto 10px"></div>Cargando equipo…</div>';
+  var url = '/api/wwp/metrics/equipo' + (loc && loc !== 'todas' ? '?localidad=' + encodeURIComponent(loc) : '');
+  authGetJson(url, 15000).then(function(r) {
+    _eqpLoaded = true;
+    if (r.status === 403) { eqpRenderDenied(); return; }
+    if (!r.ok || !r.data || !r.data.ok) throw new Error((r.data && r.data.error) || ('HTTP ' + r.status));
+    _eqpData = r.data;
+    eqpPopulateLocs(_eqpData.localidades, loc);
+    _eqpLineSel = null;  // reset selección de líneas al recargar
+    eqpRenderAll();
+  }).catch(function(e) {
+    _eqpLoaded = true;
+    if (body) body.innerHTML = '<div class="eqp-empty"><i data-lucide="alert-triangle"></i>No se pudo cargar el equipo: ' + esc(e.message) + '</div>';
+    if (window.lucide) lucide.createIcons();
+  });
+}
+
+function eqpRenderDenied() {
+  var body = document.getElementById('eqp-body');
+  if (body) body.innerHTML = '<div class="eqp-403"><i data-lucide="lock"></i>Este panel es solo para encargados y gerencia. No tienes permiso para ver las métricas del equipo.</div>';
+  ['eqp-k-activo','eqp-k-tibio','eqp-k-inactivo','eqp-k-nunca'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent='—'; });
+  if (window.lucide) lucide.createIcons();
+}
+
+function eqpPopulateLocs(locs, current) {
+  var sel = document.getElementById('eqp-loc');
+  if (!sel || !Array.isArray(locs)) return;
+  // Reconstruir solo si cambió el conjunto (evita perder la selección al refrescar)
+  var want = 'todas|' + locs.join('|');
+  if (sel.getAttribute('data-locs') === want) { sel.value = current; return; }
+  sel.setAttribute('data-locs', want);
+  var html = '<option value="todas">Todas</option>';
+  locs.forEach(function(l){ html += '<option value="' + esc(l) + '">' + esc(eqpLocLabel(l)) + '</option>'; });
+  sel.innerHTML = html;
+  sel.value = current || 'todas';
+}
+
+// ── Render maestro ────────────────────────────────────────────────────────────
+function eqpRenderAll() {
+  var d = _eqpData; if (!d) return;
+  var users = d.usuarios || [];
+  // Nota de ventana + KPIs de semáforo
+  var note = document.getElementById('eqp-window-note');
+  if (note) note.textContent = 'Ventana ' + (d.windowDays || 14) + ' días · ' + users.length + ' usuario' + (users.length===1?'':'s') + ' · ' + eqpLocLabel(d.localidadFiltro);
+  var counts = { activo:0, tibio:0, inactivo:0, nunca:0 };
+  users.forEach(function(u){ if (counts[u.semaforo] != null) counts[u.semaforo]++; });
+  var setK = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  setK('eqp-k-activo', counts.activo); setK('eqp-k-tibio', counts.tibio);
+  setK('eqp-k-inactivo', counts.inactivo); setK('eqp-k-nunca', counts.nunca);
+  // Marcar KPI seleccionado (filtro)
+  [['eqp-k-activo','activo','s-activo'],['eqp-k-tibio','tibio','s-tibio'],['eqp-k-inactivo','inactivo','s-inactivo'],['eqp-k-nunca','nunca','s-nunca']].forEach(function(x){
+    var card = document.getElementById(x[0]); card = card ? card.closest('.eqp-kpi') : null;
+    if (card) card.classList.toggle('sel', _eqpSemFilter === x[1]);
+  });
+
+  var body = document.getElementById('eqp-body');
+  if (!body) return;
+  if (!users.length) {
+    body.innerHTML = '<div class="eqp-empty"><i data-lucide="users"></i>No hay usuarios para esta localidad.</div>';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  body.innerHTML =
+    eqpSemaforoHtml(users) +
+    eqpLinesHtml(users) +
+    eqpBarsHtml(users) +
+    eqpRankingHtml(users) +
+    eqpManagersHtml(users);
+  if (window.lucide) lucide.createIcons();
+  eqpDrawLines();  // dibuja el SVG tras montar el DOM
+}
+
+// ── Panel 1: Semáforo de adopción (tarjetas por usuario, agrupadas por rol) ──
+function eqpSemaforoHtml(users) {
+  var pool = _eqpSemFilter ? users.filter(function(u){ return u.semaforo === _eqpSemFilter; }) : users;
+  var fm = _eqpSemFilter ? (EQP_SEM_META[_eqpSemFilter] || EQP_SEM_META.nunca) : null;
+  var filterChip = fm
+    ? '<button class="eqp-legend-chip" onclick="eqpClearSemFilter()"><span class="eqp-legend-swatch" style="border-radius:50%;background:' + fm.color + '"></span>Filtro: ' + fm.label + ' ✕</button>'
+    : '';
+  var groups = EQP_ROLE_GROUPS.map(function(g) {
+    var list = pool.filter(function(u){ return g.keys.indexOf(u.role) !== -1; });
+    if (!list.length) return '';
+    var cards = list.map(function(u) {
+      var sm = EQP_SEM_META[u.semaforo] || EQP_SEM_META.nunca;
+      var tm = EQP_TRAY_META[u.trayectoria] || EQP_TRAY_META.sin_historia;
+      return '<div class="eqp-card ' + sm.cls + '">' +
+        avatarHtml(u.name, 34) +
+        '<div class="eqp-card-body">' +
+          '<div class="eqp-card-name" title="' + esc(u.name) + '">' + esc(u.name) + '</div>' +
+          '<div class="eqp-card-meta">' + eqpLastActivityLabel(u) + '</div>' +
+        '</div>' +
+        '<span class="eqp-tag ' + tm.cls + '"><i data-lucide="' + tm.icon + '"></i>' + tm.label + '</span>' +
+      '</div>';
+    }).join('');
+    return '<div class="eqp-role-group"><div class="eqp-role-group-hdr">' + esc(g.label) + ' · ' + list.length + '</div><div class="eqp-card-grid">' + cards + '</div></div>';
+  }).join('');
+  if (!groups) groups = '<div class="eqp-empty">Ningún usuario con este estado.</div>';
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="gauge"></i>Semáforo de adopción</h3>' + filterChip + '</div>' +
+    '<p class="eqp-panel-sub">Quién está usando la plataforma. Verde = activo · ámbar = tibio · rojo = inactivo · gris = nunca entró.</p>' +
+    groups + '</div>';
+}
+function eqpLastActivityLabel(u) {
+  var sm = (EQP_SEM_META[u.semaforo] || EQP_SEM_META.nunca).label;
+  if (u.semaforo === 'nunca' || !u.lastActivity) return sm + ' · sin actividad registrada';
+  var h = (Date.now() - new Date(u.lastActivity).getTime()) / 36e5;
+  var rel;
+  if (h < 1) rel = 'hace minutos';
+  else if (h < 24) rel = 'hace ' + Math.round(h) + ' h';
+  else rel = 'hace ' + Math.round(h/24) + ' día' + (Math.round(h/24)===1?'':'s');
+  return sm + ' · últ. actividad ' + rel;
+}
+function eqpClearSemFilter() { _eqpSemFilter = null; eqpRenderAll(); }
+function eqpToggleSemFilter(s) { _eqpSemFilter = (_eqpSemFilter === s) ? null : s; eqpRenderAll(); }
+
+// ── Panel 2: Nivel de uso en el tiempo (SVG, media móvil 7d) ─────────────────
+function eqpMovAvg(serie, win) {
+  win = win || 7;
+  var ns = serie.map(function(p){ return p.n || 0; });
+  return ns.map(function(_, i){
+    var s = 0, c = 0;
+    for (var j = Math.max(0, i - win + 1); j <= i; j++) { s += ns[j]; c++; }
+    return c ? s / c : 0;
+  });
+}
+function eqpLineUsers(users) {
+  // Por defecto: top 6 por IT con algo de actividad; si el usuario seleccionó, respeta su set.
+  if (_eqpLineSel) return users.filter(function(u){ return _eqpLineSel.indexOf(u.id) !== -1; });
+  var withAct = users.filter(function(u){ return (u.serie||[]).some(function(p){ return p.n>0; }); });
+  return withAct.slice(0, 6);
+}
+function eqpLinesHtml(users) {
+  var active = users.filter(function(u){ return (u.serie||[]).some(function(p){ return p.n>0; }); });
+  if (!active.length) {
+    return '<div class="eqp-panel"><div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="line-chart"></i>Nivel de uso en el tiempo</h3></div>' +
+      '<p class="eqp-panel-sub">Acciones por día (media móvil de 7 días).</p>' +
+      '<div class="eqp-lines-wrap"><div class="eqp-lines-empty">Aún no hay actividad registrada en esta ventana para graficar.</div></div></div>';
+  }
+  // Leyenda: todos los que tienen actividad (clicables para mostrar/ocultar)
+  var shown = eqpLineUsers(users).map(function(u){ return u.id; });
+  var legend = active.map(function(u){
+    var off = shown.indexOf(u.id) === -1 ? ' off' : '';
+    return '<button class="eqp-legend-chip' + off + '" onclick="eqpToggleLine(\'' + u.id + '\')">' +
+      '<span class="eqp-legend-swatch" style="background:' + eqpTrayColor(u.trayectoria) + '"></span>' + esc((u.name||'').split(' ')[0]) + '</button>';
+  }).join('');
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="line-chart"></i>Nivel de uso en el tiempo</h3></div>' +
+    '<p class="eqp-panel-sub">Acciones por día (media móvil de 7 días). Contrasta quién sube vs. quién se quedó. Clic en un nombre para mostrar u ocultar su línea.</p>' +
+    '<div class="eqp-lines-wrap"><svg class="eqp-lines-svg" id="eqp-lines-svg" preserveAspectRatio="none"></svg>' +
+    '<div class="eqp-lines-legend">' + legend + '</div></div></div>';
+}
+function eqpToggleLine(id) {
+  if (!_eqpData) return;
+  var active = (_eqpData.usuarios||[]).filter(function(u){ return (u.serie||[]).some(function(p){ return p.n>0; }); });
+  if (!_eqpLineSel) _eqpLineSel = eqpLineUsers(_eqpData.usuarios).map(function(u){ return u.id; });
+  var i = _eqpLineSel.indexOf(id);
+  if (i === -1) _eqpLineSel.push(id); else _eqpLineSel.splice(i, 1);
+  eqpRenderAll();
+}
+function eqpDrawLines() {
+  var svg = document.getElementById('eqp-lines-svg');
+  if (!svg || !_eqpData) return;
+  var list = eqpLineUsers(_eqpData.usuarios);
+  var W = 720, H = 200, padL = 30, padR = 8, padT = 10, padB = 22;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  var serieLen = 0;
+  (_eqpData.usuarios||[]).forEach(function(u){ if ((u.serie||[]).length > serieLen) serieLen = u.serie.length; });
+  if (!serieLen) { svg.innerHTML = ''; return; }
+  // Escala Y: máximo de la media móvil entre los usuarios mostrados (mínimo 1)
+  var maxY = 1;
+  var smoothed = list.map(function(u){
+    var sm = eqpMovAvg(u.serie || [], 7);
+    sm.forEach(function(v){ if (v > maxY) maxY = v; });
+    return { u:u, sm:sm };
+  });
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var xAt = function(i){ return padL + (serieLen <= 1 ? 0 : (i/(serieLen-1)) * plotW); };
+  var yAt = function(v){ return padT + plotH - (v/maxY) * plotH; };
+  var parts = [];
+  // Nota: usamos style="stroke:var()/fill:var()" en vez de atributos stroke=/fill= porque
+  // var() en atributos SVG no resuelve de forma fiable en Safari/iOS; en style sí.
+  // Grid horizontal (3 líneas) + ejes
+  for (var g = 0; g <= 2; g++) {
+    var gy = padT + (g/2) * plotH;
+    parts.push('<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W-padR) + '" y2="' + gy.toFixed(1) + '" style="stroke:var(--border-light)" stroke-width="1"/>');
+  }
+  var maxLbl = Math.round(maxY*10)/10;
+  parts.push('<text x="' + (padL-5) + '" y="' + (padT+4) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">' + maxLbl + '</text>');
+  parts.push('<text x="' + (padL-5) + '" y="' + (padT+plotH) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">0</text>');
+  // Etiquetas X (primer y último día)
+  var s0 = (list[0] && list[0].serie) ? list[0].serie : ((_eqpData.usuarios[0]||{}).serie || []);
+  if (s0.length) {
+    parts.push('<text x="' + padL + '" y="' + (H-6) + '" text-anchor="start" font-size="9" style="fill:var(--text-muted)">' + (s0[0].d||'').slice(5) + '</text>');
+    parts.push('<text x="' + (W-padR) + '" y="' + (H-6) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">' + (s0[s0.length-1].d||'').slice(5) + '</text>');
+  }
+  // Líneas (polyline por usuario)
+  smoothed.forEach(function(o){
+    var pts = o.sm.map(function(v,i){ return xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
+    parts.push('<polyline points="' + pts + '" style="fill:none;stroke:' + eqpTrayColor(o.u.trayectoria) + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+  });
+  svg.innerHTML = parts.join('');
+}
+
+// ── Panel 3: Tareas por usuario (barras apiladas por estado) ─────────────────
+function eqpBarsHtml(users) {
+  var withTasks = users.filter(function(u){ return (u.tareasTotal||0) > 0; })
+    .sort(function(a,b){ return (b.tareasTotal||0) - (a.tareasTotal||0); });
+  if (!withTasks.length) {
+    return '<div class="eqp-panel"><div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="bar-chart-3"></i>Tareas por usuario</h3></div>' +
+      '<p class="eqp-panel-sub">Carga de tareas por estado.</p>' +
+      '<div class="eqp-empty"><i data-lucide="inbox"></i>Ningún usuario tiene tareas en esta localidad.</div></div>';
+  }
+  var maxT = Math.max.apply(null, withTasks.map(function(u){ return u.tareasTotal||0; }));
+  var rows = withTasks.map(function(u) {
+    var act = u.activas||0, comp = (u.completadas||0) - (u.validadas||0), val = u.validadas||0;
+    if (comp < 0) comp = 0;  // completadas incluye validadas en el backend; mostramos completadas-no-validadas aparte
+    var scale = function(n){ return maxT > 0 ? (n/maxT*100) : 0; };
+    var seg = function(n,cls,title){ return n>0 ? '<div class="eqp-bar-seg ' + cls + '" style="width:' + scale(n).toFixed(1) + '%" title="' + title + ': ' + n + '"></div>' : ''; };
+    return '<div class="eqp-bar-row">' +
+      '<span class="eqp-bar-name" title="' + esc(u.name) + '">' + esc(u.name) + '</span>' +
+      '<div class="eqp-bar-track">' + seg(act,'b-activas','Activas') + seg(comp,'b-completadas','Completadas') + seg(val,'b-validadas','Validadas') + '</div>' +
+      '<span class="eqp-bar-total">' + (u.tareasTotal||0) + '</span>' +
+    '</div>';
+  }).join('');
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="bar-chart-3"></i>Tareas por usuario</h3></div>' +
+    '<p class="eqp-panel-sub">Carga total y su composición por estado.</p>' +
+    '<div class="eqp-bars">' + rows + '</div>' +
+    '<div class="eqp-bars-legend">' +
+      '<span><span class="eqp-sw" style="background:var(--blue-dot)"></span>Activas</span>' +
+      '<span><span class="eqp-sw" style="background:var(--amber-dot)"></span>Completadas</span>' +
+      '<span><span class="eqp-sw" style="background:var(--green-dot)"></span>Validadas</span>' +
+    '</div></div>';
+}
+
+// ── Panel 4: Ranking por trayectoria (tabla ordenable) ───────────────────────
+function eqpRankingHtml(users) {
+  var cols = [
+    { key:'name',              label:'Usuario',     num:false },
+    { key:'indiceTrayectoria', label:'Índice',      num:true },
+    { key:'nivel',             label:'Nivel',       num:true },
+    { key:'delta',             label:'Δ vs. previo',num:true },
+    { key:'trayectoria',       label:'Trayectoria', num:false }
+  ];
+  var rows = users.slice().sort(eqpRankCmp);
+  var ths = cols.map(function(c){
+    var sorted = _eqpSort.key === c.key ? ' sorted' : '';
+    var ind = _eqpSort.key === c.key ? (_eqpSort.dir==='desc' ? ' ▼' : ' ▲') : ' ⇅';
+    return '<th class="' + (c.num?'num':'') + sorted + '" onclick="eqpSortBy(\'' + c.key + '\')">' + esc(c.label) + '<span class="eqp-sort-ind">' + ind + '</span></th>';
+  }).join('');
+  var trs = rows.map(function(u) {
+    var tm = EQP_TRAY_META[u.trayectoria] || EQP_TRAY_META.sin_historia;
+    var dCls = u.delta>0 ? 'eqp-delta-up' : (u.delta<0 ? 'eqp-delta-down' : 'eqp-delta-flat');
+    var dTxt = (u.delta>0?'+':'') + (u.delta||0);
+    return '<tr>' +
+      '<td>' + esc(u.name) + '</td>' +
+      '<td class="num"><span class="eqp-it-bar"><span style="width:' + Math.max(0,Math.min(100,u.indiceTrayectoria||0)) + '%"></span></span>' + (u.indiceTrayectoria||0) + '</td>' +
+      '<td class="num">' + (u.nivel||0) + '</td>' +
+      '<td class="num ' + dCls + '">' + dTxt + '</td>' +
+      '<td><span class="eqp-tag ' + tm.cls + '"><i data-lucide="' + tm.icon + '"></i>' + tm.label + '</span></td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="list-ordered"></i>Ranking por trayectoria</h3></div>' +
+    '<p class="eqp-panel-sub">El que mejoró no es el mismo que se quedó. Ordena por cualquier columna.</p>' +
+    '<div class="eqp-table-wrap"><table class="eqp-table"><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div></div>';
+}
+function eqpRankCmp(a, b) {
+  var k = _eqpSort.key, dir = _eqpSort.dir === 'desc' ? -1 : 1;
+  var va = a[k], vb = b[k];
+  if (typeof va === 'string' || typeof vb === 'string') {
+    return String(va||'').localeCompare(String(vb||'')) * dir;
+  }
+  return ((va||0) - (vb||0)) * dir;
+}
+function eqpSortBy(key) {
+  if (_eqpSort.key === key) { _eqpSort.dir = (_eqpSort.dir === 'desc') ? 'asc' : 'desc'; }
+  else { _eqpSort.key = key; _eqpSort.dir = (key === 'name' || key === 'trayectoria') ? 'asc' : 'desc'; }
+  eqpRenderAll();
+}
+
+// ── Panel 5: Encargados (validaciones + cierres) ─────────────────────────────
+function eqpManagersHtml(users) {
+  var mgrs = users.filter(function(u){ return u.role === 'admin' || u.role === 'manager'; });
+  if (!mgrs.length) return '';
+  var cards = mgrs.map(function(u) {
+    return '<div class="eqp-mgr-card">' +
+      '<div class="eqp-mgr-name">' + avatarHtml(u.name, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
+      '<div class="eqp-mgr-stats">' +
+        '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.validacionesHechas||0) + '</div><div class="eqp-mgr-stat-lbl">Validaciones</div></div>' +
+        '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.cierresGestionados||0) + '</div><div class="eqp-mgr-stat-lbl">Cierres gestionados</div></div>' +
+      '</div></div>';
+  }).join('');
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="shield-check"></i>Encargados: supervisión del trabajo</h3></div>' +
+    '<p class="eqp-panel-sub">Cuánto están validando y cerrando el trabajo de los auxiliares (ventana de ' + ((_eqpData&&_eqpData.windowDays)||14) + ' días).</p>' +
+    '<div class="eqp-mgr-grid">' + cards + '</div></div>';
 }
 
 // ════════════════════════════════════════════════════════════════════════════

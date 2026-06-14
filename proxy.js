@@ -2142,6 +2142,160 @@ function taskResponsibleIds(t) {
   return [...ids];
 }
 
+// ── Métricas de equipo (adopción + trayectoria + desempeño por usuario y localidad) ──
+// Normaliza statusHistory[].by (puede venir como userId, oe_<odooId> o nombre completo) a userId.
+function buildActorResolver(users) {
+  const byId = {}, byOdoo = {}, byName = {};
+  users.forEach(u => {
+    byId[u.id] = u.id;
+    if (u.odooId != null && u.odooId !== '') byOdoo['oe_' + u.odooId] = u.id;
+    if (u.name) byName[String(u.name).trim().toLowerCase()] = u.id;
+  });
+  return (by) => {
+    if (!by) return null;
+    const s = String(by).trim();
+    if (byId[s]) return s;
+    if (s.startsWith('oe_') && byOdoo[s]) return byOdoo[s];
+    if (s.startsWith('au_')) return s; // userId aunque no esté en el índice
+    return byName[s.toLowerCase()] || null;
+  };
+}
+
+// Deriva la localidad/sede de una tarea: usa task.location; si no, parsea la ubicación Odoo
+// de los items ("ALVEN/Stock/A-CDP/BB1" -> "CDP"). 'SIN_LOCALIDAD' si no se puede determinar.
+function deriveLocalidad(t) {
+  if (t.location && String(t.location).trim()) return String(t.location).trim().toUpperCase();
+  for (const it of (t.items || [])) {
+    const ln = it.selected_location_name ||
+      (Array.isArray(it.locations) && it.locations[0] && it.locations[0].location_name) || '';
+    // Formatos: "A-CDP/DE3" (producción, corto) o "ALVEN/Stock/A-CDP/BB1" (largo). Sede = tras "<zona>-".
+    const m = String(ln).match(/\b[A-Z]-([A-Z]{2,})\b/);
+    if (m) return m[1].toUpperCase();
+  }
+  return 'SIN_LOCALIDAD';
+}
+
+// Cálculo central. opts.localidad = código de sede o null (todas). Ventana N días (calibrable).
+function computeTeamMetrics(opts = {}) {
+  const localidad = opts.localidad || null;
+  const N = opts.windowDays || 14;
+  const tasks = loadWwpTasks();
+  const users = loadAuthUsers();
+  const resolveActor = buildActorResolver(users);
+  const now = Date.now();
+  const DAY = 864e5;
+
+  const localidades = new Set();
+  const locByTask = new Map();
+  tasks.forEach(t => { const L = deriveLocalidad(t); localidades.add(L); locByTask.set(t.id, L); });
+  const scope = localidad ? tasks.filter(t => locByTask.get(t.id) === localidad) : tasks;
+
+  const stats = {};
+  users.forEach(u => {
+    stats[u.id] = {
+      id: u.id, name: u.name, role: u.role,
+      lastLogin: u.lastLogin || null, presenceStatus: u.presenceStatus || null,
+      tareasTotal: 0, activas: 0, completadas: 0, validadas: 0,
+      cerradas: 0, conEvidencia: 0, conAveria: 0, aTiempo: 0,
+      validacionesHechas: 0, cierresGestionados: 0,
+      _actDays: new Set(), _daily: {}, actReciente: 0, actPrevia: 0, lastActivity: null
+    };
+  });
+
+  const bump = (uid, dateStr) => {
+    const s = stats[uid]; if (!s || !dateStr) return;
+    const ts = new Date(dateStr).getTime(); if (!Number.isFinite(ts)) return;
+    const age = (now - ts) / DAY;
+    const dayKey = String(dateStr).slice(0, 10);
+    if (age <= 7) s._actDays.add(dayKey);
+    if (age <= 2 * N) s._daily[dayKey] = (s._daily[dayKey] || 0) + 1;
+    if (age <= N) s.actReciente++; else if (age <= 2 * N) s.actPrevia++;
+    if (!s.lastActivity || ts > new Date(s.lastActivity).getTime()) s.lastActivity = dateStr;
+  };
+
+  scope.forEach(t => {
+    // Crédito de grupo: cada participante recibe el crédito COMPLETO de la tarea (no se divide).
+    taskResponsibleIds(t).forEach(uid => {
+      const s = stats[uid]; if (!s) return;
+      s.tareasTotal++;
+      const closed = t.status === 'completed' || t.status === 'validated';
+      if (t.status === 'validated') s.validadas++;
+      if (t.status === 'completed' || t.status === 'validated') s.completadas++;
+      if (!closed && t.status !== 'cancelled') s.activas++;
+      if (closed) {
+        s.cerradas++;
+        const sel = (t.items || []).filter(it => it.selected);
+        if (sel.length > 0 && sel.every(it => (it.evidence_images || []).length > 0)) s.conEvidencia++;
+        if ((t.items || []).some(it => it.condition === 'damaged')) s.conAveria++;
+        const closeDate = (t.statusHistory || [])
+          .filter(h => h.status === 'completed' || h.status === 'validated')
+          .map(h => h.date).filter(Boolean).sort().pop();
+        if (t.dueDate && closeDate && String(closeDate).slice(0, 10) <= t.dueDate) s.aTiempo++;
+      }
+    });
+    // Actividad real (S3) + quién valida/cierra
+    (t.statusHistory || []).forEach(h => {
+      const uid = resolveActor(h.by); if (!uid) return;
+      bump(uid, h.date);
+      if (h.status === 'validated' && stats[uid]) stats[uid].validacionesHechas++;
+      if (h.status === 'completed' && stats[uid]) stats[uid].cierresGestionados++;
+    });
+    // Confirmaciones de empaque (S4)
+    (t.items || []).forEach(it => {
+      const conf = it.empaque_confirmacion;
+      if (conf && conf.by && conf.at) { const uid = resolveActor(conf.by); if (uid) bump(uid, conf.at); }
+    });
+  });
+
+  const arr = Object.values(stats);
+  const maxR = Math.max(1, ...arr.map(s => s.actReciente));
+  const out = arr.map(s => {
+    const hoursLast = s.lastActivity ? (now - new Date(s.lastActivity).getTime()) / 36e5 : Infinity;
+    const days7 = s._actDays.size;
+    let semaforo;
+    if (!s.lastLogin) semaforo = 'nunca';
+    else if (hoursLast <= 48 && days7 >= 3) semaforo = 'activo';
+    else if (hoursLast <= 24 * 7) semaforo = 'tibio';
+    else semaforo = 'inactivo';
+
+    const R = s.actReciente, P = s.actPrevia, delta = R - P;
+    const sig = Math.max(2, P * 0.25); // umbral de cambio significativo (calibrable)
+    const nivelNorm = Math.round((R / maxR) * 100);
+    const mejoraNorm = Math.round(Math.min(100, Math.max(0, 50 + (delta / Math.max(2, P)) * 50)));
+    const indiceTrayectoria = Math.round(0.5 * nivelNorm + 0.5 * mejoraNorm); // 50/50 (calibrable)
+    let trayectoria;
+    if (R + P === 0) trayectoria = 'sin_historia';
+    else if (delta > sig) trayectoria = 'ascenso';
+    else if (delta < -sig) trayectoria = 'descenso';
+    else if (nivelNorm >= 60) trayectoria = 'sostenido_alto';
+    else trayectoria = 'estable_bajo';
+
+    const pct = (n, d) => d > 0 ? Math.round((n / d) * 100) : null;
+    const serie = [];
+    for (let i = 2 * N - 1; i >= 0; i--) {
+      const d = new Date(now - i * DAY).toISOString().slice(0, 10);
+      serie.push({ d, n: s._daily[d] || 0 });
+    }
+    return {
+      id: s.id, name: s.name, role: s.role, semaforo, trayectoria,
+      indiceTrayectoria, nivel: nivelNorm, delta, serie,
+      lastLogin: s.lastLogin, lastActivity: s.lastActivity, diasActivos7: days7,
+      tareasTotal: s.tareasTotal, activas: s.activas, completadas: s.completadas, validadas: s.validadas,
+      pctCompletadas: pct(s.completadas, s.tareasTotal),
+      pctEvidencia: pct(s.conEvidencia, s.cerradas),
+      pctATiempo: pct(s.aTiempo, s.cerradas),
+      averias: s.conAveria,
+      validacionesHechas: s.validacionesHechas, cierresGestionados: s.cierresGestionados
+    };
+  });
+
+  return {
+    generatedAt: new Date().toISOString(), windowDays: N,
+    localidadFiltro: localidad, localidades: [...localidades].sort(),
+    usuarios: out.sort((a, b) => b.indiceTrayectoria - a.indiceTrayectoria)
+  };
+}
+
 function enrichOverdueTasks(tasks, opts = {}) {
   const users = loadAuthUsers();
   const userById = {};
@@ -6016,6 +6170,18 @@ const server = http.createServer(async (req, res) => {
     if (!state.opsChats) state.opsChats = { manager: [], assistant: [] };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), aiEnabled: AI_ENABLED, companyContext, chats: state.opsChats, ...report }));
+    return;
+  }
+
+  // GET /api/wwp/metrics/equipo?localidad=CDP — adopción/trayectoria/desempeño por usuario y localidad
+  if (reqPath === '/api/wwp/metrics/equipo' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    const q = (parsed.query || {});
+    const loc = (q.localidad && q.localidad !== 'todas') ? q.localidad : null;
+    const data = computeTeamMetrics({ localidad: loc });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, ...data }));
     return;
   }
 
