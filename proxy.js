@@ -4698,7 +4698,10 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     const taskIds = new Set(loadWwpTasks().map(t => t.id));
     const all = loadNotifications();
-    const kept = all.filter(n => !(n.userId===jp.userId && n.relatedTaskId && !taskIds.has(n.relatedTaskId)));
+    // Admin limpia las huérfanas de TODOS los usuarios; otros roles, solo las suyas.
+    const orphan  = n => n.relatedTaskId && !taskIds.has(n.relatedTaskId);
+    const inScope = n => jp.role === 'admin' ? true : n.userId === jp.userId;
+    const kept = all.filter(n => !(inScope(n) && orphan(n)));
     const removed = all.length - kept.length;
     saveNotifications(kept);
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, removed}));
