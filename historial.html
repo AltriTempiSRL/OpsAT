@@ -1733,6 +1733,62 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .av-inline-upload.open{display:block}
 .av-upload-progress{font-size:11px;color:var(--text-muted);margin-top:4px;min-height:14px}
 
+/* ── Despacho de Obsoleto ─────────────────────────────────────────────────────── */
+.do-ws-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.do-ws-head-left{display:flex;align-items:center;gap:12px}
+.do-back-btn{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-secondary);cursor:pointer;transition:background .15s}
+.do-back-btn:hover{background:var(--border-light)}
+.do-back-btn i{width:17px;height:17px;stroke:currentColor}
+.do-folio{font-size:18px;font-weight:800;color:var(--text-primary);letter-spacing:.5px;line-height:1.1}
+.do-badge{display:inline-block;margin-top:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 9px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
+.do-badge.borrador{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
+.do-badge.entregado{background:var(--green-bg);color:var(--green-text);border-color:rgba(21,128,61,.25)}
+.do-badge.anulado{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+.do-ws-actions{display:flex;gap:8px;flex-wrap:wrap}
+.do-act-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,opacity .15s}
+.do-act-btn:hover{background:var(--border-light)}
+.do-act-btn i{width:14px;height:14px;stroke:currentColor}
+.do-act-close{background:var(--green-bg);color:var(--green-text);border-color:rgba(21,128,61,.25)}
+.do-act-close:hover{opacity:.85}
+.do-sec-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary);margin-bottom:12px}
+.do-sec-title i{stroke:currentColor}
+.do-receptor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.do-line-grid{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;margin-bottom:6px}
+.do-input{width:100%;box-sizing:border-box;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface-2);color:var(--text-primary);outline:none;transition:border-color .15s}
+.do-input:focus{border-color:var(--border-focus,var(--text-secondary));background:var(--surface)}
+.do-loc-warn{margin-top:6px;font-size:11px;font-weight:600;color:var(--amber-text);background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:6px;padding:5px 8px}
+.do-stepper{display:flex;align-items:center;gap:0;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;width:fit-content;background:var(--surface-2)}
+.do-stepper button{width:40px;height:40px;border:none;background:transparent;color:var(--text-secondary);font-size:20px;font-weight:600;cursor:pointer;transition:background .15s}
+.do-stepper button:hover{background:var(--border-light)}
+.do-stepper input{width:64px;height:40px;border:none;border-left:1.5px solid var(--border);border-right:1.5px solid var(--border);text-align:center;font-size:15px;font-weight:700;background:var(--surface);color:var(--text-primary);outline:none;-moz-appearance:textfield}
+.do-stepper input::-webkit-outer-spin-button,.do-stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.do-cond-chips{display:flex;flex-wrap:wrap;gap:6px}
+.do-chip{padding:8px 14px;border:1.5px solid var(--border);border-radius:999px;background:var(--surface-2);color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.do-chip:hover{border-color:var(--text-muted)}
+.do-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.do-total-pill{font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
+/* Filas de líneas / lista de conduces */
+.do-line-row{display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light)}
+.do-line-row:last-child{border-bottom:none}
+.do-line-thumb,.do-line-ph{width:48px;height:48px;border-radius:6px;object-fit:cover;background:var(--surface-2);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.do-line-ref{font-size:11px;font-weight:700;color:var(--text-muted);font-family:monospace}
+.do-line-name{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.3}
+.do-line-meta{font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.do-line-cond{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)}
+.do-line-qty{font-size:16px;font-weight:800;color:var(--text-primary);text-align:right;white-space:nowrap}
+.do-line-fotos{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.do-line-foto{width:34px;height:34px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border-light)}
+.do-line-actions{display:flex;gap:6px;align-items:center}
+.do-line-del{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot);border-radius:6px;cursor:pointer}
+.do-line-del i{width:14px;height:14px;stroke:currentColor}
+.do-empty{padding:28px 16px;text-align:center;font-size:13px;color:var(--text-muted)}
+@media (max-width:767px){
+  .do-receptor-grid{grid-template-columns:1fr}
+  .do-line-grid{grid-template-columns:1fr}
+  .do-ws-actions{width:100%}
+  .do-act-btn{flex:1;justify-content:center}
+}
+
 /* ── Solicitudes de Reposición (D5) ──────────────────────────────────────────── */
 .rep-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .rep-header-title{font-size:14px;font-weight:700;color:var(--text-primary)}
@@ -3895,6 +3951,9 @@ body{font-family:var(--font);min-height:100dvh}
     <a class="nav-item" id="nav-dev-cdp" href="#sec-dev-cdp" onclick="navTo('dev-cdp');return false;">
       <span class="nav-icon"><i data-lucide="arrow-left-right"></i></span>Dev→CDP
     </a>
+    <a class="nav-item" id="nav-despacho-obsoleto" href="#sec-despacho-obsoleto" onclick="navTo('despacho-obsoleto');return false;">
+      <span class="nav-icon"><i data-lucide="package-minus"></i></span>Despacho de Obsoleto
+    </a>
 
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
@@ -3933,6 +3992,7 @@ body{font-family:var(--font);min-height:100dvh}
     <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa Almacén</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
     <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
+    <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Despacho Obsoleto</button>
   </div>
 
   <main>
@@ -4544,6 +4604,145 @@ body{font-family:var(--font);min-height:100dvh}
 
     </div>
     </div><!-- /section-dev-cdp -->
+
+    <!-- ══════════════════════════════════════════════════
+         DESPACHO DE OBSOLETO — conduce documental (OBSOLETO / NAVE 2)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-despacho-obsoleto" class="page-section" style="display:none">
+
+      <!-- ── HOME: lista de conduces + nuevo ── -->
+      <div id="do-home">
+        <div class="cont-card" style="margin-bottom:12px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+            <div>
+              <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text-primary)">
+                <i data-lucide="package-minus" style="width:17px;height:17px;stroke:currentColor;display:inline-block;vertical-align:-3px;margin-right:6px"></i>
+                Despacho de Obsoleto
+              </h2>
+              <p style="margin:0;font-size:12px;color:var(--text-muted);max-width:560px">
+                Conduce de salida de mercancía en <strong>OBSOLETO</strong> y <strong>NAVE&nbsp;2</strong> (venta al por mayor «como está»). Escanea, registra cantidad y fotos de la condición, e imprime el conduce para la firma de quien recibe.
+              </p>
+            </div>
+            <button class="rep-new-btn" onclick="doNuevoDespacho()">
+              <i data-lucide="plus" style="width:14px;height:14px"></i>Nuevo Despacho
+            </button>
+          </div>
+        </div>
+        <div class="cont-card" style="padding:0;overflow:visible">
+          <div class="av-list-header">
+            <span class="av-list-title">Conduces registrados</span>
+            <div class="av-filter-row">
+              <button class="av-filter-btn active" onclick="doSetFilter('')"          id="dof-todos">Todos</button>
+              <button class="av-filter-btn"        onclick="doSetFilter('borrador')"  id="dof-borrador">Borrador</button>
+              <button class="av-filter-btn"        onclick="doSetFilter('entregado')" id="dof-entregado">Entregado</button>
+              <button class="av-filter-btn"        onclick="doSetFilter('anulado')"   id="dof-anulado">Anulado</button>
+            </div>
+          </div>
+          <div id="do-list-body"></div>
+        </div>
+      </div>
+
+      <!-- ── WORKSPACE: conduce abierto ── -->
+      <div id="do-workspace" style="display:none">
+        <!-- Cabecera del conduce -->
+        <div class="cont-card do-ws-head">
+          <div class="do-ws-head-left">
+            <button class="do-back-btn" onclick="doVolverHome()" title="Volver a la lista"><i data-lucide="arrow-left"></i></button>
+            <div>
+              <div class="do-folio" id="do-folio">CO-0000</div>
+              <div id="do-estado-badge" class="do-badge">borrador</div>
+            </div>
+          </div>
+          <div class="do-ws-actions">
+            <button class="do-act-btn" onclick="doImprimirConduce()"><i data-lucide="printer"></i>Imprimir conduce</button>
+            <button class="do-act-btn" onclick="doExportarExcel()"><i data-lucide="file-spreadsheet"></i>Excel</button>
+            <button class="do-act-btn do-act-close" id="do-cerrar-btn" onclick="doCerrarDespacho()"><i data-lucide="check-circle"></i>Cerrar despacho</button>
+          </div>
+        </div>
+
+        <!-- Datos del receptor -->
+        <div class="cont-card" style="margin-top:12px">
+          <div class="do-sec-title"><i data-lucide="user-check" style="width:14px;height:14px"></i>Datos de quien recibe</div>
+          <div class="do-receptor-grid">
+            <div><label class="av-lbl">Nombre completo *</label><input id="do-rec-nombre"   class="do-input" onchange="doSaveReceptor()" placeholder="Nombre y apellido"></div>
+            <div><label class="av-lbl">Cédula / RNC *</label>  <input id="do-rec-cedula"   class="do-input" onchange="doSaveReceptor()" placeholder="000-0000000-0"></div>
+            <div><label class="av-lbl">Empresa / comprador</label><input id="do-rec-empresa" class="do-input" onchange="doSaveReceptor()" placeholder="Razón social"></div>
+            <div><label class="av-lbl">Teléfono</label>          <input id="do-rec-telefono" class="do-input" onchange="doSaveReceptor()" placeholder="809-000-0000"></div>
+            <div><label class="av-lbl">Transportista</label>     <input id="do-rec-transportista" class="do-input" onchange="doSaveReceptor()" placeholder="Quien transporta"></div>
+            <div><label class="av-lbl">Vehículo / placa</label>  <input id="do-rec-vehiculo"  class="do-input" onchange="doSaveReceptor()" placeholder="Placa o descripción"></div>
+          </div>
+        </div>
+
+        <!-- Captura escaneo-primero -->
+        <div class="cont-card do-capture" id="do-capture" style="margin-top:12px">
+          <div class="do-sec-title"><i data-lucide="scan-line" style="width:14px;height:14px"></i>Escanear artículo</div>
+          <div class="av-bar-row">
+            <div class="av-bar-input-wrap" style="flex:1">
+              <input id="do-barcode-input" class="av-barcode-input" placeholder="Escanear o escribir código de barras…"
+                autocomplete="off" inputmode="text"
+                onkeydown="doBarcodeKeydown(event)">
+            </div>
+            <button class="av-bar-btn" onclick="doLookup()" title="Buscar"><i data-lucide="search"></i></button>
+          </div>
+          <div id="do-lookup-msg" class="av-lookup-msg"></div>
+
+          <!-- Ficha del artículo encontrado -->
+          <div id="do-product-card" class="av-product-card" style="display:none">
+            <img id="do-prod-img" class="av-prod-img" src="" alt="">
+            <div class="av-prod-info">
+              <div id="do-prod-ref" class="av-prod-ref"></div>
+              <div id="do-prod-name" class="av-prod-name"></div>
+              <div id="do-prod-loc" class="av-prod-loc"></div>
+              <div id="do-prod-warn" class="do-loc-warn" style="display:none"></div>
+            </div>
+          </div>
+
+          <!-- Campos de la línea -->
+          <div id="do-line-fields" style="display:none">
+            <div class="do-line-grid">
+              <div>
+                <label class="av-lbl">Cantidad a despachar *</label>
+                <div class="do-stepper">
+                  <button type="button" onclick="doQtyStep(-1)">−</button>
+                  <input id="do-qty" type="number" min="1" step="1" value="1" inputmode="numeric">
+                  <button type="button" onclick="doQtyStep(1)">+</button>
+                </div>
+              </div>
+              <div>
+                <label class="av-lbl">Condición</label>
+                <div class="do-cond-chips" id="do-cond-chips">
+                  <button type="button" class="do-chip" data-cond="Bueno"      onclick="doSetCond(this)">Bueno</button>
+                  <button type="button" class="do-chip" data-cond="Usado"      onclick="doSetCond(this)">Usado</button>
+                  <button type="button" class="do-chip" data-cond="Maltratado" onclick="doSetCond(this)">Maltratado</button>
+                  <button type="button" class="do-chip" data-cond="Incompleto" onclick="doSetCond(this)">Incompleto</button>
+                </div>
+              </div>
+            </div>
+            <div class="av-fotos-section">
+              <label class="av-lbl">Fotos de la condición * <span style="color:var(--text-muted);font-weight:400">(al menos 1)</span></label>
+              <div class="av-fotos-upload-wrap">
+                <button type="button" class="av-fotos-file-btn" onclick="doSeleccionarFotos()">
+                  <i data-lucide="camera"></i>Tomar / Seleccionar fotos
+                </button>
+                <span id="do-fotos-count" class="av-fotos-count"></span>
+              </div>
+              <div id="do-fotos-preview" class="av-fotos-preview"></div>
+            </div>
+            <button class="av-register-btn" id="do-add-btn" onclick="doAgregarLinea()"><i data-lucide="plus-circle"></i>Agregar al conduce</button>
+          </div>
+        </div>
+
+        <!-- Líneas del conduce -->
+        <div class="cont-card" style="margin-top:12px;padding:0;overflow:visible">
+          <div class="av-list-header">
+            <span class="av-list-title">Artículos del conduce (<span id="do-lines-count">0</span>)</span>
+            <span class="do-total-pill" id="do-total-pill">0 unidades</span>
+          </div>
+          <div id="do-lines-body"></div>
+        </div>
+      </div>
+
+    </div><!-- /section-despacho-obsoleto -->
 
     <!-- ══════════════════════════════════════════════════
          REPORTES OPERACIONALES
@@ -5535,6 +5734,7 @@ body{font-family:var(--font);min-height:100dvh}
           <label class="perm-check"><input type="checkbox" data-perm="solicitudes"> Solicitudes Showroom</label>
           <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
           <label class="perm-check"><input type="checkbox" data-perm="dev-cdp"> Dev→CDP</label>
+          <label class="perm-check"><input type="checkbox" data-perm="despacho-obsoleto"> Despacho de Obsoleto</label>
           <label class="perm-check"><input type="checkbox" data-perm="validacion"> Validación</label>
           <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
           <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
@@ -5803,7 +6003,7 @@ function isDespachosUser(u) {
 function applyNavPerms() {
   var sections = [
     'dashboard-ventas','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
-    'almacen-mapa','sin-adjuntos','dev-cdp',
+    'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'validacion','averias','reportes','wwp'
   ];
   sections.forEach(function(s) {
@@ -5823,7 +6023,7 @@ function applyNavPerms() {
     'navg-analisis':    ['devoluciones','validacion','averias'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
-    'navg-despachos':   ['sin-adjuntos','dev-cdp']
+    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) es visible para todo usuario
@@ -17642,7 +17842,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -17658,6 +17858,7 @@ var NAV_SECTION_MAP={
   'averias':                 'averias',
   'reportes':                'reportes',
   'dev-cdp':                 'dev-cdp',
+  'despacho-obsoleto':       'despacho-obsoleto',
   'dashboard-ventas':        'dashboard-ventas'
 };
 
@@ -17905,6 +18106,7 @@ function navTo(section){
   if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
+  if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='almacen-mapa') {
     var iframe = document.getElementById('almacen-mapa-iframe');
     if (iframe && !iframe.src) iframe.src = '/almacen-mapa.html';
@@ -18464,6 +18666,494 @@ function avAddFotosToItem(id){
         .catch(function(e){ _iosAlert('Error subiendo fotos: '+e.message); });
     }
   });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESPACHO DE OBSOLETO — conduce documental (OBSOLETO / NAVE 2)
+   Reutiliza el lookup de Odoo de Averías (/api/averias/lookup) y el lightbox.
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _doList = [];
+var _doFilter = '';
+var _doActive = null;          // despacho abierto en el workspace
+var _doCurrentProduct = null;  // artículo del lookup actual
+var _doPendingFotos = [];      // [{data,ext,caption}] de la línea en captura
+var _doCond = '';              // condición seleccionada en captura
+var DO_LOC_OK = /OBSOLETO|NAVE\s*2/i;   // ubicaciones válidas para este despacho
+
+function initDespachoObsoleto(){
+  doVolverHome();
+}
+
+/* ── Lista / home ── */
+async function doLoadList(){
+  var body = document.getElementById('do-list-body');
+  if (body) body.innerHTML = '<div class="do-empty">Cargando…</div>';
+  try{
+    var r = await authFetch('/api/despacho-obsoleto');
+    var d = await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    _doList = d.despachos||[];
+  }catch(e){ _doList=[]; if(body) body.innerHTML='<div class="do-empty">Error: '+esc(e.message)+'</div>'; return; }
+  doRenderList();
+}
+
+function doSetFilter(f){
+  _doFilter = f;
+  ['','borrador','entregado','anulado'].forEach(function(k){
+    var id = 'dof-'+(k||'todos');
+    var el = document.getElementById(id);
+    if(el) el.classList.toggle('active', k===f);
+  });
+  doRenderList();
+}
+
+function doRenderList(){
+  var body = document.getElementById('do-list-body');
+  if(!body) return;
+  var list = _doFilter ? _doList.filter(function(x){return x.estado===_doFilter;}) : _doList;
+  if(!list.length){ body.innerHTML='<div class="do-empty">No hay conduces'+(_doFilter?' en este estado':' todavía')+'.</div>'; return; }
+  body.innerHTML = list.map(function(d){
+    var units = (d.lineas||[]).reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+    var nLines = (d.lineas||[]).length;
+    var fecha = d.entregadoAt||d.createdAt;
+    var fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var rec = (d.receptor&&d.receptor.nombre)|| '—';
+    var canDel = d.estado!=='entregado';
+    var actions = '<button class="do-act-btn" onclick="doOpenDespacho(\''+d.id+'\')"><i data-lucide="folder-open"></i>Abrir</button>';
+    if(d.estado==='entregado') actions += '<button class="do-act-btn" onclick="doImprimirConduce(\''+d.id+'\')"><i data-lucide="printer"></i>Imprimir</button>';
+    if(d.estado==='borrador')  actions += '<button class="do-act-btn" onclick="doAnular(\''+d.id+'\')"><i data-lucide="ban"></i>Anular</button>';
+    if(canDel) actions += '<button class="do-line-del" title="Eliminar" onclick="doDeleteDespacho(\''+d.id+'\')"><i data-lucide="trash-2"></i></button>';
+    return '<div class="do-line-row">'
+      + '<div><span class="do-badge '+esc(d.estado)+'">'+esc(d.estado)+'</span></div>'
+      + '<div style="min-width:0">'
+        + '<div class="do-line-name">'+esc(d.folio)+' · '+esc(rec)+'</div>'
+        + '<div class="do-line-meta"><span>'+nLines+' artículo'+(nLines!==1?'s':'')+'</span><span>'+units+' und</span><span>'+fechaStr+'</span></div>'
+      + '</div>'
+      + '<div class="do-line-actions">'+actions+'</div>'
+    + '</div>';
+  }).join('');
+  if(window.lucide) lucide.createIcons();
+}
+
+async function doNuevoDespacho(){
+  try{
+    var r = await authFetch('/api/despacho-obsoleto',{method:'POST',body:JSON.stringify({})});
+    var d = await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    _doActive = d.despacho;
+    doShowWorkspace();
+  }catch(e){ await _iosAlert('No se pudo crear el despacho: '+e.message); }
+}
+
+async function doOpenDespacho(id){
+  try{
+    var r = await authFetch('/api/despacho-obsoleto/'+id);
+    var d = await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    _doActive = d.despacho;
+    doShowWorkspace();
+  }catch(e){ await _iosAlert('No se pudo abrir: '+e.message); }
+}
+
+function doVolverHome(){
+  _doActive = null;
+  _doCurrentProduct = null;
+  _doPendingFotos = [];
+  var ws = document.getElementById('do-workspace');
+  var home = document.getElementById('do-home');
+  if(ws) ws.style.display='none';
+  if(home) home.style.display='';
+  doLoadList();
+}
+
+/* ── Workspace ── */
+function doShowWorkspace(){
+  document.getElementById('do-home').style.display='none';
+  document.getElementById('do-workspace').style.display='';
+  doRenderWorkspace();
+  // Foco al escáner para flujo de una mano
+  setTimeout(function(){ var i=document.getElementById('do-barcode-input'); if(i) i.focus(); }, 60);
+}
+
+function doRenderWorkspace(){
+  var d = _doActive; if(!d) return;
+  document.getElementById('do-folio').textContent = d.folio;
+  var badge = document.getElementById('do-estado-badge');
+  badge.textContent = d.estado;
+  badge.className = 'do-badge '+d.estado;
+  // Receptor
+  document.getElementById('do-rec-nombre').value   = (d.receptor&&d.receptor.nombre)||'';
+  document.getElementById('do-rec-cedula').value   = (d.receptor&&d.receptor.cedula)||'';
+  document.getElementById('do-rec-empresa').value  = (d.receptor&&d.receptor.empresa)||'';
+  document.getElementById('do-rec-telefono').value = (d.receptor&&d.receptor.telefono)||'';
+  document.getElementById('do-rec-transportista').value = d.transportista||'';
+  document.getElementById('do-rec-vehiculo').value = d.vehiculo||'';
+  // Bloqueo si cerrado
+  var locked = (d.estado==='entregado' || d.estado==='anulado');
+  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo']
+    .forEach(function(id){ document.getElementById(id).disabled = locked; });
+  document.getElementById('do-capture').style.display = locked ? 'none' : '';
+  document.getElementById('do-cerrar-btn').style.display = locked ? 'none' : '';
+  doClearCapture();
+  doRenderLines();
+}
+
+async function doSaveReceptor(){
+  var d = _doActive; if(!d || d.estado!=='borrador') return;
+  var payload = {
+    receptor:{
+      nombre:   document.getElementById('do-rec-nombre').value.trim(),
+      cedula:   document.getElementById('do-rec-cedula').value.trim(),
+      empresa:  document.getElementById('do-rec-empresa').value.trim(),
+      telefono: document.getElementById('do-rec-telefono').value.trim()
+    },
+    transportista: document.getElementById('do-rec-transportista').value.trim(),
+    vehiculo:      document.getElementById('do-rec-vehiculo').value.trim()
+  };
+  try{
+    var r = await authFetch('/api/despacho-obsoleto/'+d.id,{method:'PATCH',body:JSON.stringify(payload)});
+    var j = await r.json();
+    if(j.ok) _doActive = j.despacho;
+  }catch(e){ /* silencioso: se reintenta al cerrar */ }
+}
+
+/* ── Escaneo / lookup ── */
+function doBarcodeKeydown(e){
+  if(e.key==='Enter'){ e.preventDefault(); doLookup(); }
+}
+
+async function doLookup(){
+  var input = document.getElementById('do-barcode-input');
+  var q = input.value.trim();
+  if(!q) return;
+  var msg = document.getElementById('do-lookup-msg');
+  msg.className='av-lookup-msg'; msg.textContent='Buscando…';
+  document.getElementById('do-product-card').style.display='none';
+  document.getElementById('do-line-fields').style.display='none';
+  _doCurrentProduct = null;
+  try{
+    var r = await fetch('/api/averias/lookup?q='+encodeURIComponent(q));
+    var d = await r.json();
+    if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent=d.error||'No encontrado'; return; }
+    doFillProductCard(d.product);
+  }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='Error: '+e.message; }
+}
+
+function doFillProductCard(p){
+  _doCurrentProduct = p;
+  var img = document.getElementById('do-prod-img');
+  if(p.image){ img.src='data:image/png;base64,'+p.image; img.style.display=''; } else img.style.display='none';
+  document.getElementById('do-prod-ref').textContent = p.ref||'—';
+  document.getElementById('do-prod-name').textContent = p.name||'—';
+  var locTxt = (p.quants&&p.quants.length) ? p.quants.map(function(q){return q.loc+' ('+q.qty+')';}).join(' · ') : (p.location||'—');
+  document.getElementById('do-prod-loc').textContent = locTxt;
+  // Aviso si no está en OBSOLETO / NAVE 2
+  var inOk = (p.quants&&p.quants.length) ? p.quants.some(function(q){return DO_LOC_OK.test(q.loc||'');}) : DO_LOC_OK.test(p.location||'');
+  var warn = document.getElementById('do-prod-warn');
+  if(inOk){ warn.style.display='none'; warn.textContent=''; }
+  else { warn.style.display=''; warn.textContent='⚠ Este artículo no aparece con stock en OBSOLETO ni NAVE 2. Verifica antes de despacharlo.'; }
+  document.getElementById('do-product-card').style.display='flex';
+  document.getElementById('do-line-fields').style.display='';
+  var msg = document.getElementById('do-lookup-msg');
+  msg.className='av-lookup-msg ok'; msg.textContent='Artículo encontrado';
+  // reset campos de la línea
+  document.getElementById('do-qty').value='1';
+  _doCond=''; document.querySelectorAll('#do-cond-chips .do-chip').forEach(function(c){c.classList.remove('active');});
+  _doPendingFotos=[]; doRenderPendingFotos();
+}
+
+function doClearCapture(){
+  _doCurrentProduct=null;
+  _doPendingFotos=[];
+  _doCond='';
+  var bc=document.getElementById('do-barcode-input'); if(bc) bc.value='';
+  var msg=document.getElementById('do-lookup-msg'); if(msg){msg.textContent='';msg.className='av-lookup-msg';}
+  var pc=document.getElementById('do-product-card'); if(pc) pc.style.display='none';
+  var lf=document.getElementById('do-line-fields'); if(lf) lf.style.display='none';
+  var prev=document.getElementById('do-fotos-preview'); if(prev) prev.innerHTML='';
+  var cnt=document.getElementById('do-fotos-count'); if(cnt) cnt.textContent='';
+  document.querySelectorAll('#do-cond-chips .do-chip').forEach(function(c){c.classList.remove('active');});
+}
+
+function doQtyStep(n){
+  var inp=document.getElementById('do-qty');
+  var v=(parseInt(inp.value)||0)+n;
+  if(v<1) v=1;
+  inp.value=v;
+}
+
+function doSetCond(btn){
+  var was = btn.classList.contains('active');
+  document.querySelectorAll('#do-cond-chips .do-chip').forEach(function(c){c.classList.remove('active');});
+  if(was){ _doCond=''; } else { btn.classList.add('active'); _doCond=btn.dataset.cond; }
+}
+
+/* ── Fotos de la línea en captura ── */
+function doSeleccionarFotos(){
+  _openPhotoSource({ title:'Fotos de la condición', multiple:true, onFiles:doFotosFromFiles });
+}
+
+async function doFotosFromFiles(files){
+  var count=document.getElementById('do-fotos-count');
+  if(!files||!files.length) return;
+  count.textContent='Procesando '+files.length+' foto'+(files.length>1?'s':'')+'…';
+  for(var i=0;i<files.length;i++){
+    var b64=await _compressImage(files[i]);
+    if(!b64) continue;
+    _doPendingFotos.push({data:b64,ext:'jpg',caption:''});
+  }
+  doRenderPendingFotos();
+}
+
+function doRenderPendingFotos(){
+  var preview=document.getElementById('do-fotos-preview');
+  var count=document.getElementById('do-fotos-count');
+  preview.innerHTML='';
+  _doPendingFotos.forEach(function(f,idx){
+    var wrap=document.createElement('div'); wrap.className='av-foto-thumb-wrap';
+    var img=document.createElement('img'); img.src=f.data; img.className='av-foto-thumb';
+    img.onclick=function(){ avLightboxOpen(f.data,''); };
+    var del=document.createElement('button'); del.className='av-foto-del'; del.textContent='✕';
+    del.onclick=function(){ _doPendingFotos.splice(idx,1); doRenderPendingFotos(); };
+    wrap.appendChild(img); wrap.appendChild(del); preview.appendChild(wrap);
+  });
+  count.textContent=_doPendingFotos.length+' foto'+(_doPendingFotos.length!==1?'s':'');
+}
+
+/* ── Agregar línea ── */
+async function doAgregarLinea(){
+  if(!_doActive) return;
+  if(!_doCurrentProduct){ await _iosAlert('Primero escanea o busca un artículo.'); return; }
+  var qty=parseInt(document.getElementById('do-qty').value)||0;
+  if(qty<1){ await _iosAlert('Indica una cantidad válida.'); return; }
+  if(!_doPendingFotos.length){ await _iosAlert('Agrega al menos una foto de la condición del artículo.'); return; }
+  var p=_doCurrentProduct;
+  var btn=document.getElementById('do-add-btn');
+  btn.disabled=true; var prev=btn.innerHTML; btn.textContent='Agregando…';
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas',{method:'POST',
+      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,image:p.image,location:p.location,qty:qty,condicion:_doCond})});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al agregar');
+    // Subir fotos a la línea recién creada
+    var up=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+d.linea.lineId+'/fotos',{method:'POST',
+      body:JSON.stringify({fotos:_doPendingFotos})});
+    var ud=await up.json();
+    if(!ud.ok) throw new Error(ud.error||'No se pudieron subir las fotos');
+    _doActive = d.despacho;
+    _doActive.lineas[_doActive.lineas.length-1].fotos = ud.fotos;
+    doClearCapture();
+    doRenderLines();
+    toast('Artículo agregado al conduce');
+    setTimeout(function(){ var i=document.getElementById('do-barcode-input'); if(i) i.focus(); },50);
+  }catch(e){ await _iosAlert('Error: '+e.message); }
+  finally{ btn.disabled=false; btn.innerHTML=prev; if(window.lucide) lucide.createIcons(); }
+}
+
+async function doDeleteLinea(lineId){
+  if(!_doActive) return;
+  if(!(await _iosConfirm('¿Quitar este artículo del conduce?'))) return;
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId,{method:'DELETE'});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    _doActive.lineas=(_doActive.lineas||[]).filter(function(l){return l.lineId!==lineId;});
+    doRenderLines();
+  }catch(e){ await _iosAlert('Error: '+e.message); }
+}
+
+function doRenderLines(){
+  var d=_doActive; if(!d) return;
+  var body=document.getElementById('do-lines-body');
+  var lineas=d.lineas||[];
+  var locked=(d.estado==='entregado'||d.estado==='anulado');
+  document.getElementById('do-lines-count').textContent=lineas.length;
+  var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+  document.getElementById('do-total-pill').textContent=units+' unidad'+(units!==1?'es':'');
+  if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Escanea el primero arriba.</div>'; return; }
+  body.innerHTML=lineas.map(function(l){
+    var thumb=l.image?'<img class="do-line-thumb" src="data:image/png;base64,'+l.image+'" alt="">'
+      :'<div class="do-line-ph"><i data-lucide="package" style="width:20px;height:20px;stroke:currentColor;opacity:.45"></i></div>';
+    var fotos=(l.fotos||[]).map(function(f,fi){
+      var src=mediaUrl(f.url);
+      return '<img class="do-line-foto" src="'+esc(src)+'" loading="lazy" onclick="doFotoLightbox(\''+l.lineId+'\','+fi+')">';
+    }).join('');
+    var cond=l.condicion?'<span class="do-line-cond">'+esc(l.condicion)+'</span>':'';
+    var del=locked?'':'<button class="do-line-del" title="Quitar" onclick="doDeleteLinea(\''+l.lineId+'\')"><i data-lucide="trash-2"></i></button>';
+    return '<div class="do-line-row">'
+      + '<div>'+thumb+'</div>'
+      + '<div style="min-width:0">'
+        + '<div class="do-line-ref">'+esc(l.ref||l.barcode||'—')+'</div>'
+        + '<div class="do-line-name">'+esc(l.name||'—')+'</div>'
+        + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+cond+'</div>'
+        + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
+      + '</div>'
+      + '<div class="do-line-actions"><span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'+del+'</div>'
+    + '</div>';
+  }).join('');
+  if(window.lucide) lucide.createIcons();
+}
+
+function doFotoLightbox(lineId, idx){
+  var l=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
+  if(!l) return;
+  var items=(l.fotos||[]).map(function(f){return {url:mediaUrl(f.url),cap:(l.ref||'')+' '+(l.name||'')};});
+  avLightboxOpen(null,null,items,idx);
+}
+
+/* ── Cerrar / anular / eliminar ── */
+async function doCerrarDespacho(){
+  if(!_doActive) return;
+  await doSaveReceptor();
+  var faltan=[];
+  if(!document.getElementById('do-rec-nombre').value.trim()) faltan.push('nombre');
+  if(!document.getElementById('do-rec-cedula').value.trim()) faltan.push('cédula/RNC');
+  if(faltan.length){ await _iosAlert('Faltan datos del receptor: '+faltan.join(', ')+'.'); return; }
+  if(!(_doActive.lineas||[]).length){ await _iosAlert('El conduce no tiene artículos.'); return; }
+  if(!(await _iosConfirm('¿Cerrar y firmar el conduce '+_doActive.folio+'? No se podrá modificar después.'))) return;
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id,{method:'PATCH',body:JSON.stringify({estado:'entregado'})});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    _doActive=d.despacho;
+    doRenderWorkspace();
+    toast('Conduce cerrado. Listo para imprimir y firmar.');
+    doImprimirConduce();
+  }catch(e){ await _iosAlert('No se pudo cerrar: '+e.message); }
+}
+
+async function doAnular(id){
+  var dp = id ? _doList.find(function(x){return x.id===id;}) : _doActive;
+  if(!dp) return;
+  if(!(await _iosConfirm('¿Anular el conduce '+dp.folio+'?'))) return;
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+dp.id,{method:'PATCH',body:JSON.stringify({estado:'anulado'})});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    if(_doActive&&_doActive.id===dp.id){ _doActive=d.despacho; doRenderWorkspace(); }
+    doLoadList();
+  }catch(e){ await _iosAlert('Error: '+e.message); }
+}
+
+async function doDeleteDespacho(id){
+  var dp=_doList.find(function(x){return x.id===id;});
+  if(!dp) return;
+  if(!(await _iosConfirm('¿Eliminar definitivamente el conduce '+dp.folio+'? Esta acción no se puede deshacer.'))) return;
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+id,{method:'DELETE'});
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error');
+    doLoadList();
+  }catch(e){ await _iosAlert('Error: '+e.message); }
+}
+
+/* ── Conduce imprimible (PDF vía print) ── */
+function doImprimirConduce(id){
+  var d = id ? _doList.find(function(x){return x.id===id;}) : _doActive;
+  if(!d){ return; }
+  var lineas=d.lineas||[];
+  var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+  var fechaStr=new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO',{day:'2-digit',month:'long',year:'numeric'});
+  var rec=d.receptor||{};
+  var rows=lineas.map(function(l,i){
+    return '<tr>'
+      +'<td style="text-align:center">'+(i+1)+'</td>'
+      +'<td>'+esc(l.ref||l.barcode||'—')+'</td>'
+      +'<td>'+esc(l.name||'—')+'</td>'
+      +'<td>'+esc(l.location||'—')+'</td>'
+      +'<td style="text-align:center">'+esc(l.condicion||'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700">'+(parseFloat(l.qty)||0)+'</td>'
+    +'</tr>';
+  }).join('');
+  // Anexo fotográfico
+  var fotosHtml='';
+  lineas.forEach(function(l){
+    (l.fotos||[]).forEach(function(f){
+      fotosHtml+='<figure class="anx"><img src="'+esc(mediaUrl(f.url))+'"><figcaption>'+esc((l.ref||'')+' · '+(l.name||''))+'</figcaption></figure>';
+    });
+  });
+  var origin = (location.protocol==='file:') ? 'http://localhost:3000' : location.origin;
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conduce '+esc(d.folio)+'</title>'
+    +'<style>'
+    +'*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:28px 32px;font-size:12px}'
+    +'.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #0F2548;padding-bottom:12px;margin-bottom:16px}'
+    +'.hd img{height:46px}.hd .co{font-size:18px;font-weight:800;color:#0F2548}.hd .sub{font-size:11px;color:#555}'
+    +'.doc-t{text-align:right}.doc-t .t{font-size:16px;font-weight:800;letter-spacing:.5px}.doc-t .f{font-size:20px;font-weight:800;color:#0F2548;margin-top:2px}'
+    +'.meta{display:flex;justify-content:space-between;gap:24px;margin-bottom:14px}'
+    +'.box{flex:1;border:1px solid #ccc;border-radius:6px;padding:10px 12px}'
+    +'.box h4{margin:0 0 6px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#0F2548}'
+    +'.box .ln{margin:2px 0;font-size:12px}.box .ln b{display:inline-block;min-width:92px;color:#444}'
+    +'table{width:100%;border-collapse:collapse;margin-top:6px}'
+    +'th{background:#0F2548;color:#fff;font-size:10px;text-transform:uppercase;letter-spacing:.3px;padding:7px 6px;text-align:left}'
+    +'td{border-bottom:1px solid #e0e0e0;padding:7px 6px;font-size:12px}'
+    +'tfoot td{font-weight:800;border-top:2px solid #0F2548;background:#f4f6fa}'
+    +'.decl{margin:18px 0 10px;padding:10px 12px;background:#f7f7f5;border-left:3px solid #b8932f;font-size:11px;line-height:1.5}'
+    +'.sigs{display:flex;gap:48px;margin-top:42px}'
+    +'.sig{flex:1;text-align:center}.sig .line{border-top:1px solid #333;margin-bottom:5px}.sig .lbl{font-size:11px;font-weight:700}.sig .nm{font-size:10px;color:#555;margin-top:2px}'
+    +'.anx-wrap{margin-top:26px}.anx-wrap h3{font-size:12px;color:#0F2548;border-bottom:1px solid #ccc;padding-bottom:4px}'
+    +'.anx-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}'
+    +'.anx{width:150px;margin:0;border:1px solid #ddd;border-radius:4px;overflow:hidden}.anx img{width:100%;height:110px;object-fit:cover;display:block}'
+    +'.anx figcaption{font-size:8px;padding:3px 4px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+    +'@media print{body{padding:12px}.anx-wrap{page-break-before:auto}.sigs{page-break-inside:avoid}}'
+    +'</style></head><body>'
+    +'<div class="hd">'
+      +'<div style="display:flex;gap:12px;align-items:center"><img src="'+origin+'/descarga.png" onerror="this.style.display=\'none\'"><div><div class="co">Altri Tempi</div><div class="sub">Despacho de mercancía obsoleta</div></div></div>'
+      +'<div class="doc-t"><div class="t">CONDUCE DE DESPACHO</div><div class="f">'+esc(d.folio)+'</div><div class="sub">Fecha: '+esc(fechaStr)+'</div></div>'
+    +'</div>'
+    +'<div class="meta">'
+      +'<div class="box"><h4>Recibe (comprador)</h4>'
+        +'<div class="ln"><b>Nombre:</b> '+esc(rec.nombre||'—')+'</div>'
+        +'<div class="ln"><b>Cédula/RNC:</b> '+esc(rec.cedula||'—')+'</div>'
+        +'<div class="ln"><b>Empresa:</b> '+esc(rec.empresa||'—')+'</div>'
+        +'<div class="ln"><b>Teléfono:</b> '+esc(rec.telefono||'—')+'</div>'
+      +'</div>'
+      +'<div class="box"><h4>Transporte</h4>'
+        +'<div class="ln"><b>Transportista:</b> '+esc(d.transportista||'—')+'</div>'
+        +'<div class="ln"><b>Vehículo:</b> '+esc(d.vehiculo||'—')+'</div>'
+        +'<div class="ln"><b>Despacha:</b> '+esc((d.creadoPor&&d.creadoPor.nombre)||'—')+'</div>'
+        +'<div class="ln"><b>Estado:</b> '+esc(d.estado)+'</div>'
+      +'</div>'
+    +'</div>'
+    +'<table><thead><tr><th style="width:6%;text-align:center">#</th><th style="width:16%">Referencia</th><th>Artículo</th><th style="width:20%">Ubicación</th><th style="width:13%;text-align:center">Condición</th><th style="width:9%;text-align:center">Cant.</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'<tfoot><tr><td colspan="2">'+lineas.length+' artículo'+(lineas.length!==1?'s':'')+'</td><td colspan="3" style="text-align:right">Total unidades</td><td style="text-align:center">'+units+'</td></tr></tfoot>'
+    +'</table>'
+    +'<div class="decl"><b>Declaración de recibo conforme:</b> Declaro haber recibido la mercancía descrita en este conduce, en las condiciones indicadas y vendida «como está» (<i>as-is</i>). Reviso y acepto las cantidades y el estado físico de los artículos al momento de la entrega, sin lugar a reclamos posteriores por su condición.</div>'
+    +'<div class="sigs">'
+      +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Entrega</div><div class="nm">'+esc((d.creadoPor&&d.creadoPor.nombre)||'Altri Tempi')+'</div></div>'
+      +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Recibe conforme</div><div class="nm">'+esc(rec.nombre||'')+(rec.cedula?(' · '+esc(rec.cedula)):'')+'</div></div>'
+    +'</div>'
+    +(fotosHtml?'<div class="anx-wrap"><h3>Anexo fotográfico — evidencia de condición</h3><div class="anx-grid">'+fotosHtml+'</div></div>':'')
+    +'<script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script>'
+    +'</body></html>';
+  var w=window.open('','_blank');
+  if(!w){ _iosAlert('Habilita las ventanas emergentes para imprimir el conduce.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ── Exportar a Excel ── */
+function doExportarExcel(){
+  var d=_doActive; if(!d) return;
+  if(typeof XLSX==='undefined'){ _iosAlert('No se pudo cargar el componente de Excel.'); return; }
+  var rec=d.receptor||{};
+  var lineas=d.lineas||[];
+  var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+  var titleRow=['CONDUCE DE DESPACHO DE OBSOLETO — '+d.folio];
+  var info=[
+    ['Fecha', new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO'), '', 'Estado', d.estado, ''],
+    ['Recibe', rec.nombre||'', 'Cédula/RNC', rec.cedula||'', 'Teléfono', rec.telefono||''],
+    ['Empresa', rec.empresa||'', 'Transportista', d.transportista||'', 'Vehículo', d.vehiculo||'']
+  ];
+  var headerRow=['#','Referencia','Artículo','Ubicación','Condición','Cantidad'];
+  var dataRows=lineas.map(function(l,i){return [i+1,l.ref||l.barcode||'',l.name||'',l.location||'',l.condicion||'',parseFloat(l.qty)||0];});
+  var totalRow=['','','','','TOTAL UNIDADES',units];
+  var aoa=[titleRow,[]].concat(info).concat([[]]).concat([headerRow]).concat(dataRows).concat([totalRow]);
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  ws['!cols']=[{wch:6},{wch:18},{wch:40},{wch:24},{wch:14},{wch:10}];
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Conduce');
+  XLSX.writeFile(wb,'Conduce_'+d.folio+'.xlsx');
 }
 
 /* ═══ Lightbox — zoom · navegación · arrastrar ══════════════════════════════ */

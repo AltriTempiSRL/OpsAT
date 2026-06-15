@@ -62,6 +62,29 @@ if (!fs.existsSync(AV_FOTOS_DIR)) fs.mkdirSync(AV_FOTOS_DIR, { recursive: true }
 function loadAverias() { return loadJson(AVERIAS_FILE, []); }
 function saveAverias(list) { saveJson(AVERIAS_FILE, list); }
 
+// ── Despacho de Obsoleto — persistencia ──────────────────────────────────────
+// Conduce documental de salida de mercancía en OBSOLETO / NAVE 2 (venta al por
+// mayor "como está"). NO toca inventario en Odoo; es respaldo con fotos + firma.
+const DESPACHOS_FILE = path.join(DATA_DIR, 'despachos-obsoleto.json');
+const DESP_FOTOS_DIR = path.join(DATA_DIR, 'desp-fotos');
+if (!fs.existsSync(DESP_FOTOS_DIR)) fs.mkdirSync(DESP_FOTOS_DIR, { recursive: true });
+const DESP_SEQ_FILE  = path.join(DATA_DIR, 'despacho-obsoleto-seq.json');
+
+function loadDespachos() { return loadJson(DESPACHOS_FILE, []); }
+function saveDespachos(list) { saveJson(DESPACHOS_FILE, list); }
+
+// Folio correlativo CO-0001, CO-0002… (defensa: nunca por debajo del máximo existente)
+function nextDespachoFolio() {
+  let meta = loadJson(DESP_SEQ_FILE, { seq: 0 });
+  try {
+    const maxExisting = loadDespachos().reduce((m,d)=> (typeof d.seq==='number' && d.seq>m)?d.seq:m, 0);
+    if (maxExisting > meta.seq) meta.seq = maxExisting;
+  } catch {}
+  meta.seq += 1;
+  saveJson(DESP_SEQ_FILE, meta);
+  return { seq: meta.seq, folio: 'CO-' + String(meta.seq).padStart(4, '0') };
+}
+
 // ── Reposición — persistencia ─────────────────────────────────────────────────
 const REPOSICIONES_FILE = path.join(DATA_DIR, 'reposiciones.json');
 function loadReposiciones() { return loadJson(REPOSICIONES_FILE, []); }
@@ -4373,6 +4396,255 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
     return;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ── DESPACHO DE OBSOLETO API ──────────────────────────────────────────────
+  // Conduce documental de salida (OBSOLETO / NAVE 2 → venta al por mayor).
+  // No toca Odoo. Folio correlativo CO-####. Fotos obligatorias por línea al cerrar.
+  // ════════════════════════════════════════════════════════════════════════════
+  {
+    const DESP_ID    = '[a-z0-9]+';
+    const mDespId    = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})$`));
+    const mDespLines = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas$`));
+    const mDespLine  = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})$`));
+    const mDespFotos = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})\\/fotos$`));
+    const mDespFoto  = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})\\/fotos\\/(.+)$`));
+
+    // GET /api/despacho-obsoleto — lista (filtrable por ?estado=)
+    if (reqPath === '/api/despacho-obsoleto' && req.method === 'GET') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      let list = loadDespachos();
+      const qEstado = (parsed.query.estado||'').trim();
+      if (qEstado) list = list.filter(d => d.estado === qEstado);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, despachos:list}));
+      return;
+    }
+
+    // POST /api/despacho-obsoleto — crear borrador con folio correlativo
+    if (reqPath === '/api/despacho-obsoleto' && req.method === 'POST') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        const d = await readBody(req);
+        const { seq, folio } = nextDespachoFolio();
+        const now = new Date().toISOString();
+        const rec = {
+          id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+          seq, folio,
+          estado: 'borrador',
+          receptor: {
+            nombre:   (d.receptor&&d.receptor.nombre)   || '',
+            cedula:   (d.receptor&&d.receptor.cedula)   || '',
+            empresa:  (d.receptor&&d.receptor.empresa)  || '',
+            telefono: (d.receptor&&d.receptor.telefono) || ''
+          },
+          transportista: d.transportista || '',
+          vehiculo:      d.vehiculo || '',
+          nota:          d.nota || '',
+          lineas: [],
+          creadoPor: { id: _jp.userId || null, nombre: _jp.name || '' },
+          entregadoAt: null,
+          createdAt: now, updatedAt: now
+        };
+        const list = loadDespachos();
+        list.unshift(rec);
+        saveDespachos(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, despacho:rec}));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+      return;
+    }
+
+    // GET /api/despacho-obsoleto/:id — detalle
+    if (mDespId && req.method === 'GET') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      const d = loadDespachos().find(x=>x.id===mDespId[1]);
+      if (!d) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, despacho:d}));
+      return;
+    }
+
+    // PATCH /api/despacho-obsoleto/:id — receptor / transportista / nota / estado
+    if (mDespId && req.method === 'PATCH') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        const d = await readBody(req);
+        const list = loadDespachos();
+        const idx = list.findIndex(x=>x.id===mDespId[1]);
+        if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+        const rec = list[idx];
+        if (rec.estado === 'entregado' || rec.estado === 'anulado') {
+          res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado y no puede modificarse'})); return;
+        }
+        if (d.receptor && typeof d.receptor === 'object') {
+          ['nombre','cedula','empresa','telefono'].forEach(k=>{ if (d.receptor[k]!==undefined) rec.receptor[k] = String(d.receptor[k]); });
+        }
+        if (d.transportista !== undefined) rec.transportista = String(d.transportista);
+        if (d.vehiculo !== undefined)      rec.vehiculo = String(d.vehiculo);
+        if (d.nota !== undefined)          rec.nota = String(d.nota);
+        if (d.estado !== undefined) {
+          const next = String(d.estado);
+          const VALID = ['borrador','listo','entregado','anulado'];
+          if (!VALID.includes(next)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Estado inválido'})); return; }
+          if (next === 'entregado') {
+            // Validaciones para cerrar/firmar el conduce
+            if (!rec.receptor.nombre.trim() || !rec.receptor.cedula.trim()) {
+              res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Para cerrar el conduce se requiere nombre y cédula/RNC del receptor'})); return;
+            }
+            if (!rec.lineas.length) {
+              res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho no tiene artículos'})); return;
+            }
+            const sinFoto = rec.lineas.filter(l=>!(l.fotos&&l.fotos.length)).map(l=>l.ref||l.name);
+            if (sinFoto.length) {
+              res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Cada artículo necesita al menos una foto. Faltan: '+sinFoto.join(', ')})); return;
+            }
+            rec.entregadoAt = new Date().toISOString();
+          }
+          rec.estado = next;
+        }
+        rec.updatedAt = new Date().toISOString();
+        saveDespachos(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, despacho:rec}));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+      return;
+    }
+
+    // DELETE /api/despacho-obsoleto/:id — eliminar (solo borrador/anulado)
+    if (mDespId && req.method === 'DELETE') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      const list = loadDespachos();
+      const idx = list.findIndex(x=>x.id===mDespId[1]);
+      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (list[idx].estado === 'entregado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Un conduce entregado no se puede eliminar (anúlalo)'})); return; }
+      // Borrar fotos asociadas del disco
+      (list[idx].lineas||[]).forEach(l=>(l.fotos||[]).forEach(f=>{
+        const fp = path.join(DESP_FOTOS_DIR, path.basename(f.url||''));
+        if (fs.existsSync(fp)) try{ fs.unlinkSync(fp); }catch(e){}
+      }));
+      list.splice(idx,1);
+      saveDespachos(list);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true}));
+      return;
+    }
+
+    // POST /api/despacho-obsoleto/:id/lineas — agregar artículo escaneado
+    if (mDespLines && req.method === 'POST') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        const d = await readBody(req);
+        const list = loadDespachos();
+        const idx = list.findIndex(x=>x.id===mDespLines[1]);
+        if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+        if (list[idx].estado === 'entregado' || list[idx].estado === 'anulado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado'})); return; }
+        const qty = parseFloat(d.qty);
+        if (!(qty > 0)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Cantidad inválida'})); return; }
+        const linea = {
+          lineId: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+          productId: d.productId||null,
+          ref: d.ref||'', name: d.name||'', barcode: d.barcode||'',
+          image: d.image||null, location: d.location||'',
+          qty, condicion: d.condicion||'', nota: d.nota||'',
+          fotos: [],
+          addedAt: new Date().toISOString()
+        };
+        list[idx].lineas.push(linea);
+        list[idx].updatedAt = new Date().toISOString();
+        saveDespachos(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, linea, despacho:list[idx]}));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+      return;
+    }
+
+    // PATCH /api/despacho-obsoleto/:id/lineas/:lineId — editar cantidad/condición
+    if (mDespLine && req.method === 'PATCH') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        const d = await readBody(req);
+        const list = loadDespachos();
+        const idx = list.findIndex(x=>x.id===mDespLine[1]);
+        if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+        if (list[idx].estado === 'entregado' || list[idx].estado === 'anulado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado'})); return; }
+        const ln = (list[idx].lineas||[]).find(l=>l.lineId===mDespLine[2]);
+        if (!ln) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Línea no encontrada'})); return; }
+        if (d.qty !== undefined) { const q=parseFloat(d.qty); if (!(q>0)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Cantidad inválida'})); return; } ln.qty=q; }
+        if (d.condicion !== undefined) ln.condicion = String(d.condicion);
+        if (d.nota !== undefined)      ln.nota = String(d.nota);
+        list[idx].updatedAt = new Date().toISOString();
+        saveDespachos(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, linea:ln}));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+      return;
+    }
+
+    // DELETE /api/despacho-obsoleto/:id/lineas/:lineId — quitar artículo
+    if (mDespLine && req.method === 'DELETE') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      const list = loadDespachos();
+      const idx = list.findIndex(x=>x.id===mDespLine[1]);
+      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (list[idx].estado === 'entregado' || list[idx].estado === 'anulado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado'})); return; }
+      const ln = (list[idx].lineas||[]).find(l=>l.lineId===mDespLine[2]);
+      if (ln) (ln.fotos||[]).forEach(f=>{ const fp=path.join(DESP_FOTOS_DIR,path.basename(f.url||'')); if(fs.existsSync(fp)) try{fs.unlinkSync(fp);}catch(e){} });
+      list[idx].lineas = (list[idx].lineas||[]).filter(l=>l.lineId!==mDespLine[2]);
+      list[idx].updatedAt = new Date().toISOString();
+      saveDespachos(list);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true}));
+      return;
+    }
+
+    // POST /api/despacho-obsoleto/:id/lineas/:lineId/fotos — subir fotos (base64)
+    if (mDespFotos && req.method === 'POST') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        const d = await readBody(req); // {fotos:[{data:base64,ext:'jpg',caption:''}]}
+        const list = loadDespachos();
+        const idx = list.findIndex(x=>x.id===mDespFotos[1]);
+        if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+        if (list[idx].estado === 'entregado' || list[idx].estado === 'anulado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado'})); return; }
+        const ln = (list[idx].lineas||[]).find(l=>l.lineId===mDespFotos[2]);
+        if (!ln) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Línea no encontrada'})); return; }
+        if (!ln.fotos) ln.fotos = [];
+        const saved = [];
+        (d.fotos||[]).forEach((f,fi)=>{
+          const { b64, ext } = validatePhoto(f);
+          const fname = `${mDespFotos[1]}_${mDespFotos[2]}_${Date.now()}_${fi}.${ext}`;
+          fs.writeFileSync(path.join(DESP_FOTOS_DIR, fname), Buffer.from(b64,'base64'));
+          const entry = { url:`/desp-fotos/${fname}`, caption:f.caption||'', date:new Date().toISOString() };
+          ln.fotos.push(entry); saved.push(entry);
+        });
+        list[idx].updatedAt = new Date().toISOString();
+        saveDespachos(list);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, fotos:saved, total:ln.fotos.length}));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)})); }
+      return;
+    }
+
+    // DELETE /api/despacho-obsoleto/:id/lineas/:lineId/fotos/:fname — borrar foto
+    if (mDespFoto && req.method === 'DELETE') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      const fname = path.basename(mDespFoto[3]);
+      const list = loadDespachos();
+      const idx = list.findIndex(x=>x.id===mDespFoto[1]);
+      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (list[idx].estado === 'entregado' || list[idx].estado === 'anulado') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El despacho ya está cerrado'})); return; }
+      const ln = (list[idx].lineas||[]).find(l=>l.lineId===mDespFoto[2]);
+      if (ln) ln.fotos = (ln.fotos||[]).filter(f=>!f.url.endsWith(fname));
+      const fp = path.join(DESP_FOTOS_DIR, fname);
+      if (fs.existsSync(fp)) try{ fs.unlinkSync(fp); }catch(e){}
+      list[idx].updatedAt = new Date().toISOString();
+      saveDespachos(list);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true}));
+      return;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -9014,6 +9286,7 @@ const server = http.createServer(async (req, res) => {
   let filePath = path.join(__dirname, reqPath);
   if (reqPath === '/historial') filePath = path.join(__dirname, 'historial.html');
   if (reqPath.startsWith('/av-fotos/'))  filePath = path.join(AV_FOTOS_DIR,  path.basename(reqPath));
+  if (reqPath.startsWith('/desp-fotos/')) filePath = path.join(DESP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));
 
   // ── Protección: path traversal + archivos sensibles ──────────────────────
@@ -9028,7 +9301,8 @@ const server = http.createServer(async (req, res) => {
     '.env.txt', '.env', '.env.local', '.env.production', '.jwt-secret',
     'wwp-users-auth.json', 'wwp-sessions.json', 'wwp-audit.json',
     'wwp-roles.json', 'wwp-tasks.json', 'wwp-lunch-breaks.json',
-    'wwp-inspecciones.json', 'averias.json', 'reposiciones.json', 'package.json',
+    'wwp-inspecciones.json', 'averias.json', 'reposiciones.json',
+    'despachos-obsoleto.json', 'despacho-obsoleto-seq.json', 'package.json',
     'package-lock.json', '.gitignore'
   ]);
   const _ALLOWED_EXT = new Set([
