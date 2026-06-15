@@ -5837,9 +5837,9 @@ function applyNavPerms() {
 function guardTab(tab) {
   if (tab === 'dashboard'  && !can('dashboard')) { switchTab('tasks'); return false; }
   if (tab === 'auditor') { switchTab('dashboard'); return false; }
-  if (tab === 'users'      && !can('users_tab')) { switchTab('tasks'); return false; }
-  if (tab === 'politicas'  && !can('dashboard')) { switchTab('tasks'); return false; }
-  if (tab === 'impacto'    && !can('dashboard')) { switchTab('tasks'); return false; }
+  if (tab === 'users'      && _user?.role !== 'admin') { switchTab('tasks'); return false; }
+  if (tab === 'politicas'  && _user?.role !== 'admin') { switchTab('tasks'); return false; }
+  if (tab === 'impacto'    && _user?.role !== 'admin') { switchTab('tasks'); return false; }
   if (tab === 'empaque'    && !can('dashboard')) { switchTab('tasks'); return false; }
   return true;
 }
@@ -6696,7 +6696,7 @@ function enterApp() {
 
   // Users tab — solo admin
   let usersTab = nav.querySelector('[data-tab="users"]');
-  if (can('users_tab')) {
+  if (_user.role === 'admin') {
     if (!usersTab) {
       usersTab = document.createElement('button');
       usersTab.className = 'nav-tab'; usersTab.dataset.tab = 'users';
