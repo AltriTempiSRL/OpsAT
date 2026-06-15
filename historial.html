@@ -2692,8 +2692,9 @@ body{font-family:var(--font);min-height:100dvh}
 .assign-multi-avatar{
   width:30px;height:30px;border-radius:50%;
   display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:700;color:white;flex-shrink:0;
+  font-size:11px;font-weight:700;color:white;flex-shrink:0;overflow:hidden;
 }
+.assign-multi-avatar img{width:100%;height:100%;object-fit:cover}
 .assign-multi-name{flex:1;font-size:13px;font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .assign-multi-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
 /* Encargados select (legacy) */
@@ -5854,10 +5855,41 @@ function avatarColor(name) {
   const n = name||'?';
   return AVATAR_COLORS[[...n].reduce((s,c)=>s+c.charCodeAt(0),0) % AVATAR_COLORS.length];
 }
+// Resuelve la mejor referencia para traer la foto de Odoo de un avatar.
+// Acepta un objeto usuario ({id, odooId, name}) o un string (nombre).
+// Prioridad: userId WWP (au_/oe_) → endpoint /auth/users/:id/odoo-photo;
+// si no hay id pero sí odooId → /odoo-photo/:odooId; si solo hay nombre,
+// intenta mapearlo a un usuario conocido vía _authUsers (nombre→id/odooId).
+// Devuelve {userId, odooId} o null si no hay forma de resolver una foto.
+function _avatarRef(u) {
+  if (!u) return null;
+  if (typeof u === 'string') {
+    const n = u.trim().toLowerCase();
+    if (!n) return null;
+    const m = (_authUsers||[]).find(x => (x.name||'').trim().toLowerCase() === n);
+    if (m) return { userId: m.id || null, odooId: (m.odooId != null ? m.odooId : null) };
+    return null;
+  }
+  const userId = u.id || null;
+  let odooId = (u.odooId != null && u.odooId !== '') ? u.odooId : null;
+  // assignedTo estilo oe_<odooId> sin id propio
+  if (!userId && odooId == null && typeof u.assignedTo === 'string' && u.assignedTo.indexOf('oe_') === 0) {
+    odooId = u.assignedTo.slice(3);
+  }
+  if (!userId && odooId == null) return null;
+  return { userId, odooId };
+}
 function avatarHtml(u, size=36) {
   const name = typeof u === 'string' ? u : (u?.name||'?');
   const fs = Math.round(size*0.38);
-  return `<div class="user-avatar" style="width:${size}px;height:${size}px;font-size:${fs}px;background:${avatarColor(name)}">${initials(name)}</div>`;
+  // Marcador para hidratar con la foto de Odoo tras el innerHTML (ver hydrateOdooAvatars).
+  const ref = _avatarRef(u);
+  let dataAttr = '';
+  if (ref) {
+    if (ref.userId)        dataAttr += ` data-oavatar-uid="${esc(String(ref.userId))}"`;
+    else if (ref.odooId!=null) dataAttr += ` data-oavatar-oid="${esc(String(ref.odooId))}"`;
+  }
+  return `<div class="user-avatar"${dataAttr} style="width:${size}px;height:${size}px;font-size:${fs}px;background:${avatarColor(name)}">${initials(name)}</div>`;
 }
 function setHeaderAvatar(u) {
   const el = document.getElementById('user-avatar');
@@ -5865,6 +5897,9 @@ function setHeaderAvatar(u) {
   const name = u?.name||'?';
   el.style.background = avatarColor(name);
   el.textContent = initials(name);
+  // Foto de Odoo en el header (fallback: las iniciales que acabamos de poner).
+  const ref = _avatarRef(u);
+  if (ref) applyOdooAvatarFor(el, ref);
 }
 // Update avatar preview in user modal when name changes
 function updateAvatarPreview() {
@@ -5877,47 +5912,96 @@ function updateAvatarPreview() {
   el.style.background = name ? avatarColor(name) : 'var(--brand-light)';
 }
 
-// Carga la foto del empleado desde Odoo (endpoint protegido por JWT → no se puede
-// usar <img src> directo: el navegador no manda el header Authorization y daría 401).
-// Trae la imagen vía authFetch y la inyecta como object URL DENTRO del .user-avatar
-// (conserva tamaño/borde/responsive del círculo y reusa la regla `.user-avatar img`).
-// Si no hay foto / odooId (404), o falla, deja intacto el avatar de iniciales ya renderizado.
-async function applyOdooAvatar(avatarEl, userId) {
-  if (!avatarEl || !userId || !_token) return;
-  try {
-    const r = await authFetch('/api/wwp/auth/users/' + encodeURIComponent(userId) + '/odoo-photo');
-    if (!r.ok) return;                 // 404 (sin foto/odooId) o error → quedan iniciales
-    const blob = await r.blob();
-    if (!blob || !blob.size) return;
-    const url = URL.createObjectURL(blob);
-    const prevText = avatarEl.textContent;
-    const img = document.createElement('img');
-    img.alt = '';
-    img.onload = function(){ try { URL.revokeObjectURL(url); } catch(e){} };
-    // Si la imagen no decodifica, restauramos las iniciales que había
-    img.onerror = function(){ try { URL.revokeObjectURL(url); } catch(e){} avatarEl.textContent = prevText; };
-    img.src = url;
-    avatarEl.textContent = '';
-    avatarEl.appendChild(img);
-  } catch (e) { /* silencioso: fallback a iniciales */ }
+// ── Fotos de empleado desde Odoo — sistema unificado ─────────────────────────
+// El endpoint está protegido por JWT (header Authorization) → NO se puede usar
+// <img src="/api/..."> directo: el navegador no manda el header en peticiones de
+// imagen y daría 401. Solución: authFetch → blob → dataURL, e inyectar la <img>
+// DENTRO del .user-avatar existente (conserva tamaño/borde/responsive del círculo,
+// reusa la regla `.user-avatar img` y NO toca el dot de presencia, que es hermano).
+// Caché de cliente: Map de clave (uid:/oid:) → Promise<dataURL|null>. Una sola
+// petición por empleado para toda la sesión; los re-render reusan el dataURL (no se
+// revoca, a diferencia de un objectURL) → una lista de 17 hace ≤17 requests la 1ª
+// vez y 0 en los siguientes render. null cacheado = sin foto (no se reintenta).
+var _odooPhotoCache = new Map();
+function _odooPhotoKey(ref) {
+  if (!ref) return null;
+  if (ref.userId)        return 'uid:' + ref.userId;
+  if (ref.odooId != null) return 'oid:' + ref.odooId;
+  return null;
 }
-
-// Aplica la foto de Odoo al círculo de preview del modal de usuario.
+function _odooPhotoUrl(ref) {
+  if (ref && ref.userId)        return '/api/wwp/auth/users/' + encodeURIComponent(ref.userId) + '/odoo-photo';
+  if (ref && ref.odooId != null) return '/api/wwp/odoo-photo/' + encodeURIComponent(ref.odooId);
+  return null;
+}
+// Devuelve (y cachea) una Promise<dataURL|null> para la foto del empleado.
+function getOdooPhotoDataURL(ref) {
+  const key = _odooPhotoKey(ref);
+  if (!key || !_token) return Promise.resolve(null);
+  if (_odooPhotoCache.has(key)) return _odooPhotoCache.get(key);
+  const p = (async () => {
+    try {
+      const url = _odooPhotoUrl(ref);
+      if (!url) return null;
+      const r = await authFetch(url);
+      if (!r.ok) return null;            // 404 (sin foto/odooId) o error → iniciales
+      const blob = await r.blob();
+      if (!blob || !blob.size) return null;
+      return await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result || null);
+        fr.onerror = () => resolve(null);
+        fr.readAsDataURL(blob);
+      });
+    } catch (e) { return null; }
+  })();
+  _odooPhotoCache.set(key, p);
+  // Si falló de forma transitoria (red), permitir reintento en el próximo render.
+  p.then(v => { if (v == null) _odooPhotoCache.delete(key); }).catch(() => _odooPhotoCache.delete(key));
+  return p;
+}
+// Inyecta la foto de Odoo DENTRO de un .user-avatar ya renderizado (con iniciales).
+// Si no hay foto/ref o falla, deja intactas las iniciales. Idempotente: marca el
+// elemento ya hidratado para no re-procesarlo en hidrataciones sucesivas.
+async function applyOdooAvatarFor(avatarEl, ref) {
+  if (!avatarEl || !ref || !_token) return;
+  if (avatarEl.dataset.oavatarDone === '1') return;
+  avatarEl.dataset.oavatarDone = '1';
+  const dataUrl = await getOdooPhotoDataURL(ref);
+  if (!dataUrl) { delete avatarEl.dataset.oavatarDone; return; }  // sin foto → iniciales (permite reintento)
+  if (!avatarEl.isConnected) return;                              // el DOM ya cambió (re-render)
+  const img = document.createElement('img');
+  img.alt = '';
+  img.src = dataUrl;
+  avatarEl.textContent = '';
+  avatarEl.appendChild(img);
+}
+// Recorre un contenedor recién pintado por innerHTML y sustituye las iniciales por
+// la foto de Odoo en cada avatar marcado por avatarHtml() (data-oavatar-uid/-oid).
+function hydrateOdooAvatars(root) {
+  if (!root || !_token) return;
+  const list = root.querySelectorAll('[data-oavatar-uid], [data-oavatar-oid]');
+  list.forEach(el => {
+    const uid = el.getAttribute('data-oavatar-uid');
+    const oid = el.getAttribute('data-oavatar-oid');
+    applyOdooAvatarFor(el, uid ? { userId: uid } : { odooId: oid });
+  });
+}
+// Compat: aplica la foto por userId WWP a un .user-avatar concreto (semáforo admin).
+async function applyOdooAvatar(avatarEl, userId) {
+  if (!avatarEl || !userId) return;
+  await applyOdooAvatarFor(avatarEl, { userId });
+}
+// Aplica la foto de Odoo al círculo de preview del modal de usuario (no es un
+// .user-avatar; usa innerHTML propio y la bandera odooPhoto para no pisarla al teclear).
 async function applyOdooAvatarPreview(userId) {
   const el = document.getElementById('uf-avatar-preview');
   if (!el || !userId || !_token) return;
-  try {
-    const r = await authFetch('/api/wwp/auth/users/' + encodeURIComponent(userId) + '/odoo-photo');
-    if (!r.ok) return;
-    const blob = await r.blob();
-    if (!blob || !blob.size) return;
-    const url = URL.createObjectURL(blob);
-    el.style.background = 'transparent';
-    el.dataset.odooPhoto = '1';
-    el.innerHTML = '<img alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" src="' + url + '">';
-    const im = el.querySelector('img');
-    if (im) { im.onload = function(){ try{URL.revokeObjectURL(url);}catch(e){} }; im.onerror = function(){ try{URL.revokeObjectURL(url);}catch(e){} }; }
-  } catch (e) { /* silencioso */ }
+  const dataUrl = await getOdooPhotoDataURL({ userId });
+  if (!dataUrl || !el.isConnected) return;
+  el.style.background = 'transparent';
+  el.dataset.odooPhoto = '1';
+  el.innerHTML = '<img alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" src="' + dataUrl + '">';
 }
 const TYPE_LABELS = {dispatch_order:'Orden de Despacho',packaging:'Embalaje',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General',staffing:'Solicitud de Personal'};
 const STATUS_LABELS = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado',cancelled:'Cancelado'};
@@ -6851,6 +6935,7 @@ function filterTasks() {
     default:       el.innerHTML = renderGroupedByType(visible, renderListRow); break;
   }
   if(window.lucide) lucide.createIcons();
+  hydrateOdooAvatars(el);   // fotos de Odoo en responsable/auxiliares de todas las vistas
 }
 
 // Categorías de tareas (acción concreta) para agrupar las vistas Lista y Tarjetas
@@ -8015,7 +8100,7 @@ function renderDrawer(t) {
       const wlColor = wl===0 ? 'var(--green-text)' : (wl>=4 ? 'var(--red-text)' : (wl>=2?'var(--amber-text)':'var(--text-3)'));
       return `<label class="assign-multi-row${checkedCls}" onclick="toggleAssignRow(this)">
         <input type="checkbox" value="${u.id}" data-odoo="${u.odooId||''}" data-name="${esc(u.name)}" ${checkedAttr} onclick="event.stopPropagation()">
-        <span class="assign-multi-avatar" style="background:${aColor(u.name)}">${aInit(u.name)}</span>
+        <span class="assign-multi-avatar"${u.id?` data-oavatar-uid="${esc(String(u.id))}"`:(u.odooId?` data-oavatar-oid="${esc(String(u.odooId))}"`:'')} style="background:${aColor(u.name)}">${aInit(u.name)}</span>
         <span class="assign-multi-name">${esc(u.name)}<span style="display:block;font-size:10px;font-weight:600;color:${wlColor}">${wlTxt}</span></span>
         <span class="assign-multi-badge ${roleCss}">${roleLabel}</span>
       </label>`;
@@ -8700,6 +8785,8 @@ function renderDrawer(t) {
   `;
   // Procesar íconos Lucide en el drawer
   if(window.lucide) lucide.createIcons();
+  // Fotos de Odoo en responsable / auxiliares del drawer (chat se hidrata aparte)
+  hydrateOdooAvatars(document.getElementById('drawer-body'));
   // Cargar mensajes de forma asíncrona para no bloquear render
   loadChatMessages(t.id);
   // Enriquecer artículos con materiales de empaque
@@ -8739,6 +8826,7 @@ function renderChatMessages(messages) {
       ${mine ? avatarHtml(_user, 28) : ''}
     </div>`;
   }).join('');
+  hydrateOdooAvatars(el);   // fotos de Odoo en los avatares del chat
   // Scroll al final
   el.scrollTop = el.scrollHeight;
 }
@@ -12385,11 +12473,9 @@ async function loadUsers() {
       </div>`;
     }).join('');
     if (window.lucide) lucide.createIcons();
-    // Sustituir iniciales por la foto de Odoo donde exista (404 → quedan las iniciales)
-    document.querySelectorAll('#users-list [data-odoo-avatar]').forEach(slot => {
-      const av = slot.querySelector('.user-avatar') || slot;
-      applyOdooAvatar(av, slot.getAttribute('data-odoo-avatar'));
-    });
+    // Sustituir iniciales por la foto de Odoo donde exista (404 → quedan las iniciales).
+    // avatarHtml() ya marcó cada .user-avatar; el dot de presencia es hermano del slot y no se toca.
+    hydrateOdooAvatars(document.getElementById('users-list'));
   } catch(e) { document.getElementById('users-list').innerHTML='Error: '+e.message; }
 }
 
@@ -21081,6 +21167,7 @@ function eqpRenderAll() {
     eqpRankingHtml(users) +
     eqpManagersHtml(users);
   if (window.lucide) lucide.createIcons();
+  hydrateOdooAvatars(body);   // fotos de Odoo en semáforo + encargados del dashboard de Equipo
   eqpDrawLines();  // dibuja el SVG tras montar el DOM
 }
 
@@ -21098,7 +21185,7 @@ function eqpSemaforoHtml(users) {
       var sm = EQP_SEM_META[u.semaforo] || EQP_SEM_META.nunca;
       var tm = EQP_TRAY_META[u.trayectoria] || EQP_TRAY_META.sin_historia;
       return '<div class="eqp-card ' + sm.cls + '">' +
-        avatarHtml(u.name, 34) +
+        avatarHtml(u, 34) +
         '<div class="eqp-card-body">' +
           '<div class="eqp-card-name" title="' + esc(u.name) + '">' + esc(u.name) + '</div>' +
           '<div class="eqp-card-meta">' + eqpLastActivityLabel(u) + '</div>' +
@@ -21299,7 +21386,7 @@ function eqpManagersHtml(users) {
   if (!mgrs.length) return '';
   var cards = mgrs.map(function(u) {
     return '<div class="eqp-mgr-card">' +
-      '<div class="eqp-mgr-name">' + avatarHtml(u.name, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
+      '<div class="eqp-mgr-name">' + avatarHtml(u, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
       '<div class="eqp-mgr-stats">' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.validacionesHechas||0) + '</div><div class="eqp-mgr-stat-lbl">Validaciones</div></div>' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.cierresGestionados||0) + '</div><div class="eqp-mgr-stat-lbl">Cierres gestionados</div></div>' +

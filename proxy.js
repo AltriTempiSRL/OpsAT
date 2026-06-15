@@ -83,6 +83,22 @@ let _empCategCache = null;
 let _empCategCacheAt = 0;
 const EMP_CATEG_TTL = 30 * 60 * 1000;
 
+// Cache de fotos de empleados Odoo (hr.employee.image_256) por odooId — evita golpear Odoo
+// una vez por cada avatar. TTL 1h. Devuelve Buffer PNG o null (y cachea el null para no reintentar).
+const _odooPhotoCache = new Map(); // odooId → { buf, at }
+const ODOO_PHOTO_TTL = 60 * 60 * 1000;
+async function getOdooPhotoBuf(odooId) {
+  const id = parseInt(odooId);
+  if (!id) return null;
+  const hit = _odooPhotoCache.get(id);
+  if (hit && (Date.now() - hit.at) < ODOO_PHOTO_TTL) return hit.buf;
+  const emp = await odooCall('hr.employee', 'read', [[id]], { fields: ['image_256'] });
+  const img = emp && emp[0] && emp[0].image_256;
+  const buf = img ? Buffer.from(img, 'base64') : null;
+  _odooPhotoCache.set(id, { buf, at: Date.now() });
+  return buf;
+}
+
 // ── WWP (Warehouse Workforce Platform) — persistencia ────────────────────────
 const WWP_TASKS_FILE  = path.join(DATA_DIR, 'wwp-tasks.json');
 const WWP_ROLES_FILE  = path.join(DATA_DIR, 'wwp-roles.json');
@@ -2185,15 +2201,16 @@ function computeTeamMetrics(opts = {}) {
   const now = Date.now();
   const DAY = 864e5;
 
+  // Localidad = categoría del EMPLEADO (su departamento Odoo: Almacén La Cuaba / Piantini /
+  // Auxiliares Outlet / Operaciones…), NO la sede del stock. Se agrupa/filtra por persona.
   const localidades = new Set();
-  const locByTask = new Map();
-  tasks.forEach(t => { const L = deriveLocalidad(t); localidades.add(L); locByTask.set(t.id, L); });
-  const scope = localidad ? tasks.filter(t => locByTask.get(t.id) === localidad) : tasks;
+  users.forEach(u => { if (u.categoria) localidades.add(u.categoria); });
+  const scope = tasks; // todas las tareas; el filtro de localidad se aplica al output de usuarios
 
   const stats = {};
   users.forEach(u => {
     stats[u.id] = {
-      id: u.id, name: u.name, role: u.role,
+      id: u.id, name: u.name, role: u.role, categoria: u.categoria || null,
       lastLogin: u.lastLogin || null, presenceStatus: u.presenceStatus || null,
       tareasTotal: 0, activas: 0, completadas: 0, validadas: 0,
       cerradas: 0, conEvidencia: 0, conAveria: 0, aTiempo: 0,
@@ -2277,7 +2294,7 @@ function computeTeamMetrics(opts = {}) {
       serie.push({ d, n: s._daily[d] || 0 });
     }
     return {
-      id: s.id, name: s.name, role: s.role, semaforo, trayectoria,
+      id: s.id, name: s.name, role: s.role, categoria: s.categoria, semaforo, trayectoria,
       indiceTrayectoria, nivel: nivelNorm, delta, serie,
       lastLogin: s.lastLogin, lastActivity: s.lastActivity, diasActivos7: days7,
       tareasTotal: s.tareasTotal, activas: s.activas, completadas: s.completadas, validadas: s.validadas,
@@ -2289,10 +2306,11 @@ function computeTeamMetrics(opts = {}) {
     };
   });
 
+  const filtered = localidad ? out.filter(u => u.categoria === localidad) : out;
   return {
     generatedAt: new Date().toISOString(), windowDays: N,
     localidadFiltro: localidad, localidades: [...localidades].sort(),
-    usuarios: out.sort((a, b) => b.indiceTrayectoria - a.indiceTrayectoria)
+    usuarios: filtered.sort((a, b) => b.indiceTrayectoria - a.indiceTrayectoria)
   };
 }
 
@@ -5493,18 +5511,29 @@ const server = http.createServer(async (req, res) => {
   // ── WWP API ──────────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════════
 
-  // GET /api/wwp/auth/users/:id/odoo-photo — foto del empleado desde Odoo (hr.employee.image_256)
+  // GET /api/wwp/auth/users/:id/odoo-photo — foto del empleado desde Odoo (por user id WWP)
   if (reqPath.match(/^\/api\/wwp\/auth\/users\/[^/]+\/odoo-photo$/) && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
     try {
       const uid = reqPath.split('/')[5];
       const u = loadAuthUsers().find(x => x.id === uid);
       if (!u || u.odooId == null || u.odooId === '') { res.writeHead(404); res.end(); return; }
-      const emp = await odooCall('hr.employee', 'read', [[parseInt(u.odooId)]], { fields: ['image_256'] });
-      const img = emp && emp[0] && emp[0].image_256;
-      if (!img) { res.writeHead(404); res.end(); return; }
+      const buf = await getOdooPhotoBuf(u.odooId);
+      if (!buf) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
-      res.end(Buffer.from(img, 'base64'));
+      res.end(buf);
+    } catch (e) { res.writeHead(502); res.end(); }
+    return;
+  }
+
+  // GET /api/wwp/odoo-photo/:odooId — foto del empleado por odooId (universal, para cualquier avatar)
+  if (reqPath.match(/^\/api\/wwp\/odoo-photo\/\d+$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const buf = await getOdooPhotoBuf(reqPath.split('/').pop());
+      if (!buf) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
+      res.end(buf);
     } catch (e) { res.writeHead(502); res.end(); }
     return;
   }
