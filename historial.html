@@ -1769,6 +1769,14 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-chip:hover{border-color:var(--text-muted)}
 .do-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .do-total-pill{font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
+#do-lines-filtered-hint{font-size:12px;font-weight:600;color:var(--text-muted)}
+.do-lines-search-wrap{padding:10px 14px;border-bottom:1px solid var(--border-light)}
+.do-lines-search-input{padding-right:34px}
+.do-lines-search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:none;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.do-lines-search-clear:hover{background:var(--surface-2);color:var(--text-primary)}
+.do-lines-search-clear svg{width:14px;height:14px;stroke:currentColor}
+.do-line-row.do-row-flash{animation:doRowFlash 1.4s ease-out}
+@keyframes doRowFlash{0%{background:var(--amber-bg)}100%{background:transparent}}
 /* Filas de líneas / lista de conduces */
 .do-line-row{display:grid;grid-template-columns:22px 40px 1fr auto;gap:12px;align-items:start;padding:12px 16px;border-bottom:1px solid var(--border-light);border-left:3px solid transparent}
 /* Lista home de conduces — 3 columnas: badge+folio | metadatos | acciones */
@@ -5016,8 +5024,20 @@ body{font-family:var(--font);min-height:100dvh}
         <!-- Líneas del conduce -->
         <div class="cont-card" style="margin-top:12px;padding:0;overflow:visible">
           <div class="av-list-header">
-            <span class="av-list-title">Artículos del conduce (<span id="do-lines-count">0</span>)</span>
+            <span class="av-list-title">Artículos del conduce (<span id="do-lines-count">0</span>)<span id="do-lines-filtered-hint"></span></span>
             <span class="do-total-pill" id="do-total-pill">0 unidades</span>
+          </div>
+          <div class="do-lines-search-wrap">
+            <div class="val-search-box" style="max-width:100%">
+              <span class="val-search-icon"><i data-lucide="search"></i></span>
+              <input id="do-lines-search" class="val-search-input do-lines-search-input" type="search"
+                     placeholder="Buscar o escanear código de barras / nombre…" autocomplete="off"
+                     oninput="doFilterLines(this.value)" onkeydown="doLineSearchKeydown(event)">
+              <button id="do-lines-search-clear" class="do-lines-search-clear" type="button"
+                      onclick="doClearLineSearch()" style="display:none" aria-label="Limpiar búsqueda">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
           </div>
           <div id="do-lines-body"></div>
         </div>
@@ -19172,6 +19192,11 @@ async function doOpenDespacho(id){
     var d = await r.json();
     if(!d.ok) throw new Error(d.error||'Error');
     _doActive = d.despacho;
+    _doLineSearch = '';
+    var _searchInp=document.getElementById('do-lines-search');
+    if(_searchInp) _searchInp.value='';
+    var _searchClear=document.getElementById('do-lines-search-clear');
+    if(_searchClear) _searchClear.style.display='none';
     doShowWorkspace();
   }catch(e){ await _iosAlert('No se pudo abrir: '+e.message); }
 }
@@ -19480,6 +19505,64 @@ function _doTimeAgo(isoStr){
   var days=Math.floor(hrs/24);
   return 'hace '+days+' día'+(days!==1?'s':'');
 }
+/* ── Búsqueda dentro del conduce (texto o escáner de código de barras) ── */
+var _doLineSearch='';
+function _doNormalizeSearch(s){
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+function _doLineMatches(l,qNorm){
+  if(!qNorm) return true;
+  var hay=_doNormalizeSearch((l.ref||'')+' '+(l.barcode||'')+' '+(l.name||''));
+  return hay.indexOf(qNorm)!==-1;
+}
+function doFilterLines(q){
+  _doLineSearch=q||'';
+  var clearBtn=document.getElementById('do-lines-search-clear');
+  if(clearBtn) clearBtn.style.display=_doLineSearch?'':'none';
+  doRenderLines();
+}
+function doClearLineSearch(){
+  _doLineSearch='';
+  var inp=document.getElementById('do-lines-search');
+  if(inp){ inp.value=''; inp.focus(); }
+  var clearBtn=document.getElementById('do-lines-search-clear');
+  if(clearBtn) clearBtn.style.display='none';
+  doRenderLines();
+}
+function doFlashLine(lineId){
+  var row=document.getElementById('do-row-'+lineId);
+  if(!row) return;
+  row.scrollIntoView({behavior:'smooth', block:'center'});
+  row.classList.remove('do-row-flash');
+  void row.offsetWidth; // reinicia la animación si ya estaba aplicada
+  row.classList.add('do-row-flash');
+  setTimeout(function(){ row.classList.remove('do-row-flash'); }, 1500);
+}
+// Soporta escáner de código de barras: la mayoría escribe el código y envía Enter.
+function doLineSearchKeydown(ev){
+  if(ev.key==='Escape'){ doClearLineSearch(); return; }
+  if(ev.key!=='Enter') return;
+  ev.preventDefault();
+  var q=_doLineSearch;
+  var qNorm=_doNormalizeSearch(q);
+  if(!qNorm || !_doActive) return;
+  var lineas=_doActive.lineas||[];
+  var exact=lineas.filter(function(l){
+    return _doNormalizeSearch(l.ref||'')===qNorm || _doNormalizeSearch(l.barcode||'')===qNorm;
+  });
+  var match=exact.length===1 ? exact[0] : null;
+  if(!match){
+    var partial=lineas.filter(function(l){return _doLineMatches(l,qNorm);});
+    if(partial.length===1) match=partial[0];
+  }
+  if(match){
+    doClearLineSearch();
+    doFlashLine(match.lineId);
+  } else {
+    toast('No se encontró ningún artículo para "'+q+'"');
+  }
+}
+
 function doRenderLines(){
   var d=_doActive; if(!d) return;
   var body=document.getElementById('do-lines-body');
@@ -19507,7 +19590,17 @@ function doRenderLines(){
     pill.className='do-aprob-pill'+(nRech>0?' rojo':nAprob===total?' verde':' ambar');
   })();
   if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Escanea el primero arriba.</div>'; return; }
-  body.innerHTML=lineas.map(function(l,idx){
+  // ── Filtro de búsqueda (código de barras, ref o nombre) ──────────────────
+  var qNorm=_doNormalizeSearch(_doLineSearch);
+  var indexed=lineas.map(function(l,i){return {l:l,i:i};});
+  var visible=qNorm ? indexed.filter(function(p){return _doLineMatches(p.l,qNorm);}) : indexed;
+  var hintEl=document.getElementById('do-lines-filtered-hint');
+  if(hintEl) hintEl.textContent=(qNorm && visible.length!==lineas.length) ? (' · mostrando '+visible.length) : '';
+  if(qNorm && !visible.length){
+    body.innerHTML='<div class="do-empty">No se encontraron artículos para "'+esc(_doLineSearch)+'". <a href="#" onclick="doClearLineSearch();return false;">Limpiar búsqueda</a></div>';
+    return;
+  }
+  body.innerHTML=visible.map(function(p){ var l=p.l, idx=p.i;
     var ap=l.aprobacion||'pendiente';
     var fotos=(l.fotos||[]).map(function(f,fi){
       var src=mediaUrl(f.url);
