@@ -1836,6 +1836,15 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-aprob-pill.rojo{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
 .do-aprob-bar-wrap{width:72px;height:5px;border-radius:999px;background:var(--border-light);overflow:hidden;flex-shrink:0}
 .do-aprob-bar{height:100%;border-radius:999px;transition:width .3s ease;background:currentColor;opacity:.55}
+.do-transfer-link-card{padding:12px 14px}
+.do-transfer-link-title{font-size:12px;font-weight:700;color:var(--text-secondary);display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.do-transfer-link-row{display:flex;gap:8px}
+.do-transfer-link-input{flex:1;min-width:0;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-primary);font-size:13px;font-family:monospace;outline:none}
+.do-transfer-link-input:focus{border-color:var(--border-focus)}
+.do-transfer-link-status{font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px}
+.do-transfer-link-status.ok{color:var(--green-text)}
+.do-transfer-link-status.err{color:var(--red-text)}
+.do-spin{display:inline-block;animation:spin .8s linear infinite}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
 .do-product-card .av-prod-ref{font-family:monospace;font-weight:700;font-size:12px;color:var(--text-muted)}
@@ -5021,6 +5030,16 @@ body{font-family:var(--font);min-height:100dvh}
             </div>
             <button class="av-register-btn" id="do-add-btn" onclick="doAgregarLinea()"><i data-lucide="plus-circle"></i>Agregar al conduce</button>
           </div>
+        </div>
+
+        <!-- Transferencia Odoo vinculada — auto-agrega lo que se vaya escaneando ahí -->
+        <div class="cont-card do-transfer-link-card" style="margin-top:12px">
+          <div class="do-transfer-link-title"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px"></i> Transferencia vinculada (auto-agregar artículos)</div>
+          <div class="do-transfer-link-row">
+            <input id="do-transfer-link-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04916" autocomplete="off">
+            <button class="do-act-btn" id="do-transfer-sync-btn" onclick="doSyncTransferLink()"><i data-lucide="refresh-cw"></i>Actualizar</button>
+          </div>
+          <div id="do-transfer-link-status" class="do-transfer-link-status"></div>
         </div>
 
         <!-- Líneas del conduce -->
@@ -19242,14 +19261,51 @@ function doRenderWorkspace(){
   document.getElementById('do-rec-telefono').value = (d.receptor&&d.receptor.telefono)||'';
   document.getElementById('do-rec-transportista').value = d.transportista||'';
   document.getElementById('do-rec-vehiculo').value = d.vehiculo||'';
+  document.getElementById('do-transfer-link-input').value = d.transferLink||'';
+  document.getElementById('do-transfer-link-status').textContent = '';
+  document.getElementById('do-transfer-link-status').className = 'do-transfer-link-status';
   // Bloqueo si cerrado
   var locked = (d.estado==='entregado' || d.estado==='anulado');
-  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo']
+  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-link-input','do-transfer-sync-btn']
     .forEach(function(id){ document.getElementById(id).disabled = locked; });
   document.getElementById('do-capture').style.display = locked ? 'none' : '';
   document.getElementById('do-cerrar-btn').style.display = locked ? 'none' : '';
   doClearCapture();
   doRenderLines();
+}
+
+async function doSyncTransferLink(){
+  var d=_doActive; if(!d) return;
+  var input=document.getElementById('do-transfer-link-input');
+  var btn=document.getElementById('do-transfer-sync-btn');
+  var statusEl=document.getElementById('do-transfer-link-status');
+  var name=(input.value||'').trim();
+  statusEl.className='do-transfer-link-status'; statusEl.textContent='';
+  if(!name){ statusEl.className='do-transfer-link-status err'; statusEl.textContent='Indica el nombre de una transferencia (ej. CDP/INT/04916).'; return; }
+  btn.disabled=true; var prevHtml=btn.innerHTML; btn.innerHTML='<i data-lucide="loader-2" class="do-spin"></i>Actualizando…'; if(window.lucide) lucide.createIcons();
+  try{
+    if(name!==(d.transferLink||'')){
+      var rp=await authFetchRetry('/api/despacho-obsoleto/'+d.id,{method:'PATCH',body:JSON.stringify({transferLink:name,despachoVersion:d.version})});
+      var dp=await rp.json();
+      if(dp.conflict){ await _doHandleConflict(); return; }
+      if(!dp.ok) throw new Error(dp.error||'No se pudo vincular la transferencia');
+      _doActive=d=dp.despacho;
+    }
+    var rs=await authFetchRetry('/api/despacho-obsoleto/'+d.id+'/sync-transferencia',{method:'POST',body:JSON.stringify({})});
+    var ds=await rs.json();
+    if(ds.conflict){ await _doHandleConflict(); return; }
+    if(!ds.ok) throw new Error(ds.error||'No se pudo actualizar desde la transferencia');
+    _doActive=ds.despacho;
+    statusEl.className='do-transfer-link-status ok';
+    statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name) : 'Sin novedades en '+name+'.';
+    if(ds.added) toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' del conduce de Odoo');
+    doRenderLines();
+  }catch(e){
+    statusEl.className='do-transfer-link-status err';
+    statusEl.textContent = (e instanceof TypeError) ? 'Sin conexión estable. Intenta de nuevo.' : ('Error: '+e.message);
+  }finally{
+    btn.disabled=(d.estado==='entregado'||d.estado==='anulado'); btn.innerHTML=prevHtml; if(window.lucide) lucide.createIcons();
+  }
 }
 
 async function doSaveReceptor(){
@@ -20081,27 +20137,33 @@ function doImprimirConduce(id){
 /* ── Exportar a Excel ── */
 function doExportarExcel(){
   var d=_doActive; if(!d) return;
-  if(typeof XLSX==='undefined'){ _iosAlert('No se pudo cargar el componente de Excel.'); return; }
-  var rec=d.receptor||{};
-  var lineas=(d.lineas||[]).filter(function(l){return l.aprobacion==='aprobado';});
-  if(!lineas.length){ _iosAlert('No hay artículos aprobados para exportar.'); return; }
-  var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
-  var titleRow=['CONDUCE DE DESPACHO DE OBSOLETO — '+d.folio];
-  var info=[
-    ['Fecha', new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO'), '', 'Estado', d.estado, ''],
-    ['Recibe', rec.nombre||'', 'Cédula/RNC', rec.cedula||'', 'Teléfono', rec.telefono||''],
-    ['Empresa', rec.empresa||'', 'Transportista', d.transportista||'', 'Vehículo', d.vehiculo||'']
-  ];
-  var headerRow=['#','Referencia','Artículo','Ubicación','Condición','Cantidad'];
-  var dataRows=lineas.map(function(l,i){return [i+1,l.ref||l.barcode||'',l.name||'',l.location||'',l.condicion||'',parseFloat(l.qty)||0];});
-  var totalRow=['','','','','TOTAL UNIDADES',units];
-  var aoa=[titleRow,[]].concat(info).concat([[]]).concat([headerRow]).concat(dataRows).concat([totalRow]);
-  var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
-  ws['!cols']=[{wch:6},{wch:18},{wch:40},{wch:24},{wch:14},{wch:10}];
-  var wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Conduce');
-  XLSX.writeFile(wb,'Conduce_'+d.folio+'.xlsx');
+  _loadXlsx(function(){
+    if(typeof XLSX==='undefined'){ _iosAlert('No se pudo cargar el componente de Excel.'); return; }
+    var rec=d.receptor||{};
+    // Solo exigir aprobación cuando el conduce ya está cerrado (manifiesto final).
+    // Mientras está en borrador/listo, exportar todo lo que haya para poder revisar/compartir.
+    var soloAprobados=(d.estado==='entregado');
+    var lineas=(d.lineas||[]).filter(function(l){return !soloAprobados || l.aprobacion==='aprobado';});
+    if(!lineas.length){ _iosAlert(soloAprobados?'No hay artículos aprobados para exportar.':'No hay artículos en este conduce.'); return; }
+    var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+    var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
+    var titleRow=['CONDUCE DE DESPACHO DE OBSOLETO — '+d.folio];
+    var info=[
+      ['Fecha', new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO'), '', 'Estado', d.estado, ''],
+      ['Recibe', rec.nombre||'', 'Cédula/RNC', rec.cedula||'', 'Teléfono', rec.telefono||''],
+      ['Empresa', rec.empresa||'', 'Transportista', d.transportista||'', 'Vehículo', d.vehiculo||'']
+    ];
+    var headerRow=['#','Referencia','Artículo','Ubicación','Condición','Aprobación','Cantidad'];
+    var dataRows=lineas.map(function(l,i){return [i+1,l.ref||l.barcode||'',l.name||'',l.location||'',l.condicion||'',apLabel[l.aprobacion||'pendiente'],parseFloat(l.qty)||0];});
+    var totalRow=['','','','','','TOTAL UNIDADES',units];
+    var aoa=[titleRow,[]].concat(info).concat([[]]).concat([headerRow]).concat(dataRows).concat([totalRow]);
+    var ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
+    ws['!cols']=[{wch:6},{wch:18},{wch:40},{wch:24},{wch:14},{wch:12},{wch:10}];
+    var wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Conduce');
+    XLSX.writeFile(wb,'Conduce_'+d.folio+'.xlsx');
+  });
 }
 
 /* ═══ Lightbox — zoom · navegación · arrastrar ══════════════════════════════ */

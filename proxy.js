@@ -2654,6 +2654,98 @@ async function odooCall(model, method, args, kwargs = {}) {
   });
 }
 
+// ── Sincronización automática: transferencia Odoo → Despacho de Obsoleto ────
+// Cada despacho puede tener una transferencia Odoo vinculada (despacho.transferLink,
+// ej. "CDP/INT/04916") configurable desde la UI. Mientras esa transferencia siga
+// recibiendo líneas escaneadas (aunque no esté validada/aplicada en Odoo), este
+// job las refleja como líneas nuevas en el despacho que la tiene vinculada.
+// Solo AGREGA líneas nuevas, identificadas por sourceMoveLineId (nunca duplica,
+// nunca actualiza qty después de creada) y nunca escribe nada en Odoo —
+// Despacho de Obsoleto es solo respaldo documental, no toca inventario
+// (ver nota junto a DESPACHOS_FILE).
+async function syncOneDespachoTransfer(despacho) {
+  const pickingName = (despacho.transferLink || '').trim();
+  if (!pickingName) return { added: 0 };
+
+  const pickings = await odooCall('stock.picking', 'search_read',
+    [[['name', '=', pickingName]]],
+    { fields: ['id'], limit: 1 });
+  if (!pickings.length) return { added: 0, error: 'Transferencia no encontrada en Odoo: ' + pickingName };
+  const pickingId = pickings[0].id;
+
+  const moveLines = await odooCall('stock.move.line', 'search_read',
+    [[['picking_id', '=', pickingId], ['qty_done', '>', 0]]],
+    { fields: ['id', 'product_id', 'qty_done', 'location_dest_id'], limit: 500 });
+  if (!moveLines.length) return { added: 0 };
+
+  const already = new Set((despacho.lineas || []).map(l => l.sourceMoveLineId).filter(Boolean));
+  const pending = moveLines.filter(ml => !already.has(ml.id));
+  if (!pending.length) return { added: 0 };
+
+  // Lookup de producto en lote (default_code/barcode reales en vez de
+  // parsear el display name) solo para las líneas nuevas.
+  const productIds = [...new Set(pending.map(ml => ml.product_id[0]))];
+  const products = await odooCall('product.product', 'search_read',
+    [[['id', 'in', productIds]]],
+    { fields: ['id', 'default_code', 'name', 'barcode'] });
+  const productById = {};
+  products.forEach(p => { productById[p.id] = p; });
+
+  const now = new Date().toISOString();
+  pending.forEach(ml => {
+    const p = productById[ml.product_id[0]] || {};
+    const destLoc = ((ml.location_dest_id && ml.location_dest_id[1]) || '').replace(/^Physical Locations\//, '');
+    despacho.lineas.push({
+      lineId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      productId: p.id || ml.product_id[0],
+      ref: p.default_code || '',
+      name: p.name || ml.product_id[1] || '',
+      barcode: p.barcode || '',
+      image: null,
+      location: destLoc, locationFrontal: '',
+      qty: ml.qty_done,
+      condicion: '', nota: 'Agregado automático desde transferencia ' + pickingName,
+      fotos: [],
+      aprobacion: 'pendiente', motivoRechazo: '', aprobadoPor: null, aprobadoAt: null,
+      addedAt: now,
+      sourceMoveLineId: ml.id, sourcePicking: pickingName
+    });
+  });
+  despacho.version = (despacho.version || 0) + 1;
+  despacho.updatedAt = now;
+  return { added: pending.length };
+}
+
+let _transferSyncRunning = false;
+async function syncAllLinkedTransfers() {
+  if (_transferSyncRunning) return;
+  _transferSyncRunning = true;
+  try {
+    await withDespLock(async () => {
+      const list = loadDespachos();
+      const targets = list.filter(d => d.estado !== 'entregado' && d.estado !== 'anulado' && d.transferLink);
+      if (!targets.length) return;
+      let totalAdded = 0;
+      for (const despacho of targets) {
+        try {
+          const { added } = await syncOneDespachoTransfer(despacho);
+          if (added) {
+            totalAdded += added;
+            console.log(`[transfer-sync] +${added} línea(s) agregada(s) al conduce ${despacho.folio} desde ${despacho.transferLink}`);
+          }
+        } catch (e) { console.warn(`[transfer-sync] ${despacho.folio}:`, e.message); }
+      }
+      if (totalAdded) saveDespachos(list);
+    });
+  } catch (e) {
+    console.warn('[transfer-sync]', e.message);
+  } finally {
+    _transferSyncRunning = false;
+  }
+}
+setInterval(() => { syncAllLinkedTransfers(); }, 45_000);
+syncAllLinkedTransfers(); // primer chequeo al iniciar el servidor
+
 // ── MIME types básicos ───────────────────────────────────────────────────────
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -4459,6 +4551,7 @@ const server = http.createServer(async (req, res) => {
     const mDespLine  = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})$`));
     const mDespFotos = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})\\/fotos$`));
     const mDespFoto  = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/lineas\\/(${DESP_ID})\\/fotos\\/(.+)$`));
+    const mDespSync  = reqPath.match(new RegExp(`^\\/api\\/despacho-obsoleto\\/(${DESP_ID})\\/sync-transferencia$`));
 
     // GET /api/despacho-obsoleto — lista (filtrable por ?estado=)
     if (reqPath === '/api/despacho-obsoleto' && req.method === 'GET') {
@@ -4491,6 +4584,7 @@ const server = http.createServer(async (req, res) => {
           transportista: d.transportista || '',
           vehiculo:      d.vehiculo || '',
           nota:          d.nota || '',
+          transferLink:  '',
           lineas: [],
           creadoPor: { id: _jp.userId || null, nombre: _jp.name || '' },
           entregadoAt: null,
@@ -4535,6 +4629,7 @@ const server = http.createServer(async (req, res) => {
           if (d.transportista !== undefined) rec.transportista = String(d.transportista);
           if (d.vehiculo !== undefined)      rec.vehiculo = String(d.vehiculo);
           if (d.nota !== undefined)          rec.nota = String(d.nota);
+          if (d.transferLink !== undefined)  rec.transferLink = String(d.transferLink).trim();
           if (d.estado !== undefined) {
             const next = String(d.estado);
             const VALID = ['borrador','listo','entregado','anulado'];
@@ -4755,6 +4850,33 @@ const server = http.createServer(async (req, res) => {
         });
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:true}));
+      } catch(e){
+        res.writeHead(e.httpStatus||400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:safeError(e)}));
+      }
+      return;
+    }
+
+    // POST /api/despacho-obsoleto/:id/sync-transferencia — forzar chequeo ahora
+    // de la transferencia Odoo vinculada (despacho.transferLink)
+    if (mDespSync && req.method === 'POST') {
+      const _jp = requireJwt(req, res); if (!_jp) return;
+      try {
+        let despacho, added = 0;
+        await withDespLock(async () => {
+          const list = loadDespachos();
+          const idx = list.findIndex(x=>x.id===mDespSync[1]);
+          if (idx===-1) throw Object.assign(new Error('No encontrado'), {httpStatus:404});
+          despacho = list[idx];
+          if (despacho.estado === 'entregado' || despacho.estado === 'anulado') throw Object.assign(new Error('El despacho ya está cerrado'), {httpStatus:409});
+          if (!despacho.transferLink) throw Object.assign(new Error('Este conduce no tiene una transferencia vinculada'), {httpStatus:422});
+          const result = await syncOneDespachoTransfer(despacho);
+          if (result.error) throw Object.assign(new Error(result.error), {httpStatus:404});
+          added = result.added;
+          if (added) saveDespachos(list);
+        });
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, added, despacho}));
       } catch(e){
         res.writeHead(e.httpStatus||400,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false, error:safeError(e)}));
