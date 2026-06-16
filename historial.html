@@ -1794,6 +1794,11 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-line-meta{font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .do-line-cond{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)}
 .do-line-qty{font-size:16px;font-weight:800;color:var(--text-primary);text-align:right;white-space:nowrap}
+.do-line-qty-input{font-size:16px;font-weight:800;color:var(--text-primary);text-align:right;width:52px;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 4px;-moz-appearance:textfield}
+.do-line-qty-input::-webkit-inner-spin-button,.do-line-qty-input::-webkit-outer-spin-button{opacity:0;-webkit-appearance:none;margin:0}
+.do-line-qty-input:hover,.do-line-qty-input:focus{border-color:var(--border);background:var(--surface-2)}
+.do-line-qty-input:focus{outline:none;border-color:var(--blue-text,#3b82f6)}
+.do-line-qty-input:disabled{opacity:.5}
 .do-line-fotos{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
 .do-line-foto{width:34px;height:34px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border-light)}
 .do-line-actions{display:flex;gap:6px;align-items:center}
@@ -1988,7 +1993,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
     border-top:1px solid var(--border-light);
   }
   /* La cantidad queda a la izquierda de los botones en la fila inferior */
-  .do-line-qty{
+  .do-line-qty,.do-line-qty-input{
     margin-right:auto;
   }
 }
@@ -19376,7 +19381,10 @@ function doRenderLines(){
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
         + fotoPanelHtml
       + '</div>'
-      + '<div class="do-line-actions"><span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'+apCtrls+camBtn+del+'</div>'
+      + '<div class="do-line-actions">'+(locked
+          ? '<span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'
+          : '<input class="do-line-qty-input" type="number" min="0.01" step="any" value="'+(parseFloat(l.qty)||0)+'" data-prev="'+(parseFloat(l.qty)||0)+'" onclick="this.select()" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="doEditQty(\''+l.lineId+'\',this)">'
+        )+apCtrls+camBtn+del+'</div>'
     + '</div>';
   }).join('');
   if(window.lucide) lucide.createIcons();
@@ -19533,6 +19541,21 @@ async function _doHandleConflict(){
 async function doAprobarLinea(lineId){
   try{ await doPatchLinea(lineId,{aprobacion:'aprobado'}); }
   catch(e){ await _iosAlert('Error: '+e.message); }
+}
+async function doEditQty(lineId, input){
+  var prev=parseFloat(input.getAttribute('data-prev'))||0;
+  var q=parseFloat(input.value);
+  if(!(q>0)){ input.value=prev; return; }
+  if(q===prev) return;
+  input.disabled=true;
+  try{
+    await doPatchLinea(lineId,{qty:q});
+    toast('Cantidad actualizada');
+  }catch(e){
+    input.value=prev;
+    input.disabled=false;
+    await _iosAlert('Error: '+e.message);
+  }
 }
 function _doRechazarModal(){
   return new Promise(function(resolve){

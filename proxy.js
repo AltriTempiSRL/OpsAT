@@ -4642,7 +4642,13 @@ const server = http.createServer(async (req, res) => {
           if (d.despachoVersion !== undefined && list[idx].version !== undefined && d.despachoVersion !== list[idx].version) throw Object.assign(new Error('Conflicto: otro usuario modificó el conduce. Recargando…'), {httpStatus:409, conflict:true});
           ln = (list[idx].lineas||[]).find(l=>l.lineId===mDespLine[2]);
           if (!ln) throw Object.assign(new Error('Línea no encontrada'), {httpStatus:404});
-          if (d.qty !== undefined) { const q=parseFloat(d.qty); if (!(q>0)) throw Object.assign(new Error('Cantidad inválida'), {httpStatus:422}); ln.qty=q; }
+          if (d.qty !== undefined) {
+            const q=parseFloat(d.qty); if (!(q>0)) throw Object.assign(new Error('Cantidad inválida'), {httpStatus:422});
+            if (q !== ln.qty && ln.aprobacion === 'aprobado') {
+              ln.aprobacion = 'pendiente'; ln.motivoRechazo = ''; ln.aprobadoPor = null; ln.aprobadoAt = null;
+            }
+            ln.qty = q;
+          }
           if (d.condicion !== undefined) ln.condicion = String(d.condicion);
           if (d.nota !== undefined)      ln.nota = String(d.nota);
           if (d.aprobacion !== undefined) {
