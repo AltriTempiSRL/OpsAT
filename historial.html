@@ -1771,11 +1771,15 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-total-pill{font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
 /* Filas de líneas / lista de conduces */
 .do-line-row{display:grid;grid-template-columns:22px 40px 1fr auto;gap:12px;align-items:start;padding:12px 16px;border-bottom:1px solid var(--border-light);border-left:3px solid transparent}
-/* Lista home de conduces — 3 columnas: badge-estado | contenido | acciones */
-.do-list-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);cursor:default}
+/* Lista home de conduces — 3 columnas: badge+folio | metadatos | acciones */
+.do-list-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);cursor:default}
 .do-list-row:last-child{border-bottom:none}
-.do-list-estado-col{display:flex;align-items:center}
-.do-list-title{display:flex;flex-wrap:wrap;align-items:center;gap:6px;line-height:1.3}
+/* Wrappers internos de la fila home (shared desktop+mobile) */
+.do-list-row-top{display:flex;align-items:center;gap:8px;min-width:0}
+.do-list-row-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--text-muted)}
+.do-list-row-actions{display:flex;align-items:center;gap:6px}
+.do-list-estado-col{display:flex;align-items:center;flex-shrink:0}
+.do-list-title{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;line-height:1.3;min-width:0;overflow:hidden}
 /* Imagen de producto en la fila del conduce (vista workspace) */
 .do-line-img{width:40px;height:40px;border-radius:6px;object-fit:cover;border:1px solid var(--border-light);flex-shrink:0;display:block}
 .do-line-img-ph{width:40px;height:40px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
@@ -1863,6 +1867,130 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
   .do-line-foto-panel .do-lfp-upload-btn,.do-line-foto-panel .do-lfp-cancel-btn{min-height:44px;font-size:14px}
   /* Fix 4 — botón × de foto siempre visible en táctil (no hover-only) */
   .av-foto-del{display:block;opacity:1}
+
+  /* ── Problema 1: Lista home de conduces — layout 2 filas en móvil ── */
+  /* La fila pasa a flex-column: badge+encabezado arriba, botones abajo */
+  .do-list-row{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    align-items:stretch;
+    padding:12px 14px;
+  }
+  /* Fila superior: badge de estado + folio/receptor en una sola línea */
+  .do-list-row-top{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:nowrap;
+    min-width:0;
+  }
+  .do-list-row-top .do-badge{
+    flex-shrink:0;
+  }
+  .do-list-row-top .do-list-title{
+    flex:1;
+    min-width:0;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    flex-wrap:nowrap;
+  }
+  .do-list-row-top .do-list-title .do-line-name{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:block;
+  }
+  /* Subtítulo (artículos / und / fecha) */
+  .do-list-row-sub{
+    font-size:11px;
+    color:var(--text-muted);
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  /* Fila inferior: botones a ancho completo, divididos equitativamente */
+  .do-list-row-actions{
+    display:flex;
+    gap:6px;
+    align-items:center;
+    width:100%;
+  }
+  .do-list-row-actions .do-act-btn{
+    flex:1;
+    justify-content:center;
+    min-height:44px;
+  }
+  /* El botón eliminar no crece, mantiene tamaño fijo de ícono */
+  .do-list-row-actions .do-line-del{
+    flex-shrink:0;
+    min-width:44px;
+    min-height:44px;
+    width:auto;
+    height:auto;
+    padding:0 10px;
+  }
+
+  /* ── Problema 2: Filas del workspace — layout 2 filas en móvil ── */
+  /* Desktop: grid 22px 40px 1fr auto — no se toca */
+  /* Móvil: flex-wrap con order para reordenar en 2 filas */
+  .do-line-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0;
+    align-items:flex-start;
+    padding:10px 12px;
+  }
+  /* Fila superior: número (22px) + imagen (40px) + info (flex:1) */
+  .do-line-num{
+    order:1;
+    width:22px;
+    flex-shrink:0;
+    align-self:flex-start;
+    margin-top:4px;
+  }
+  /* La imagen (do-line-img o do-line-img-ph) es el 2º hijo directo */
+  .do-line-row > .do-line-img,
+  .do-line-row > .do-line-img-ph{
+    order:2;
+    flex-shrink:0;
+    margin-left:8px;
+    margin-right:0;
+    align-self:flex-start;
+  }
+  /* El div de info (ref+nombre+loc+pill) ocupa el resto de la fila superior */
+  .do-line-row > div:not(.do-line-actions){
+    order:3;
+    flex:1;
+    min-width:0;
+    margin-left:8px;
+  }
+  /* El nombre y la ref no se cortan */
+  .do-line-row .do-line-ref,
+  .do-line-row .do-line-name{
+    white-space:normal;
+    word-break:break-word;
+    overflow-wrap:break-word;
+  }
+  /* Fila inferior: acciones a ancho completo, alineadas a la derecha */
+  .do-line-actions{
+    order:4;
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:6px;
+    min-height:44px;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px solid var(--border-light);
+  }
+  /* La cantidad queda a la izquierda de los botones en la fila inferior */
+  .do-line-qty{
+    margin-right:auto;
+  }
 }
 
 /* ── Solicitudes de Reposición (D5) ──────────────────────────────────────────── */
@@ -18808,12 +18936,12 @@ function doRenderList(){
     if(d.estado==='borrador')  actions += '<button class="do-act-btn" onclick="doAnular(\''+d.id+'\')"><i data-lucide="ban"></i>Anular</button>';
     if(canDel) actions += '<button class="do-line-del" title="Eliminar" onclick="doDeleteDespacho(\''+d.id+'\')"><i data-lucide="trash-2"></i></button>';
     return '<div class="do-list-row">'
-      + '<div class="do-list-estado-col"><span class="do-badge '+esc(d.estado)+'">'+esc(d.estado)+'</span></div>'
-      + '<div style="min-width:0">'
-        + '<div class="do-list-title"><span class="do-line-name">'+esc(d.folio)+' · '+esc(rec)+'</span></div>'
-        + '<div class="do-line-meta"><span>'+nLines+' artículo'+(nLines!==1?'s':'')+'</span><span>'+units+' und</span><span>'+fechaStr+'</span></div>'
+      + '<div class="do-list-row-top">'
+        + '<div class="do-list-estado-col"><span class="do-badge '+esc(d.estado)+'">'+esc(d.estado)+'</span></div>'
+        + '<div class="do-list-title" style="min-width:0"><span class="do-line-name">'+esc(d.folio)+' · '+esc(rec)+'</span></div>'
       + '</div>'
-      + '<div class="do-line-actions">'+actions+'</div>'
+      + '<div class="do-list-row-sub"><span>'+nLines+' artículo'+(nLines!==1?'s':'')+'</span><span>'+units+' und</span><span>'+fechaStr+'</span></div>'
+      + '<div class="do-list-row-actions">'+actions+'</div>'
     + '</div>';
   }).join('');
   if(window.lucide) lucide.createIcons();
@@ -18894,11 +19022,13 @@ async function doSaveReceptor(){
       telefono: document.getElementById('do-rec-telefono').value.trim()
     },
     transportista: document.getElementById('do-rec-transportista').value.trim(),
-    vehiculo:      document.getElementById('do-rec-vehiculo').value.trim()
+    vehiculo:      document.getElementById('do-rec-vehiculo').value.trim(),
+    despachoVersion: d.version
   };
   try{
     var r = await authFetch('/api/despacho-obsoleto/'+d.id,{method:'PATCH',body:JSON.stringify(payload)});
     var j = await r.json();
+    if(j.conflict){ await _doHandleConflict(); return; }
     if(j.ok) _doActive = j.despacho;
   }catch(e){ /* silencioso: se reintenta al cerrar */ }
 }
@@ -19097,12 +19227,14 @@ async function doAgregarLinea(){
   btn.disabled=true; var prev=btn.innerHTML; btn.textContent='Agregando…';
   try{
     var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas',{method:'POST',
-      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,qty:qty,condicion:_doCond})});
+      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,qty:qty,condicion:_doCond,despachoVersion:_doActive&&_doActive.version})});
     var d=await r.json();
+    if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al agregar');
+    if(d.despacho) _doActive=d.despacho;
     // Subir fotos a la línea recién creada
     var up=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+d.linea.lineId+'/fotos',{method:'POST',
-      body:JSON.stringify({fotos:_doPendingFotos})});
+      body:JSON.stringify({fotos:_doPendingFotos, despachoVersion:_doActive&&_doActive.version})});
     var ud=await up.json();
     if(!ud.ok) throw new Error(ud.error||'No se pudieron subir las fotos');
     _doActive = d.despacho;
@@ -19361,9 +19493,10 @@ async function doLineFotoUpload(lineId){
   try{
     var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId+'/fotos',{
       method:'POST',
-      body:JSON.stringify({fotos:fotos})
+      body:JSON.stringify({fotos:fotos, despachoVersion:_doActive&&_doActive.version})
     });
     var d=await r.json();
+    if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al subir fotos');
     // Actualizar la línea en _doActive con las fotos recibidas del servidor
     var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
@@ -19380,12 +19513,22 @@ async function doLineFotoUpload(lineId){
 
 /* ── Aprobación de líneas (solo admin) ── */
 async function doPatchLinea(lineId, payload){
-  var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId,{method:'PATCH',body:JSON.stringify(payload)});
+  var body=Object.assign({despachoVersion:_doActive&&_doActive.version},payload);
+  var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId,{method:'PATCH',body:JSON.stringify(body)});
   var d=await r.json();
+  if(d.conflict){ await _doHandleConflict(); return; }
   if(!r.ok||!d.ok) throw new Error(d.error||'Error');
   var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
   if(ln&&d.linea) Object.assign(ln,d.linea);
   doRenderLines();
+}
+async function _doHandleConflict(){
+  toast('Otro usuario hizo cambios. Actualizando…');
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id);
+    var d=await r.json();
+    if(d.ok){ _doActive=d.despacho; doRenderWorkspace(); }
+  }catch(e){}
 }
 async function doAprobarLinea(lineId){
   try{ await doPatchLinea(lineId,{aprobacion:'aprobado'}); }
@@ -19458,8 +19601,9 @@ async function doCerrarDespacho(){
   if(!(_doActive.lineas||[]).length){ await _iosAlert('El conduce no tiene artículos.'); return; }
   if(!(await _iosConfirm('¿Cerrar y firmar el conduce '+_doActive.folio+'? No se podrá modificar después.'))) return;
   try{
-    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id,{method:'PATCH',body:JSON.stringify({estado:'entregado'})});
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id,{method:'PATCH',body:JSON.stringify({estado:'entregado',despachoVersion:_doActive&&_doActive.version})});
     var d=await r.json();
+    if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error');
     _doActive=d.despacho;
     doRenderWorkspace();
