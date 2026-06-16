@@ -6692,14 +6692,29 @@ async function authFetchRetry(url, opts={}, retries, onRetry){
   retries = retries===undefined ? 3 : retries;
   var backoff = [1500, 3000, 6000, 6000];
   for(var attempt=0; ; attempt++){
-    try{ return await authFetch(url, opts); }
-    catch(e){
-      var isNetworkError = e instanceof TypeError;
-      if(!isNetworkError || attempt>=retries) throw e;
+    try{
+      var r = await authFetch(url, opts);
+      // Nuestra API siempre responde JSON. Si no lo es, algo fuera de la app
+      // contestó (ej. el borde de Railway durante el intercambio de un deploy,
+      // que devuelve un "Not Found" en texto plano) — tratarlo como falla
+      // transitoria y reintentar, en vez de explotar en el .json() del caller.
+      var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+      if(ct.indexOf('json')===-1){
+        throw Object.assign(new Error('Respuesta inesperada del servidor (status '+r.status+', no es JSON)'), {_nonJson:true});
+      }
+      return r;
+    }catch(e){
+      var isRetryable = (e instanceof TypeError) || e._nonJson;
+      if(!isRetryable || attempt>=retries) throw e;
       if(onRetry) try{ onRetry(attempt+1, retries); }catch(_e){}
       await new Promise(function(res){ setTimeout(res, backoff[attempt]||6000); });
     }
   }
+}
+function _friendlyFetchError(e){
+  if(e instanceof TypeError) return 'Sin conexión estable. Intenta de nuevo cuando tengas señal.';
+  if(e && e._nonJson) return 'El servidor no respondió correctamente (puede ser un despliegue en curso). Intenta de nuevo en unos segundos.';
+  return 'Error: '+e.message;
 }
 
 function fetchWithTimeout(url, opts, timeoutMs) {
@@ -19302,7 +19317,7 @@ async function doSyncTransferLink(){
     doRenderLines();
   }catch(e){
     statusEl.className='do-transfer-link-status err';
-    statusEl.textContent = (e instanceof TypeError) ? 'Sin conexión estable. Intenta de nuevo.' : ('Error: '+e.message);
+    statusEl.textContent = _friendlyFetchError(e);
   }finally{
     btn.disabled=(d.estado==='entregado'||d.estado==='anulado'); btn.innerHTML=prevHtml; if(window.lucide) lucide.createIcons();
   }
@@ -19534,8 +19549,8 @@ async function doAgregarLinea(){
     if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al agregar');
   }catch(e){
-    var msg = (e instanceof TypeError)
-      ? 'Sin conexión estable. Revisa tu señal e intenta de nuevo — nada se perdió.'
+    var msg = (e instanceof TypeError || e._nonJson)
+      ? _friendlyFetchError(e)+' Nada se perdió.'
       : ('Error: '+e.message);
     await _iosAlert(msg);
     btn.disabled=false; btn.innerHTML=prev; if(window.lucide) lucide.createIcons();
@@ -19561,8 +19576,8 @@ async function doAgregarLinea(){
     _doLineFotos[d.linea.lineId] = _doPendingFotos;
     doClearCapture();
     doRenderLines();
-    var msg = (e instanceof TypeError)
-      ? 'Artículo agregado, pero sin conexión para subir las fotos. Quedaron pendientes en su línea — sube cuando tengas señal.'
+    var msg = (e instanceof TypeError || e._nonJson)
+      ? 'Artículo agregado, pero falló subir las fotos ('+_friendlyFetchError(e)+'). Quedaron pendientes en su línea — sube cuando se resuelva.'
       : ('Artículo agregado, pero falló subir fotos: '+e.message);
     await _iosAlert(msg);
   }
@@ -19901,8 +19916,8 @@ async function doLineFotoUpload(lineId){
     if(window.lucide) lucide.createIcons();
   }catch(e){
     if(btn){ btn.disabled=false; btn.textContent='Subir fotos'; }
-    var msg = (e instanceof TypeError)
-      ? 'Sin conexión estable. Las fotos siguen aquí — vuelve a intentar cuando tengas señal.'
+    var msg = (e instanceof TypeError || e._nonJson)
+      ? _friendlyFetchError(e)+' Las fotos siguen aquí.'
       : ('Error: '+e.message);
     await _iosAlert(msg);
   }
@@ -19929,7 +19944,7 @@ async function _doHandleConflict(){
 }
 async function doAprobarLinea(lineId){
   try{ await doPatchLinea(lineId,{aprobacion:'aprobado'}); }
-  catch(e){ await _iosAlert('Error: '+e.message); }
+  catch(e){ await _iosAlert(_friendlyFetchError(e)); }
 }
 async function doEditQty(lineId, input){
   var prev=parseFloat(input.getAttribute('data-prev'))||0;
@@ -19943,7 +19958,7 @@ async function doEditQty(lineId, input){
   }catch(e){
     input.value=prev;
     input.disabled=false;
-    await _iosAlert('Error: '+e.message);
+    await _iosAlert(_friendlyFetchError(e));
   }
 }
 function _doRechazarModal(){
@@ -19988,11 +20003,11 @@ function _doRechazarModal(){
 }
 async function doRechazarLinea(lineId){
   var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
-  if(ln&&ln.aprobacion==='rechazado'){ try{ await doPatchLinea(lineId,{aprobacion:'pendiente'}); }catch(e){ await _iosAlert('Error: '+e.message); } return; }
+  if(ln&&ln.aprobacion==='rechazado'){ try{ await doPatchLinea(lineId,{aprobacion:'pendiente'}); }catch(e){ await _iosAlert(_friendlyFetchError(e)); } return; }
   var motivo=await _doRechazarModal();
   if(motivo===null) return;
   try{ await doPatchLinea(lineId,{aprobacion:'rechazado',motivoRechazo:motivo}); }
-  catch(e){ await _iosAlert('Error: '+e.message); }
+  catch(e){ await _iosAlert(_friendlyFetchError(e)); }
 }
 
 function doFotoLightbox(lineId, idx){
