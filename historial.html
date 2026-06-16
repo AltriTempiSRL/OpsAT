@@ -1818,6 +1818,15 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
   .do-line-grid{grid-template-columns:1fr}
   .do-ws-actions{width:100%}
   .do-act-btn{flex:1;justify-content:center}
+  /* Fix 1 — iOS zoom: inputs ≥16px para no disparar zoom automático */
+  .do-input{font-size:16px}
+  .do-stepper input{font-size:16px}
+  /* Fix 2 — targets táctiles ≥44px en botones críticos */
+  .do-back-btn{width:44px;height:44px}
+  .do-ap-btn,.do-ap-btn-ok,.do-ap-btn-no{min-width:44px;min-height:44px;width:auto;height:auto;padding:0 10px}
+  .do-line-del{min-width:44px;min-height:44px;width:auto;height:auto;padding:0 10px}
+  /* Fix 4 — botón × de foto siempre visible en táctil (no hover-only) */
+  .av-foto-del{display:block;opacity:1}
 }
 
 /* ── Solicitudes de Reposición (D5) ──────────────────────────────────────────── */
@@ -18857,7 +18866,20 @@ function doGetDrop(){
 function doPositionDrop(){
   var inp=document.getElementById('do-barcode-input'); if(!inp) return;
   var r=inp.getBoundingClientRect(); var d=doGetDrop();
-  d.style.left=r.left+'px'; d.style.top=(r.bottom+4)+'px'; d.style.width=r.width+'px';
+  d.style.left=r.left+'px'; d.style.width=r.width+'px';
+  /* Fix 3 — usar visualViewport cuando está disponible para no quedar bajo el teclado virtual */
+  var vvh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+  var vvt = (window.visualViewport ? window.visualViewport.offsetTop : 0);
+  var spaceBelow = vvh - (r.bottom - vvt) - 4;
+  if(spaceBelow < 80 && r.top - vvt > 80){
+    /* espacio insuficiente abajo y hay espacio arriba → abrir hacia arriba */
+    var maxH = Math.min(320, r.top - vvt - 8);
+    d.style.top = ''; d.style.bottom = (vvh - (r.top - vvt) + 4)+'px';
+    d.style.maxHeight = maxH+'px';
+  } else {
+    d.style.bottom = ''; d.style.top = (r.bottom + vvt + 4)+'px';
+    d.style.maxHeight = Math.min(320, spaceBelow)+'px';
+  }
 }
 function doCloseSuggest(){ var d=doGetDrop(); d.style.display='none'; d.innerHTML=''; _doSuggestIdx=-1; }
 function doBarcodeInput(val){
