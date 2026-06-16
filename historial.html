@@ -4728,11 +4728,14 @@ body{font-family:var(--font);min-height:100dvh}
 
           <!-- Ficha del artículo encontrado -->
           <div id="do-product-card" class="do-product-card" style="display:none">
-            <div class="av-prod-info">
-              <div id="do-prod-ref" class="av-prod-ref"></div>
-              <div id="do-prod-name" class="av-prod-name"></div>
-              <div id="do-prod-loc" class="av-prod-loc"></div>
-              <div id="do-prod-warn" class="do-loc-warn" style="display:none"></div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <img id="do-prod-img" style="width:56px;height:56px;object-fit:contain;border-radius:8px;background:var(--surface);border:1px solid var(--border-light);display:none;flex-shrink:0">
+              <div class="av-prod-info" style="flex:1;min-width:0">
+                <div id="do-prod-ref" class="av-prod-ref"></div>
+                <div id="do-prod-name" class="av-prod-name"></div>
+                <div id="do-prod-loc" class="av-prod-loc"></div>
+                <div id="do-prod-warn" class="do-loc-warn" style="display:none"></div>
+              </div>
             </div>
           </div>
 
@@ -18951,6 +18954,8 @@ async function doLookup(){
 
 function doFillProductCard(p){
   _doCurrentProduct = p;
+  var img = document.getElementById('do-prod-img');
+  if(img){ if(p.image){ img.src='data:image/png;base64,'+p.image; img.style.display=''; } else { img.style.display='none'; img.src=''; } }
   document.getElementById('do-prod-ref').textContent = p.ref||'—';
   document.getElementById('do-prod-name').textContent = p.name||'—';
   var locTxt = (p.quants&&p.quants.length) ? p.quants.map(function(q){return q.loc+' ('+q.qty+')';}).join(' · ') : (p.location||'—');
@@ -18976,6 +18981,7 @@ function doClearCapture(){
   _doCond='';
   var bc=document.getElementById('do-barcode-input'); if(bc) bc.value='';
   var msg=document.getElementById('do-lookup-msg'); if(msg){msg.textContent='';msg.className='av-lookup-msg';}
+  var pi=document.getElementById('do-prod-img'); if(pi){ pi.src=''; pi.style.display='none'; }
   var pc=document.getElementById('do-product-card'); if(pc) pc.style.display='none';
   var lf=document.getElementById('do-line-fields'); if(lf) lf.style.display='none';
   var prev=document.getElementById('do-fotos-preview'); if(prev) prev.innerHTML='';
@@ -19127,13 +19133,52 @@ async function doAprobarLinea(lineId){
   try{ await doPatchLinea(lineId,{aprobacion:'aprobado'}); }
   catch(e){ await _iosAlert('Error: '+e.message); }
 }
+function _doRechazarModal(){
+  return new Promise(function(resolve){
+    var MOTIVOS=['Retorna a stock','No aplica para lote','Mercancía externa','Otro'];
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
+    var panel=document.createElement('div');
+    panel.style.cssText='background:var(--surface);border-radius:18px 18px 0 0;padding:20px 20px 32px;width:100%;max-width:480px;box-shadow:0 -4px 24px rgba(0,0,0,.2)';
+    panel.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px">Motivo del rechazo</div>'
+      +'<div id="_doChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
+      +MOTIVOS.map(function(m){return '<button data-m="'+m+'" style="padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text);font-size:13px;cursor:pointer;transition:background .15s,color .15s">'+m+'</button>';}).join('')
+      +'</div>'
+      +'<div id="_doRchOtroBox" style="display:none;margin-bottom:12px"><textarea id="_doRchTxt" placeholder="Describe el motivo…" rows="2" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid var(--border);border-radius:9px;font-size:15px;background:var(--surface-2);color:var(--text);resize:none;outline:none"></textarea></div>'
+      +'<div style="display:flex;gap:10px">'
+      +'<button id="_doRchCancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-2);font-size:14px;cursor:pointer;min-height:44px">Cancelar</button>'
+      +'<button id="_doRchOk" disabled style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--red-dot);color:#fff;font-size:14px;font-weight:700;cursor:pointer;opacity:.35;min-height:44px">Confirmar rechazo</button>'
+      +'</div>';
+    ov.appendChild(panel); document.body.appendChild(ov);
+    var selMotivo=null;
+    var okBtn=document.getElementById('_doRchOk');
+    panel.querySelectorAll('[data-m]').forEach(function(btn){
+      btn.onclick=function(){
+        panel.querySelectorAll('[data-m]').forEach(function(b){b.style.background='var(--surface-2)';b.style.color='var(--text)';b.style.borderColor='var(--border)';});
+        btn.style.background='var(--red-bg)'; btn.style.color='var(--red-text)'; btn.style.borderColor='var(--red-dot)';
+        selMotivo=btn.getAttribute('data-m');
+        document.getElementById('_doRchOtroBox').style.display=selMotivo==='Otro'?'block':'none';
+        if(selMotivo==='Otro') setTimeout(function(){document.getElementById('_doRchTxt').focus();},50);
+        okBtn.disabled=false; okBtn.style.opacity='1';
+      };
+    });
+    function finish(val){ document.body.removeChild(ov); resolve(val); }
+    okBtn.onclick=function(){
+      if(!selMotivo) return;
+      var motivo=selMotivo;
+      if(motivo==='Otro'){ motivo=(document.getElementById('_doRchTxt').value||'').trim(); if(!motivo){document.getElementById('_doRchTxt').focus();return;} }
+      finish(motivo);
+    };
+    document.getElementById('_doRchCancel').onclick=function(){finish(null);};
+    ov.onclick=function(e){if(e.target===ov)finish(null);};
+  });
+}
 async function doRechazarLinea(lineId){
   var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
   if(ln&&ln.aprobacion==='rechazado'){ try{ await doPatchLinea(lineId,{aprobacion:'pendiente'}); }catch(e){ await _iosAlert('Error: '+e.message); } return; }
-  var motivo=await _iosPrompt('Motivo del rechazo de este artículo:','');
+  var motivo=await _doRechazarModal();
   if(motivo===null) return;
-  if(!motivo.trim()){ await _iosAlert('Debes indicar el motivo del rechazo.'); return; }
-  try{ await doPatchLinea(lineId,{aprobacion:'rechazado',motivoRechazo:motivo.trim()}); }
+  try{ await doPatchLinea(lineId,{aprobacion:'rechazado',motivoRechazo:motivo}); }
   catch(e){ await _iosAlert('Error: '+e.message); }
 }
 
