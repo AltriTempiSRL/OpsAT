@@ -1794,11 +1794,15 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-product-card .av-prod-loc{font-size:12px;color:var(--text-secondary)}
 /* Dropdown de autocompletar */
 .do-suggest-drop{position:fixed;z-index:3000;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.16);max-height:320px;overflow-y:auto}
-.do-suggest-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border-light)}
+.do-suggest-item{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:10px}
 .do-suggest-item:last-child{border-bottom:none}
 .do-suggest-item:hover,.do-suggest-item.active{background:var(--surface-2)}
+.do-suggest-thumb{width:40px;height:40px;object-fit:contain;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-light);flex-shrink:0}
+.do-suggest-thumb-ph{width:40px;height:40px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border-light);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+.do-suggest-thumb-ph i{width:18px;height:18px;stroke:currentColor}
+.do-suggest-info{flex:1;min-width:0}
 .do-suggest-ref{font-family:monospace;font-size:11px;font-weight:700;color:var(--text-muted)}
-.do-suggest-name{font-size:13px;color:var(--text-primary);line-height:1.3}
+.do-suggest-name{font-size:13px;color:var(--text-primary);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .do-suggest-bar{font-size:11px;color:var(--text-secondary);margin-top:2px}
 .do-suggest-bar i{width:10px;height:10px;stroke:currentColor;vertical-align:-1px;margin-right:2px}
 .do-suggest-msg{padding:9px 12px;font-size:12px;color:var(--text-muted)}
@@ -18861,7 +18865,7 @@ async function doSaveReceptor(){
 
 /* ── Escaneo / lookup ── */
 /* ── Autocompletar: busca por partes del código, referencia o nombre ── */
-var _doDrop=null, _doSuggestIdx=-1, _doSearchTimer=null;
+var _doDrop=null, _doSuggestIdx=-1, _doSearchTimer=null, _doLastResults=[];
 function doGetDrop(){
   if(!_doDrop){ _doDrop=document.createElement('div'); _doDrop.className='do-suggest-drop'; _doDrop.style.display='none'; document.body.appendChild(_doDrop); }
   return _doDrop;
@@ -18898,11 +18902,18 @@ async function doSuggestSearch(q){
     var r=await fetch('/api/averias/search?q='+encodeURIComponent(q));
     var data=await r.json();
     if(!data.ok||!data.results.length){ d.innerHTML='<div class="do-suggest-msg">Sin resultados para "'+esc(q)+'"</div>'; return; }
-    d.innerHTML=data.results.map(function(p){
-      return '<div class="do-suggest-item" onclick="doSuggestSelect('+JSON.stringify(p).replace(/"/g,'&quot;')+')">'
+    _doLastResults=data.results;
+    d.innerHTML=data.results.map(function(p,i){
+      var thumb=p.image
+        ?'<img class="do-suggest-thumb" src="data:image/png;base64,'+p.image+'" alt="">'
+        :'<div class="do-suggest-thumb-ph"><i data-lucide="package"></i></div>';
+      return '<div class="do-suggest-item" onclick="doSuggestSelect(_doLastResults['+i+'])">'
+        +thumb
+        +'<div class="do-suggest-info">'
         +'<div class="do-suggest-ref">'+esc(p.ref||'—')+'</div>'
         +'<div class="do-suggest-name">'+esc(p.name||'')+'</div>'
         +(p.barcode?'<div class="do-suggest-bar"><i data-lucide="tag"></i>'+esc(p.barcode)+'</div>':'')
+        +'</div>'
       +'</div>';
     }).join('');
     doPositionDrop();
