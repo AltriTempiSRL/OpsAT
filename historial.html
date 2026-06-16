@@ -1799,6 +1799,8 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-line-qty-input:hover,.do-line-qty-input:focus{border-color:var(--border);background:var(--surface-2)}
 .do-line-qty-input:focus{outline:none;border-color:var(--blue-text,#3b82f6)}
 .do-line-qty-input:disabled{opacity:.5}
+.do-line-qty-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1}
+.do-line-qty-label{font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--text-muted);text-transform:uppercase}
 .do-line-fotos{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
 .do-line-foto{width:34px;height:34px;border-radius:4px;object-fit:cover;cursor:pointer;border:1px solid var(--border-light)}
 .do-line-actions{display:flex;gap:6px;align-items:center}
@@ -1993,7 +1995,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
     border-top:1px solid var(--border-light);
   }
   /* La cantidad queda a la izquierda de los botones en la fila inferior */
-  .do-line-qty,.do-line-qty-input{
+  .do-line-qty-wrap{
     margin-right:auto;
   }
 }
@@ -19381,10 +19383,10 @@ function doRenderLines(){
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
         + fotoPanelHtml
       + '</div>'
-      + '<div class="do-line-actions">'+(locked
+      + '<div class="do-line-actions">'+'<div class="do-line-qty-wrap"><span class="do-line-qty-label">Qty</span>'+(locked
           ? '<span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'
           : '<input class="do-line-qty-input" type="number" min="0.01" step="any" value="'+(parseFloat(l.qty)||0)+'" data-prev="'+(parseFloat(l.qty)||0)+'" onclick="this.select()" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="doEditQty(\''+l.lineId+'\',this)">'
-        )+apCtrls+camBtn+del+'</div>'
+        )+'</div>'+apCtrls+camBtn+del+'</div>'
     + '</div>';
   }).join('');
   if(window.lucide) lucide.createIcons();
