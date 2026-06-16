@@ -2663,8 +2663,8 @@ async function odooCall(model, method, args, kwargs = {}) {
 // nunca actualiza qty después de creada) y nunca escribe nada en Odoo —
 // Despacho de Obsoleto es solo respaldo documental, no toca inventario
 // (ver nota junto a DESPACHOS_FILE).
-async function syncOneDespachoTransfer(despacho) {
-  const pickingName = (despacho.transferLink || '').trim();
+async function syncOneDespachoTransfer(despacho, pickingNameOverride) {
+  const pickingName = (pickingNameOverride || despacho.transferLink || '').trim();
   if (!pickingName) return { added: 0 };
 
   const pickings = await odooCall('stock.picking', 'search_read',
@@ -4640,8 +4640,6 @@ const server = http.createServer(async (req, res) => {
             if (next === 'entregado') {
               if (!rec.receptor.nombre.trim() || !rec.receptor.cedula.trim()) throw Object.assign(new Error('Para cerrar el conduce se requiere nombre y cédula/RNC del receptor'), {httpStatus:422});
               if (!rec.lineas.length) throw Object.assign(new Error('El despacho no tiene artículos'), {httpStatus:422});
-              const sinFoto = rec.lineas.filter(l=>!(l.fotos&&l.fotos.length)).map(l=>l.ref||l.name);
-              if (sinFoto.length) throw Object.assign(new Error('Cada artículo necesita al menos una foto. Faltan: '+sinFoto.join(', ')), {httpStatus:422});
               const pendientes = rec.lineas.filter(l=>(l.aprobacion||'pendiente')==='pendiente').map(l=>l.ref||l.name);
               if (pendientes.length) throw Object.assign(new Error('Hay artículos sin aprobar o rechazar: '+pendientes.join(', ')), {httpStatus:422});
               if (!rec.lineas.some(l=>l.aprobacion==='aprobado')) throw Object.assign(new Error('El conduce no tiene ningún artículo aprobado'), {httpStatus:422});
@@ -4860,11 +4858,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // POST /api/despacho-obsoleto/:id/sync-transferencia — forzar chequeo ahora
-    // de la transferencia Odoo vinculada (despacho.transferLink)
+    // POST /api/despacho-obsoleto/:id/sync-transferencia — forzar chequeo ahora.
+    // Sin body (o {}): usa la transferencia vinculada (despacho.transferLink).
+    // Con {pickingName:'...'}: jala UNA VEZ de esa transferencia puntual, SIN
+    // tocar transferLink — no interrumpe el monitoreo de la vinculada.
     if (mDespSync && req.method === 'POST') {
       const _jp = requireJwt(req, res); if (!_jp) return;
       try {
+        const body = await readBody(req);
+        const oneOff = (body.pickingName || '').trim();
+        if (oneOff && !['admin','manager'].includes(_jp.role)) throw Object.assign(new Error('Solo un administrador o encargado puede jalar de otra transferencia'), {httpStatus:403});
         let despacho, added = 0;
         await withDespLock(async () => {
           const list = loadDespachos();
@@ -4872,8 +4875,8 @@ const server = http.createServer(async (req, res) => {
           if (idx===-1) throw Object.assign(new Error('No encontrado'), {httpStatus:404});
           despacho = list[idx];
           if (despacho.estado === 'entregado' || despacho.estado === 'anulado') throw Object.assign(new Error('El despacho ya está cerrado'), {httpStatus:409});
-          if (!despacho.transferLink) throw Object.assign(new Error('Este conduce no tiene una transferencia vinculada'), {httpStatus:422});
-          const result = await syncOneDespachoTransfer(despacho);
+          if (!oneOff && !despacho.transferLink) throw Object.assign(new Error('Este conduce no tiene una transferencia vinculada'), {httpStatus:422});
+          const result = await syncOneDespachoTransfer(despacho, oneOff);
           if (result.error) throw Object.assign(new Error(result.error), {httpStatus:404});
           added = result.added;
           if (added) saveDespachos(list);

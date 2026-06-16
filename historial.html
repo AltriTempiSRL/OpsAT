@@ -1844,6 +1844,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-transfer-link-status{font-size:11px;color:var(--text-muted);margin-top:6px;min-height:14px}
 .do-transfer-link-status.ok{color:var(--green-text)}
 .do-transfer-link-status.err{color:var(--red-text)}
+.do-transfer-link-divider{height:1px;background:var(--border-light);margin:12px 0}
 .do-spin{display:inline-block;animation:spin .8s linear infinite}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
@@ -5041,6 +5042,13 @@ body{font-family:var(--font);min-height:100dvh}
             <button class="do-act-btn" id="do-transfer-sync-btn" onclick="doSyncTransferLink()"><i data-lucide="refresh-cw"></i>Actualizar</button>
           </div>
           <div id="do-transfer-link-status" class="do-transfer-link-status"></div>
+          <div class="do-transfer-link-divider"></div>
+          <div class="do-transfer-link-title" style="margin-bottom:6px">Agregar una vez de otra transferencia</div>
+          <div class="do-transfer-link-row">
+            <input id="do-transfer-once-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04931" autocomplete="off">
+            <button class="do-act-btn" id="do-transfer-once-btn" onclick="doSyncOnceFromTransfer()"><i data-lucide="download"></i>Agregar</button>
+          </div>
+          <div id="do-transfer-once-status" class="do-transfer-link-status"></div>
         </div>
 
         <!-- Líneas del conduce -->
@@ -19281,12 +19289,15 @@ function doRenderWorkspace(){
   document.getElementById('do-transfer-link-input').value = d.transferLink||'';
   document.getElementById('do-transfer-link-status').textContent = '';
   document.getElementById('do-transfer-link-status').className = 'do-transfer-link-status';
-  // Vincular transferencia es solo admin/manager (controla un job automático recurrente)
+  document.getElementById('do-transfer-once-input').value = '';
+  document.getElementById('do-transfer-once-status').textContent = '';
+  document.getElementById('do-transfer-once-status').className = 'do-transfer-link-status';
+  // Vincular/jalar de una transferencia es solo admin/manager (controla un job automático recurrente)
   var canLinkTransfer = (_user && (_user.role==='admin' || _user.role==='manager'));
   document.getElementById('do-transfer-link-card').style.display = canLinkTransfer ? '' : 'none';
   // Bloqueo si cerrado
   var locked = (d.estado==='entregado' || d.estado==='anulado');
-  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-link-input','do-transfer-sync-btn']
+  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-link-input','do-transfer-sync-btn','do-transfer-once-input','do-transfer-once-btn']
     .forEach(function(id){ document.getElementById(id).disabled = locked; });
   document.getElementById('do-capture').style.display = locked ? 'none' : '';
   document.getElementById('do-cerrar-btn').style.display = locked ? 'none' : '';
@@ -19319,6 +19330,35 @@ async function doSyncTransferLink(){
     statusEl.className='do-transfer-link-status ok';
     statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name) : 'Sin novedades en '+name+'.';
     if(ds.added) toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' del conduce de Odoo');
+    doRenderLines();
+  }catch(e){
+    statusEl.className='do-transfer-link-status err';
+    statusEl.textContent = _friendlyFetchError(e);
+  }finally{
+    btn.disabled=(d.estado==='entregado'||d.estado==='anulado'); btn.innerHTML=prevHtml; if(window.lucide) lucide.createIcons();
+  }
+}
+
+// Jala UNA VEZ de una transferencia puntual, sin tocar transferLink — no
+// interrumpe el monitoreo automático de la transferencia vinculada (si hay).
+async function doSyncOnceFromTransfer(){
+  var d=_doActive; if(!d) return;
+  var input=document.getElementById('do-transfer-once-input');
+  var btn=document.getElementById('do-transfer-once-btn');
+  var statusEl=document.getElementById('do-transfer-once-status');
+  var name=(input.value||'').trim();
+  statusEl.className='do-transfer-link-status'; statusEl.textContent='';
+  if(!name){ statusEl.className='do-transfer-link-status err'; statusEl.textContent='Indica el nombre de una transferencia (ej. CDP/INT/04931).'; return; }
+  btn.disabled=true; var prevHtml=btn.innerHTML; btn.innerHTML='<i data-lucide="loader-2" class="do-spin"></i>Agregando…'; if(window.lucide) lucide.createIcons();
+  try{
+    var rs=await authFetchRetry('/api/despacho-obsoleto/'+d.id+'/sync-transferencia',{method:'POST',body:JSON.stringify({pickingName:name})});
+    var ds=await rs.json();
+    if(ds.conflict){ await _doHandleConflict(); return; }
+    if(!ds.ok) throw new Error(ds.error||'No se pudo agregar desde la transferencia');
+    _doActive=ds.despacho;
+    statusEl.className='do-transfer-link-status ok';
+    statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name) : 'Sin artículos nuevos en '+name+'.';
+    if(ds.added){ toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name); input.value=''; }
     doRenderLines();
   }catch(e){
     statusEl.className='do-transfer-link-status err';
@@ -20075,9 +20115,14 @@ async function doDeleteDespacho(id){
 function doImprimirConduce(id){
   var d = id ? _doList.find(function(x){return x.id===id;}) : _doActive;
   if(!d){ return; }
-  var lineas=(d.lineas||[]).filter(function(l){return l.aprobacion==='aprobado';});
-  if(!lineas.length){ _iosAlert('No hay artículos aprobados para imprimir el conduce.'); return; }
+  // Solo exigir aprobación cuando el conduce ya está cerrado (documento final).
+  // Mientras está en borrador/listo, imprime un PRELIMINAR con todo lo agregado.
+  var soloAprobados=(d.estado==='entregado');
+  var preliminar=!soloAprobados;
+  var lineas=(d.lineas||[]).filter(function(l){return !soloAprobados || l.aprobacion==='aprobado';});
+  if(!lineas.length){ _iosAlert(soloAprobados?'No hay artículos aprobados para imprimir el conduce.':'No hay artículos en este conduce.'); return; }
   var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+  var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
   var fechaStr=new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO',{day:'2-digit',month:'long',year:'numeric'});
   var rec=d.receptor||{};
   var rows=lineas.map(function(l,i){
@@ -20087,6 +20132,7 @@ function doImprimirConduce(id){
       +'<td>'+esc(l.name||'—')+'</td>'
       +'<td>'+esc(l.location||'—')+'</td>'
       +'<td style="text-align:center">'+esc(l.condicion||'—')+'</td>'
+      +(preliminar?'<td style="text-align:center">'+esc(apLabel[l.aprobacion||'pendiente'])+'</td>':'')
       +'<td style="text-align:center;font-weight:700">'+(parseFloat(l.qty)||0)+'</td>'
     +'</tr>';
   }).join('');
@@ -20123,8 +20169,9 @@ function doImprimirConduce(id){
     +'</style></head><body>'
     +'<div class="hd">'
       +'<div style="display:flex;gap:12px;align-items:center"><img src="'+origin+'/descarga.png" onerror="this.style.display=\'none\'"><div><div class="co">Altri Tempi</div><div class="sub">Despacho de mercancía obsoleta</div></div></div>'
-      +'<div class="doc-t"><div class="t">CONDUCE DE DESPACHO</div><div class="f">'+esc(d.folio)+'</div><div class="sub">Fecha: '+esc(fechaStr)+'</div></div>'
+      +'<div class="doc-t"><div class="t">'+(preliminar?'CONDUCE PRELIMINAR':'CONDUCE DE DESPACHO')+'</div><div class="f">'+esc(d.folio)+'</div><div class="sub">Fecha: '+esc(fechaStr)+'</div></div>'
     +'</div>'
+    +(preliminar?'<div style="background:#fff3cd;border:1px solid #b8932f;border-radius:6px;padding:8px 12px;font-size:11px;color:#6b5410;margin-bottom:14px">⚠ Documento preliminar — el conduce sigue abierto ('+esc(d.estado)+'). Incluye artículos no aprobados todavía; no es el manifiesto final de despacho.</div>':'')
     +'<div class="meta">'
       +'<div class="box"><h4>Recibe (comprador)</h4>'
         +'<div class="ln"><b>Nombre:</b> '+esc(rec.nombre||'—')+'</div>'
@@ -20139,15 +20186,19 @@ function doImprimirConduce(id){
         +'<div class="ln"><b>Estado:</b> '+esc(d.estado)+'</div>'
       +'</div>'
     +'</div>'
-    +'<table><thead><tr><th style="width:6%;text-align:center">#</th><th style="width:16%">Referencia</th><th>Artículo</th><th style="width:20%">Ubicación</th><th style="width:13%;text-align:center">Condición</th><th style="width:9%;text-align:center">Cant.</th></tr></thead>'
+    +'<table><thead><tr><th style="width:6%;text-align:center">#</th><th style="width:16%">Referencia</th><th>Artículo</th><th style="width:18%">Ubicación</th><th style="width:12%;text-align:center">Condición</th>'
+      +(preliminar?'<th style="width:11%;text-align:center">Aprobación</th>':'')
+      +'<th style="width:9%;text-align:center">Cant.</th></tr></thead>'
     +'<tbody>'+rows+'</tbody>'
-    +'<tfoot><tr><td colspan="2">'+lineas.length+' artículo'+(lineas.length!==1?'s':'')+'</td><td colspan="3" style="text-align:right">Total unidades</td><td style="text-align:center">'+units+'</td></tr></tfoot>'
+    +'<tfoot><tr><td colspan="2">'+lineas.length+' artículo'+(lineas.length!==1?'s':'')+'</td><td colspan="'+(preliminar?4:3)+'" style="text-align:right">Total unidades</td><td style="text-align:center">'+units+'</td></tr></tfoot>'
     +'</table>'
-    +'<div class="decl"><b>Declaración de recibo conforme:</b> Declaro haber recibido la mercancía descrita en este conduce, en las condiciones indicadas y vendida «como está» (<i>as-is</i>). Reviso y acepto las cantidades y el estado físico de los artículos al momento de la entrega, sin lugar a reclamos posteriores por su condición.</div>'
-    +'<div class="sigs">'
-      +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Entrega</div><div class="nm">'+esc((d.creadoPor&&d.creadoPor.nombre)||'Altri Tempi')+'</div></div>'
-      +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Recibe conforme</div><div class="nm">'+esc(rec.nombre||'')+(rec.cedula?(' · '+esc(rec.cedula)):'')+'</div></div>'
-    +'</div>'
+    +(preliminar?'':(
+      '<div class="decl"><b>Declaración de recibo conforme:</b> Declaro haber recibido la mercancía descrita en este conduce, en las condiciones indicadas y vendida «como está» (<i>as-is</i>). Reviso y acepto las cantidades y el estado físico de los artículos al momento de la entrega, sin lugar a reclamos posteriores por su condición.</div>'
+      +'<div class="sigs">'
+        +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Entrega</div><div class="nm">'+esc((d.creadoPor&&d.creadoPor.nombre)||'Altri Tempi')+'</div></div>'
+        +'<div class="sig"><div class="line">&nbsp;</div><div class="lbl">Recibe conforme</div><div class="nm">'+esc(rec.nombre||'')+(rec.cedula?(' · '+esc(rec.cedula)):'')+'</div></div>'
+      +'</div>'
+    ))
     +(fotosHtml?'<div class="anx-wrap"><h3>Anexo fotográfico — evidencia de condición</h3><div class="anx-grid">'+fotosHtml+'</div></div>':'')
     +'<script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script>'
     +'</body></html>';
