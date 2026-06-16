@@ -2005,6 +2005,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
     order:4;
     width:100%;
     display:flex;
+    flex-wrap:wrap;
     align-items:center;
     justify-content:flex-end;
     gap:6px;
@@ -5033,7 +5034,7 @@ body{font-family:var(--font);min-height:100dvh}
         </div>
 
         <!-- Transferencia Odoo vinculada — auto-agrega lo que se vaya escaneando ahí -->
-        <div class="cont-card do-transfer-link-card" style="margin-top:12px">
+        <div class="cont-card do-transfer-link-card" id="do-transfer-link-card" style="margin-top:12px">
           <div class="do-transfer-link-title"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px"></i> Transferencia vinculada (auto-agregar artículos)</div>
           <div class="do-transfer-link-row">
             <input id="do-transfer-link-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04916" autocomplete="off">
@@ -9682,6 +9683,7 @@ function _openCameraCapture(onDone, onFallback) {
   };
   doneBtn.onclick = function() {
     if (!shots.length) return;
+    shots.forEach(function(f){ if (f._previewUrl) URL.revokeObjectURL(f._previewUrl); });
     closeOverlay();
     onDone(shots);
   };
@@ -19279,6 +19281,9 @@ function doRenderWorkspace(){
   document.getElementById('do-transfer-link-input').value = d.transferLink||'';
   document.getElementById('do-transfer-link-status').textContent = '';
   document.getElementById('do-transfer-link-status').className = 'do-transfer-link-status';
+  // Vincular transferencia es solo admin/manager (controla un job automático recurrente)
+  var canLinkTransfer = (_user && (_user.role==='admin' || _user.role==='manager'));
+  document.getElementById('do-transfer-link-card').style.display = canLinkTransfer ? '' : 'none';
   // Bloqueo si cerrado
   var locked = (d.estado==='entregado' || d.estado==='anulado');
   ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-link-input','do-transfer-sync-btn']
@@ -19653,16 +19658,15 @@ function doLineSearchKeydown(ev){
   var exact=lineas.filter(function(l){
     return _doNormalizeSearch(l.ref||'')===qNorm || _doNormalizeSearch(l.barcode||'')===qNorm;
   });
-  var match=exact.length===1 ? exact[0] : null;
-  if(!match){
-    var partial=lineas.filter(function(l){return _doLineMatches(l,qNorm);});
-    if(partial.length===1) match=partial[0];
-  }
+  var partial=lineas.filter(function(l){return _doLineMatches(l,qNorm);});
+  var match=exact.length===1 ? exact[0] : (partial.length===1 ? partial[0] : null);
   if(match){
     doClearLineSearch();
     doFlashLine(match.lineId);
-  } else {
+  } else if(partial.length===0){
     toast('No se encontró ningún artículo para "'+q+'"');
+  } else {
+    toast(partial.length+' artículos coinciden — elige uno de la lista');
   }
 }
 
@@ -19769,7 +19773,7 @@ function doRenderLines(){
       +'</div>';
     }
     var del=locked?'':'<button class="do-line-del" title="Quitar" onclick="doDeleteLinea(\''+l.lineId+'\')"><i data-lucide="trash-2"></i></button>';
-    var camBtn='<button class="do-cam-btn" title="Agregar fotos" onclick="doLineFotoOpen(\''+l.lineId+'\')"><i data-lucide="camera"></i></button>';
+    var camBtn=locked?'':'<button class="do-cam-btn" title="Agregar fotos" onclick="doLineFotoOpen(\''+l.lineId+'\')"><i data-lucide="camera"></i></button>';
     return '<div class="do-line-row do-row-'+ap+'" id="do-row-'+l.lineId+'">'
       + '<span class="do-line-num">'+(idx+1)+'</span>'
       + imgHtml
@@ -19858,6 +19862,9 @@ function doSwapLineImg(ph, ref){
 var _doLineFotos = {}; // {lineId: [{data,ext,caption}]}
 
 function doLineFotoOpen(lineId){
+  if(_doActive && (_doActive.estado==='entregado' || _doActive.estado==='anulado')){
+    _iosAlert('Este conduce ya está cerrado, no se pueden agregar fotos.'); return;
+  }
   // Reutiliza _openPhotoSource exactamente como _doPendingFotos / Averías
   _openPhotoSource({
     title: 'Agregar fotos a la línea',

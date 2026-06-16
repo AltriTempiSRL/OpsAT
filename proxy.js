@@ -4629,7 +4629,10 @@ const server = http.createServer(async (req, res) => {
           if (d.transportista !== undefined) rec.transportista = String(d.transportista);
           if (d.vehiculo !== undefined)      rec.vehiculo = String(d.vehiculo);
           if (d.nota !== undefined)          rec.nota = String(d.nota);
-          if (d.transferLink !== undefined)  rec.transferLink = String(d.transferLink).trim();
+          if (d.transferLink !== undefined) {
+            if (!['admin','manager'].includes(_jp.role)) throw Object.assign(new Error('Solo un administrador o encargado puede vincular una transferencia'), {httpStatus:403});
+            rec.transferLink = String(d.transferLink).trim();
+          }
           if (d.estado !== undefined) {
             const next = String(d.estado);
             const VALID = ['borrador','listo','entregado','anulado'];
