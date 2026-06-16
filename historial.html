@@ -1770,7 +1770,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .do-total-pill{font-size:12px;font-weight:700;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:4px 12px}
 /* Filas de líneas / lista de conduces */
-.do-line-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border-light);border-left:3px solid transparent}
+.do-line-row{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:start;padding:12px 16px;border-bottom:1px solid var(--border-light);border-left:3px solid transparent}
 .do-row-pendiente{border-left-color:var(--amber-dot)}
 .do-row-aprobado{border-left-color:var(--green-text)}
 .do-row-rechazado{border-left-color:var(--red-dot);opacity:.6}
@@ -1786,6 +1786,18 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-line-actions{display:flex;gap:6px;align-items:center}
 .do-line-del{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot);border-radius:6px;cursor:pointer}
 .do-line-del i{width:14px;height:14px;stroke:currentColor}
+.do-line-num{font-family:monospace;font-size:11px;color:var(--text-muted);min-width:22px;text-align:right;flex-shrink:0;align-self:center;line-height:1}
+.do-cam-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .15s}
+.do-cam-btn:hover{background:var(--border-light)}
+.do-cam-btn i{width:14px;height:14px;stroke:currentColor}
+.do-line-foto-panel{background:var(--surface-2);border-radius:8px;padding:10px;margin-top:8px}
+.do-line-foto-panel .do-lfp-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.do-line-foto-panel .do-lfp-count{font-size:11px;color:var(--text-muted);margin-bottom:6px}
+.do-line-foto-panel .do-lfp-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.do-lfp-upload-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;transition:opacity .15s}
+.do-lfp-upload-btn:hover{opacity:.87}
+.do-lfp-upload-btn:disabled{opacity:.4;cursor:not-allowed}
+.do-lfp-cancel-btn{display:inline-flex;align-items:center;padding:7px 12px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;min-height:36px}
 .do-empty{padding:28px 16px;text-align:center;font-size:13px;color:var(--text-muted)}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
@@ -1829,6 +1841,8 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
   .do-back-btn{width:44px;height:44px}
   .do-ap-btn,.do-ap-btn-ok,.do-ap-btn-no{min-width:44px;min-height:44px;width:auto;height:auto;padding:0 10px}
   .do-line-del{min-width:44px;min-height:44px;width:auto;height:auto;padding:0 10px}
+  .do-cam-btn{min-width:44px;min-height:44px;width:auto;height:auto;padding:0 10px}
+  .do-line-foto-panel .do-lfp-upload-btn,.do-line-foto-panel .do-lfp-cancel-btn{min-height:44px;font-size:14px}
   /* Fix 4 — botón × de foto siempre visible en táctil (no hover-only) */
   .av-foto-del{display:block;opacity:1}
 }
@@ -18805,6 +18819,7 @@ function doVolverHome(){
   _doActive = null;
   _doCurrentProduct = null;
   _doPendingFotos = [];
+  _doLineFotos = {};
   var ws = document.getElementById('do-workspace');
   var home = document.getElementById('do-home');
   if(ws) ws.style.display='none';
@@ -19098,7 +19113,7 @@ function doRenderLines(){
   document.getElementById('do-lines-count').textContent=lineas.length;
   document.getElementById('do-total-pill').textContent=aprob.length+'/'+lineas.length+' aprob · '+unitsAprob+' und';
   if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Escanea el primero arriba.</div>'; return; }
-  body.innerHTML=lineas.map(function(l){
+  body.innerHTML=lineas.map(function(l,idx){
     var ap=l.aprobacion||'pendiente';
     var fotos=(l.fotos||[]).map(function(f,fi){
       var src=mediaUrl(f.url);
@@ -19108,6 +19123,25 @@ function doRenderLines(){
     var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'}[ap];
     var apPill='<span class="do-ap-pill do-ap-'+ap+'">'+apLabel+'</span>';
     var motivo=(ap==='rechazado'&&l.motivoRechazo)?'<div class="do-line-motivo"><i data-lucide="x-circle" style="width:11px;height:11px;vertical-align:-1px"></i> '+esc(l.motivoRechazo)+'</div>':'';
+    // Panel de fotos pendientes de esta línea (si hay fotos en buffer)
+    var pendFotos=(_doLineFotos[l.lineId]||[]);
+    var fotoPanelHtml='';
+    if(pendFotos.length){
+      var thumbs=pendFotos.map(function(f,fi){
+        return '<div class="av-foto-thumb-wrap" style="position:relative">'
+          +'<img class="av-foto-thumb" src="'+f.data+'" onclick="avLightboxOpen(\''+f.data+'\',\'\')">'
+          +'<button class="av-foto-del" onclick="doLineFotoRemove(\''+l.lineId+'\','+fi+')">✕</button>'
+        +'</div>';
+      }).join('');
+      fotoPanelHtml='<div class="do-line-foto-panel" id="do-lfp-'+l.lineId+'">'
+        +'<div class="do-lfp-count">'+pendFotos.length+' foto'+(pendFotos.length!==1?'s':'')+' pendiente'+(pendFotos.length!==1?'s':'')+' de subir</div>'
+        +'<div class="do-lfp-thumbs">'+thumbs+'</div>'
+        +'<div class="do-lfp-actions">'
+          +'<button class="do-lfp-upload-btn" onclick="doLineFotoUpload(\''+l.lineId+'\')"><i data-lucide="upload" style="width:13px;height:13px;stroke:currentColor;vertical-align:-1px"></i> Subir fotos</button>'
+          +'<button class="do-lfp-cancel-btn" onclick="doLineFotoCancel(\''+l.lineId+'\')">Cancelar</button>'
+        +'</div>'
+      +'</div>';
+    }
     // Controles de admin (aprobar/rechazar) — solo si el despacho no está cerrado
     var apCtrls='';
     if(isAdmin && !locked){
@@ -19117,18 +19151,86 @@ function doRenderLines(){
       +'</div>';
     }
     var del=locked?'':'<button class="do-line-del" title="Quitar" onclick="doDeleteLinea(\''+l.lineId+'\')"><i data-lucide="trash-2"></i></button>';
-    return '<div class="do-line-row do-row-'+ap+'">'
-      + '<div style="min-width:0">'
+    var camBtn='<button class="do-cam-btn" title="Agregar fotos" onclick="doLineFotoOpen(\''+l.lineId+'\')"><i data-lucide="camera"></i></button>';
+    return '<div class="do-line-row do-row-'+ap+'" id="do-row-'+l.lineId+'">'
+      + '<span class="do-line-num">'+(idx+1)+'</span>'
+      + '<div style="min-width:0;flex:1">'
         + '<div class="do-line-ref">'+esc(l.ref||l.barcode||'—')+'</div>'
         + '<div class="do-line-name">'+esc(l.name||'—')+'</div>'
         + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+cond+apPill+'</div>'
         + motivo
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
+        + fotoPanelHtml
       + '</div>'
-      + '<div class="do-line-actions"><span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'+apCtrls+del+'</div>'
+      + '<div class="do-line-actions"><span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'+apCtrls+camBtn+del+'</div>'
     + '</div>';
   }).join('');
   if(window.lucide) lucide.createIcons();
+}
+
+/* ── Fotos por línea del conduce ── */
+var _doLineFotos = {}; // {lineId: [{data,ext,caption}]}
+
+function doLineFotoOpen(lineId){
+  // Reutiliza _openPhotoSource exactamente como _doPendingFotos / Averías
+  _openPhotoSource({
+    title: 'Agregar fotos a la línea',
+    multiple: true,
+    onFiles: async function(files){
+      if(!files.length) return;
+      if(!_doLineFotos[lineId]) _doLineFotos[lineId]=[];
+      var count=document.getElementById('do-lfp-proc-'+lineId);
+      // Feedback inmediato antes de comprimir
+      toast('Procesando '+files.length+' foto'+(files.length>1?'s':'')+'…');
+      for(var i=0;i<files.length;i++){
+        var b64=await _compressImage(files[i],1024,0.75);
+        if(!b64) continue;
+        _doLineFotos[lineId].push({data:b64,ext:'jpg',caption:''});
+      }
+      doRenderLines();
+      if(window.lucide) lucide.createIcons();
+    }
+  });
+}
+
+function doLineFotoRemove(lineId, idx){
+  if(!_doLineFotos[lineId]) return;
+  _doLineFotos[lineId].splice(idx,1);
+  if(!_doLineFotos[lineId].length) delete _doLineFotos[lineId];
+  doRenderLines();
+  if(window.lucide) lucide.createIcons();
+}
+
+function doLineFotoCancel(lineId){
+  delete _doLineFotos[lineId];
+  doRenderLines();
+  if(window.lucide) lucide.createIcons();
+}
+
+async function doLineFotoUpload(lineId){
+  var fotos=_doLineFotos[lineId];
+  if(!fotos||!fotos.length) return;
+  if(!_doActive) return;
+  var btn=document.querySelector('#do-lfp-'+lineId+' .do-lfp-upload-btn');
+  if(btn){ btn.disabled=true; btn.textContent='Subiendo…'; }
+  try{
+    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId+'/fotos',{
+      method:'POST',
+      body:JSON.stringify({fotos:fotos})
+    });
+    var d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Error al subir fotos');
+    // Actualizar la línea en _doActive con las fotos recibidas del servidor
+    var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
+    if(ln&&d.linea) Object.assign(ln,d.linea);
+    delete _doLineFotos[lineId];
+    toast('Fotos subidas');
+    doRenderLines();
+    if(window.lucide) lucide.createIcons();
+  }catch(e){
+    if(btn){ btn.disabled=false; btn.textContent='Subir fotos'; }
+    await _iosAlert('Error: '+e.message);
+  }
 }
 
 /* ── Aprobación de líneas (solo admin) ── */
