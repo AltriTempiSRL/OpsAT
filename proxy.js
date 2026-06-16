@@ -3120,10 +3120,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/_fix/reset-pendiente — corrige líneas inyectadas con aprobacion:'aprobado' por el script
-  // de migración NAVE2 (system-inject). Las devuelve a 'pendiente' para que un admin las revise.
-  // Header requerido: x-migrate-secret
-  if (reqPath === '/api/_fix/reset-pendiente' && req.method === 'POST') {
+  // ── /api/_fix/reset-pendiente — ELIMINADO post-ejecucion ──────────────────
+  if (false && reqPath === '/api/_fix/reset-pendiente' && req.method === 'POST') {
     const FIX_SECRET = '93a0c2cf5f18b0aaeb8a384d61897580';
     if ((req.headers['x-migrate-secret'] || '') !== FIX_SECRET) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
