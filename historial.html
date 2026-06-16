@@ -1801,6 +1801,8 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-line-name{font-size:13px;font-weight:600;color:var(--text-primary);line-height:1.3}
 .do-line-meta{font-size:11px;color:var(--text-muted);margin-top:2px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .do-line-cond{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)}
+.do-line-frontal{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--green-bg);color:var(--green-text);border:1px solid rgba(21,128,61,.25)}
+.do-line-frontal::before{content:'Frontal: '}
 .do-line-qty{font-size:16px;font-weight:800;color:var(--text-primary);text-align:right;white-space:nowrap}
 .do-line-qty-input{font-size:16px;font-weight:800;color:var(--text-primary);text-align:right;width:52px;border:1px solid transparent;border-radius:6px;background:transparent;padding:2px 4px;-moz-appearance:textfield}
 .do-line-qty-input::-webkit-inner-spin-button,.do-line-qty-input::-webkit-outer-spin-button{opacity:0;-webkit-appearance:none;margin:0}
@@ -19379,6 +19381,10 @@ function doFillProductCard(p){
   document.getElementById('do-prod-name').textContent = p.name||'—';
   var locTxt = (p.quants&&p.quants.length) ? p.quants.map(function(q){return q.loc+' ('+q.qty+')';}).join(' · ') : (p.location||'—');
   document.getElementById('do-prod-loc').textContent = locTxt;
+  // Ubicación frontal (pick-face de rápido acceso) — se guarda aparte para que
+  // no se pierda al crear la línea, igual la marca Ron para stock en CDP.
+  var frontalQ = (p.quants||[]).find(function(q){ return /FRONTAL/i.test(q.loc||''); });
+  p.locationFrontal = frontalQ ? frontalQ.loc : '';
   // Aviso si no está en OBSOLETO / NAVE 2
   var inOk = (p.quants&&p.quants.length) ? p.quants.some(function(q){return DO_LOC_OK.test(q.loc||'');}) : DO_LOC_OK.test(p.location||'');
   var warn = document.getElementById('do-prod-warn');
@@ -19467,7 +19473,7 @@ async function doAgregarLinea(){
   var d=null;
   try{
     var r=await authFetchRetry('/api/despacho-obsoleto/'+_doActive.id+'/lineas',{method:'POST',
-      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,qty:qty,condicion:_doCond,despachoVersion:_doActive&&_doActive.version})}, undefined, onRetry);
+      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,locationFrontal:p.locationFrontal||'',qty:qty,condicion:_doCond,despachoVersion:_doActive&&_doActive.version})}, undefined, onRetry);
     d=await r.json();
     if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al agregar');
@@ -19633,6 +19639,7 @@ function doRenderLines(){
       return '<img class="do-line-foto" src="'+esc(src)+'" loading="lazy" onclick="doFotoLightbox(\''+l.lineId+'\','+fi+')">';
     }).join('');
     var cond=l.condicion?'<span class="do-line-cond">'+esc(l.condicion)+'</span>':'';
+    var frontal=(l.locationFrontal && l.locationFrontal!==l.location)?'<span class="do-line-frontal" title="Ubicación frontal">'+esc(l.locationFrontal)+'</span>':'';
     var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'}[ap];
     var apPill='<span class="do-ap-pill do-ap-'+ap+'">'+apLabel+'</span>';
     // Miniatura de producto: caché hit → img; miss → placeholder con data-do-ref para carga lazy
@@ -19698,7 +19705,7 @@ function doRenderLines(){
       + '<div style="min-width:0;flex:1">'
         + '<div class="do-line-ref">'+esc(l.ref||l.barcode||'—')+'</div>'
         + '<div class="do-line-name">'+esc(l.name||'—')+'</div>'
-        + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+cond+apPill+'</div>'
+        + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+frontal+cond+apPill+'</div>'
         + motivo
         + aprobadorHtml
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')

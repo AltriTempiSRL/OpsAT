@@ -4607,7 +4607,7 @@ const server = http.createServer(async (req, res) => {
             lineId: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
             productId: d.productId||null,
             ref: d.ref||'', name: d.name||'', barcode: d.barcode||'',
-            image: d.image||null, location: d.location||'',
+            image: d.image||null, location: d.location||'', locationFrontal: d.locationFrontal||'',
             qty, condicion: d.condicion||'', nota: d.nota||'',
             fotos: [],
             aprobacion: 'pendiente', motivoRechazo: '', aprobadoPor: null, aprobadoAt: null,
