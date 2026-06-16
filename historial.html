@@ -3906,6 +3906,69 @@ body{font-family:var(--font);min-height:100dvh}
 }
 .pss-cancel:hover{color:var(--text-primary)}
 
+/* ── Cámara propia multi-disparo (reemplaza cámara nativa del OS) ──────────── */
+.cam-overlay{
+  position:fixed;inset:0;z-index:99999;
+  background:#000;
+  display:flex;flex-direction:column;
+  color:#fff;
+}
+.cam-top{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;
+  padding-top:max(12px,env(safe-area-inset-top));
+}
+.cam-icon-btn{
+  width:42px;height:42px;border-radius:50%;
+  border:none;background:rgba(255,255,255,.12);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;
+}
+.cam-icon-btn svg{width:20px;height:20px;stroke:currentColor}
+.cam-icon-btn:disabled{opacity:.35;cursor:default}
+.cam-icon-btn:active:not(:disabled){transform:scale(.93)}
+.cam-count{font-size:13px;font-weight:600;color:rgba(255,255,255,.85)}
+.cam-video-wrap{
+  flex:1;min-height:0;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;background:#000;
+}
+.cam-video{width:100%;height:100%;object-fit:contain;background:#000}
+.cam-strip{
+  flex-shrink:0;
+  display:flex;gap:8px;
+  padding:8px 12px;
+  overflow-x:auto;
+  min-height:0;
+}
+.cam-thumb{
+  width:52px;height:52px;border-radius:8px;flex-shrink:0;
+  border:2px solid rgba(255,255,255,.5);overflow:hidden;
+}
+.cam-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.cam-bottom{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;
+  padding-bottom:max(14px,env(safe-area-inset-bottom));
+}
+.cam-shutter{
+  width:68px;height:68px;border-radius:50%;
+  border:4px solid #fff;background:rgba(255,255,255,.18);
+  cursor:pointer;flex-shrink:0;
+}
+.cam-shutter:active{background:rgba(255,255,255,.4);transform:scale(.95)}
+.cam-done-btn{
+  border:none;background:none;color:#fff;
+  font-size:14px;font-weight:700;
+  padding:10px 4px;cursor:pointer;font-family:inherit;
+  min-width:64px;text-align:left;
+}
+.cam-done-btn:disabled{opacity:.4;cursor:default}
+.cam-done-n{color:rgba(255,255,255,.7);font-weight:600}
+.cam-bottom-spacer{width:64px;flex-shrink:0}
+
 /* ═══ TASK WIZARD ═══════════════════════════════════════════════════════ */
 .wiz-card{max-width:600px}
 .wiz-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);background:var(--surface-2);color:var(--text-3);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
@@ -9445,6 +9508,123 @@ document.addEventListener('touchstart', function(e){
   if (t) _pssLastTouch = {x:t.clientX, y:t.clientY};
 }, {passive:true});
 
+// ── Cámara propia multi-disparo (modal full-screen) ──────────────────────────
+// Permite tomar VARIAS fotos en una sola sesión de cámara (lente trasero por
+// default) sin reabrir el selector cada vez. Si getUserMedia no está disponible
+// o el usuario niega el permiso, hace fallback automático a <input capture>.
+function _openCameraCapture(onDone, onFallback) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    onFallback();
+    return;
+  }
+
+  var shots = []; // array de File
+  var stream = null;
+
+  var overlay = document.createElement('div');
+  overlay.className = 'cam-overlay';
+  overlay.innerHTML =
+    '<div class="cam-top">' +
+      '<button class="cam-icon-btn cam-cancel-btn" type="button" aria-label="Cancelar">' +
+        '<i data-lucide="x"></i>' +
+      '</button>' +
+      '<div class="cam-count">0 fotos</div>' +
+      '<button class="cam-icon-btn cam-undo-btn" type="button" aria-label="Borrar última" disabled>' +
+        '<i data-lucide="rotate-ccw"></i>' +
+      '</button>' +
+    '</div>' +
+    '<div class="cam-video-wrap">' +
+      '<video class="cam-video" autoplay playsinline muted></video>' +
+    '</div>' +
+    '<div class="cam-strip"></div>' +
+    '<div class="cam-bottom">' +
+      '<button class="cam-done-btn" type="button">Listo<span class="cam-done-n"></span></button>' +
+      '<button class="cam-shutter" type="button" aria-label="Tomar foto"></button>' +
+      '<div class="cam-bottom-spacer"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  if (window.lucide) lucide.createIcons();
+
+  var video      = overlay.querySelector('.cam-video');
+  var strip      = overlay.querySelector('.cam-strip');
+  var countEl    = overlay.querySelector('.cam-count');
+  var undoBtn    = overlay.querySelector('.cam-undo-btn');
+  var doneBtn    = overlay.querySelector('.cam-done-btn');
+  var doneN      = overlay.querySelector('.cam-done-n');
+  var shutterBtn = overlay.querySelector('.cam-shutter');
+  var cancelBtn  = overlay.querySelector('.cam-cancel-btn');
+
+  function updateCount() {
+    countEl.textContent = shots.length + (shots.length === 1 ? ' foto' : ' fotos');
+    undoBtn.disabled = shots.length === 0;
+    doneN.textContent = shots.length ? ' (' + shots.length + ')' : '';
+    doneBtn.disabled = shots.length === 0;
+  }
+
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+  }
+
+  function closeOverlay() {
+    stopStream();
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  function renderStrip() {
+    strip.innerHTML = shots.map(function(f, i) {
+      return '<div class="cam-thumb"><img src="' + f._previewUrl + '" alt="foto ' + (i+1) + '"></div>';
+    }).join('');
+    strip.scrollLeft = strip.scrollWidth;
+  }
+
+  function takeShot() {
+    var vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) return;
+    var canvas = document.createElement('canvas');
+    canvas.width = vw; canvas.height = vh;
+    canvas.getContext('2d').drawImage(video, 0, 0, vw, vh);
+    canvas.toBlob(function(blob) {
+      if (!blob) return;
+      var ts = Date.now();
+      var file = new File([blob], 'captura-' + ts + '-' + (shots.length + 1) + '.jpg', { type: 'image/jpeg' });
+      file._previewUrl = URL.createObjectURL(blob);
+      shots.push(file);
+      updateCount();
+      renderStrip();
+    }, 'image/jpeg', 0.9);
+  }
+
+  shutterBtn.onclick = takeShot;
+  undoBtn.onclick = function() {
+    var removed = shots.pop();
+    if (removed && removed._previewUrl) URL.revokeObjectURL(removed._previewUrl);
+    updateCount();
+    renderStrip();
+  };
+  cancelBtn.onclick = function() {
+    shots.forEach(function(f){ if (f._previewUrl) URL.revokeObjectURL(f._previewUrl); });
+    closeOverlay();
+  };
+  doneBtn.onclick = function() {
+    if (!shots.length) return;
+    closeOverlay();
+    onDone(shots);
+  };
+
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' } },
+    audio: false
+  }).then(function(s) {
+    stream = s;
+    video.srcObject = s;
+  }).catch(function() {
+    closeOverlay();
+    onFallback();
+  });
+
+  updateCount();
+}
+
 // ── Selector de fuente de foto (cámara / galería) ────────────────────────────
 // En móvil: muestra un popover centrado en la zona donde tocó el usuario.
 // En desktop: abre el selector de archivo directamente.
@@ -9468,6 +9648,13 @@ function _openPhotoSource(opts) {
     };
     inp.click();
     setTimeout(function() { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
+  }
+
+  function launchCamera() {
+    _openCameraCapture(
+      function(files) { onFiles(files); },   // onDone
+      function() { launchInput(true); }      // onFallback (sigue forzando capture=environment)
+    );
   }
 
   if (!isMobile) { launchInput(false); return; }
@@ -9510,7 +9697,7 @@ function _openPhotoSource(opts) {
   function closeSheet() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
   overlay.querySelector('.pss-backdrop').onclick = closeSheet;
   overlay.querySelector('.pss-cancel').onclick   = closeSheet;
-  overlay.querySelector('.pss-btn-cam').onclick  = function() { closeSheet(); launchInput(true); };
+  overlay.querySelector('.pss-btn-cam').onclick  = function() { closeSheet(); launchCamera(); };
   overlay.querySelector('.pss-btn-gal').onclick  = function() { closeSheet(); launchInput(false); };
 }
 
