@@ -6665,14 +6665,18 @@ async function authFetch(url, opts={}, timeoutMs) {
 // Como authFetch, pero reintenta ante fallas de RED puras (conexión caída a
 // mitad de subida, típico en wifi/datos débiles de almacén) — nunca reintenta
 // si la petición ya llegó al servidor y este respondió con error.
-async function authFetchRetry(url, opts={}, retries){
-  retries = retries===undefined ? 2 : retries;
+// onRetry(attempt, totalRetries) se llama antes de cada reintento, útil para
+// avisar en la UI que sigue intentando en vez de fallar de una vez.
+async function authFetchRetry(url, opts={}, retries, onRetry){
+  retries = retries===undefined ? 3 : retries;
+  var backoff = [1500, 3000, 6000, 6000];
   for(var attempt=0; ; attempt++){
     try{ return await authFetch(url, opts); }
     catch(e){
       var isNetworkError = e instanceof TypeError;
       if(!isNetworkError || attempt>=retries) throw e;
-      await new Promise(function(res){ setTimeout(res, 800*(attempt+1)); });
+      if(onRetry) try{ onRetry(attempt+1, retries); }catch(_e){}
+      await new Promise(function(res){ setTimeout(res, backoff[attempt]||6000); });
     }
   }
 }
@@ -19459,25 +19463,47 @@ async function doAgregarLinea(){
   var p=_doCurrentProduct;
   var btn=document.getElementById('do-add-btn');
   btn.disabled=true; var prev=btn.innerHTML; btn.textContent='Agregando…';
+  function onRetry(attempt){ if(btn) btn.textContent='Reintentando… ('+attempt+')'; }
+  var d=null;
   try{
-    var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas',{method:'POST',
-      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,qty:qty,condicion:_doCond,despachoVersion:_doActive&&_doActive.version})});
-    var d=await r.json();
+    var r=await authFetchRetry('/api/despacho-obsoleto/'+_doActive.id+'/lineas',{method:'POST',
+      body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,location:p.location,qty:qty,condicion:_doCond,despachoVersion:_doActive&&_doActive.version})}, undefined, onRetry);
+    d=await r.json();
     if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al agregar');
-    if(d.despacho) _doActive=d.despacho;
-    // Subir fotos a la línea recién creada
-    var up=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+d.linea.lineId+'/fotos',{method:'POST',
-      body:JSON.stringify({fotos:_doPendingFotos, despachoVersion:_doActive&&_doActive.version})});
+  }catch(e){
+    var msg = (e instanceof TypeError)
+      ? 'Sin conexión estable. Revisa tu señal e intenta de nuevo — nada se perdió.'
+      : ('Error: '+e.message);
+    await _iosAlert(msg);
+    btn.disabled=false; btn.innerHTML=prev; if(window.lucide) lucide.createIcons();
+    return;
+  }
+  // La línea YA existe en el servidor a partir de aquí — si falla la subida de
+  // fotos, NO reintentar creando la línea de nuevo (duplicaría el artículo).
+  // En vez de eso, deja las fotos en el buffer pendiente de esa línea para que
+  // el botón "Subir fotos" del propio renglón (doLineFotoUpload) se encargue.
+  _doActive = d.despacho;
+  btn.textContent='Agregando…';
+  try{
+    var up=await authFetchRetry('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+d.linea.lineId+'/fotos',{method:'POST',
+      body:JSON.stringify({fotos:_doPendingFotos, despachoVersion:_doActive&&_doActive.version})}, undefined, onRetry);
     var ud=await up.json();
     if(!ud.ok) throw new Error(ud.error||'No se pudieron subir las fotos');
-    _doActive = d.despacho;
     _doActive.lineas[_doActive.lineas.length-1].fotos = ud.fotos;
     doClearCapture();
     doRenderLines();
     toast('Artículo agregado al conduce');
     setTimeout(function(){ var i=document.getElementById('do-barcode-input'); if(i) i.focus(); },50);
-  }catch(e){ await _iosAlert('Error: '+e.message); }
+  }catch(e){
+    _doLineFotos[d.linea.lineId] = _doPendingFotos;
+    doClearCapture();
+    doRenderLines();
+    var msg = (e instanceof TypeError)
+      ? 'Artículo agregado, pero sin conexión para subir las fotos. Quedaron pendientes en su línea — sube cuando tengas señal.'
+      : ('Artículo agregado, pero falló subir fotos: '+e.message);
+    await _iosAlert(msg);
+  }
   finally{ btn.disabled=false; btn.innerHTML=prev; if(window.lucide) lucide.createIcons(); }
 }
 
@@ -19799,7 +19825,7 @@ async function doLineFotoUpload(lineId){
     var r=await authFetchRetry('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId+'/fotos',{
       method:'POST',
       body:JSON.stringify({fotos:fotos, despachoVersion:_doActive&&_doActive.version})
-    });
+    }, undefined, function(attempt){ if(btn) btn.textContent='Reintentando… ('+attempt+')'; });
     var d=await r.json();
     if(d.conflict){ await _doHandleConflict(); return; }
     if(!d.ok) throw new Error(d.error||'Error al subir fotos');
@@ -19822,7 +19848,7 @@ async function doLineFotoUpload(lineId){
 /* ── Aprobación de líneas (solo admin) ── */
 async function doPatchLinea(lineId, payload){
   var body=Object.assign({despachoVersion:_doActive&&_doActive.version},payload);
-  var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId,{method:'PATCH',body:JSON.stringify(body)});
+  var r=await authFetchRetry('/api/despacho-obsoleto/'+_doActive.id+'/lineas/'+lineId,{method:'PATCH',body:JSON.stringify(body)});
   var d=await r.json();
   if(d.conflict){ await _doHandleConflict(); return; }
   if(!r.ok||!d.ok) throw new Error(d.error||'Error');
