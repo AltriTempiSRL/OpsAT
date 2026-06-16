@@ -4500,6 +4500,14 @@ const server = http.createServer(async (req, res) => {
             if (sinFoto.length) {
               res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Cada artículo necesita al menos una foto. Faltan: '+sinFoto.join(', ')})); return;
             }
+            // Aprobación: no se puede cerrar con líneas pendientes, y debe haber al menos 1 aprobada
+            const pendientes = rec.lineas.filter(l=>(l.aprobacion||'pendiente')==='pendiente').map(l=>l.ref||l.name);
+            if (pendientes.length) {
+              res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Hay artículos sin aprobar o rechazar: '+pendientes.join(', ')})); return;
+            }
+            if (!rec.lineas.some(l=>l.aprobacion==='aprobado')) {
+              res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El conduce no tiene ningún artículo aprobado'})); return;
+            }
             rec.entregadoAt = new Date().toISOString();
           }
           rec.estado = next;
@@ -4549,6 +4557,7 @@ const server = http.createServer(async (req, res) => {
           image: d.image||null, location: d.location||'',
           qty, condicion: d.condicion||'', nota: d.nota||'',
           fotos: [],
+          aprobacion: 'pendiente', motivoRechazo: '', aprobadoPor: null, aprobadoAt: null,
           addedAt: new Date().toISOString()
         };
         list[idx].lineas.push(linea);
@@ -4574,6 +4583,17 @@ const server = http.createServer(async (req, res) => {
         if (d.qty !== undefined) { const q=parseFloat(d.qty); if (!(q>0)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Cantidad inválida'})); return; } ln.qty=q; }
         if (d.condicion !== undefined) ln.condicion = String(d.condicion);
         if (d.nota !== undefined)      ln.nota = String(d.nota);
+        // Aprobación/rechazo de la línea: solo admin
+        if (d.aprobacion !== undefined) {
+          if (_jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo un administrador puede aprobar o rechazar líneas'})); return; }
+          const ap = String(d.aprobacion);
+          if (!['pendiente','aprobado','rechazado'].includes(ap)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Estado de aprobación inválido'})); return; }
+          if (ap === 'rechazado' && !String(d.motivoRechazo||'').trim()) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Indica el motivo del rechazo'})); return; }
+          ln.aprobacion = ap;
+          ln.motivoRechazo = ap === 'rechazado' ? String(d.motivoRechazo).trim() : '';
+          ln.aprobadoPor = ap === 'pendiente' ? null : { id: _jp.userId || null, nombre: _jp.name || '' };
+          ln.aprobadoAt = ap === 'pendiente' ? null : new Date().toISOString();
+        }
         list[idx].updatedAt = new Date().toISOString();
         saveDespachos(list);
         res.writeHead(200,{'Content-Type':'application/json'});
