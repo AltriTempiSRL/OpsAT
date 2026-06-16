@@ -3120,6 +3120,49 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── /api/_fix/reset-pendiente — corrige líneas inyectadas con aprobacion:'aprobado' por el script
+  // de migración NAVE2 (system-inject). Las devuelve a 'pendiente' para que un admin las revise.
+  // Header requerido: x-migrate-secret
+  if (reqPath === '/api/_fix/reset-pendiente' && req.method === 'POST') {
+    const FIX_SECRET = '93a0c2cf5f18b0aaeb8a384d61897580';
+    if ((req.headers['x-migrate-secret'] || '') !== FIX_SECRET) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'No autorizado' }));
+      return;
+    }
+    try {
+      const despachos = loadJson(DESPACHOS_FILE, []);
+      const co = despachos.find(function(d) { return d.folio === 'CO-0001'; });
+      if (!co) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'CO-0001 no encontrado' }));
+        return;
+      }
+      let resetCount = 0;
+      (co.lineas || []).forEach(function(ln) {
+        // Solo resetear las que fueron inyectadas automáticamente (aprobadoPor === 'system-inject')
+        // No tocar las que un admin haya aprobado manualmente
+        const por = ln.aprobadoPor;
+        const isSystemInject = (por === 'system-inject') ||
+          (por && typeof por === 'object' && por.id === 'system-inject');
+        if (isSystemInject) {
+          ln.aprobacion   = 'pendiente';
+          ln.aprobadoPor  = null;
+          ln.aprobadoAt   = null;
+          ln.motivoRechazo = '';
+          resetCount++;
+        }
+      });
+      saveJson(DESPACHOS_FILE, despachos);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, reset: resetCount, folio: 'CO-0001' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
   // ── /api/health — validar conexión con Odoo y Google Sheets ─────────────
   if (reqPath === '/api/health' && req.method === 'GET') {
     const health = {

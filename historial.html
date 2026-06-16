@@ -1808,6 +1808,13 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-lfp-upload-btn:disabled{opacity:.4;cursor:not-allowed}
 .do-lfp-cancel-btn{display:inline-flex;align-items:center;padding:7px 12px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;min-height:36px}
 .do-empty{padding:28px 16px;text-align:center;font-size:13px;color:var(--text-muted)}
+/* ── Indicador de progreso de aprobación (cabecera del workspace) ── */
+.do-aprob-pill{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.do-aprob-pill.verde{background:var(--green-bg);color:var(--green-text);border-color:rgba(21,128,61,.25)}
+.do-aprob-pill.ambar{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
+.do-aprob-pill.rojo{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+.do-aprob-bar-wrap{width:72px;height:5px;border-radius:999px;background:var(--border-light);overflow:hidden;flex-shrink:0}
+.do-aprob-bar{height:100%;border-radius:999px;transition:width .3s ease;background:currentColor;opacity:.55}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
 .do-product-card .av-prod-ref{font-family:monospace;font-weight:700;font-size:12px;color:var(--text-muted)}
@@ -1833,6 +1840,8 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-ap-aprobado{background:var(--green-bg);color:var(--green-text);border-color:rgba(21,128,61,.25)}
 .do-ap-rechazado{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
 .do-line-motivo{font-size:11px;color:var(--red-text);margin-top:4px}
+.do-aprobador{font-size:11px;color:var(--text-muted);margin-top:3px;display:flex;align-items:center;gap:4px}
+.do-aprobador i{width:14px;height:14px;stroke:currentColor;flex-shrink:0}
 .do-ap-ctrls{display:flex;gap:4px}
 .do-ap-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;background:var(--surface-2);border:1px solid var(--border);color:var(--text-muted)}
 .do-ap-btn i{width:15px;height:15px;stroke:currentColor}
@@ -4719,6 +4728,11 @@ body{font-family:var(--font);min-height:100dvh}
               <div class="do-folio" id="do-folio">CO-0000</div>
               <div id="do-estado-badge" class="do-badge">borrador</div>
             </div>
+          </div>
+          <!-- Indicador de progreso de aprobación — se actualiza en doRenderLines() -->
+          <div id="do-aprob-pill" class="do-aprob-pill" style="display:none">
+            <span id="do-aprob-label">0 / 0 aprobadas</span>
+            <div class="do-aprob-bar-wrap"><div id="do-aprob-bar" class="do-aprob-bar" style="width:0%"></div></div>
           </div>
           <div class="do-ws-actions">
             <button class="do-act-btn" onclick="doImprimirConduce()"><i data-lucide="printer"></i>Imprimir conduce</button>
@@ -19113,6 +19127,18 @@ async function doDeleteLinea(lineId){
   }catch(e){ await _iosAlert('Error: '+e.message); }
 }
 
+function _doTimeAgo(isoStr){
+  if(!isoStr) return '';
+  var diff=Date.now()-new Date(isoStr).getTime();
+  if(isNaN(diff)||diff<0) return '';
+  var mins=Math.floor(diff/60000);
+  if(mins<1) return 'ahora';
+  if(mins<60) return 'hace '+mins+' min';
+  var hrs=Math.floor(mins/60);
+  if(hrs<24) return 'hace '+hrs+'h';
+  var days=Math.floor(hrs/24);
+  return 'hace '+days+' día'+(days!==1?'s':'');
+}
 function doRenderLines(){
   var d=_doActive; if(!d) return;
   var body=document.getElementById('do-lines-body');
@@ -19123,6 +19149,22 @@ function doRenderLines(){
   var unitsAprob=aprob.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
   document.getElementById('do-lines-count').textContent=lineas.length;
   document.getElementById('do-total-pill').textContent=aprob.length+'/'+lineas.length+' aprob · '+unitsAprob+' und';
+  // ── Indicador de progreso de aprobación en cabecera ──────────────────────
+  (function(){
+    var pill=document.getElementById('do-aprob-pill');
+    var lbl=document.getElementById('do-aprob-label');
+    var bar=document.getElementById('do-aprob-bar');
+    if(!pill||!lbl||!bar) return;
+    var total=lineas.length;
+    if(!total){ pill.style.display='none'; return; }
+    pill.style.display='';
+    var nAprob=aprob.length;
+    var nRech=lineas.filter(function(l){return l.aprobacion==='rechazado';}).length;
+    var pct=Math.round((nAprob/total)*100);
+    lbl.textContent=nAprob+' / '+total+' aprobadas';
+    bar.style.width=pct+'%';
+    pill.className='do-aprob-pill'+(nRech>0?' rojo':nAprob===total?' verde':' ambar');
+  })();
   if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Escanea el primero arriba.</div>'; return; }
   body.innerHTML=lineas.map(function(l,idx){
     var ap=l.aprobacion||'pendiente';
@@ -19146,6 +19188,21 @@ function doRenderLines(){
       imgHtml='<div class="do-line-img-ph"><i data-lucide="package"></i></div>';
     }
     var motivo=(ap==='rechazado'&&l.motivoRechazo)?'<div class="do-line-motivo"><i data-lucide="x-circle" style="width:11px;height:11px;vertical-align:-1px"></i> '+esc(l.motivoRechazo)+'</div>':'';
+    // Aprobador: solo si la línea no está pendiente y tiene aprobadoPor
+    var aprobadorHtml='';
+    if(ap!=='pendiente' && l.aprobadoPor){
+      var _apPor=l.aprobadoPor;
+      var _apNombre='';
+      if(typeof _apPor==='object' && _apPor!==null){
+        _apNombre=(_apPor.id==='system-inject')?'Sistema':esc(_apPor.nombre||_apPor.id||'');
+      } else if(typeof _apPor==='string'){
+        _apNombre=(_apPor==='system-inject')?'Sistema':esc(_apPor);
+      }
+      if(_apNombre){
+        var _apTime=l.aprobadoAt?(' · '+_doTimeAgo(l.aprobadoAt)):'';
+        aprobadorHtml='<div class="do-aprobador"><i data-lucide="user-check"></i>por: '+_apNombre+_apTime+'</div>';
+      }
+    }
     // Panel de fotos pendientes de esta línea (si hay fotos en buffer)
     var pendFotos=(_doLineFotos[l.lineId]||[]);
     var fotoPanelHtml='';
@@ -19183,6 +19240,7 @@ function doRenderLines(){
         + '<div class="do-line-name">'+esc(l.name||'—')+'</div>'
         + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+cond+apPill+'</div>'
         + motivo
+        + aprobadorHtml
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
         + fotoPanelHtml
       + '</div>'
