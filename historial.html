@@ -9259,6 +9259,7 @@ function renderDrawer(t) {
   const _evHtml = _auxDispatchOnly ? '' : evHtml;
   const _subsHtml = _auxDispatchOnly ? '' : subsHtml;
   const _fotosEntregaHtml = isDispatch ? '' : fotosEntregaHtml; // en despacho va dentro del checklist
+  const descriptionHtml = t.description ? `<div style="display:flex;align-items:flex-start;gap:7px;padding:8px 10px;background:var(--surface-2);border-radius:8px;margin-bottom:10px"><i data-lucide="align-left" style="width:13px;height:13px;stroke:var(--text-3);flex-shrink:0;margin-top:2px;display:inline-block"></i><span style="font-size:13px;line-height:1.45;white-space:pre-wrap">${esc(t.description)}</span></div>` : '';
   const overdueBannerHtml = isOverdueTask(t) ? `<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:9px;padding:10px 12px;margin:0 0 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <i data-lucide="alarm-clock" style="width:16px;height:16px;stroke:#dc2626;flex-shrink:0"></i>
     <div style="flex:1;min-width:180px;font-size:12px;color:#991b1b">
@@ -9279,6 +9280,7 @@ function renderDrawer(t) {
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
     </div>
     ${parentCtxHtml}
+    ${descriptionHtml}
     ${pickStatusHtml}
     ${_guiaHtml}
     ${dispatchChecklistHtml}
@@ -9316,6 +9318,7 @@ function renderDrawer(t) {
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
     </div>
     ${parentCtxHtml}
+    ${descriptionHtml}
     <div id="dr-pick-sync"></div>
     ${guiaHtml}
     ${actionHtml}
