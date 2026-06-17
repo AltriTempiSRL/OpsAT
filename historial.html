@@ -1862,8 +1862,11 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-transfer-link-status.err{color:var(--red-text)}
 .do-transfer-link-divider{height:1px;background:var(--border-light);margin:12px 0}
 .do-transfer-imported{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.do-transfer-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--green-bg);color:var(--green-text);border:1px solid rgba(21,128,61,.25);font-family:monospace}
+.do-transfer-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 6px 3px 9px;border-radius:999px;background:var(--green-bg);color:var(--green-text);border:1px solid rgba(21,128,61,.25);font-family:monospace}
 .do-transfer-chip i{width:12px;height:12px;stroke:currentColor}
+.do-chip-sync{background:none;border:none;cursor:pointer;padding:2px;display:flex;align-items:center;color:var(--green-text);opacity:.65;border-radius:50%;transition:opacity .15s,background .15s}
+.do-chip-sync:hover{opacity:1;background:rgba(21,128,61,.15)}
+.do-chip-sync svg{width:11px;height:11px;stroke:currentColor;display:block}
 /* Borradores en progreso */
 .do-borradores-hdr{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--text-secondary);cursor:pointer;padding:6px 0 2px;user-select:none;border-top:1px solid var(--border-light);margin-top:10px}
 .do-borradores-hdr:hover{color:var(--text-primary)}
@@ -19811,10 +19814,23 @@ function doRenderWorkspace(){
 function doRenderImportedTransfers(){
   var el=document.getElementById('do-transfer-imported'); if(!el) return;
   var arr=(_doActive&&_doActive.importedTransfers)||[];
+  var locked = _doActive && (_doActive.estado==='entregado'||_doActive.estado==='anulado');
   el.innerHTML = arr.length
-    ? arr.map(function(t){ return '<span class="do-transfer-chip"><i data-lucide="check"></i>'+esc(t)+'</span>'; }).join('')
+    ? arr.map(function(t){
+        var syncBtn = locked ? '' :
+          '<button class="do-chip-sync" title="Actualizar artículos de '+esc(t)+'" onclick="doSyncTransfer(\''+esc(t)+'\')">'
+          +'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+          +'</button>';
+        return '<span class="do-transfer-chip"><i data-lucide="check"></i>'+esc(t)+syncBtn+'</span>';
+      }).join('')
     : '';
   if(window.lucide) lucide.createIcons();
+}
+
+async function doSyncTransfer(name){
+  var input = document.getElementById('do-transfer-once-input');
+  if(input) input.value = name;
+  await doImportTransfer();
 }
 
 // Importa una transferencia interna Odoo al conduce. Soporta varias por conduce;
