@@ -721,6 +721,17 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .veh-apto-nd{background:var(--surface-2);color:var(--text-muted)}
 .veh-empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
 .veh-obs{font-size:12px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
+/* Diagrama de condición del vehículo */
+.veh-diagram-grid{display:grid;grid-template-columns:68px 1fr 68px;grid-template-rows:auto 1fr auto;gap:10px 6px;align-items:center;justify-items:center;max-width:320px;margin:0 auto;padding:4px 0}
+.veh-photo-slot{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+.veh-photo-btn{width:54px;height:54px;border-radius:10px;border:2px dashed var(--border);background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;transition:border-color .15s,background .15s}
+.veh-photo-btn:hover{border-color:var(--accent);background:var(--accent-faint)}
+.veh-photo-btn.taken{border-style:solid;border-color:var(--green-dot);background:var(--green-bg)}
+.veh-photo-btn.taken svg{display:none}
+.veh-photo-btn img{width:100%;height:100%;object-fit:cover;border-radius:8px;position:absolute;inset:0}
+.veh-photo-lbl{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;text-align:center;line-height:1.2}
+.veh-fotos-counter{font-size:11px;font-weight:700;color:var(--text-muted);text-align:center;margin-top:10px}
+@media(max-width:480px){.veh-diagram-grid{grid-template-columns:56px 1fr 56px;gap:8px 2px}.veh-photo-btn{width:46px;height:46px}}
 /* ── MÓDULO POLÍTICAS ── */
 .pol-page-hdr{margin-bottom:20px}
 .pol-page-hdr h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0 0 3px}
@@ -5621,6 +5632,102 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <input type="number" id="vf-km" placeholder="Ej. 45230" min="0" step="1">
             </div>
           </div>
+        </div>
+
+        <!-- Condición del vehículo — 4 fotos por zona -->
+        <div class="veh-form-card">
+          <h3><i data-lucide="camera" class="tab-h3-icon"></i>Condición del Vehículo</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin:-8px 0 16px">Toca cada zona para fotografiar el estado antes de salir</p>
+          <div class="veh-diagram-grid">
+            <!-- Frente -->
+            <div style="grid-column:2;grid-row:1">
+              <div class="veh-photo-slot" onclick="vehPhotoClick('frente')">
+                <div class="veh-photo-btn" id="veh-photo-frente">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                </div>
+                <span class="veh-photo-lbl">Frente</span>
+              </div>
+            </div>
+            <!-- Izquierda -->
+            <div style="grid-column:1;grid-row:2">
+              <div class="veh-photo-slot" onclick="vehPhotoClick('izquierda')">
+                <div class="veh-photo-btn" id="veh-photo-izquierda">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                </div>
+                <span class="veh-photo-lbl">Izq.</span>
+              </div>
+            </div>
+            <!-- SVG del auto (centro) -->
+            <div style="grid-column:2;grid-row:2;width:100%;display:flex;justify-content:center">
+              <svg viewBox="0 0 110 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;max-width:130px">
+                <!-- Ruedas delanteras -->
+                <rect x="4" y="32" width="17" height="27" rx="5" fill="var(--surface-2)" stroke="var(--text-secondary)" stroke-width="1.5"/>
+                <rect x="89" y="32" width="17" height="27" rx="5" fill="var(--surface-2)" stroke="var(--text-secondary)" stroke-width="1.5"/>
+                <!-- Ruedas traseras -->
+                <rect x="4" y="141" width="17" height="27" rx="5" fill="var(--surface-2)" stroke="var(--text-secondary)" stroke-width="1.5"/>
+                <rect x="89" y="141" width="17" height="27" rx="5" fill="var(--surface-2)" stroke="var(--text-secondary)" stroke-width="1.5"/>
+                <!-- Carrocería principal -->
+                <path d="M26,10 Q55,3 84,10 L90,34 L90,168 Q55,178 20,168 L20,34 Z" fill="var(--surface)" stroke="var(--text-secondary)" stroke-width="2"/>
+                <!-- Cofre -->
+                <path d="M29,13 Q55,7 81,13 L86,34 L24,34 Z" fill="var(--surface-2)" stroke="var(--border)" stroke-width="1"/>
+                <!-- Faros delanteros -->
+                <rect x="26" y="15" width="13" height="7" rx="3" fill="var(--amber-bg)" stroke="var(--amber-dot)" stroke-width="1"/>
+                <rect x="71" y="15" width="13" height="7" rx="3" fill="var(--amber-bg)" stroke="var(--amber-dot)" stroke-width="1"/>
+                <!-- Parabrisas delantero -->
+                <path d="M31,36 Q55,29 79,36 L76,56 L34,56 Z" fill="#bfdbfe" stroke="#93c5fd" stroke-width="1"/>
+                <!-- Ventanas laterales -->
+                <rect x="21" y="60" width="12" height="42" rx="3" fill="#bfdbfe" stroke="#93c5fd" stroke-width="1"/>
+                <rect x="77" y="60" width="12" height="42" rx="3" fill="#bfdbfe" stroke="#93c5fd" stroke-width="1"/>
+                <!-- Interior de la cabina -->
+                <rect x="27" y="58" width="56" height="82" rx="5" fill="var(--surface-2)" stroke="var(--border)" stroke-width="1"/>
+                <!-- Asientos delanteros -->
+                <rect x="30" y="65" width="19" height="17" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+                <rect x="61" y="65" width="19" height="17" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+                <!-- Reposacabezas delanteros -->
+                <rect x="35" y="63" width="9" height="5" rx="2" fill="var(--border)"/>
+                <rect x="66" y="63" width="9" height="5" rx="2" fill="var(--border)"/>
+                <!-- Consola central -->
+                <rect x="51" y="67" width="8" height="32" rx="3" fill="var(--border)"/>
+                <!-- Asientos traseros -->
+                <rect x="30" y="107" width="50" height="22" rx="4" fill="var(--surface)" stroke="var(--border)" stroke-width="1"/>
+                <!-- Reposacabezas traseros -->
+                <rect x="34" y="105" width="8" height="5" rx="2" fill="var(--border)"/>
+                <rect x="51" y="105" width="8" height="5" rx="2" fill="var(--border)"/>
+                <rect x="68" y="105" width="8" height="5" rx="2" fill="var(--border)"/>
+                <!-- Parabrisas trasero -->
+                <path d="M31,142 Q55,151 79,142 L76,124 L34,124 Z" fill="#bfdbfe" stroke="#93c5fd" stroke-width="1"/>
+                <!-- Maletero -->
+                <path d="M29,156 Q55,165 81,156 L86,168 L24,168 Z" fill="var(--surface-2)" stroke="var(--border)" stroke-width="1"/>
+                <!-- Calaveras traseras -->
+                <rect x="26" y="158" width="13" height="7" rx="3" fill="#fecaca" stroke="#f87171" stroke-width="1"/>
+                <rect x="71" y="158" width="13" height="7" rx="3" fill="#fecaca" stroke="#f87171" stroke-width="1"/>
+              </svg>
+            </div>
+            <!-- Derecha -->
+            <div style="grid-column:3;grid-row:2">
+              <div class="veh-photo-slot" onclick="vehPhotoClick('derecha')">
+                <div class="veh-photo-btn" id="veh-photo-derecha">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                </div>
+                <span class="veh-photo-lbl">Der.</span>
+              </div>
+            </div>
+            <!-- Trasera -->
+            <div style="grid-column:2;grid-row:3">
+              <div class="veh-photo-slot" onclick="vehPhotoClick('trasera')">
+                <div class="veh-photo-btn" id="veh-photo-trasera">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                </div>
+                <span class="veh-photo-lbl">Trasera</span>
+              </div>
+            </div>
+          </div>
+          <p class="veh-fotos-counter" id="veh-fotos-counter">0/4 fotos</p>
+          <!-- File inputs ocultos -->
+          <input type="file" id="veh-file-frente"    accept="image/*" capture="environment" style="display:none" onchange="vehPhotoLoad('frente',this)">
+          <input type="file" id="veh-file-izquierda" accept="image/*" capture="environment" style="display:none" onchange="vehPhotoLoad('izquierda',this)">
+          <input type="file" id="veh-file-derecha"   accept="image/*" capture="environment" style="display:none" onchange="vehPhotoLoad('derecha',this)">
+          <input type="file" id="veh-file-trasera"   accept="image/*" capture="environment" style="display:none" onchange="vehPhotoLoad('trasera',this)">
         </div>
 
         <!-- Secciones de checklists — generadas por vehBuildForm() -->
@@ -22176,6 +22283,68 @@ function vehSetApto(val) {
   });
 }
 
+// ── Fotos de condición del vehículo ──────────────────────────────────────────
+var _vehFotos = { frente: null, trasera: null, izquierda: null, derecha: null };
+
+function vehPhotoClick(side) {
+  document.getElementById('veh-file-' + side).click();
+}
+
+function vehPhotoLoad(side, input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var img = new Image();
+  var canvas = document.createElement('canvas');
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    img.onload = function() {
+      var MAX = 900;
+      var w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      _vehFotos[side] = dataUrl;
+      var btn = document.getElementById('veh-photo-' + side);
+      if (btn) {
+        var existing = btn.querySelector('img');
+        if (!existing) { existing = document.createElement('img'); btn.appendChild(existing); }
+        existing.src = dataUrl;
+        existing.alt = side;
+        btn.classList.add('taken');
+      }
+      _vehFotosUpdateCounter();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function _vehFotosUpdateCounter() {
+  var count = Object.values(_vehFotos).filter(Boolean).length;
+  var el = document.getElementById('veh-fotos-counter');
+  if (el) {
+    el.textContent = count + '/4 fotos';
+    el.style.color = count > 0 ? 'var(--green-text)' : 'var(--text-muted)';
+  }
+}
+
+function _vehFotosReset() {
+  _vehFotos = { frente: null, trasera: null, izquierda: null, derecha: null };
+  ['frente','trasera','izquierda','derecha'].forEach(function(side) {
+    var btn = document.getElementById('veh-photo-' + side);
+    if (btn) {
+      var img = btn.querySelector('img');
+      if (img) img.remove();
+      btn.classList.remove('taken');
+    }
+    var inp = document.getElementById('veh-file-' + side);
+    if (inp) inp.value = '';
+  });
+  _vehFotosUpdateCounter();
+}
+
 function vehResetForm() {
   document.getElementById('vf-vehiculo').value = '';
   document.getElementById('vf-placa').value = '';
@@ -22194,6 +22363,7 @@ function vehResetForm() {
   if (_user) document.getElementById('vf-conductor').value = _user.name;
   document.getElementById('vf-fecha').value = new Date().toISOString().slice(0,10);
   document.getElementById('vf-hora').value = new Date().toTimeString().slice(0,5);
+  _vehFotosReset();
 }
 
 async function vehSubmit() {
@@ -22228,7 +22398,8 @@ async function vehSubmit() {
     items:                 items,
     apto:                  document.getElementById('vf-apto').value || null,
     observacionesGenerales:document.getElementById('vf-observaciones').value.trim(),
-    firmaConductor:        document.getElementById('vf-firma').value.trim()
+    firmaConductor:        document.getElementById('vf-firma').value.trim(),
+    fotos_condicion:       _vehFotos
   };
 
   var btn = document.getElementById('veh-submit-btn');
