@@ -1864,6 +1864,19 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-transfer-imported{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .do-transfer-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--green-bg);color:var(--green-text);border:1px solid rgba(21,128,61,.25);font-family:monospace}
 .do-transfer-chip i{width:12px;height:12px;stroke:currentColor}
+/* Borradores en progreso */
+.do-borradores-hdr{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--text-secondary);cursor:pointer;padding:6px 0 2px;user-select:none;border-top:1px solid var(--border-light);margin-top:10px}
+.do-borradores-hdr:hover{color:var(--text-primary)}
+.do-borradores-hdr svg{flex-shrink:0}
+.do-borradores-badge{background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot);font-size:10px;padding:1px 6px;border-radius:999px;font-weight:700;margin-left:2px}
+.do-borradores-chevron{margin-left:auto;transition:transform .2s}
+.do-borrador-row{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border-light);font-size:12px}
+.do-borrador-row:last-child{border-bottom:none}
+.do-borrador-folio{font-family:monospace;font-weight:700;color:var(--text-primary);flex-shrink:0}
+.do-borrador-meta{color:var(--text-muted);font-size:11px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.do-borrador-open{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);font-size:11px;font-weight:600;cursor:pointer;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:4px}
+.do-borrador-open:hover{border-color:var(--accent);color:var(--accent)}
+.do-borrador-open svg{width:11px;height:11px;stroke:currentColor}
 .do-spin{display:inline-block;animation:spin .8s linear infinite}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
@@ -5097,6 +5110,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           </div>
           <div id="do-transfer-once-status" class="do-transfer-link-status"></div>
           <div id="do-transfer-imported" class="do-transfer-imported"></div>
+          <!-- Borradores en progreso -->
+          <div class="do-borradores-hdr" id="do-borradores-hdr" onclick="doToggleBorradores()" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Borradores en progreso</span>
+            <span id="do-borradores-badge" class="do-borradores-badge" style="display:none"></span>
+            <svg class="do-borradores-chevron" id="do-borradores-chevron" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div id="do-borradores-list" style="display:none"></div>
         </div>
 
         <!-- Líneas del conduce -->
@@ -19708,8 +19729,52 @@ function doShowWorkspace(){
   document.getElementById('do-home').style.display='none';
   document.getElementById('do-workspace').style.display='';
   doRenderWorkspace();
-  // Foco al escáner para flujo de una mano
+  doLoadBorradores();
   setTimeout(function(){ var i=document.getElementById('do-barcode-input'); if(i) i.focus(); }, 60);
+}
+
+var _doBorradoresExpanded = false;
+
+async function doLoadBorradores(){
+  try{
+    var r = await authFetch('/api/despacho-obsoleto?estado=borrador');
+    var all = await r.json();
+    var others = Array.isArray(all) ? all.filter(function(d){ return !_doActive || d.id !== _doActive.id; }) : [];
+    var hdr   = document.getElementById('do-borradores-hdr');
+    var badge = document.getElementById('do-borradores-badge');
+    if(!hdr) return;
+    if(others.length === 0){ hdr.style.display='none'; document.getElementById('do-borradores-list').style.display='none'; return; }
+    hdr.style.display = 'flex';
+    badge.style.display = others.length > 0 ? '' : 'none';
+    badge.textContent = others.length;
+    if(_doBorradoresExpanded) _doRenderBorradoresList(others);
+  }catch(e){}
+}
+
+function doToggleBorradores(){
+  _doBorradoresExpanded = !_doBorradoresExpanded;
+  var chevron = document.getElementById('do-borradores-chevron');
+  if(chevron) chevron.style.transform = _doBorradoresExpanded ? 'rotate(180deg)' : '';
+  if(_doBorradoresExpanded) doLoadBorradores();
+  else{ var l=document.getElementById('do-borradores-list'); if(l){l.style.display='none'; l.innerHTML='';} }
+}
+
+function _doRenderBorradoresList(others){
+  var list = document.getElementById('do-borradores-list');
+  if(!list) return;
+  list.innerHTML = others.map(function(d){
+    var lines = (d.lineas||[]).length;
+    var hora  = d.updatedAt||d.createdAt ? new Date(d.updatedAt||d.createdAt).toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'}) : '';
+    var autor = esc((d.creadoPor && d.creadoPor.nombre) || '—');
+    return '<div class="do-borrador-row">'
+      +'<span class="do-borrador-folio">'+esc(d.folio)+'</span>'
+      +'<span class="do-borrador-meta">'+autor+' · '+lines+' art.'+(hora?' · '+hora:'')+'</span>'
+      +'<button class="do-borrador-open" onclick="doOpenDespacho(\''+d.id+'\')">'
+      +'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+      +'Abrir</button>'
+      +'</div>';
+  }).join('');
+  list.style.display = '';
 }
 
 function doRenderWorkspace(){
