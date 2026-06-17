@@ -150,7 +150,10 @@ function saveWwpTasks(list) { saveJson(WWP_TASKS_FILE, list); }
 // Construye items desde las LÍNEAS DE OPERACIÓN (stock.move.line) de los picks
 // 'assigned' (preparado) de una orden. Cada move.line = (bin real, cantidad reservada).
 // → un bin por unidad (unitBins), cantidad = total reservado en el pick.
-async function buildItemsFromPicks(orderName) {
+// stateFilter: estados de picking a incluir. Creación de tarea → ['assigned'] (solo pendientes).
+// Sync diff-pick → undefined (default ['assigned','done'] para detectar ejecutados).
+async function buildItemsFromPicks(orderName, stateFilter) {
+  const pickStates = stateFilter || ['assigned','done'];
   // Resolver nombre real de la orden (tolera ref sin prefijo, ej. "7647" → "S07647")
   let realName = orderName;
   try {
@@ -158,9 +161,9 @@ async function buildItemsFromPicks(orderName) {
     if (so && so.length) realName = so[0].name;
   } catch {}
 
-  // Buscar todos los pickings ligados a esta orden: PICK + RET (assigned)
+  // Buscar pickings ligados a esta orden según estado solicitado
   const picksAll = await odooCall('stock.picking','search_read',
-    [[['origin','=',realName],['state','in',['assigned','done']]]],
+    [[['origin','=',realName],['state','in',pickStates]]],
     {fields:['id','name','picking_type_id','state'],limit:50});
 
   const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name));
@@ -8421,8 +8424,8 @@ const server = http.createServer(async (req, res) => {
           }
         } catch(e) { /* dirección es opcional */ }
         const baseResp = {ok:true,type:'order',ref:order.name,client:order.partner_id?order.partner_id[1]:'',salesperson,deliveryAddress,phone};
-        // Ubicación desde el PICK preparado (assigned). Si no hay pick → fallback a líneas de la orden.
-        const pickRes = await buildItemsFromPicks(order.name);
+        // Solo picks 'assigned' (pendientes) — los 'done' no se ofrecen al crear tarea nueva.
+        const pickRes = await buildItemsFromPicks(order.name, ['assigned']);
         if (!pickRes.noPick) {
           res.writeHead(200,{'Content-Type':'application/json'});
           res.end(JSON.stringify({...baseResp, noPick:false, picks:pickRes.picks||[], pickNames:pickRes.pickNames, items:pickRes.items}));
