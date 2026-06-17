@@ -7905,6 +7905,32 @@ var GUIDE_PROCESSES = {
         tip: '¡Listo! El supervisor validará el embalaje.' }
     ]
   },
+  customer_return: {
+    label: 'Devolución de Cliente',
+    color: '#dc2626', bg: '#fef2f2', icon: 'rotate-ccw',
+    steps: [
+      { title: 'Coordina con el cliente',
+        desc: 'Contacta al cliente para confirmar disponibilidad y acordar el horario de recogida. La dirección y teléfono están en el detalle de la tarea.',
+        icon: 'phone', color: '#dc2626', bg: '#fef2f2',
+        tip: 'Confirma que la mercancía esté lista para ser retirada antes de despachar el transporte.' },
+      { title: 'Despacha el transporte',
+        desc: 'Asigna el vehículo y conductor. La dirección de recogida está registrada en la tarea.',
+        icon: 'truck', color: '#2563eb', bg: '#e8f0fb',
+        tip: 'El conductor debe llevar documentación de la empresa para identificarse en el cliente.' },
+      { title: 'Fotografía la mercancía en el cliente',
+        desc: 'Al llegar, fotografía los artículos ANTES de cargarlos. Documenta el estado de cada uno.',
+        icon: 'camera', color: '#7c3aed', bg: '#f0ecf8',
+        tip: 'Las fotos del estado inicial son clave para cualquier disputa posterior sobre daños.' },
+      { title: 'Traslada y recibe en almacén',
+        desc: 'Carga la mercancía, regresa al almacén y confirma cada artículo recibido en la tarea.',
+        icon: 'package', color: '#dc2626', bg: '#fef2f2',
+        tip: 'Verifica referencia y cantidad contra lo registrado. Anota discrepancias en descripción.' },
+      { title: 'Evidencia final y completar',
+        desc: 'Fotografía los artículos ya en el almacén. Confirma cada ítem y completa la tarea.',
+        icon: 'check-circle', color: '#059669', bg: '#e2f0e8',
+        tip: 'El encargado validará la tarea. La devolución en Odoo se procesa por el sistema.' }
+    ]
+  },
   item_pickup: {
     label: 'Recogida de Artículos',
     color: '#16643a', bg: '#e2f0e8', icon: 'package-check',
@@ -8297,7 +8323,7 @@ function renderListRow(t) {
   const doneSubs = subs.filter(s=>['completed','validated'].includes(s.status)).length;
   const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot',staffing:'users'}[t.type]||'circle-dot';
   const priorityColor = {high:'#dc2626',medium:'#f59e0b',low:'#10b981'}[t.priority||'medium']||'#f59e0b';
-  const typeLabel = {dispatch_order:'Despacho / Entrega',packaging:'Empaque y almacenamiento',item_pickup:'Recogida de articulos',truck_loading:'Carga de camion',warehouse_move:'Movimiento de almacen',staffing:'Solicitud de personal',general:'Tarea general'}[t.type] || (t.type || 'Tarea');
+  const typeLabel = t.taskConcept==='customer_return' ? 'Devolución de cliente' : ({dispatch_order:'Despacho / Entrega',packaging:'Empaque y almacenamiento',item_pickup:'Recogida de articulos',truck_loading:'Carga de camion',warehouse_move:'Movimiento de almacen',staffing:'Solicitud de personal',general:'Tarea general'}[t.type] || (t.type || 'Tarea'));
   const meta = [];
   const chip = (label, value, extraClass='', icon='') => {
     const val = String(value || '').trim();
@@ -9360,7 +9386,7 @@ function renderDrawer(t) {
     <div class="status-progress">${stepHtml}</div>
     ${overdueBannerHtml}
     <div class="info-grid">
-      <div class="info-cell"><div class="info-cell-label">Tipo</div><div class="info-cell-val">${TYPE_LABELS[t.type]||t.type}</div></div>
+      <div class="info-cell"><div class="info-cell-label">Tipo</div><div class="info-cell-val">${t.taskConcept==='customer_return'?'Devolución de Cliente':(TYPE_LABELS[t.type]||t.type)}</div></div>
       <div class="info-cell"><div class="info-cell-label">Prioridad</div><div class="info-cell-val">${t.priority==='high'?'<span style="color:var(--red-dot)">●</span> Alta':t.priority==='low'?'<span style="color:var(--green-dot)">●</span> Baja':'<span style="color:var(--amber-dot)">●</span> Media'}</div></div>
       <div class="info-cell"><div class="info-cell-label">Responsable</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px">${(()=>{ const mgr=t.managerId?(_authUsers||[]).find(u=>u.id===t.managerId):null; return mgr?avatarHtml(mgr,24)+`<span>${esc(mgr.name.split(' ').slice(0,2).join(' '))}</span>`:(t.assignedTo?userName(t.assignedTo):'—'); })()}</div></div>
       ${taskAuxiliaryIds(t).length?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Auxiliares</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${taskAuxiliaryIds(t).map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?'<span style="display:flex;align-items:center;gap:4px;margin-right:4px">'+avatarHtml(u,22)+'<span style="font-size:12px">'+esc(u.name.split(' ').slice(0,2).join(' '))+'</span></span>':'';}).join('')}</div></div>`:''}
@@ -9370,6 +9396,8 @@ function renderDrawer(t) {
       ${t.type==='staffing'&&t.totalHours!=null?`<div class="info-cell"><div class="info-cell-label">Horas</div><div class="info-cell-val">⏱ ${t.totalHours}h</div></div>`:''}
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
       ${t.location?`<div class="info-cell"><div class="info-cell-label">Localidad</div><div class="info-cell-val">${esc(t.location)}</div></div>`:''}
+      ${t.taskConcept==='customer_return'&&t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Dirección de recogida</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
+      ${t.taskConcept==='customer_return'&&t.phone?`<div class="info-cell"><div class="info-cell-label">Teléfono cliente</div><div class="info-cell-val">${esc(t.phone)}</div></div>`:''}
       ${t.dueDate&&t.type!=='staffing'?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
     </div>
@@ -10785,10 +10813,11 @@ var _wizPicks = []; // [{name, type:'pick'|'return', state}] picks disponibles d
 var _wizPickSel = {}; // {pickName: true/false} — picks seleccionados en el selector
 
 var _WIZ_DEF = {
-  pack:          { label:'Empaque',                  icon:'package',    desc:'1 tarea de embalaje',           color:'#7c3aed' },
-  pack_dispatch: { label:'Empaque y Despacho',       icon:'truck',      desc:'Embalaje → Despacho en cadena', color:'#2563eb' },
-  pack_store:    { label:'Empaque y Almacenamiento', icon:'warehouse',  desc:'Embalaje → Almacén en cadena',  color:'#059669' },
-  free:          { label:'Tarea Libre',              icon:'circle-dot', desc:'Sin estructura definida',       color:'#6b7280' },
+  pack:            { label:'Empaque',                  icon:'package',    desc:'1 tarea de embalaje',              color:'#7c3aed' },
+  pack_dispatch:   { label:'Empaque y Despacho',       icon:'truck',      desc:'Embalaje → Despacho en cadena',    color:'#2563eb' },
+  pack_store:      { label:'Empaque y Almacenamiento', icon:'warehouse',  desc:'Embalaje → Almacén en cadena',     color:'#059669' },
+  customer_return: { label:'Devolución de Cliente',    icon:'rotate-ccw', desc:'Recogida en cliente + evidencia',  color:'#dc2626' },
+  free:            { label:'Tarea Libre',              icon:'circle-dot', desc:'Sin estructura definida',          color:'#6b7280' },
   staffing:      { label:'Solicitud de Personal',    icon:'users',      desc:'Mano de obra por tiempo',       color:'#dc2626' }
 };
 // Tipos individuales para agregar un paso a una cadena existente (Nueva subtarea)
@@ -11030,9 +11059,10 @@ function _wizS2(body){
         ${dateField('wiz-due-sub',_wizState.dueSub,sDateLbl)}
       </div>
     </div>`;
-  } else if(_wizState.concept==='free'){
+  } else if(_wizState.concept==='free'||_wizState.concept==='customer_return'){
+    const _cretLbl = _wizState.concept==='customer_return' ? '¿Quién coordinará la recogida?' : '¿Quién se encargará?';
     inner=`<div style="max-width:400px;margin:0 auto">
-      <div class="wiz-role-lbl"><i data-lucide="user" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ¿Quién se encargará?</div>
+      <div class="wiz-role-lbl"><i data-lucide="user" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${_cretLbl}</div>
       <div class="wiz-ulist">${users.map(u=>uRowSingle('freeMgr',u)).join('')}</div>
       ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite')}
     </div>`;
@@ -11293,7 +11323,7 @@ function _wizS3(body){
   <div class="form-group" style="margin-bottom:0">
     <label class="form-label">Buscar <span style="font-size:10px;font-weight:400;color:var(--text-3)">orden · transferencia · artículo · cliente</span></label>
     <div class="odoo-search-row">
-      <input id="wiz-ref" class="odoo-search-input" placeholder="S09115 · ALVEN/OUT/00146 · cliente…" value="${esc(_wizRef)}" oninput="wizRefInput()">
+      <input id="wiz-ref" class="odoo-search-input" placeholder="${_wizState.concept==='customer_return'?'S09115 · ALVEN/OUT/06936 · ALVEN/RET/02154…':'S09115 · ALVEN/OUT/00146 · cliente…'}" value="${esc(_wizRef)}" oninput="wizRefInput()">
       <button class="btn-search" onclick="wizFetch()"><i data-lucide="search"></i>Buscar</button>
     </div>
     <div id="wiz-client" class="odoo-client"></div>
@@ -11330,6 +11360,21 @@ function _wizS3(body){
       <textarea id="wiz-desc" class="form-textarea" rows="2"
         placeholder="Instrucciones adicionales, notas al encargado…"
         oninput="_wizState.description=this.value" style="font-size:13px">${esc(_wizState.description||'')}</textarea>
+      ${_wizState.concept==='customer_return'?`
+      <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+        <div class="form-label" style="margin-bottom:10px;display:flex;align-items:center;gap:5px">
+          <i data-lucide="map-pin" style="width:12px;height:12px;stroke:#dc2626;display:inline-block;vertical-align:-1px"></i>
+          Datos de recogida en cliente
+        </div>
+        <input id="wiz-ret-addr" class="form-input" style="margin-bottom:8px;width:100%;box-sizing:border-box"
+          placeholder="Dirección donde recoger la mercancía"
+          value="${esc(_wizCtx.deliveryAddress||'')}"
+          oninput="_wizCtx.deliveryAddress=this.value">
+        <input id="wiz-ret-phone" class="form-input" type="tel" style="width:100%;box-sizing:border-box"
+          placeholder="Teléfono del cliente"
+          value="${esc(_wizCtx.phone||'')}"
+          oninput="_wizCtx.phone=this.value">
+      </div>`:''}
       ${_wizState.concept==='free'?`
       <!-- Solo Tarea Libre: fotos de guía -->
       <div class="form-label" style="margin-top:14px;margin-bottom:6px;display:flex;align-items:center;gap:5px">
@@ -12098,7 +12143,18 @@ async function _wizSave(){
     const subMgrs=sArr.length>0?sArr:[{id:null,name:null}];
     let firstPackId=null, tasksCreated=0;
 
-    if(_wizState.concept==='free'){
+    if(_wizState.concept==='customer_return'){
+      const m=_wizState.freeMgr;
+      const mu=m?.id?(_authUsers||[]).find(u=>u.id===m.id):null;
+      const b={...base,type:'item_pickup',managerId:m?.id||null,managerName:m?.name||null,
+        assignedTo:(m?.id&&mu?.odooId)?('oe_'+mu.odooId):undefined,dueDate:_wizState.duePack||null};
+      const r=await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(b)});
+      const d=await r.json();
+      if(d.task?.id){
+        firstPackId=d.task.id;tasksCreated++;
+        if(_wizItems.length) await authFetch('/api/wwp/tasks/'+d.task.id+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(_wizItems)})});
+      }
+    } else if(_wizState.concept==='free'){
       const m=_wizState.freeMgr;
       const mu=m?.id?(_authUsers||[]).find(u=>u.id===m.id):null;
       const b={...base,type:'general',managerId:m?.id||null,managerName:m?.name||null,
