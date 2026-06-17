@@ -1845,6 +1845,9 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .do-transfer-link-status.ok{color:var(--green-text)}
 .do-transfer-link-status.err{color:var(--red-text)}
 .do-transfer-link-divider{height:1px;background:var(--border-light);margin:12px 0}
+.do-transfer-imported{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.do-transfer-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--green-bg);color:var(--green-text);border:1px solid rgba(21,128,61,.25);font-family:monospace}
+.do-transfer-chip i{width:12px;height:12px;stroke:currentColor}
 .do-spin{display:inline-block;animation:spin .8s linear infinite}
 /* Ficha de producto (sin imagen de Odoo) */
 .do-product-card{margin-top:12px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:var(--radius)}
@@ -4948,11 +4951,6 @@ body{font-family:var(--font);min-height:100dvh}
               <div id="do-estado-badge" class="do-badge">borrador</div>
             </div>
           </div>
-          <!-- Indicador de progreso de aprobación — se actualiza en doRenderLines() -->
-          <div id="do-aprob-pill" class="do-aprob-pill" style="display:none">
-            <span id="do-aprob-label">0 / 0 aprobadas</span>
-            <div class="do-aprob-bar-wrap"><div id="do-aprob-bar" class="do-aprob-bar" style="width:0%"></div></div>
-          </div>
           <div class="do-ws-actions">
             <button class="do-act-btn" onclick="doImprimirConduce()"><i data-lucide="printer"></i>Imprimir conduce</button>
             <button class="do-act-btn" onclick="doExportarExcel()"><i data-lucide="file-spreadsheet"></i>Excel</button>
@@ -5034,21 +5032,15 @@ body{font-family:var(--font);min-height:100dvh}
           </div>
         </div>
 
-        <!-- Transferencia Odoo vinculada — auto-agrega lo que se vaya escaneando ahí -->
+        <!-- Importar artículos por N° de transferencia interna Odoo (1 transferencia ≈ 1 contenedor) -->
         <div class="cont-card do-transfer-link-card" id="do-transfer-link-card" style="margin-top:12px">
-          <div class="do-transfer-link-title"><i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-2px"></i> Transferencia vinculada (auto-agregar artículos)</div>
+          <div class="do-transfer-link-title"><i data-lucide="download"></i> Importar artículos por N° de transferencia interna</div>
           <div class="do-transfer-link-row">
-            <input id="do-transfer-link-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04916" autocomplete="off">
-            <button class="do-act-btn" id="do-transfer-sync-btn" onclick="doSyncTransferLink()"><i data-lucide="refresh-cw"></i>Actualizar</button>
-          </div>
-          <div id="do-transfer-link-status" class="do-transfer-link-status"></div>
-          <div class="do-transfer-link-divider"></div>
-          <div class="do-transfer-link-title" style="margin-bottom:6px">Agregar una vez de otra transferencia</div>
-          <div class="do-transfer-link-row">
-            <input id="do-transfer-once-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04931" autocomplete="off">
-            <button class="do-act-btn" id="do-transfer-once-btn" onclick="doSyncOnceFromTransfer()"><i data-lucide="download"></i>Agregar</button>
+            <input id="do-transfer-once-input" class="do-transfer-link-input" type="text" placeholder="ej. CDP/INT/04931" autocomplete="off" onkeydown="if(event.key==='Enter')doImportTransfer()">
+            <button class="do-act-btn" id="do-transfer-once-btn" onclick="doImportTransfer()"><i data-lucide="download"></i>Importar</button>
           </div>
           <div id="do-transfer-once-status" class="do-transfer-link-status"></div>
+          <div id="do-transfer-imported" class="do-transfer-imported"></div>
         </div>
 
         <!-- Líneas del conduce -->
@@ -19286,18 +19278,16 @@ function doRenderWorkspace(){
   document.getElementById('do-rec-telefono').value = (d.receptor&&d.receptor.telefono)||'';
   document.getElementById('do-rec-transportista').value = d.transportista||'';
   document.getElementById('do-rec-vehiculo').value = d.vehiculo||'';
-  document.getElementById('do-transfer-link-input').value = d.transferLink||'';
-  document.getElementById('do-transfer-link-status').textContent = '';
-  document.getElementById('do-transfer-link-status').className = 'do-transfer-link-status';
   document.getElementById('do-transfer-once-input').value = '';
   document.getElementById('do-transfer-once-status').textContent = '';
   document.getElementById('do-transfer-once-status').className = 'do-transfer-link-status';
-  // Vincular/jalar de una transferencia es solo admin/manager (controla un job automático recurrente)
-  var canLinkTransfer = (_user && (_user.role==='admin' || _user.role==='manager'));
-  document.getElementById('do-transfer-link-card').style.display = canLinkTransfer ? '' : 'none';
+  // Importar transferencias es solo admin/manager
+  var canImport = (_user && (_user.role==='admin' || _user.role==='manager'));
+  document.getElementById('do-transfer-link-card').style.display = canImport ? '' : 'none';
+  doRenderImportedTransfers();
   // Bloqueo si cerrado
   var locked = (d.estado==='entregado' || d.estado==='anulado');
-  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-link-input','do-transfer-sync-btn','do-transfer-once-input','do-transfer-once-btn']
+  ['do-rec-nombre','do-rec-cedula','do-rec-empresa','do-rec-telefono','do-rec-transportista','do-rec-vehiculo','do-transfer-once-input','do-transfer-once-btn']
     .forEach(function(id){ document.getElementById(id).disabled = locked; });
   document.getElementById('do-capture').style.display = locked ? 'none' : '';
   document.getElementById('do-cerrar-btn').style.display = locked ? 'none' : '';
@@ -19305,60 +19295,38 @@ function doRenderWorkspace(){
   doRenderLines();
 }
 
-async function doSyncTransferLink(){
-  var d=_doActive; if(!d) return;
-  var input=document.getElementById('do-transfer-link-input');
-  var btn=document.getElementById('do-transfer-sync-btn');
-  var statusEl=document.getElementById('do-transfer-link-status');
-  var name=(input.value||'').trim();
-  statusEl.className='do-transfer-link-status'; statusEl.textContent='';
-  if(!name){ statusEl.className='do-transfer-link-status err'; statusEl.textContent='Indica el nombre de una transferencia (ej. CDP/INT/04916).'; return; }
-  btn.disabled=true; var prevHtml=btn.innerHTML; btn.innerHTML='<i data-lucide="loader-2" class="do-spin"></i>Actualizando…'; if(window.lucide) lucide.createIcons();
-  try{
-    if(name!==(d.transferLink||'')){
-      var rp=await authFetchRetry('/api/despacho-obsoleto/'+d.id,{method:'PATCH',body:JSON.stringify({transferLink:name,despachoVersion:d.version})});
-      var dp=await rp.json();
-      if(dp.conflict){ await _doHandleConflict(); return; }
-      if(!dp.ok) throw new Error(dp.error||'No se pudo vincular la transferencia');
-      _doActive=d=dp.despacho;
-    }
-    var rs=await authFetchRetry('/api/despacho-obsoleto/'+d.id+'/sync-transferencia',{method:'POST',body:JSON.stringify({})});
-    var ds=await rs.json();
-    if(ds.conflict){ await _doHandleConflict(); return; }
-    if(!ds.ok) throw new Error(ds.error||'No se pudo actualizar desde la transferencia');
-    _doActive=ds.despacho;
-    statusEl.className='do-transfer-link-status ok';
-    statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name) : 'Sin novedades en '+name+'.';
-    if(ds.added) toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' del conduce de Odoo');
-    doRenderLines();
-  }catch(e){
-    statusEl.className='do-transfer-link-status err';
-    statusEl.textContent = _friendlyFetchError(e);
-  }finally{
-    btn.disabled=(d.estado==='entregado'||d.estado==='anulado'); btn.innerHTML=prevHtml; if(window.lucide) lucide.createIcons();
-  }
+// Muestra las transferencias ya importadas en este conduce como chips
+function doRenderImportedTransfers(){
+  var el=document.getElementById('do-transfer-imported'); if(!el) return;
+  var arr=(_doActive&&_doActive.importedTransfers)||[];
+  el.innerHTML = arr.length
+    ? arr.map(function(t){ return '<span class="do-transfer-chip"><i data-lucide="check"></i>'+esc(t)+'</span>'; }).join('')
+    : '';
+  if(window.lucide) lucide.createIcons();
 }
 
-// Jala UNA VEZ de una transferencia puntual, sin tocar transferLink — no
-// interrumpe el monitoreo automático de la transferencia vinculada (si hay).
-async function doSyncOnceFromTransfer(){
+// Importa una transferencia interna Odoo al conduce. Soporta varias por conduce;
+// una transferencia no puede usarse en más de un conduce (lo valida el backend).
+async function doImportTransfer(){
   var d=_doActive; if(!d) return;
   var input=document.getElementById('do-transfer-once-input');
   var btn=document.getElementById('do-transfer-once-btn');
   var statusEl=document.getElementById('do-transfer-once-status');
   var name=(input.value||'').trim();
   statusEl.className='do-transfer-link-status'; statusEl.textContent='';
-  if(!name){ statusEl.className='do-transfer-link-status err'; statusEl.textContent='Indica el nombre de una transferencia (ej. CDP/INT/04931).'; return; }
-  btn.disabled=true; var prevHtml=btn.innerHTML; btn.innerHTML='<i data-lucide="loader-2" class="do-spin"></i>Agregando…'; if(window.lucide) lucide.createIcons();
+  if(!name){ statusEl.className='do-transfer-link-status err'; statusEl.textContent='Indica el N° de transferencia (ej. CDP/INT/04931).'; return; }
+  btn.disabled=true; var prevHtml=btn.innerHTML; btn.innerHTML='<i data-lucide="loader-2" class="do-spin"></i>Importando…'; if(window.lucide) lucide.createIcons();
   try{
     var rs=await authFetchRetry('/api/despacho-obsoleto/'+d.id+'/sync-transferencia',{method:'POST',body:JSON.stringify({pickingName:name})});
     var ds=await rs.json();
     if(ds.conflict){ await _doHandleConflict(); return; }
-    if(!ds.ok) throw new Error(ds.error||'No se pudo agregar desde la transferencia');
+    if(!ds.ok) throw new Error(ds.error||'No se pudo importar la transferencia');
     _doActive=ds.despacho;
     statusEl.className='do-transfer-link-status ok';
-    statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name) : 'Sin artículos nuevos en '+name+'.';
-    if(ds.added){ toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' agregado'+(ds.added!==1?'s':'')+' desde '+name); input.value=''; }
+    statusEl.textContent = ds.added ? ('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' importado'+(ds.added!==1?'s':'')+' de '+name) : (name+' ya estaba importada (sin artículos nuevos).');
+    if(ds.added){ toast('+'+ds.added+' artículo'+(ds.added!==1?'s':'')+' de '+name); }
+    input.value='';
+    doRenderImportedTransfers();
     doRenderLines();
   }catch(e){
     statusEl.className='do-transfer-link-status err';
@@ -19715,28 +19683,11 @@ function doRenderLines(){
   var body=document.getElementById('do-lines-body');
   var lineas=d.lineas||[];
   var locked=(d.estado==='entregado'||d.estado==='anulado');
-  var isAdmin=(_user&&_user.role==='admin');
-  var aprob=lineas.filter(function(l){return l.aprobacion==='aprobado';});
-  var unitsAprob=aprob.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+  var totalUnidades=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
   document.getElementById('do-lines-count').textContent=lineas.length;
-  document.getElementById('do-total-pill').textContent=aprob.length+'/'+lineas.length+' aprob · '+unitsAprob+' und';
-  // ── Indicador de progreso de aprobación en cabecera ──────────────────────
-  (function(){
-    var pill=document.getElementById('do-aprob-pill');
-    var lbl=document.getElementById('do-aprob-label');
-    var bar=document.getElementById('do-aprob-bar');
-    if(!pill||!lbl||!bar) return;
-    var total=lineas.length;
-    if(!total){ pill.style.display='none'; return; }
-    pill.style.display='';
-    var nAprob=aprob.length;
-    var nRech=lineas.filter(function(l){return l.aprobacion==='rechazado';}).length;
-    var pct=Math.round((nAprob/total)*100);
-    lbl.textContent=nAprob+' / '+total+' aprobadas';
-    bar.style.width=pct+'%';
-    pill.className='do-aprob-pill'+(nRech>0?' rojo':nAprob===total?' verde':' ambar');
-  })();
-  if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Escanea el primero arriba.</div>'; return; }
+  document.getElementById('do-total-pill').textContent=totalUnidades+' unidad'+(totalUnidades!==1?'es':'');
+  var _apPill=document.getElementById('do-aprob-pill'); if(_apPill) _apPill.style.display='none';
+  if(!lineas.length){ body.innerHTML='<div class="do-empty">Aún no hay artículos. Importa una transferencia o escanea el primero arriba.</div>'; return; }
   // ── Filtro de búsqueda (código de barras, ref o nombre) ──────────────────
   var qNorm=_doNormalizeSearch(_doLineSearch);
   var indexed=lineas.map(function(l,i){return {l:l,i:i};});
@@ -19748,15 +19699,12 @@ function doRenderLines(){
     return;
   }
   body.innerHTML=visible.map(function(p){ var l=p.l, idx=p.i;
-    var ap=l.aprobacion||'pendiente';
     var fotos=(l.fotos||[]).map(function(f,fi){
       var src=mediaUrl(f.url);
       return '<img class="do-line-foto" src="'+esc(src)+'" loading="lazy" onclick="doFotoLightbox(\''+l.lineId+'\','+fi+')">';
     }).join('');
     var cond=l.condicion?'<span class="do-line-cond">'+esc(l.condicion)+'</span>':'';
     var frontal=(l.locationFrontal && l.locationFrontal!==l.location)?'<span class="do-line-frontal" title="Ubicación frontal">'+esc(l.locationFrontal)+'</span>':'';
-    var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'}[ap];
-    var apPill='<span class="do-ap-pill do-ap-'+ap+'">'+apLabel+'</span>';
     // Miniatura de producto: caché hit → img; miss → placeholder con data-do-ref para carga lazy
     var ref=l.ref||l.barcode||'';
     var imgHtml='';
@@ -19768,22 +19716,6 @@ function doRenderLines(){
       }
     } else {
       imgHtml='<div class="do-line-img-ph"><i data-lucide="package"></i></div>';
-    }
-    var motivo=(ap==='rechazado'&&l.motivoRechazo)?'<div class="do-line-motivo"><i data-lucide="x-circle" style="width:11px;height:11px;vertical-align:-1px"></i> '+esc(l.motivoRechazo)+'</div>':'';
-    // Aprobador: solo si la línea no está pendiente y tiene aprobadoPor
-    var aprobadorHtml='';
-    if(ap!=='pendiente' && l.aprobadoPor){
-      var _apPor=l.aprobadoPor;
-      var _apNombre='';
-      if(typeof _apPor==='object' && _apPor!==null){
-        _apNombre=(_apPor.id==='system-inject')?'Sistema':esc(_apPor.nombre||_apPor.id||'');
-      } else if(typeof _apPor==='string'){
-        _apNombre=(_apPor==='system-inject')?'Sistema':esc(_apPor);
-      }
-      if(_apNombre){
-        var _apTime=l.aprobadoAt?(' · '+_doTimeAgo(l.aprobadoAt)):'';
-        aprobadorHtml='<div class="do-aprobador"><i data-lucide="user-check"></i>por: '+_apNombre+_apTime+'</div>';
-      }
     }
     // Panel de fotos pendientes de esta línea (si hay fotos en buffer)
     var pendFotos=(_doLineFotos[l.lineId]||[]);
@@ -19804,32 +19736,22 @@ function doRenderLines(){
         +'</div>'
       +'</div>';
     }
-    // Controles de admin (aprobar/rechazar) — solo si el despacho no está cerrado
-    var apCtrls='';
-    if(isAdmin && !locked){
-      apCtrls='<div class="do-ap-ctrls">'
-        +'<button class="do-ap-btn do-ap-btn-ok'+(ap==='aprobado'?' active':'')+'" title="Aprobar" onclick="doAprobarLinea(\''+l.lineId+'\')"><i data-lucide="check"></i></button>'
-        +'<button class="do-ap-btn do-ap-btn-no'+(ap==='rechazado'?' active':'')+'" title="Rechazar" onclick="doRechazarLinea(\''+l.lineId+'\')"><i data-lucide="x"></i></button>'
-      +'</div>';
-    }
     var del=locked?'':'<button class="do-line-del" title="Quitar" onclick="doDeleteLinea(\''+l.lineId+'\')"><i data-lucide="trash-2"></i></button>';
     var camBtn=locked?'':'<button class="do-cam-btn" title="Agregar fotos" onclick="doLineFotoOpen(\''+l.lineId+'\')"><i data-lucide="camera"></i></button>';
-    return '<div class="do-line-row do-row-'+ap+'" id="do-row-'+l.lineId+'">'
+    return '<div class="do-line-row" id="do-row-'+l.lineId+'">'
       + '<span class="do-line-num">'+(idx+1)+'</span>'
       + imgHtml
       + '<div style="min-width:0;flex:1">'
         + '<div class="do-line-ref">'+esc(l.ref||l.barcode||'—')+'</div>'
         + '<div class="do-line-name">'+esc(l.name||'—')+'</div>'
-        + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+frontal+cond+apPill+'</div>'
-        + motivo
-        + aprobadorHtml
+        + '<div class="do-line-meta"><span><i data-lucide="map-pin" style="width:10px;height:10px;stroke:currentColor;vertical-align:-1px"></i> '+esc(l.location||'—')+'</span>'+frontal+cond+'</div>'
         + (fotos?'<div class="do-line-fotos">'+fotos+'</div>':'')
         + fotoPanelHtml
       + '</div>'
       + '<div class="do-line-actions">'+'<div class="do-line-qty-wrap"><span class="do-line-qty-label">Qty</span>'+(locked
           ? '<span class="do-line-qty">'+(parseFloat(l.qty)||0)+'</span>'
           : '<input class="do-line-qty-input" type="number" min="0.01" step="any" value="'+(parseFloat(l.qty)||0)+'" data-prev="'+(parseFloat(l.qty)||0)+'" onclick="this.select()" onkeydown="if(event.key===\'Enter\')this.blur()" onchange="doEditQty(\''+l.lineId+'\',this)">'
-        )+'</div>'+apCtrls+camBtn+del+'</div>'
+        )+'</div>'+camBtn+del+'</div>'
     + '</div>';
   }).join('');
   if(window.lucide) lucide.createIcons();
@@ -19989,10 +19911,6 @@ async function _doHandleConflict(){
     if(d.ok){ _doActive=d.despacho; doRenderWorkspace(); }
   }catch(e){}
 }
-async function doAprobarLinea(lineId){
-  try{ await doPatchLinea(lineId,{aprobacion:'aprobado'}); }
-  catch(e){ await _iosAlert(_friendlyFetchError(e)); }
-}
 async function doEditQty(lineId, input){
   var prev=parseFloat(input.getAttribute('data-prev'))||0;
   var q=parseFloat(input.value);
@@ -20008,55 +19926,6 @@ async function doEditQty(lineId, input){
     await _iosAlert(_friendlyFetchError(e));
   }
 }
-function _doRechazarModal(){
-  return new Promise(function(resolve){
-    var MOTIVOS=['Retorna a stock','No aplica para lote','Mercancía externa','Otro'];
-    var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center';
-    var panel=document.createElement('div');
-    panel.style.cssText='background:var(--surface);border-radius:18px 18px 0 0;padding:20px 20px 32px;width:100%;max-width:480px;box-shadow:0 -4px 24px rgba(0,0,0,.2)';
-    panel.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px">Motivo del rechazo</div>'
-      +'<div id="_doChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">'
-      +MOTIVOS.map(function(m){return '<button data-m="'+m+'" style="padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text);font-size:13px;cursor:pointer;transition:background .15s,color .15s">'+m+'</button>';}).join('')
-      +'</div>'
-      +'<div id="_doRchOtroBox" style="display:none;margin-bottom:12px"><textarea id="_doRchTxt" placeholder="Describe el motivo…" rows="2" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid var(--border);border-radius:9px;font-size:16px;background:var(--surface-2);color:var(--text);resize:none;outline:none"></textarea></div>'
-      +'<div style="display:flex;gap:10px">'
-      +'<button id="_doRchCancel" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text-2);font-size:14px;cursor:pointer;min-height:44px">Cancelar</button>'
-      +'<button id="_doRchOk" disabled style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--red-dot);color:#fff;font-size:15px;font-weight:800;letter-spacing:.01em;cursor:pointer;opacity:.35;min-height:44px">Confirmar rechazo</button>'
-      +'</div>';
-    ov.appendChild(panel); document.body.appendChild(ov);
-    var selMotivo=null;
-    var okBtn=document.getElementById('_doRchOk');
-    panel.querySelectorAll('[data-m]').forEach(function(btn){
-      btn.onclick=function(){
-        panel.querySelectorAll('[data-m]').forEach(function(b){b.style.background='var(--surface-2)';b.style.color='var(--text)';b.style.borderColor='var(--border)';});
-        btn.style.background='var(--red-bg)'; btn.style.color='var(--red-text)'; btn.style.borderColor='var(--red-dot)';
-        selMotivo=btn.getAttribute('data-m');
-        document.getElementById('_doRchOtroBox').style.display=selMotivo==='Otro'?'block':'none';
-        if(selMotivo==='Otro') setTimeout(function(){document.getElementById('_doRchTxt').focus();},50);
-        okBtn.disabled=false; okBtn.style.opacity='1';
-      };
-    });
-    function finish(val){ document.body.removeChild(ov); resolve(val); }
-    okBtn.onclick=function(){
-      if(!selMotivo) return;
-      var motivo=selMotivo;
-      if(motivo==='Otro'){ motivo=(document.getElementById('_doRchTxt').value||'').trim(); if(!motivo){document.getElementById('_doRchTxt').focus();return;} }
-      finish(motivo);
-    };
-    document.getElementById('_doRchCancel').onclick=function(){finish(null);};
-    ov.onclick=function(e){if(e.target===ov)finish(null);};
-  });
-}
-async function doRechazarLinea(lineId){
-  var ln=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
-  if(ln&&ln.aprobacion==='rechazado'){ try{ await doPatchLinea(lineId,{aprobacion:'pendiente'}); }catch(e){ await _iosAlert(_friendlyFetchError(e)); } return; }
-  var motivo=await _doRechazarModal();
-  if(motivo===null) return;
-  try{ await doPatchLinea(lineId,{aprobacion:'rechazado',motivoRechazo:motivo}); }
-  catch(e){ await _iosAlert(_friendlyFetchError(e)); }
-}
-
 function doFotoLightbox(lineId, idx){
   var l=(_doActive.lineas||[]).find(function(x){return x.lineId===lineId;});
   if(!l) return;
@@ -20068,12 +19937,11 @@ function doFotoLightbox(lineId, idx){
 async function doCerrarDespacho(){
   if(!_doActive) return;
   await doSaveReceptor();
-  var faltan=[];
-  if(!document.getElementById('do-rec-nombre').value.trim()) faltan.push('nombre');
-  if(!document.getElementById('do-rec-cedula').value.trim()) faltan.push('cédula/RNC');
-  if(faltan.length){ await _iosAlert('Faltan datos del receptor: '+faltan.join(', ')+'.'); return; }
-  if(!(_doActive.lineas||[]).length){ await _iosAlert('El conduce no tiene artículos.'); return; }
-  if(!(await _iosConfirm('¿Cerrar y firmar el conduce '+_doActive.folio+'? No se podrá modificar después.'))) return;
+  // Cierre libre: no se exige receptor ni aprobación. Solo confirmar (es irreversible).
+  var sinDatos=(!document.getElementById('do-rec-nombre').value.trim()||!document.getElementById('do-rec-cedula').value.trim());
+  var aviso='¿Cerrar y firmar el conduce '+_doActive.folio+'? No se podrá modificar después.';
+  if(sinDatos) aviso='Aún no has puesto nombre/RNC del receptor. '+aviso;
+  if(!(await _iosConfirm(aviso))) return;
   try{
     var r=await authFetch('/api/despacho-obsoleto/'+_doActive.id,{method:'PATCH',body:JSON.stringify({estado:'entregado',despachoVersion:_doActive&&_doActive.version})});
     var d=await r.json();
@@ -20115,14 +19983,11 @@ async function doDeleteDespacho(id){
 function doImprimirConduce(id){
   var d = id ? _doList.find(function(x){return x.id===id;}) : _doActive;
   if(!d){ return; }
-  // Solo exigir aprobación cuando el conduce ya está cerrado (documento final).
-  // Mientras está en borrador/listo, imprime un PRELIMINAR con todo lo agregado.
-  var soloAprobados=(d.estado==='entregado');
-  var preliminar=!soloAprobados;
-  var lineas=(d.lineas||[]).filter(function(l){return !soloAprobados || l.aprobacion==='aprobado';});
-  if(!lineas.length){ _iosAlert(soloAprobados?'No hay artículos aprobados para imprimir el conduce.':'No hay artículos en este conduce.'); return; }
+  // Sin aprobación: imprime TODAS las líneas. PRELIMINAR mientras no esté entregado.
+  var preliminar=(d.estado!=='entregado');
+  var lineas=(d.lineas||[]);
+  if(!lineas.length){ _iosAlert('No hay artículos en este conduce.'); return; }
   var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
-  var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
   var fechaStr=new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO',{day:'2-digit',month:'long',year:'numeric'});
   var rec=d.receptor||{};
   var rows=lineas.map(function(l,i){
@@ -20132,7 +19997,6 @@ function doImprimirConduce(id){
       +'<td>'+esc(l.name||'—')+'</td>'
       +'<td>'+esc(l.location||'—')+'</td>'
       +'<td style="text-align:center">'+esc(l.condicion||'—')+'</td>'
-      +(preliminar?'<td style="text-align:center">'+esc(apLabel[l.aprobacion||'pendiente'])+'</td>':'')
       +'<td style="text-align:center;font-weight:700">'+(parseFloat(l.qty)||0)+'</td>'
     +'</tr>';
   }).join('');
@@ -20171,7 +20035,7 @@ function doImprimirConduce(id){
       +'<div style="display:flex;gap:12px;align-items:center"><img src="'+origin+'/descarga.png" onerror="this.style.display=\'none\'"><div><div class="co">Altri Tempi</div><div class="sub">Despacho de mercancía obsoleta</div></div></div>'
       +'<div class="doc-t"><div class="t">'+(preliminar?'CONDUCE PRELIMINAR':'CONDUCE DE DESPACHO')+'</div><div class="f">'+esc(d.folio)+'</div><div class="sub">Fecha: '+esc(fechaStr)+'</div></div>'
     +'</div>'
-    +(preliminar?'<div style="background:#fff3cd;border:1px solid #b8932f;border-radius:6px;padding:8px 12px;font-size:11px;color:#6b5410;margin-bottom:14px">⚠ Documento preliminar — el conduce sigue abierto ('+esc(d.estado)+'). Incluye artículos no aprobados todavía; no es el manifiesto final de despacho.</div>':'')
+    +(preliminar?'<div style="background:#fff3cd;border:1px solid #b8932f;border-radius:6px;padding:8px 12px;font-size:11px;color:#6b5410;margin-bottom:14px">⚠ Documento preliminar — el conduce sigue abierto ('+esc(d.estado)+'). No es el manifiesto final de despacho.</div>':'')
     +'<div class="meta">'
       +'<div class="box"><h4>Recibe (comprador)</h4>'
         +'<div class="ln"><b>Nombre:</b> '+esc(rec.nombre||'—')+'</div>'
@@ -20186,11 +20050,10 @@ function doImprimirConduce(id){
         +'<div class="ln"><b>Estado:</b> '+esc(d.estado)+'</div>'
       +'</div>'
     +'</div>'
-    +'<table><thead><tr><th style="width:6%;text-align:center">#</th><th style="width:16%">Referencia</th><th>Artículo</th><th style="width:18%">Ubicación</th><th style="width:12%;text-align:center">Condición</th>'
-      +(preliminar?'<th style="width:11%;text-align:center">Aprobación</th>':'')
+    +'<table><thead><tr><th style="width:6%;text-align:center">#</th><th style="width:18%">Referencia</th><th>Artículo</th><th style="width:22%">Ubicación</th><th style="width:13%;text-align:center">Condición</th>'
       +'<th style="width:9%;text-align:center">Cant.</th></tr></thead>'
     +'<tbody>'+rows+'</tbody>'
-    +'<tfoot><tr><td colspan="2">'+lineas.length+' artículo'+(lineas.length!==1?'s':'')+'</td><td colspan="'+(preliminar?4:3)+'" style="text-align:right">Total unidades</td><td style="text-align:center">'+units+'</td></tr></tfoot>'
+    +'<tfoot><tr><td colspan="2">'+lineas.length+' artículo'+(lineas.length!==1?'s':'')+'</td><td colspan="3" style="text-align:right">Total unidades</td><td style="text-align:center">'+units+'</td></tr></tfoot>'
     +'</table>'
     +(preliminar?'':(
       '<div class="decl"><b>Declaración de recibo conforme:</b> Declaro haber recibido la mercancía descrita en este conduce, en las condiciones indicadas y vendida «como está» (<i>as-is</i>). Reviso y acepto las cantidades y el estado físico de los artículos al momento de la entrega, sin lugar a reclamos posteriores por su condición.</div>'
@@ -20213,26 +20076,22 @@ function doExportarExcel(){
   _loadXlsx(function(){
     if(typeof XLSX==='undefined'){ _iosAlert('No se pudo cargar el componente de Excel.'); return; }
     var rec=d.receptor||{};
-    // Solo exigir aprobación cuando el conduce ya está cerrado (manifiesto final).
-    // Mientras está en borrador/listo, exportar todo lo que haya para poder revisar/compartir.
-    var soloAprobados=(d.estado==='entregado');
-    var lineas=(d.lineas||[]).filter(function(l){return !soloAprobados || l.aprobacion==='aprobado';});
-    if(!lineas.length){ _iosAlert(soloAprobados?'No hay artículos aprobados para exportar.':'No hay artículos en este conduce.'); return; }
+    var lineas=(d.lineas||[]);
+    if(!lineas.length){ _iosAlert('No hay artículos en este conduce.'); return; }
     var units=lineas.reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
-    var apLabel={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
     var titleRow=['CONDUCE DE DESPACHO DE OBSOLETO — '+d.folio];
     var info=[
       ['Fecha', new Date(d.entregadoAt||d.createdAt||Date.now()).toLocaleDateString('es-DO'), '', 'Estado', d.estado, ''],
       ['Recibe', rec.nombre||'', 'Cédula/RNC', rec.cedula||'', 'Teléfono', rec.telefono||''],
       ['Empresa', rec.empresa||'', 'Transportista', d.transportista||'', 'Vehículo', d.vehiculo||'']
     ];
-    var headerRow=['#','Referencia','Artículo','Ubicación','Condición','Aprobación','Cantidad'];
-    var dataRows=lineas.map(function(l,i){return [i+1,l.ref||l.barcode||'',l.name||'',l.location||'',l.condicion||'',apLabel[l.aprobacion||'pendiente'],parseFloat(l.qty)||0];});
-    var totalRow=['','','','','','TOTAL UNIDADES',units];
+    var headerRow=['#','Referencia','Artículo','Ubicación','Condición','Cantidad'];
+    var dataRows=lineas.map(function(l,i){return [i+1,l.ref||l.barcode||'',l.name||'',l.location||'',l.condicion||'',parseFloat(l.qty)||0];});
+    var totalRow=['','','','','TOTAL UNIDADES',units];
     var aoa=[titleRow,[]].concat(info).concat([[]]).concat([headerRow]).concat(dataRows).concat([totalRow]);
     var ws=XLSX.utils.aoa_to_sheet(aoa);
-    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}}];
-    ws['!cols']=[{wch:6},{wch:18},{wch:40},{wch:24},{wch:14},{wch:12},{wch:10}];
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+    ws['!cols']=[{wch:6},{wch:18},{wch:40},{wch:24},{wch:14},{wch:10}];
     var wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,'Conduce');
     XLSX.writeFile(wb,'Conduce_'+d.folio+'.xlsx');

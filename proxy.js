@@ -2654,18 +2654,18 @@ async function odooCall(model, method, args, kwargs = {}) {
   });
 }
 
-// ── Sincronización automática: transferencia Odoo → Despacho de Obsoleto ────
-// Cada despacho puede tener una transferencia Odoo vinculada (despacho.transferLink,
-// ej. "CDP/INT/04916") configurable desde la UI. Mientras esa transferencia siga
-// recibiendo líneas escaneadas (aunque no esté validada/aplicada en Odoo), este
-// job las refleja como líneas nuevas en el despacho que la tiene vinculada.
-// Solo AGREGA líneas nuevas, identificadas por sourceMoveLineId (nunca duplica,
-// nunca actualiza qty después de creada) y nunca escribe nada en Odoo —
-// Despacho de Obsoleto es solo respaldo documental, no toca inventario
-// (ver nota junto a DESPACHOS_FILE).
-async function syncOneDespachoTransfer(despacho, pickingNameOverride) {
-  const pickingName = (pickingNameOverride || despacho.transferLink || '').trim();
-  if (!pickingName) return { added: 0 };
+// ── Importar artículos de una transferencia Odoo a un conduce ───────────────
+// Modelo definitivo: cada conduce importa UNA o VARIAS transferencias internas
+// (1 transferencia ≈ 1 contenedor). Se trae bajo demanda, UNA vez por
+// transferencia (no hay job recurrente que meta líneas después de imprimir).
+// Reglas:
+//  - Dedupe intra-conduce por sourceMoveLineId (no duplica líneas si se reimporta).
+//  - Dedupe cross-conduce por transferencia: una transferencia no puede usarse
+//    en más de un conduce (se valida en el endpoint contra importedTransfers).
+//  - Nunca escribe en Odoo — el conduce es solo respaldo documental.
+async function importTransferIntoDespacho(despacho, pickingName) {
+  pickingName = (pickingName || '').trim();
+  if (!pickingName) return { added: 0, error: 'Indica el número de transferencia' };
 
   const pickings = await odooCall('stock.picking', 'search_read',
     [[['name', '=', pickingName]]],
@@ -2675,76 +2675,59 @@ async function syncOneDespachoTransfer(despacho, pickingNameOverride) {
 
   const moveLines = await odooCall('stock.move.line', 'search_read',
     [[['picking_id', '=', pickingId], ['qty_done', '>', 0]]],
-    { fields: ['id', 'product_id', 'qty_done', 'location_dest_id'], limit: 500 });
-  if (!moveLines.length) return { added: 0 };
+    { fields: ['id', 'product_id', 'qty_done', 'location_dest_id'], limit: 1000 });
+  if (!moveLines.length) return { added: 0, error: 'La transferencia ' + pickingName + ' no tiene artículos con cantidad' };
 
   const already = new Set((despacho.lineas || []).map(l => l.sourceMoveLineId).filter(Boolean));
   const pending = moveLines.filter(ml => !already.has(ml.id));
-  if (!pending.length) return { added: 0 };
 
-  // Lookup de producto en lote (default_code/barcode reales en vez de
-  // parsear el display name) solo para las líneas nuevas.
-  const productIds = [...new Set(pending.map(ml => ml.product_id[0]))];
-  const products = await odooCall('product.product', 'search_read',
-    [[['id', 'in', productIds]]],
-    { fields: ['id', 'default_code', 'name', 'barcode'] });
-  const productById = {};
-  products.forEach(p => { productById[p.id] = p; });
+  if (pending.length) {
+    const productIds = [...new Set(pending.map(ml => ml.product_id[0]))];
+    const products = await odooCall('product.product', 'search_read',
+      [[['id', 'in', productIds]]],
+      { fields: ['id', 'default_code', 'name', 'barcode'] });
+    const productById = {};
+    products.forEach(p => { productById[p.id] = p; });
 
-  const now = new Date().toISOString();
-  pending.forEach(ml => {
-    const p = productById[ml.product_id[0]] || {};
-    const destLoc = ((ml.location_dest_id && ml.location_dest_id[1]) || '').replace(/^Physical Locations\//, '');
-    despacho.lineas.push({
-      lineId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      productId: p.id || ml.product_id[0],
-      ref: p.default_code || '',
-      name: p.name || ml.product_id[1] || '',
-      barcode: p.barcode || '',
-      image: null,
-      location: destLoc, locationFrontal: '',
-      qty: ml.qty_done,
-      condicion: '', nota: 'Agregado automático desde transferencia ' + pickingName,
-      fotos: [],
-      aprobacion: 'pendiente', motivoRechazo: '', aprobadoPor: null, aprobadoAt: null,
-      addedAt: now,
-      sourceMoveLineId: ml.id, sourcePicking: pickingName
+    const now = new Date().toISOString();
+    pending.forEach(ml => {
+      const p = productById[ml.product_id[0]] || {};
+      const destLoc = ((ml.location_dest_id && ml.location_dest_id[1]) || '').replace(/^Physical Locations\//, '');
+      despacho.lineas.push({
+        lineId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        productId: p.id || ml.product_id[0],
+        ref: p.default_code || '',
+        name: p.name || ml.product_id[1] || '',
+        barcode: p.barcode || '',
+        image: null,
+        location: destLoc, locationFrontal: '',
+        qty: ml.qty_done,
+        condicion: '', nota: 'Importado de transferencia ' + pickingName,
+        fotos: [],
+        addedAt: now,
+        sourceMoveLineId: ml.id, sourcePicking: pickingName
+      });
     });
-  });
-  despacho.version = (despacho.version || 0) + 1;
-  despacho.updatedAt = now;
+    despacho.version = (despacho.version || 0) + 1;
+    despacho.updatedAt = now;
+  }
+  // Registrar la transferencia como importada (aunque haya traído 0 líneas nuevas)
+  if (!Array.isArray(despacho.importedTransfers)) despacho.importedTransfers = [];
+  if (!despacho.importedTransfers.includes(pickingName)) despacho.importedTransfers.push(pickingName);
   return { added: pending.length };
 }
 
-let _transferSyncRunning = false;
-async function syncAllLinkedTransfers() {
-  if (_transferSyncRunning) return;
-  _transferSyncRunning = true;
-  try {
-    await withDespLock(async () => {
-      const list = loadDespachos();
-      const targets = list.filter(d => d.estado !== 'entregado' && d.estado !== 'anulado' && d.transferLink);
-      if (!targets.length) return;
-      let totalAdded = 0;
-      for (const despacho of targets) {
-        try {
-          const { added } = await syncOneDespachoTransfer(despacho);
-          if (added) {
-            totalAdded += added;
-            console.log(`[transfer-sync] +${added} línea(s) agregada(s) al conduce ${despacho.folio} desde ${despacho.transferLink}`);
-          }
-        } catch (e) { console.warn(`[transfer-sync] ${despacho.folio}:`, e.message); }
-      }
-      if (totalAdded) saveDespachos(list);
-    });
-  } catch (e) {
-    console.warn('[transfer-sync]', e.message);
-  } finally {
-    _transferSyncRunning = false;
+// Devuelve el folio de OTRO conduce (no anulado) que ya importó esta transferencia,
+// o null si está libre. Evita usar la misma transferencia en dos conduces.
+function transferUsedInOtherConduce(list, pickingName, exceptId) {
+  const target = (pickingName || '').trim();
+  for (const d of list) {
+    if (d.id === exceptId) continue;
+    if (d.estado === 'anulado') continue;
+    if (Array.isArray(d.importedTransfers) && d.importedTransfers.includes(target)) return d.folio;
   }
+  return null;
 }
-setInterval(() => { syncAllLinkedTransfers(); }, 45_000);
-syncAllLinkedTransfers(); // primer chequeo al iniciar el servidor
 
 // ── MIME types básicos ───────────────────────────────────────────────────────
 const MIME = {
@@ -3254,6 +3237,66 @@ const server = http.createServer(async (req, res) => {
       saveJson(DESPACHOS_FILE, despachos);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, reset: resetCount, folio: 'CO-0001' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/_fix/import-conduces — ÚNICA VEZ: subir conduces históricos ──────
+  // Crea conduces de Despacho de Obsoleto desde datos congelados (los 2 PDFs ya
+  // usados). Idempotente por migrationKey: si ya existe uno con esa clave, lo
+  // omite. NUNCA toca CO-0001. Protegido por x-migrate-secret.
+  if (reqPath === '/api/_fix/import-conduces' && req.method === 'POST') {
+    const FIX_SECRET = '86dca6380c724d3e3ede648de6d78da0';
+    if ((req.headers['x-migrate-secret'] || '') !== FIX_SECRET) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'No autorizado' }));
+      return;
+    }
+    try {
+      const body = await readBody(req);
+      const incoming = Array.isArray(body.conduces) ? body.conduces : [];
+      const result = [];
+      await withDespLock(async () => {
+        const list = loadDespachos();
+        for (const c of incoming) {
+          const key = c.migrationKey || '';
+          if (key && list.some(d => d.migrationKey === key)) { result.push({ migrationKey: key, status: 'omitido (ya existe)' }); continue; }
+          const { seq, folio } = nextDespachoFolio();
+          const now = new Date().toISOString();
+          const lineas = (c.lineas || []).map(l => ({
+            lineId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            productId: l.productId || l.pid || null,
+            ref: l.ref || '', name: l.name || '', barcode: l.barcode || '',
+            image: null, location: l.loc || l.location || '', locationFrontal: l.locationFrontal || '',
+            qty: parseFloat(l.qty) || 0, condicion: l.condicion || '', nota: l.nota || '',
+            fotos: [], addedAt: now,
+            sourceMoveLineId: l.sourceMoveLineId || null, sourcePicking: l.sourcePicking || null
+          }));
+          const rec = {
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            seq, folio,
+            estado: 'borrador',
+            migrationKey: key || null,
+            receptor: { nombre: '', cedula: '', empresa: '', telefono: '' },
+            transportista: '', vehiculo: '',
+            nota: c.nota || '',
+            importedTransfers: Array.isArray(c.importedTransfers) ? c.importedTransfers : [],
+            lineas,
+            creadoPor: { id: null, nombre: c.creadoPorNombre || 'Importado (histórico)' },
+            entregadoAt: null,
+            version: 0,
+            createdAt: now, updatedAt: now
+          };
+          list.unshift(rec);
+          result.push({ migrationKey: key, status: 'creado', folio, lineas: lineas.length });
+        }
+        saveDespachos(list);
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, result }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
@@ -4584,7 +4627,7 @@ const server = http.createServer(async (req, res) => {
           transportista: d.transportista || '',
           vehiculo:      d.vehiculo || '',
           nota:          d.nota || '',
-          transferLink:  '',
+          importedTransfers: [],
           lineas: [],
           creadoPor: { id: _jp.userId || null, nombre: _jp.name || '' },
           entregadoAt: null,
@@ -4629,22 +4672,13 @@ const server = http.createServer(async (req, res) => {
           if (d.transportista !== undefined) rec.transportista = String(d.transportista);
           if (d.vehiculo !== undefined)      rec.vehiculo = String(d.vehiculo);
           if (d.nota !== undefined)          rec.nota = String(d.nota);
-          if (d.transferLink !== undefined) {
-            if (!['admin','manager'].includes(_jp.role)) throw Object.assign(new Error('Solo un administrador o encargado puede vincular una transferencia'), {httpStatus:403});
-            rec.transferLink = String(d.transferLink).trim();
-          }
           if (d.estado !== undefined) {
             const next = String(d.estado);
             const VALID = ['borrador','listo','entregado','anulado'];
             if (!VALID.includes(next)) throw Object.assign(new Error('Estado inválido'), {httpStatus:422});
-            if (next === 'entregado') {
-              if (!rec.receptor.nombre.trim() || !rec.receptor.cedula.trim()) throw Object.assign(new Error('Para cerrar el conduce se requiere nombre y cédula/RNC del receptor'), {httpStatus:422});
-              if (!rec.lineas.length) throw Object.assign(new Error('El despacho no tiene artículos'), {httpStatus:422});
-              const pendientes = rec.lineas.filter(l=>(l.aprobacion||'pendiente')==='pendiente').map(l=>l.ref||l.name);
-              if (pendientes.length) throw Object.assign(new Error('Hay artículos sin aprobar o rechazar: '+pendientes.join(', ')), {httpStatus:422});
-              if (!rec.lineas.some(l=>l.aprobacion==='aprobado')) throw Object.assign(new Error('El conduce no tiene ningún artículo aprobado'), {httpStatus:422});
-              rec.entregadoAt = new Date().toISOString();
-            }
+            // Cierre libre: sin aprobación ni validaciones de receptor/líneas.
+            // El conduce se entrega cuando el operador lo decide.
+            if (next === 'entregado') rec.entregadoAt = new Date().toISOString();
             rec.estado = next;
           }
           rec.version = (rec.version||0) + 1;
@@ -4706,7 +4740,6 @@ const server = http.createServer(async (req, res) => {
             image: d.image||null, location: d.location||'', locationFrontal: d.locationFrontal||'',
             qty, condicion: d.condicion||'', nota: d.nota||'',
             fotos: [],
-            aprobacion: 'pendiente', motivoRechazo: '', aprobadoPor: null, aprobadoAt: null,
             addedAt: new Date().toISOString()
           };
           list[idx].lineas.push(linea);
@@ -4740,23 +4773,10 @@ const server = http.createServer(async (req, res) => {
           if (!ln) throw Object.assign(new Error('Línea no encontrada'), {httpStatus:404});
           if (d.qty !== undefined) {
             const q=parseFloat(d.qty); if (!(q>0)) throw Object.assign(new Error('Cantidad inválida'), {httpStatus:422});
-            if (q !== ln.qty && ln.aprobacion === 'aprobado') {
-              ln.aprobacion = 'pendiente'; ln.motivoRechazo = ''; ln.aprobadoPor = null; ln.aprobadoAt = null;
-            }
             ln.qty = q;
           }
           if (d.condicion !== undefined) ln.condicion = String(d.condicion);
           if (d.nota !== undefined)      ln.nota = String(d.nota);
-          if (d.aprobacion !== undefined) {
-            if (_jp.role !== 'admin') throw Object.assign(new Error('Solo un administrador puede aprobar o rechazar líneas'), {httpStatus:403});
-            const ap = String(d.aprobacion);
-            if (!['pendiente','aprobado','rechazado'].includes(ap)) throw Object.assign(new Error('Estado de aprobación inválido'), {httpStatus:422});
-            if (ap === 'rechazado' && !String(d.motivoRechazo||'').trim()) throw Object.assign(new Error('Indica el motivo del rechazo'), {httpStatus:422});
-            ln.aprobacion = ap;
-            ln.motivoRechazo = ap === 'rechazado' ? String(d.motivoRechazo).trim() : '';
-            ln.aprobadoPor = ap === 'pendiente' ? null : { id: _jp.userId || null, nombre: _jp.name || '' };
-            ln.aprobadoAt = ap === 'pendiente' ? null : new Date().toISOString();
-          }
           list[idx].version = (list[idx].version||0) + 1;
           list[idx].updatedAt = new Date().toISOString();
           saveDespachos(list);
@@ -4858,16 +4878,17 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // POST /api/despacho-obsoleto/:id/sync-transferencia — forzar chequeo ahora.
-    // Sin body (o {}): usa la transferencia vinculada (despacho.transferLink).
-    // Con {pickingName:'...'}: jala UNA VEZ de esa transferencia puntual, SIN
-    // tocar transferLink — no interrumpe el monitoreo de la vinculada.
+    // POST /api/despacho-obsoleto/:id/sync-transferencia — importar una
+    // transferencia interna Odoo {pickingName:'CDP/INT/04931'} a este conduce.
+    // Permite varias transferencias por conduce; una transferencia no puede
+    // usarse en más de un conduce (dedupe cross-conduce).
     if (mDespSync && req.method === 'POST') {
       const _jp = requireJwt(req, res); if (!_jp) return;
       try {
         const body = await readBody(req);
-        const oneOff = (body.pickingName || '').trim();
-        if (oneOff && !['admin','manager'].includes(_jp.role)) throw Object.assign(new Error('Solo un administrador o encargado puede jalar de otra transferencia'), {httpStatus:403});
+        const pickingName = (body.pickingName || '').trim();
+        if (!pickingName) throw Object.assign(new Error('Indica el número de transferencia interna'), {httpStatus:422});
+        if (!['admin','manager'].includes(_jp.role)) throw Object.assign(new Error('Solo un administrador o encargado puede importar transferencias'), {httpStatus:403});
         let despacho, added = 0;
         await withDespLock(async () => {
           const list = loadDespachos();
@@ -4875,11 +4896,12 @@ const server = http.createServer(async (req, res) => {
           if (idx===-1) throw Object.assign(new Error('No encontrado'), {httpStatus:404});
           despacho = list[idx];
           if (despacho.estado === 'entregado' || despacho.estado === 'anulado') throw Object.assign(new Error('El despacho ya está cerrado'), {httpStatus:409});
-          if (!oneOff && !despacho.transferLink) throw Object.assign(new Error('Este conduce no tiene una transferencia vinculada'), {httpStatus:422});
-          const result = await syncOneDespachoTransfer(despacho, oneOff);
+          const usadaEn = transferUsedInOtherConduce(list, pickingName, despacho.id);
+          if (usadaEn) throw Object.assign(new Error('La transferencia ' + pickingName + ' ya fue importada en el conduce ' + usadaEn), {httpStatus:409});
+          const result = await importTransferIntoDespacho(despacho, pickingName);
           if (result.error) throw Object.assign(new Error(result.error), {httpStatus:404});
           added = result.added;
-          if (added) saveDespachos(list);
+          saveDespachos(list);
         });
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:true, added, despacho}));
