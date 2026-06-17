@@ -4067,6 +4067,17 @@ body{font-family:var(--font);min-height:100dvh}
   .wiz-srole{font-size:9px}
   .time12-control{grid-template-columns:1fr 1fr 76px;gap:6px}
 }
+
+/* ── Zebra TC25AJ / dispositivos de almacén (≤767px) ─────────────────
+   Viewport CSS ~320px (480px físicos / DPR 1.5x).
+   Corrige touch targets, zoom Android en inputs y legibilidad en 4".  */
+@media(max-width:767px){
+  body{font-size:14px}
+  .action-row button{min-height:44px;font-size:var(--fs-base)}
+  .btn-sm{min-height:40px}
+  .wwp-form-input,.wwp-form-sel,.wwp-form-ta{font-size:16px;padding:10px 12px}
+  .chat-input{font-size:16px}
+}
 </style>
 <script>
 (function(){
