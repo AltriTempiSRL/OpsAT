@@ -12,6 +12,10 @@ const crypto     = require('crypto');
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch { /* no disponible en este entorno */ }
 
+// web-push — lazy, no falla si no está instalado
+let webpush = null;
+try { webpush = require('web-push'); } catch { /* web-push no instalado */ }
+
 // ── Helpers de persistencia JSON ─────────────────────────────────────────────
 function loadJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); }
@@ -53,6 +57,37 @@ function loadEnv(filename) {
 // En Render: DATA_DIR=/data (disco persistente). En local: ./data-local (desde .env)
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// ── Web Push — VAPID setup ───────────────────────────────────────────────────
+const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
+
+function loadPushSubs()       { return loadJson(PUSH_SUBS_FILE, []); }
+function savePushSubs(list)   { saveJson(PUSH_SUBS_FILE, list); }
+
+// VAPID keys: desde env vars (Railway) o generadas al vuelo y persistidas
+(function setupVapid() {
+  if (!webpush) return;
+  let pub  = process.env.VAPID_PUBLIC_KEY  || '';
+  let priv = process.env.VAPID_PRIVATE_KEY || '';
+  if (!pub || !priv) {
+    const keysFile = path.join(DATA_DIR, 'vapid-keys.json');
+    if (fs.existsSync(keysFile)) {
+      try { const k = JSON.parse(fs.readFileSync(keysFile,'utf-8')); pub = k.pub; priv = k.priv; } catch {}
+    }
+    if (!pub || !priv) {
+      const keys = webpush.generateVAPIDKeys();
+      pub  = keys.publicKey;
+      priv = keys.privateKey;
+      fs.writeFileSync(keysFile, JSON.stringify({pub, priv}), 'utf-8');
+    }
+  }
+  webpush.setVapidDetails(
+    'mailto:gsanchez@altritempi.com.do',
+    pub,
+    priv
+  );
+  process.env._VAPID_PUBLIC_KEY = pub; // exponer para el endpoint GET
+})();
 
 // ── Archivo de persistencia de averías ───────────────────────────────────────
 const AVERIAS_FILE  = path.join(DATA_DIR, 'averias.json');
@@ -2432,6 +2467,20 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
   (sseClients.get(userId)||new Set()).forEach(res => { try { res.write(data); } catch {} });
   broadcastWwp('notification', { notif, userId });
+  // Web Push a las subscripciones del usuario
+  if (webpush) {
+    const payload = JSON.stringify({ title: notif.title, message: notif.message || '', id: notif.id, relatedTaskId: notif.relatedTaskId, tag: notif.id });
+    const subs = loadPushSubs().filter(s => s.userId === userId);
+    subs.forEach(s => {
+      webpush.sendNotification(s.subscription, payload).catch(err => {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          // Subscription expirada — limpiar
+          const all = loadPushSubs().filter(x => x.endpoint !== s.subscription.endpoint);
+          savePushSubs(all);
+        }
+      });
+    });
+  }
   return notif;
 }
 
@@ -5246,6 +5295,58 @@ const server = http.createServer(async (req, res) => {
     const removed = all.length - kept.length;
     saveNotifications(kept);
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, removed}));
+    return;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // ── WEB PUSH API ─────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/wwp/push/vapid-public-key — sin auth, necesario antes de subscribir
+  if (reqPath === '/api/wwp/push/vapid-public-key' && req.method === 'GET') {
+    const key = process.env._VAPID_PUBLIC_KEY || '';
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ key }));
+    return;
+  }
+
+  // POST /api/wwp/push/subscribe
+  if (reqPath === '/api/wwp/push/subscribe' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const { subscription } = await readBody(req);
+      if (!subscription || !subscription.endpoint) {
+        res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'subscription requerida'})); return;
+      }
+      const subs = loadPushSubs();
+      const existing = subs.findIndex(s => s.subscription.endpoint === subscription.endpoint);
+      if (existing >= 0) {
+        subs[existing] = { userId: jp.userId, subscription, updatedAt: new Date().toISOString() };
+      } else {
+        subs.push({ userId: jp.userId, subscription, createdAt: new Date().toISOString() });
+      }
+      savePushSubs(subs);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true}));
+    } catch(e) {
+      res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message}));
+    }
+    return;
+  }
+
+  // DELETE /api/wwp/push/unsubscribe
+  if (reqPath === '/api/wwp/push/unsubscribe' && req.method === 'DELETE') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const { endpoint } = await readBody(req);
+      const before = loadPushSubs();
+      const after  = endpoint
+        ? before.filter(s => !(s.userId === jp.userId && s.subscription.endpoint === endpoint))
+        : before.filter(s => s.userId !== jp.userId);
+      savePushSubs(after);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, removed: before.length - after.length}));
+    } catch(e) {
+      res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message}));
+    }
     return;
   }
 

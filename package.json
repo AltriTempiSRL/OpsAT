@@ -16,7 +16,8 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
-    "nodemailer": "^6.10.1"
+    "nodemailer": "^6.10.1",
+    "web-push": "^3.6.7"
   },
   "notes": {
     "setup": "1. Copia .env.txt con las credenciales de Odoo. 2. Ejecuta: node proxy.js. 3. Abre http://localhost:3000",

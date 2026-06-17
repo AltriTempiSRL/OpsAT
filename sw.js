@@ -1,5 +1,5 @@
-// WWP Service Worker — Cache-first solo para recursos estáticos (NO HTML)
-const CACHE = 'wwp-v2';
+// WWP Service Worker — Cache-first para estáticos + Web Push
+const CACHE = 'wwp-v3';
 const STATIC = [
   '/manifest.json',
   '/icon-192.svg',
@@ -22,15 +22,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // API calls y SSE: siempre red (sin cache)
-  if (url.pathname.startsWith('/api/') || url.pathname.includes('/notifications/stream')) {
-    return;
-  }
-  // HTML: nunca cachear — siempre red para recibir versiones actualizadas
-  if (url.pathname.endsWith('.html') || url.pathname === '/' || !url.pathname.includes('.')) {
-    return;
-  }
-  // Recursos estáticos no-HTML: cache-first
+  if (url.pathname.startsWith('/api/') || url.pathname.includes('/notifications/stream')) return;
+  if (url.pathname.endsWith('.html') || url.pathname === '/' || !url.pathname.includes('.')) return;
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -41,6 +34,42 @@ self.addEventListener('fetch', e => {
         }
         return res;
       }).catch(() => new Response('Offline', {status: 503}));
+    })
+  );
+});
+
+// ── Web Push ──────────────────────────────────────────────────────────────────
+self.addEventListener('push', e => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch(err) {}
+
+  const title   = data.title   || 'Ops AT';
+  const body    = data.message || data.body || '';
+  const icon    = data.icon    || '/icon-192.png';
+  const badge   = data.badge   || '/favicon-32.png';
+  const tag     = data.tag     || 'wwp-notif';
+  const taskId  = data.relatedTaskId || null;
+
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge,
+      tag,
+      renotify: true,
+      data: { taskId, url: '/historial.html' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || '/historial.html';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.includes('/historial.html') && 'focus' in c);
+      if (existing) return existing.focus();
+      return clients.openWindow(target);
     })
   );
 });
