@@ -4068,6 +4068,17 @@ body{font-family:var(--font);min-height:100dvh}
   .time12-control{grid-template-columns:1fr 1fr 76px;gap:6px}
 }
 
+/* ── Accordions de archivo (Completadas / Cerradas) ──────────────────── */
+.task-archive-section{margin-top:16px;border:1.5px solid var(--border);border-radius:var(--radius-md);overflow:hidden}
+.task-archive-summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;background:var(--surface-2);user-select:none;min-height:44px}
+.task-archive-summary::-webkit-details-marker{display:none}
+.task-archive-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.task-archive-label{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;flex:1}
+.task-archive-count{font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px;flex-shrink:0}
+.task-archive-chevron{width:16px;height:16px;stroke:var(--text-3);display:inline-block;flex-shrink:0;transition:transform .2s}
+details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg)}
+.task-archive-body{padding:0 12px 12px;background:var(--surface)}
+
 /* ── Zebra TC25AJ / dispositivos de almacén (≤767px) ─────────────────
    Viewport CSS ~320px (480px físicos / DPR 1.5x).
    Corrige touch targets, zoom Android en inputs y legibilidad en 4".  */
@@ -7517,6 +7528,11 @@ var _TYPE_GROUPS = [
   {type:'general',        label:'Tarea Libre / General',  icon:'circle-dot',color:'#6b7280'}
 ];
 function renderGroupedByType(visible, rowRenderer) {
+  const ACTIVE_ST = new Set(['pending','assigned','in_progress']);
+  const active    = visible.filter(t => ACTIVE_ST.has(t.status));
+  const completed = visible.filter(t => t.status === 'completed');
+  const closed    = visible.filter(t => t.status === 'validated' || t.status === 'cancelled');
+
   const known = new Set(_TYPE_GROUPS.map(g=>g.type));
   let html = '';
   const groupHdr = (g, n) => `<div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding:6px 2px;border-bottom:2px solid ${g.color}33">
@@ -7531,15 +7547,44 @@ function renderGroupedByType(visible, rowRenderer) {
     if (!b.dueDate) return -1;
     return a.dueDate.localeCompare(b.dueDate);
   };
+
+  // ── Tareas activas agrupadas por tipo ──
   _TYPE_GROUPS.forEach(g => {
-    const rows = visible.filter(t => t.type === g.type).sort(byDue);
+    const rows = active.filter(t => t.type === g.type).sort(byDue);
     if (!rows.length) return;
     html += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
   });
-  const others = visible.filter(t => !known.has(t.type)).sort(byDue);
-  if (others.length) {
-    html += groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, others.length) + others.map(rowRenderer).join('');
+  const othersActive = active.filter(t => !known.has(t.type)).sort(byDue);
+  if (othersActive.length) {
+    html += groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, othersActive.length) + othersActive.map(rowRenderer).join('');
   }
+
+  // ── Accordions de archivo ──
+  var _archOpen = (function(){try{return JSON.parse(localStorage.getItem('wwp_archive_open')||'{}');}catch(e){return{};}})();
+  var buildArchive = function(key, label, icon, color, tasks) {
+    if (!tasks.length) return '';
+    var open = !!_archOpen[key];
+    var inner = '';
+    _TYPE_GROUPS.forEach(function(g) {
+      var rows = tasks.filter(function(t){return t.type===g.type;}).sort(byDue);
+      if (!rows.length) return;
+      inner += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
+    });
+    var othersInner = tasks.filter(function(t){return !known.has(t.type);}).sort(byDue);
+    if (othersInner.length) inner += groupHdr({label:'Otras',icon:'list',color:'#6b7280'}, othersInner.length) + othersInner.map(rowRenderer).join('');
+    return '<details class="task-archive-section"'+(open?' open':'')
+      +' ontoggle="(function(el){try{var s=JSON.parse(localStorage.getItem(\'wwp_archive_open\')||\'{}}\');s[\''+key+'\']=el.open;localStorage.setItem(\'wwp_archive_open\',JSON.stringify(s));}catch(e){}})(this)">'
+      +'<summary class="task-archive-summary">'
+      +'<span class="task-archive-icon" style="background:'+color+'1a"><i data-lucide="'+icon+'" style="width:14px;height:14px;stroke:'+color+'"></i></span>'
+      +'<span class="task-archive-label" style="color:'+color+'">'+label+'</span>'
+      +'<span class="task-archive-count" style="background:'+color+';color:#fff">'+tasks.length+'</span>'
+      +'<i data-lucide="chevron-down" class="task-archive-chevron"></i>'
+      +'</summary>'
+      +'<div class="task-archive-body">'+inner+'</div>'
+      +'</details>';
+  };
+  html += buildArchive('completed','Completadas — en espera de validación','check-circle','#16a34a', completed);
+  html += buildArchive('closed','Cerradas (validadas y canceladas)','archive','#6b7280', closed);
   return html;
 }
 function renderTasks() { filterTasks(); }
