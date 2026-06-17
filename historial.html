@@ -3033,7 +3033,8 @@ body{font-family:var(--font);min-height:100dvh}
 }
 .notif-badge.show{display:flex}
 .notif-panel{
-  position:fixed;top:44px;right:12px;width:360px;max-height:520px;
+  position:fixed;top:44px;right:12px;width:360px;
+  max-height:min(540px,calc(100dvh - 56px));
   background:var(--surface);border:1px solid var(--border);
   border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);
   z-index:200;display:none;flex-direction:column;overflow:hidden;
@@ -3069,6 +3070,23 @@ body{font-family:var(--font);min-height:100dvh}
 @media(max-width:600px){
   .notif-panel{width:calc(100vw - 24px);right:12px}
 }
+/* — Campana: animación al llegar nueva notif — */
+@keyframes notif-ring{0%,100%{transform:rotate(0) translateY(0)}10%{transform:rotate(-22deg)}25%{transform:rotate(20deg)}40%{transform:rotate(-14deg)}55%{transform:rotate(10deg)}70%{transform:rotate(-5deg)}}
+@keyframes badge-pop{0%,100%{transform:scale(1)}50%{transform:scale(1.45)}}
+.notif-btn.has-new svg{animation:notif-ring .65s ease both;transform-origin:top center}
+.notif-badge.pop{animation:badge-pop .3s ease}
+/* — Footer de sonido del panel — */
+.notif-sound-footer{padding:9px 12px;border-top:1px solid var(--border);background:var(--surface-2);flex-shrink:0;display:flex;flex-direction:column;gap:5px}
+.notif-sound-row{display:flex;align-items:center;gap:7px}
+.notif-snd-toggle{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:6px;color:var(--text-3);display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;transition:background .15s,color .15s;white-space:nowrap}
+.notif-snd-toggle:hover{background:var(--surface-3)}
+.notif-snd-toggle.on{color:var(--brand-light)}
+.notif-snd-sel{font-size:11px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--surface);color:var(--text);flex:1;cursor:pointer;min-width:0}
+.notif-snd-test{font-size:10px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--surface);color:var(--text-2);cursor:pointer;white-space:nowrap;transition:background .15s}
+.notif-snd-test:hover{background:var(--surface-3)}
+.notif-push-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)}
+.notif-push-row a,.notif-push-row button{font-size:10px;font-weight:700;color:var(--brand-light);background:none;border:none;cursor:pointer;padding:0;text-decoration:none}
+.notif-push-row a:hover,.notif-push-row button:hover{text-decoration:underline}
 
 /* ── PRESENCIA ───────────────────────────────────────────────────── */
 .presence-btn{
@@ -5201,6 +5219,26 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       </div>
     </div>
     <div class="notif-list" id="notif-list"><div class="notif-empty">Sin notificaciones</div></div>
+    <div class="notif-sound-footer">
+      <div class="notif-sound-row">
+        <button class="notif-snd-toggle" id="notif-snd-toggle" onclick="_notifToggleSound()">
+          <i id="notif-snd-icon" data-lucide="bell-off" style="width:13px;height:13px;stroke:currentColor;display:inline-block"></i>
+          <span id="notif-snd-label">Sonido</span>
+        </button>
+        <select class="notif-snd-sel" id="notif-snd-sel" onchange="_notifChangeTone(this.value)">
+          <option value="campana">Campana</option>
+          <option value="suave">Suave</option>
+          <option value="pop">Pop</option>
+          <option value="alerta">Alerta</option>
+        </select>
+        <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
+      </div>
+      <div class="notif-push-row" id="notif-push-row" style="display:none">
+        <i data-lucide="smartphone" style="width:10px;height:10px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>
+        <span>Notificaciones aunque el tab esté minimizado —</span>
+        <button onclick="_notifRequestPush()">Activar</button>
+      </div>
+    </div>
   </div>
 
 
@@ -6961,21 +6999,150 @@ function updateUserPresenceInList(userId, presenceStatus) {
 // NOTIFICACIONES
 // ═══════════════════════════════════════════════════════════════════════
 var _notifPanelOpen = false;
+var _audioCtx = null;
+var _notifSoundEnabled = localStorage.getItem('wwp_notif_sound') !== 'off';
+var _notifSoundTone    = localStorage.getItem('wwp_notif_tone') || 'campana';
+var _lastUnread        = null; // null = primera carga, no suena
 
-function playNotifSound() {
+// Desbloquear AudioContext en el primer gesto del usuario
+(function() {
+  function _unlockAudio() {
+    if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume();
+    document.removeEventListener('pointerdown', _unlockAudio);
+    document.removeEventListener('keydown', _unlockAudio);
+  }
+  document.addEventListener('pointerdown', _unlockAudio, {once: true});
+  document.addEventListener('keydown', _unlockAudio, {once: true});
+})();
+
+// Mapa de tono por tipo de notificación
+var _NOTIF_TONE_MAP = {
+  task_assigned: 'campana', subtask_assigned: 'campana',
+  comment_new: 'pop',
+  task_overdue: 'alerta', task_rejected: 'alerta',
+  task_completed: 'suave', task_validated: 'suave', status_changed: 'suave'
+};
+
+function _playTone(tone) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.35);
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    var ctx = _audioCtx;
+    var gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    var now = ctx.currentTime;
+    if (tone === 'suave') {
+      var o = ctx.createOscillator(); o.connect(gain);
+      o.type = 'sine'; o.frequency.setValueAtTime(440, now);
+      o.frequency.linearRampToValueAtTime(330, now + 0.22);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      o.start(now); o.stop(now + 0.28);
+    } else if (tone === 'campana') {
+      var o = ctx.createOscillator(); o.connect(gain);
+      o.type = 'triangle'; o.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      o.start(now); o.stop(now + 0.55);
+    } else if (tone === 'pop') {
+      var o = ctx.createOscillator(); o.connect(gain);
+      o.type = 'sine'; o.frequency.setValueAtTime(1200, now);
+      o.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+      o.start(now); o.stop(now + 0.13);
+    } else { // alerta
+      [0, 0.18].forEach(function(t) {
+        var o2 = ctx.createOscillator(); o2.connect(gain);
+        o2.type = 'square'; o2.frequency.setValueAtTime(t === 0 ? 600 : 800, now + t);
+        gain.gain.setValueAtTime(0.07, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.15);
+        o2.start(now + t); o2.stop(now + t + 0.15);
+      });
+    }
   } catch(e) {}
+}
+
+function maybeChime(notif) {
+  var unread = _notifications.filter(function(n){ return !n.readAt; }).length;
+  if (_notifSoundEnabled && !_notifPanelOpen && (_lastUnread === null || unread > _lastUnread)) {
+    var tone = (notif && _NOTIF_TONE_MAP[notif.type]) || _notifSoundTone;
+    _playTone(tone);
+    if (navigator.vibrate && !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
+      navigator.vibrate(80);
+    }
+  }
+  _lastUnread = unread;
+}
+
+function _notifRingBell() {
+  var btn = document.getElementById('notif-btn');
+  var badge = document.getElementById('notif-badge');
+  if (btn) {
+    btn.classList.remove('has-new');
+    void btn.offsetWidth; // reflow para reiniciar animación
+    btn.classList.add('has-new');
+    setTimeout(function(){ btn.classList.remove('has-new'); }, 700);
+  }
+  if (badge) {
+    badge.classList.remove('pop');
+    void badge.offsetWidth;
+    badge.classList.add('pop');
+    setTimeout(function(){ badge.classList.remove('pop'); }, 350);
+  }
+}
+
+function _notifShowBrowserBanner() {
+  var row = document.getElementById('notif-push-row');
+  if (!row) return;
+  if (typeof Notification === 'undefined') { row.style.display = 'none'; return; }
+  row.style.display = Notification.permission === 'default' ? 'flex' : 'none';
+}
+
+function _notifRequestPush() {
+  if (typeof Notification === 'undefined') return;
+  Notification.requestPermission().then(function() { _notifShowBrowserBanner(); });
+}
+
+function _notifFireBrowser(notif) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (!document.hidden) return; // solo cuando el tab está en segundo plano
+  var n = new Notification(notif.title || 'WWP', {
+    body: notif.message || '',
+    icon: '/favicon.ico',
+    tag: notif.id
+  });
+  n.onclick = function() { window.focus(); openNotification(notif); n.close(); };
+}
+
+function _notifUpdateSoundUI() {
+  var toggle = document.getElementById('notif-snd-toggle');
+  var icon   = document.getElementById('notif-snd-icon');
+  var label  = document.getElementById('notif-snd-label');
+  var sel    = document.getElementById('notif-snd-sel');
+  if (!toggle) return;
+  toggle.classList.toggle('on', _notifSoundEnabled);
+  if (icon) { icon.setAttribute('data-lucide', _notifSoundEnabled ? 'bell-ring' : 'bell-off'); if (window.lucide) lucide.createIcons(); }
+  if (label) label.textContent = _notifSoundEnabled ? 'Sonido activado' : 'Sonido';
+  if (sel) sel.value = _notifSoundTone;
+  _notifShowBrowserBanner();
+}
+
+function _notifToggleSound() {
+  _notifSoundEnabled = !_notifSoundEnabled;
+  localStorage.setItem('wwp_notif_sound', _notifSoundEnabled ? 'on' : 'off');
+  _notifUpdateSoundUI();
+  if (_notifSoundEnabled) _playTone(_notifSoundTone);
+}
+
+function _notifChangeTone(val) {
+  _notifSoundTone = val;
+  localStorage.setItem('wwp_notif_tone', val);
+}
+
+function _notifTestTone() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  _audioCtx.resume().then(function(){ _playTone(_notifSoundTone); });
 }
 
 function connectSSE() {
@@ -6992,16 +7159,9 @@ function connectSSE() {
         if (!_notifications.some(n => n.id === data.notif.id)) {
           _notifications.unshift(data.notif);
           renderNotifications();
-          playNotifSound();
-          // Browser notification
-          if (Notification.permission === 'granted') {
-            const n = new Notification(data.notif.title || 'WWP', {
-              body: data.notif.message || '',
-              icon: '/favicon.ico',
-              tag: data.notif.id
-            });
-            n.onclick = function() { window.focus(); openNotification(data.notif); n.close(); };
-          }
+          maybeChime(data.notif);
+          _notifRingBell();
+          _notifFireBrowser(data.notif);
         }
       }
       // Cambio de presencia en tiempo real
@@ -7076,7 +7236,9 @@ function connectWwpRealtime() {
         if (!_notifications.some(n => n.id === msg.notif.id)) {
           _notifications.unshift(msg.notif);
           renderNotifications();
-          playNotifSound();
+          maybeChime(msg.notif);
+          _notifRingBell();
+          _notifFireBrowser(msg.notif);
         }
       }
     } catch(err) {}
@@ -7149,6 +7311,7 @@ function toggleNotifPanel() {
   _notifPanelOpen = !_notifPanelOpen;
   const panel = document.getElementById('notif-panel');
   if (panel) panel.classList.toggle('open', _notifPanelOpen);
+  if (_notifPanelOpen) { _notifUpdateSoundUI(); _lastUnread = _notifications.filter(function(n){ return !n.readAt; }).length; }
 }
 
 function closeNotifPanel() {
