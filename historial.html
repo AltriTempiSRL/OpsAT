@@ -1062,6 +1062,11 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .task-emp-just-wrap{margin-top:8px;display:none}
 .task-emp-just-wrap.open{display:block}
 .task-emp-just-area{width:100%;border:1px solid var(--border);border-radius:7px;padding:7px 10px;font-size:12px;resize:vertical;min-height:60px;font-family:inherit}
+.task-emp-mat-cb{width:20px;height:20px;border-radius:4px;accent-color:#0369a1;cursor:pointer;flex-shrink:0;margin:0}
+.task-emp-mat-row.omitido .task-emp-mat-name{text-decoration:line-through;opacity:.5}
+.task-emp-mat-row.omitido .task-emp-mat-desc{opacity:.4}
+.task-emp-btn-confirm{width:100%;padding:8px 14px;border:none;border-radius:8px;background:#0369a1;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .15s;margin-top:10px}
+.task-emp-btn-confirm:hover{background:#0284c7}
 /* Foto ampliada */
 .emp-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:3000;display:none;align-items:center;justify-content:center}
 .emp-lightbox.open{display:flex}
@@ -23672,36 +23677,61 @@ function empEnrichTaskItems(task, containerSelector) {
 
 function empRenderItemSection(container, item, materiales) {
   var conf = item.empaque_confirmacion || {};
-  var isConfirmed = conf.status === 'confirmed';
-  var isPartial   = conf.status === 'partial';
-  var matsHtml = materiales.map((mat, i) => {
-    var thumbHtml = mat.foto_url
-      ? '<img class="task-emp-mat-thumb" src="' + mat.foto_url + '" alt="" onclick="empOpenLightbox(\'' + esc(mat.foto_url) + '\')" title="Ver foto">'
-      : '<div class="task-emp-mat-thumb-empty"><i data-lucide="package" style="width:16px;height:16px;stroke:currentColor;opacity:.4"></i></div>';
-    return '<div class="task-emp-mat-row">' +
-      '<div class="task-emp-mat-num">' + (i+1) + '</div>' +
-      thumbHtml +
-      '<div class="task-emp-mat-info">' +
-        '<div class="task-emp-mat-name">' + esc(mat.nombre) + '</div>' +
-        (mat.descripcion ? '<div class="task-emp-mat-desc">' + esc(mat.descripcion) + '</div>' : '') +
-      '</div>' +
-    '</div>';
-  }).join('');
+  var isDone = conf.status === 'confirmed' || conf.status === 'partial';
+
+  var matsHtml;
+  if (isDone) {
+    // Backward compat: si no hay materiales_usados, asumir todos usados
+    var usados = new Set(conf.materiales_usados && conf.materiales_usados.length ? conf.materiales_usados : materiales.map(function(m){ return m.id; }));
+    matsHtml = materiales.map(function(mat) {
+      var wasUsed = usados.has(mat.id);
+      var thumbHtml = mat.foto_url
+        ? '<img class="task-emp-mat-thumb" src="' + mat.foto_url + '" alt="" onclick="empOpenLightbox(\'' + esc(mat.foto_url) + '\')" title="Ver foto">'
+        : '<div class="task-emp-mat-thumb-empty"><i data-lucide="package" style="width:16px;height:16px;stroke:currentColor;opacity:.4"></i></div>';
+      return '<div class="task-emp-mat-row' + (wasUsed ? '' : ' omitido') + '">' +
+        '<div class="task-emp-mat-num" style="' + (wasUsed ? 'background:var(--green-text)' : 'background:#9ca3af') + '">' +
+          '<i data-lucide="' + (wasUsed ? 'check' : 'x') + '" style="width:10px;height:10px;stroke:#fff;display:inline-block"></i>' +
+        '</div>' +
+        thumbHtml +
+        '<div class="task-emp-mat-info">' +
+          '<div class="task-emp-mat-name">' + esc(mat.nombre) + '</div>' +
+          (mat.descripcion ? '<div class="task-emp-mat-desc">' + esc(mat.descripcion) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } else {
+    matsHtml = materiales.map(function(mat) {
+      var cbId = 'mat-cb-' + item.item_id + '-' + mat.id;
+      var thumbHtml = mat.foto_url
+        ? '<img class="task-emp-mat-thumb" src="' + mat.foto_url + '" alt="" onclick="empOpenLightbox(\'' + esc(mat.foto_url) + '\')" title="Ver foto">'
+        : '<div class="task-emp-mat-thumb-empty"><i data-lucide="package" style="width:16px;height:16px;stroke:currentColor;opacity:.4"></i></div>';
+      return '<div class="task-emp-mat-row">' +
+        '<input type="checkbox" id="' + cbId + '" class="task-emp-mat-cb" checked data-mat-id="' + esc(mat.id) + '" data-item-id="' + esc(item.item_id) + '">' +
+        thumbHtml +
+        '<div class="task-emp-mat-info">' +
+          '<div class="task-emp-mat-name">' + esc(mat.nombre) + '</div>' +
+          (mat.descripcion ? '<div class="task-emp-mat-desc">' + esc(mat.descripcion) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
 
   var statusHtml = '';
-  if (isConfirmed) {
+  if (conf.status === 'confirmed') {
     statusHtml = '<div class="task-emp-confirmed"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Empaque confirmado' + (conf.by ? ' por ' + esc(conf.by) : '') + '</div>';
-  } else if (isPartial) {
-    statusHtml = '<div class="task-emp-partial"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Parcial: ' + esc(conf.justificacion || '') + '</div>';
+  } else if (conf.status === 'partial') {
+    statusHtml = '<div class="task-emp-partial"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Parcial' + (conf.justificacion ? ': ' + esc(conf.justificacion) : '') + (conf.by ? ' · ' + esc(conf.by) : '') + '</div>';
   } else {
-    statusHtml = '<div class="task-emp-confirm-row">' +
-      '<button class="task-emp-btn-ok" onclick="empConfirmItem(\'' + item.item_id + '\',\'confirmed\',this)"><i data-lucide="check-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Usé todos los materiales</button>' +
-      '<button class="task-emp-btn-partial" onclick="empShowPartialForm(\'' + item.item_id + '\')"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Faltó material</button>' +
-    '</div>' +
-    '<div class="task-emp-just-wrap" id="just-wrap-' + item.item_id + '">' +
-      '<textarea class="task-emp-just-area" id="just-txt-' + item.item_id + '" placeholder="Explica cuál material faltó y el motivo…"></textarea>' +
-      '<button class="task-emp-btn-partial" style="margin-top:6px;font-size:11px" onclick="empConfirmItem(\'' + item.item_id + '\',\'partial\',this)">Enviar justificación</button>' +
-    '</div>';
+    statusHtml =
+      '<button class="task-emp-btn-confirm" onclick="empDoConfirm(\'' + item.item_id + '\',this)">' +
+        '<i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>' +
+        'Confirmar materiales usados' +
+      '</button>' +
+      '<div class="task-emp-just-wrap" id="just-wrap-' + item.item_id + '">' +
+        '<div style="font-size:11px;color:var(--amber-text);font-weight:700;margin-bottom:4px">Desmarcaste algunos materiales — ¿por qué faltaron?</div>' +
+        '<textarea class="task-emp-just-area" id="just-txt-' + item.item_id + '" placeholder="Explica cuál material faltó y el motivo…"></textarea>' +
+        '<button class="task-emp-btn-partial" style="margin-top:6px;font-size:11px;width:100%;justify-content:center" onclick="empDoConfirmSend(\'' + item.item_id + '\',this)">Enviar justificación</button>' +
+      '</div>';
   }
 
   container.innerHTML =
@@ -23711,12 +23741,32 @@ function empRenderItemSection(container, item, materiales) {
   if(window.lucide) lucide.createIcons();
 }
 
-function empShowPartialForm(itemId) {
-  var wrap = document.getElementById('just-wrap-' + itemId);
-  if (wrap) { wrap.classList.toggle('open'); }
+function empDoConfirm(itemId, btn) {
+  var cbs = document.querySelectorAll('.task-emp-mat-cb[data-item-id="' + itemId + '"]');
+  var usados = [], omitidos = [];
+  cbs.forEach(function(cb) {
+    if (cb.checked) usados.push(cb.dataset.matId);
+    else omitidos.push(cb.dataset.matId);
+  });
+  if (omitidos.length > 0) {
+    var wrap = document.getElementById('just-wrap-' + itemId);
+    if (wrap) wrap.classList.add('open');
+    return;
+  }
+  empConfirmItem(itemId, 'confirmed', btn, usados, []);
 }
 
-async function empConfirmItem(itemId, status, btn) {
+function empDoConfirmSend(itemId, btn) {
+  var cbs = document.querySelectorAll('.task-emp-mat-cb[data-item-id="' + itemId + '"]');
+  var usados = [], omitidos = [];
+  cbs.forEach(function(cb) {
+    if (cb.checked) usados.push(cb.dataset.matId);
+    else omitidos.push(cb.dataset.matId);
+  });
+  empConfirmItem(itemId, 'partial', btn, usados, omitidos);
+}
+
+async function empConfirmItem(itemId, status, btn, materiales_usados, materiales_omitidos) {
   var taskId = (window._currentTaskDetail || {}).id;
   if (!taskId) return;
   var justificacion = '';
@@ -23728,10 +23778,14 @@ async function empConfirmItem(itemId, status, btn) {
   var orig = btn.textContent; btn.textContent = '…'; btn.disabled = true;
   apiFetch('/api/wwp/tasks/' + taskId + '/items/' + itemId + '/empaque', {
     method: 'PATCH',
-    body: JSON.stringify({status: status, justificacion: justificacion})
+    body: JSON.stringify({
+      status: status,
+      justificacion: justificacion,
+      materiales_usados: materiales_usados || [],
+      materiales_omitidos: materiales_omitidos || []
+    })
   }).then(function(r) {
     if (!r.ok) { btn.textContent = orig; btn.disabled = false; showToast(r.error || 'Error', 'error'); return; }
-    // Recargar la tarea para reflejar el cambio
     if (window._refreshCurrentTask) window._refreshCurrentTask();
     showToast(status === 'confirmed' ? 'Empaque confirmado' : 'Justificación registrada', 'success');
   });

@@ -9383,6 +9383,36 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // PATCH /api/wwp/tasks/:id/items/:itemId/empaque — confirmar materiales usados por artículo
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items\/[A-Za-z0-9_]+\/empaque$/) && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const parts = reqPath.split('/');
+      const taskId = parts[4]; const itemId = parts[6];
+      const d = await readBody(req);
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t => t.id === taskId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const itemIdx = (tasks[idx].items||[]).findIndex(it => it.item_id === itemId);
+      if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      const status = ['confirmed','partial'].includes(d.status) ? d.status : 'confirmed';
+      tasks[idx].items[itemIdx].empaque_confirmacion = {
+        status,
+        justificacion: (d.justificacion || '').trim(),
+        materiales_usados: Array.isArray(d.materiales_usados) ? d.materiales_usados : [],
+        materiales_omitidos: Array.isArray(d.materiales_omitidos) ? d.materiales_omitidos : [],
+        by: jp.name || jp.userId || '',
+        at: new Date().toISOString()
+      };
+      tasks[idx].updatedAt = new Date().toISOString();
+      saveWwpTasks(tasks);
+      broadcastWwpTasks('items_updated', tasks[idx], { taskId, itemId });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, empaque_confirmacion: tasks[idx].items[itemIdx].empaque_confirmacion}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
   // ── Mapa de almacén (concepto) ────────────────────────────────────────────
   if (reqPath === '/almacen-mapa' || reqPath === '/almacen-mapa.html') {
     const f = path.join(__dirname, 'almacen-mapa.html');
