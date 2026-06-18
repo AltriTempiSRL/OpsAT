@@ -6688,7 +6688,7 @@ const server = http.createServer(async (req, res) => {
         // ── Cierre de la madre bloqueado si quedan subtareas abiertas ──
         if ((d.status==='completed'||d.status==='validated') && !tasks[idx].parentId) {
           const children = tasks.filter(x => x.parentId===tasks[idx].id);
-          const abiertas = children.filter(c => !['completed','validated'].includes(c.status));
+          const abiertas = children.filter(c => !['completed','validated','cancelled'].includes(c.status));
           if (abiertas.length>0) {
             res.writeHead(409,{'Content-Type':'application/json'});
             res.end(JSON.stringify({ok:false,error:`Faltan ${abiertas.length} subtarea(s) por completar en la cadena antes de cerrar.`}));
