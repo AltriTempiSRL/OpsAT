@@ -637,6 +637,7 @@ const BUILTIN_ROLE_DEFS = [
     }
   },
   { id:'assistant', name:'Auxiliar',  isBuiltin:true, sectionPerms:{ 'wwp.rastreo_gps': true } },
+  { id:'ventas',    name:'Ventas',    isBuiltin:true, sectionPerms:{ 'sdv-portal': true, 'sdv-bandeja': true } },
 ];
 function loadRoleDefs() {
   let defs;
@@ -675,6 +676,18 @@ function getRoleDefPerms(roleId) {
 const WWP_SOLICITUDES_FILE = path.join(DATA_DIR, 'wwp-solicitudes-showroom.json');
 function loadSolicitudes() { return loadJson(WWP_SOLICITUDES_FILE, []); }
 function saveSolicitudes(list) { saveJson(WWP_SOLICITUDES_FILE, list); }
+
+// ── Solicitudes de Despacho Ventas (SDV) ─────────────────────────────────────
+const SDV_FILE     = path.join(DATA_DIR, 'sdv-solicitudes.json');
+const SDV_SEQ_FILE = path.join(DATA_DIR, 'sdv-seq.json');
+function loadSdv() { return loadJson(SDV_FILE, []); }
+function saveSdv(list) { saveJson(SDV_FILE, list); }
+function sdvNextFolio() {
+  let seq; try { seq = JSON.parse(fs.readFileSync(SDV_SEQ_FILE,'utf-8')); } catch { seq = {n:0}; }
+  seq.n = (seq.n||0)+1;
+  fs.writeFileSync(SDV_SEQ_FILE, JSON.stringify(seq));
+  return 'SD-'+new Date().getFullYear()+'-'+String(seq.n).padStart(4,'0');
+}
 
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -5686,6 +5699,29 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/wwp/auth/users/odoo-lookup?email= — busca usuario Odoo por email para pre-llenar al crear usuario WWP [solo admin]
+  if (reqPath === '/api/wwp/auth/users/odoo-lookup' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    const email = ((parsed.query||{}).email||'').trim().toLowerCase();
+    if (!email) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'email requerido'})); return; }
+    try {
+      const odooUsers = await odooCall('res.users','search_read',[[['login','=',email]]],{fields:['id','name','partner_id'],limit:1});
+      if (!odooUsers || !odooUsers.length) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,found:false})); return; }
+      const ou = odooUsers[0];
+      let phone='', avatar=null;
+      if (ou.partner_id && ou.partner_id[0]) {
+        try {
+          const ps = await odooCall('res.partner','read',[[ou.partner_id[0]]],{fields:['phone','mobile','image_128']});
+          if (ps && ps.length) { phone=ps[0].phone||ps[0].mobile||''; if(ps[0].image_128) avatar='data:image/png;base64,'+ps[0].image_128; }
+        } catch {}
+      }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true,found:true,odooId:ou.id,name:ou.name,phone,avatar}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
   // GET /api/wwp/auth/users/:id/locations — recorrido (historial) de un usuario [solo admin]
   if (reqPath.match(/^\/api\/wwp\/auth\/users\/[A-Za-z0-9_]+\/locations$/) && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
@@ -8733,6 +8769,230 @@ const server = http.createServer(async (req, res) => {
       // ── 4. No encontrado en ningún modelo ───────────────────────────
       res.writeHead(404,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:false,error:'No encontrado en Odoo (orden, transferencia ni artículo)'}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // SOLICITUDES DE DESPACHO VENTAS (SDV)
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // GET /api/sdv/lookup?ref=&tipo= — lookup Odoo para el formulario de ventas
+  if (reqPath === '/api/sdv/lookup' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const q = parsed.query || {};
+    const ref   = (q.ref   || '').trim();
+    const tipo  = (q.tipo  || '').trim(); // despacho_cliente | devolucion | traslado_interno
+    const desde = (q.desde || '').trim(); // CDP | PTN | NAVE2 (para stock traslado_interno)
+    if (!ref) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'ref requerido'})); return; }
+    // Mapa almacén → patrón location en Odoo
+    const SDV_LOC_PATTERN = { CDP:'A-CDP', PTN:'D-PTN', NAVE2:'NAVE2', 'Showroom PTN':'D-PTN' };
+    try {
+      // ── Devolucion: buscar RET asociado a la orden ──────────────────────────
+      if (tipo === 'devolucion') {
+        // 1. Resolver orden de venta
+        const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','user_id'],limit:1});
+        if (!sos || !sos.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Orden no encontrada en Odoo'})); return; }
+        const so = sos[0];
+        // 2. Encontrar el/los OUT de esta orden
+        const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
+        const outNames = (outs||[]).filter(p=>/\/OUT\//.test(p.name)).map(p=>p.name);
+        if (!outNames.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin despacho (OUT) para esta orden'})); return; }
+        // 3. Encontrar los RET cuyo origin apunta a esos OUTs
+        // Domain OR correcto para Odoo: N-1 operadores '|' seguidos de N condiciones
+        const retConds = outNames.map(n=>['origin','ilike',n]);
+        const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
+        const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name','state','origin'],limit:20});
+        const retList = (rets||[]).filter(p=>/\/RET\//.test(p.name));
+        if (!retList.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin devolución (RET) para esta orden'})); return; }
+        // 4. Obtener líneas del primer RET (o el más reciente)
+        const ret = retList[retList.length-1];
+        const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done'],limit:500});
+        const pids=[...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
+        const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode','image_128']}) : [];
+        const prodMap={}; prods.forEach(p=>{ prodMap[p.id]=p; });
+        const items = mls.filter(m=>m.product_id).map((m,i)=>{
+          const p=prodMap[m.product_id[0]]||{};
+          const qty=Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
+          return { item_id:'ret_'+m.product_id[0]+'_'+i, odoo_product_id:m.product_id[0],
+            product_name:m.product_id[1]||'', sku:p.default_code||p.barcode||'',
+            quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
+            selected:true, status:'pending' };
+        });
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true,tipo:'devolucion',orderRef:so.name,retRef:ret.name,retState:ret.state,
+          client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',items}));
+        return;
+      }
+
+      // ── Traslado interno (artículo individual) — si no parece número de orden ──
+      if (tipo === 'traslado_interno' && !/^[Ss]\d/.test(ref)) {
+        // Busca como artículo por ref/barcode/nombre
+        const prods = await odooCall('product.product','search_read',
+          [['|','|','|',['default_code','=',ref],['default_code','ilike',ref],['barcode','=',ref],['name','ilike',ref]]],
+          {fields:['id','name','default_code','barcode','image_128'],limit:5});
+        if (!prods || !prods.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado en Odoo'})); return; }
+        const p=prods[0];
+        // Consultar stock en el almacén origen si se especificó
+        let stockOrigen = null;
+        const locPattern = desde ? SDV_LOC_PATTERN[desde] : null;
+        if (locPattern) {
+          try {
+            const quants = await odooCall('stock.quant','search_read',
+              [['product_id','=',p.id],['location_id.complete_name','ilike',locPattern],
+               ['location_id.usage','=','internal']],
+              {fields:['quantity','reserved_quantity'],limit:200});
+            stockOrigen = (quants||[]).reduce((s,q2)=>s+Math.max(0,(q2.quantity||0)-(q2.reserved_quantity||0)),0);
+            stockOrigen = Math.max(0, Math.round(stockOrigen));
+          } catch(e) { /* si falla stock, seguir sin max */ }
+        }
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true,tipo:'articulo',ref:p.default_code||p.barcode||p.name,
+          stockOrigen, desdeLabel: desde||null,
+          items:[{item_id:'art_'+p.id,odoo_product_id:p.id,product_name:p.name,
+            sku:p.default_code||p.barcode||'',quantity:1, maxQty: stockOrigen||null,
+            image:p.image_128?'data:image/png;base64,'+p.image_128:null,selected:true,status:'pending'}]}));
+        return;
+      }
+
+      // ── Despacho a cliente / Traslado interno por orden ────────────────────
+      // Reutilizar la lógica ya verificada: sale.order → PICK assigned → artículos
+      const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],
+        {fields:['id','name','order_line','partner_id','partner_shipping_id','user_id'],limit:1});
+      if (!sos || !sos.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Orden no encontrada en Odoo'})); return; }
+      const so=sos[0];
+      // Dirección y teléfono
+      let deliveryAddress='', city='', phone='';
+      try {
+        const shipId=(so.partner_shipping_id&&so.partner_shipping_id[0])||(so.partner_id&&so.partner_id[0]);
+        if(shipId){
+          const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
+          if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
+        }
+      } catch {}
+      // Picks assigned (solo para despacho_cliente); traslado_interno también usa PICK si existe
+      const pickRes = await buildItemsFromPicks(so.name, ['assigned']);
+      const noPick = pickRes.noPick;
+      if (noPick && tipo === 'despacho_cliente') {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Sin pick preparado (ASSIGNED) para esta orden. Verifica en Odoo.'}));
+        return;
+      }
+      const items = noPick ? [] : (pickRes.items||[]);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true,tipo:tipo||'despacho_cliente',orderRef:so.name,noPick,
+        client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',
+        deliveryAddress,city,phone,picks:pickRes.picks||[],items}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // POST /api/sdv — crear solicitud de despacho [ventas, manager, admin]
+  if (reqPath === '/api/sdv' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['ventas','manager','admin'])) return;
+    try {
+      const d = await readBody(req);
+      if (!d.tipoSolicitud) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'tipoSolicitud requerido'})); return; }
+      const now = new Date().toISOString();
+      const folio = sdvNextFolio();
+      const sol = {
+        id: wwpId('sdv'), folio,
+        tipoSolicitud: d.tipoSolicitud,
+        odooOrderRef: d.odooOrderRef||'',
+        articulosOdoo: d.articulosOdoo||[],
+        clienteNombre: d.clienteNombre||'',
+        direccionEntrega: d.direccionEntrega||'',
+        ciudadEntrega: d.ciudadEntrega||'',
+        // Traslado interno
+        ubicacionOrigen: d.ubicacionOrigen||'',
+        ubicacionDestino: d.ubicacionDestino||'',
+        // Receptor (no aplica para traslado interno)
+        receptorNombre: d.receptorNombre||'',
+        receptorContacto: d.receptorContacto||'',
+        transporteIncluido: d.transporteIncluido===true||d.transporteIncluido==='true',
+        observaciones: d.observaciones||'',
+        gpsCoords: d.gpsCoords||null,
+        fechaSolicitudDeseada: d.fechaSolicitudDeseada||null,
+        adjuntos: [],
+        fechaSolicitud: now,
+        fechaEntrega: null,
+        estado: 'pendiente_revision',
+        creadoPor: jp.userId,
+        creadoNombre: jp.name,
+        creadoAt: now,
+        statusHistory: [{estado:'pendiente_revision',por:jp.userId,nombre:jp.name,at:now}],
+        wwpTareas: [],
+      };
+      const list = loadSdv();
+      list.push(sol);
+      saveSdv(list);
+      res.writeHead(201,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true,solicitud:sol}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/sdv — listar solicitudes [auth: ventas ve solo suyas; admin/manager ven todas]
+  if (reqPath === '/api/sdv' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      let list = loadSdv();
+      if (jp.role !== 'admin' && jp.role !== 'manager') list = list.filter(s=>s.creadoPor===jp.userId);
+      // Filtros opcionales
+      const q = parsed.query||{};
+      if (q.estado) list = list.filter(s=>s.estado===q.estado);
+      list = list.slice().sort((a,b)=>new Date(b.creadoAt)-new Date(a.creadoAt));
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true,solicitudes:list}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/sdv/:id — obtener una solicitud
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const list = loadSdv();
+      const sol = list.find(s=>s.id===id);
+      if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // PATCH /api/sdv/:id — actualizar solicitud [admin/manager: cualquier campo; ventas: solo si pendiente]
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      const list = loadSdv();
+      const idx = list.findIndex(s=>s.id===id);
+      if (idx<0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      const sol = list[idx];
+      const isOps = jp.role==='admin'||jp.role==='manager';
+      if (!isOps && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      if (!isOps && sol.estado!=='pendiente_revision') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La solicitud ya no es editable'})); return; }
+      const now = new Date().toISOString();
+      const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
+        'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada'];
+      EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
+      if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
+      // Ops-only: estado, fechaEntrega, wwpTareas
+      if (isOps) {
+        if (d.estado && d.estado!==sol.estado) {
+          sol.estado = d.estado;
+          sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||''});
+        }
+        if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
+        if (d.wwpTarea) sol.wwpTareas.push({taskId:d.wwpTarea.taskId,titulo:d.wwpTarea.titulo,creadoAt:now});
+      }
+      list[idx]=sol;
+      saveSdv(list);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

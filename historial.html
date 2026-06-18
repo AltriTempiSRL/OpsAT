@@ -4181,6 +4181,119 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
   .wwp-form-input,.wwp-form-sel,.wwp-form-ta{font-size:16px;padding:10px 12px}
   .chat-input{font-size:16px}
 }
+
+/* ═══════════════════════════════════════
+   SOLICITUDES DE DESPACHO VENTAS (SDV)
+   ═══════════════════════════════════════ */
+.sdv-wrap{max-width:760px;margin:0 auto;padding:16px}
+.sdv-tabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0}
+.sdv-tab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-size:var(--fs-base);color:var(--text-2);cursor:pointer;margin-bottom:-1px}
+.sdv-tab.active{color:var(--brand-primary);border-bottom-color:var(--brand-primary);font-weight:600}
+.sdv-panel{display:none}.sdv-panel.active{display:block}
+/* Tipo selector */
+.sdv-tipo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.sdv-tipo-btn{border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 10px;background:var(--surface-2);cursor:pointer;text-align:center;transition:border-color .15s,background .15s;color:var(--text-1)}
+.sdv-tipo-btn:hover{border-color:var(--brand-primary)}
+.sdv-tipo-btn.selected{border-color:var(--brand-primary);background:var(--blue-bg,var(--surface-3));color:var(--brand-primary)}
+.sdv-tipo-btn i{display:block;margin:0 auto 6px;stroke:currentColor}
+.sdv-tipo-btn span{font-size:var(--fs-sm);font-weight:600;display:block}
+.sdv-tipo-btn small{font-size:11px;color:var(--text-2)}
+/* Búsqueda Odoo */
+.sdv-lookup-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:10px}
+.sdv-lookup-row input{flex:1}
+.sdv-lookup-btn{min-height:42px;padding:0 16px;white-space:nowrap}
+.sdv-lookup-info{font-size:var(--fs-sm);color:var(--text-2);margin-bottom:14px;min-height:20px}
+.sdv-lookup-info.ok{color:var(--green-text)}
+.sdv-lookup-info.err{color:var(--red-text)}
+/* Items confirmados */
+.sdv-items-box{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);margin-bottom:16px}
+.sdv-items-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-2);font-weight:600}
+.sdv-item-row{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)}
+.sdv-item-row:last-child{border-bottom:none}
+.sdv-item-img{width:34px;height:34px;border-radius:4px;object-fit:cover;background:var(--surface-3)}
+.sdv-item-img-ph{width:34px;height:34px;border-radius:4px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:10px}
+.sdv-item-name{font-size:var(--fs-sm);font-weight:500;line-height:1.3}
+.sdv-item-sku{font-size:11px;color:var(--text-2)}
+.sdv-item-qty{font-size:var(--fs-sm);font-weight:600;color:var(--text-1);white-space:nowrap}
+.sdv-item-del{background:none;border:none;color:var(--text-3);cursor:pointer;padding:4px;border-radius:4px;line-height:1}
+.sdv-item-del:hover{color:var(--red-text)}
+/* Form grid */
+.sdv-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.sdv-form-grid.cols1{grid-template-columns:1fr}
+.sdv-field{display:flex;flex-direction:column;gap:5px}
+.sdv-field label{font-size:var(--fs-sm);font-weight:600;color:var(--text-2)}
+.sdv-field label .req{color:var(--red-text)}
+.sdv-input,.sdv-sel,.sdv-ta{border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;font-size:var(--fs-base);background:var(--bg);color:var(--text-1);width:100%;box-sizing:border-box;font-family:inherit}
+.sdv-input:focus,.sdv-sel:focus,.sdv-ta:focus{outline:none;border-color:var(--brand-primary)}
+.sdv-ta{resize:vertical;min-height:72px}
+.sdv-check-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);cursor:pointer}
+.sdv-check-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand-primary);flex-shrink:0}
+.sdv-check-row span{font-size:var(--fs-sm);color:var(--text-1);line-height:1.3}
+/* Submit row */
+.sdv-submit-row{margin-top:20px;display:flex;justify-content:flex-end;gap:10px}
+/* Badge estados solicitud */
+.sdv-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.sdv-badge-pendiente{background:var(--amber-bg);color:var(--amber-text)}
+.sdv-badge-proceso{background:var(--blue-bg,var(--surface-3));color:var(--brand-primary)}
+.sdv-badge-despachada{background:var(--green-bg);color:var(--green-text)}
+.sdv-badge-cancelada{background:var(--surface-3);color:var(--text-2)}
+/* Lista mis solicitudes */
+.sdv-list-wrap{display:flex;flex-direction:column;gap:10px}
+.sdv-list-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.sdv-list-card:hover{border-color:var(--brand-primary)}
+.sdv-list-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.sdv-list-folio{font-size:var(--fs-sm);font-weight:700;color:var(--text-1)}
+.sdv-list-meta{font-size:12px;color:var(--text-2)}
+/* Bandeja ops */
+.sdv-bandeja-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.sdv-bandeja-filter{padding:5px 14px;border:1px solid var(--border);border-radius:20px;font-size:var(--fs-sm);background:var(--surface-2);cursor:pointer;color:var(--text-1)}
+.sdv-bandeja-filter.active{background:var(--brand-primary);border-color:var(--brand-primary);color:#fff}
+/* Detalle solicitud (drawer-like panel) */
+.sdv-detail{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.sdv-detail-title{font-size:var(--fs-lg);font-weight:700;margin-bottom:4px}
+.sdv-detail-sub{font-size:var(--fs-sm);color:var(--text-2);margin-bottom:16px}
+.sdv-detail-section{margin-bottom:14px}
+.sdv-detail-section h4{font-size:var(--fs-sm);font-weight:700;color:var(--text-2);margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em}
+.sdv-detail-row{display:flex;gap:6px;align-items:baseline;font-size:var(--fs-sm);margin-bottom:5px}
+.sdv-detail-row dt{color:var(--text-2);min-width:130px;flex-shrink:0}
+.sdv-detail-row dd{color:var(--text-1);margin:0}
+/* Qty editable en items */
+.sdv-item-qty-input{width:52px;border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:var(--fs-sm);font-weight:600;text-align:center;background:var(--bg);color:var(--text-1);-moz-appearance:textfield}
+.sdv-item-qty-input::-webkit-outer-spin-button,.sdv-item-qty-input::-webkit-inner-spin-button{-webkit-appearance:none}
+.sdv-item-qty-max{font-size:10px;color:var(--text-3);display:block;text-align:center}
+/* Fecha custom (date + time selects) */
+.sdv-fecha-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sdv-fecha-date{flex:2;min-width:120px}
+.sdv-fecha-time-wrap{display:flex;gap:4px;align-items:center;flex-shrink:0}
+.sdv-time-sel{border:1px solid var(--border);border-radius:var(--radius);padding:8px 6px;font-size:var(--fs-base);background:var(--bg);color:var(--text-1);font-family:inherit}
+.sdv-time-sel:focus{outline:none;border-color:var(--brand-primary)}
+/* GPS field */
+.sdv-gps-row{display:flex;gap:8px;align-items:center}
+.sdv-gps-row .sdv-input{flex:1}
+.sdv-gps-btn{flex-shrink:0;white-space:nowrap;padding:9px 12px}
+/* Mapa modal SDV */
+.sdv-map-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.sdv-map-modal{background:var(--bg);border-radius:var(--radius);width:100%;max-width:600px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.sdv-map-modal-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sdv-map-modal-header h3{margin:0;font-size:var(--fs-base);font-weight:700}
+.sdv-map-modal-body{padding:14px 18px;flex:1;overflow-y:auto}
+.sdv-map-container{height:320px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);margin-bottom:10px}
+.sdv-map-coords-label{font-size:var(--fs-sm);color:var(--text-2);margin-top:6px}
+.sdv-map-modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+/* Responsive SDV */
+@media(max-width:767px){
+  .sdv-tipo-grid{grid-template-columns:1fr}
+  .sdv-form-grid{grid-template-columns:1fr}
+  .sdv-input,.sdv-sel,.sdv-ta,.sdv-time-sel{font-size:16px}
+  .sdv-submit-row{flex-direction:column}
+  .sdv-submit-row button{width:100%;min-height:48px}
+  .sdv-lookup-row{flex-direction:column;align-items:stretch}
+  .sdv-lookup-btn{min-height:48px}
+  .sdv-fecha-row{flex-direction:column}
+  .sdv-fecha-time-wrap{width:100%}
+  .sdv-gps-row{flex-direction:column;align-items:stretch}
+  .sdv-gps-btn{min-height:48px}
+}
 </style>
 <script>
 (function(){
@@ -4367,6 +4480,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <span class="nav-icon"><i data-lucide="package-minus"></i></span>Despacho de Obsoleto
     </a>
 
+    <div class="sidebar-group" id="navg-ventas">Ventas</div>
+    <a class="nav-item" id="nav-sdv-portal" href="#" onclick="navTo('sdv-portal');return false;">
+      <span class="nav-icon"><i data-lucide="send"></i></span>Solicitud de Despacho
+    </a>
+    <a class="nav-item" id="nav-sdv-bandeja" href="#" onclick="navTo('sdv-bandeja');return false;">
+      <span class="nav-icon"><i data-lucide="inbox"></i></span>Bandeja Solicitudes
+    </a>
+
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
       <div id="hist-user-info" class="sidebar-user"></div>
@@ -4405,6 +4526,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
     <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
     <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Despacho Obsoleto</button>
+    <button class="mob-nav-btn"        id="mob-nav-sdv-portal"  onclick="navTo('sdv-portal')"><i data-lucide="send"></i>Sol. Despacho</button>
+    <button class="mob-nav-btn"        id="mob-nav-sdv-bandeja" onclick="navTo('sdv-bandeja')"><i data-lucide="inbox"></i>Bandeja Solicitudes</button>
   </div>
 
   <main>
@@ -5188,6 +5311,283 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       </div>
 
     </div><!-- /section-despacho-obsoleto -->
+
+    <!-- ══════════════════════════════════════════════════
+         SDV — PORTAL VENTAS (Nueva solicitud + Mis solicitudes)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-sdv-portal" class="page-section" style="display:none">
+      <div class="sdv-wrap">
+        <!-- Tabs: Nueva / Mis solicitudes -->
+        <div class="sdv-tabs">
+          <button class="sdv-tab active" id="sdv-tab-nueva" onclick="sdvSwitchTab('nueva')">Nueva Solicitud</button>
+          <button class="sdv-tab" id="sdv-tab-mis" onclick="sdvSwitchTab('mis')">Mis Solicitudes</button>
+        </div>
+
+        <!-- Panel: Nueva Solicitud -->
+        <div class="sdv-panel active" id="sdv-panel-nueva">
+          <!-- 1. Tipo de solicitud -->
+          <div class="sdv-detail-section">
+            <h4>Tipo de Solicitud <span class="req" style="color:var(--red-text)">*</span></h4>
+            <div class="sdv-tipo-grid">
+              <button class="sdv-tipo-btn" id="sdv-tipo-despacho_cliente" onclick="sdvSetTipo('despacho_cliente')">
+                <i data-lucide="truck" style="width:22px;height:22px"></i>
+                <span>Despacho a Cliente</span>
+                <small>Orden de venta con pick listo</small>
+              </button>
+              <button class="sdv-tipo-btn" id="sdv-tipo-devolucion" onclick="sdvSetTipo('devolucion')">
+                <i data-lucide="rotate-ccw" style="width:22px;height:22px"></i>
+                <span>Devolución</span>
+                <small>RET existente en Odoo</small>
+              </button>
+              <button class="sdv-tipo-btn" id="sdv-tipo-traslado_interno" onclick="sdvSetTipo('traslado_interno')">
+                <i data-lucide="arrow-right-left" style="width:22px;height:22px"></i>
+                <span>Traslado Interno</span>
+                <small>Entre almacenes</small>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Búsqueda Odoo -->
+          <div class="sdv-detail-section" id="sdv-lookup-section" style="display:none">
+            <h4 id="sdv-lookup-label">No. Orden de Venta <span class="req" style="color:var(--red-text)">*</span></h4>
+            <div class="sdv-lookup-row">
+              <input class="sdv-input" id="sdv-ref-input" placeholder="Ej: S09500" autocomplete="off"
+                onkeydown="if(event.key==='Enter')sdvBuscar()">
+              <button class="btn btn-primary sdv-lookup-btn" onclick="sdvBuscar()" id="sdv-buscar-btn">
+                <i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar
+              </button>
+            </div>
+            <div class="sdv-lookup-info" id="sdv-lookup-info"></div>
+          </div>
+
+          <!-- Traslado interno: campo de artículo adicional -->
+          <div id="sdv-articulo-section" style="display:none;margin-bottom:14px">
+            <div class="sdv-lookup-row">
+              <input class="sdv-input" id="sdv-art-input" placeholder="Ref, código de barras o nombre del artículo" autocomplete="off"
+                onkeydown="if(event.key==='Enter')sdvBuscarArticulo()">
+              <button class="btn btn-secondary sdv-lookup-btn" onclick="sdvBuscarArticulo()">
+                <i data-lucide="plus" style="width:15px;height:15px;vertical-align:-2px"></i> Agregar
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. Artículos confirmados -->
+          <div id="sdv-items-section" style="display:none;margin-bottom:16px">
+            <div class="sdv-items-box">
+              <div class="sdv-items-header">
+                <span id="sdv-items-title">Artículos</span>
+                <span id="sdv-items-count" style="font-weight:400;color:var(--text-2)"></span>
+              </div>
+              <div id="sdv-items-list"></div>
+            </div>
+          </div>
+
+          <!-- 4. Datos de entrega (despacho_cliente / devolucion) -->
+          <div id="sdv-entrega-section" style="display:none">
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Cliente / Empresa <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-cliente" placeholder="Nombre del cliente">
+              </div>
+              <div class="sdv-field">
+                <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo">
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa">
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Nombre de Quien Recibe <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-receptor-nombre" placeholder="Nombre completo">
+              </div>
+              <div class="sdv-field">
+                <label>Contacto (tel / WhatsApp) <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-receptor-contacto" placeholder="+1 809 000 0000">
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>Ubicación GPS <span style="color:var(--text-3);font-weight:400">(opcional — para validar en mapa)</span></label>
+                <div class="sdv-gps-row">
+                  <input class="sdv-input" id="sdv-gps" placeholder="Lat, Lng — haz clic en Ver mapa" readonly>
+                  <button type="button" class="btn btn-secondary sdv-gps-btn" onclick="sdvOpenMapModal()">
+                    <i data-lucide="map-pin" style="width:15px;height:15px;vertical-align:-2px"></i> Ver mapa
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Fecha y Hora Deseada <span class="req" style="color:var(--red-text)">*</span></label>
+                <div class="sdv-fecha-row">
+                  <input class="sdv-input sdv-fecha-date" id="sdv-fecha-date" type="date" style="flex:2;min-width:120px">
+                  <div class="sdv-fecha-time-wrap">
+                    <select class="sdv-time-sel" id="sdv-fecha-hr">
+                      <option>01</option><option>02</option><option>03</option><option>04</option>
+                      <option>05</option><option>06</option><option>07</option><option>08</option>
+                      <option>09</option><option selected>10</option><option>11</option><option>12</option>
+                    </select>
+                    <span style="color:var(--text-2);font-weight:700">:</span>
+                    <select class="sdv-time-sel" id="sdv-fecha-min">
+                      <option>00</option><option>15</option><option>30</option><option>45</option>
+                    </select>
+                    <select class="sdv-time-sel" id="sdv-fecha-ampm">
+                      <option>AM</option><option selected>PM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="sdv-field">
+                <label>Vendedor/a <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-vendedora" placeholder="Nombre vendedor/a" readonly
+                  style="background:var(--surface-2);cursor:not-allowed;color:var(--text-2)">
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1" style="margin-bottom:10px">
+              <label class="sdv-check-row" id="sdv-transporte-row">
+                <input type="checkbox" id="sdv-transporte">
+                <span>¿El costo del transporte está incluido en la orden? <strong>(confirmar obligatoriamente)</strong></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 4b. Datos traslado interno -->
+          <div id="sdv-interno-section" style="display:none">
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Desde (almacén origen) <span class="req" style="color:var(--red-text)">*</span></label>
+                <select class="sdv-input" id="sdv-origen" onchange="sdvOrigenChanged()">
+                  <option value="">— Selecciona origen —</option>
+                  <option value="CDP">CDP (La Cuaba)</option>
+                  <option value="PTN">PTN (Piantini)</option>
+                  <option value="NAVE2">NAVE2</option>
+                  <option value="Showroom PTN">Showroom PTN</option>
+                </select>
+              </div>
+              <div class="sdv-field">
+                <label>Hasta (almacén destino) <span class="req" style="color:var(--red-text)">*</span></label>
+                <select class="sdv-input" id="sdv-destino">
+                  <option value="">— Selecciona destino —</option>
+                  <option value="CDP">CDP (La Cuaba)</option>
+                  <option value="PTN">PTN (Piantini)</option>
+                  <option value="NAVE2">NAVE2</option>
+                  <option value="Showroom PTN">Showroom PTN</option>
+                </select>
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Fecha y Hora Deseada <span class="req" style="color:var(--red-text)">*</span></label>
+                <div class="sdv-fecha-row">
+                  <input class="sdv-input sdv-fecha-date" id="sdv-fecha-int-date" type="date" style="flex:2;min-width:120px">
+                  <div class="sdv-fecha-time-wrap">
+                    <select class="sdv-time-sel" id="sdv-fecha-int-hr">
+                      <option>01</option><option>02</option><option>03</option><option>04</option>
+                      <option>05</option><option>06</option><option>07</option><option>08</option>
+                      <option>09</option><option selected>10</option><option>11</option><option>12</option>
+                    </select>
+                    <span style="color:var(--text-2);font-weight:700">:</span>
+                    <select class="sdv-time-sel" id="sdv-fecha-int-min">
+                      <option>00</option><option>15</option><option>30</option><option>45</option>
+                    </select>
+                    <select class="sdv-time-sel" id="sdv-fecha-int-ampm">
+                      <option>AM</option><option selected>PM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="sdv-field">
+                <label>Vendedor/a</label>
+                <input class="sdv-input" id="sdv-vendedora-int" placeholder="Nombre vendedor/a" readonly
+                  style="background:var(--surface-2);cursor:not-allowed;color:var(--text-2)">
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Observaciones + adjuntos (común) -->
+          <div id="sdv-extra-section" style="display:none">
+            <div class="sdv-form-grid cols1" style="margin-bottom:14px">
+              <div class="sdv-field">
+                <label>Observaciones sobre la Mercancía</label>
+                <textarea class="sdv-ta" id="sdv-observaciones" placeholder="Indicaciones especiales, condición, cuidados…"></textarea>
+              </div>
+            </div>
+            <div class="sdv-submit-row">
+              <button class="btn btn-secondary" onclick="sdvReset()">Limpiar</button>
+              <button class="btn btn-primary" onclick="sdvEnviar()" id="sdv-submit-btn">
+                <i data-lucide="send" style="width:15px;height:15px;vertical-align:-2px"></i> Enviar Solicitud
+              </button>
+            </div>
+          </div>
+        </div><!-- /panel-nueva -->
+
+        <!-- GPS Map Modal -->
+        <div id="sdv-map-overlay" class="sdv-map-overlay" style="display:none" onclick="if(event.target===this)sdvCloseMapModal()">
+          <div class="sdv-map-modal" onclick="event.stopPropagation()">
+            <div class="sdv-map-modal-header">
+              <h3><i data-lucide="map-pin" style="width:16px;height:16px;vertical-align:-2px"></i> Validar Ubicación de Entrega</h3>
+              <button class="modal-close" onclick="sdvCloseMapModal()">✕</button>
+            </div>
+            <div class="sdv-map-modal-body">
+              <p style="font-size:var(--fs-sm);color:var(--text-2);margin:0 0 10px">Arrastra el marcador para ajustar la ubicación exacta. Se carga desde la dirección ingresada.</p>
+              <div id="sdv-map-container" class="sdv-map-container"></div>
+              <div id="sdv-map-coords" class="sdv-map-coords-label"></div>
+            </div>
+            <div class="sdv-map-modal-footer">
+              <button class="btn btn-secondary" onclick="sdvCloseMapModal()">Cancelar</button>
+              <button class="btn btn-primary" onclick="sdvConfirmMapLocation()">
+                <i data-lucide="check" style="width:15px;height:15px;vertical-align:-2px"></i> Confirmar ubicación
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel: Mis Solicitudes -->
+        <div class="sdv-panel" id="sdv-panel-mis">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div class="sdv-bandeja-filters" id="sdv-mis-filters">
+              <button class="sdv-bandeja-filter active" onclick="sdvMisFilter(this,'')">Todas</button>
+              <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'pendiente_revision')">Pendientes</button>
+              <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'en_proceso')">En proceso</button>
+              <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'despachada')">Despachadas</button>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="sdvCargarMis()">
+              <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i>
+            </button>
+          </div>
+          <div id="sdv-mis-list" class="sdv-list-wrap"></div>
+          <div id="sdv-mis-detail" style="display:none;margin-top:16px"></div>
+        </div>
+      </div>
+    </div><!-- /section-sdv-portal -->
+
+    <!-- ══════════════════════════════════════════════════
+         SDV — BANDEJA OPS (admin / manager)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-sdv-bandeja" class="page-section" style="display:none">
+      <div class="sdv-wrap" style="max-width:900px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="margin:0;font-size:var(--fs-xl)">Solicitudes de Despacho</h2>
+          <button class="btn btn-sm btn-secondary" onclick="sdvBandejaCargar()">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i> Actualizar
+          </button>
+        </div>
+        <div class="sdv-bandeja-filters" id="sdv-bandeja-filters" style="margin-bottom:16px">
+          <button class="sdv-bandeja-filter active" onclick="sdvBandejaFilter(this,'')">Todas</button>
+          <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'pendiente_revision')">Pendientes</button>
+          <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'en_proceso')">En proceso</button>
+          <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'despachada')">Despachadas</button>
+          <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'cancelada')">Canceladas</button>
+        </div>
+        <div id="sdv-bandeja-list" class="sdv-list-wrap"></div>
+        <div id="sdv-bandeja-detail" style="display:none;margin-top:16px"></div>
+      </div>
+    </div><!-- /section-sdv-bandeja -->
 
     <!-- ══════════════════════════════════════════════════
          REPORTES OPERACIONALES
@@ -6300,6 +6700,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
           <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
+          <label class="perm-check"><input type="checkbox" data-perm="sdv-portal"> Sol. Despacho (Ventas)</label>
         </div>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
         <div class="perm-grid">
@@ -6529,6 +6930,8 @@ function can(perm) {
 function canSection(key) {
   if (!_user) return false;
   if (_user.role === 'admin') return true;
+  // Manager: acceso automático a bandeja ops y portal (para crear en nombre de vendedora)
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal')) return true;
   return !!(_user.sectionPerms||{})[key];
 }
 
@@ -6549,7 +6952,8 @@ function isHistorialUser(u) {
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
 const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas'];
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas',
+  'sdv-portal','sdv-bandeja'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
  *  un usuario solo-WWP (sin secciones de Despachos) NO debe ver el marco lateral de Despachos. */
@@ -6565,7 +6969,8 @@ function applyNavPerms() {
   var sections = [
     'dashboard-ventas','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'validacion','averias','reportes','wwp'
+    'validacion','averias','reportes','wwp',
+    'sdv-portal','sdv-bandeja'
   ];
   sections.forEach(function(s) {
     // "Workforce Labor" (wwp) es el módulo base donde aterrizan TODOS los usuarios
@@ -6584,7 +6989,8 @@ function applyNavPerms() {
     'navg-analisis':    ['devoluciones','validacion','averias'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
-    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto']
+    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
+    'navg-ventas':      ['sdv-portal','sdv-bandeja']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) es visible para todo usuario
@@ -19016,7 +19422,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','sdv-portal','sdv-bandeja'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -19033,7 +19439,9 @@ var NAV_SECTION_MAP={
   'reportes':                'reportes',
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
-  'dashboard-ventas':        'dashboard-ventas'
+  'dashboard-ventas':        'dashboard-ventas',
+  'sdv-portal':              'sdv-portal',
+  'sdv-bandeja':             'sdv-bandeja'
 };
 
 var CURRENT_SECTION='buscar';
@@ -19281,6 +19689,8 @@ function navTo(section){
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
   if(target==='despacho-obsoleto') initDespachoObsoleto();
+  if(target==='sdv-portal') sdvInitPortal();
+  if(target==='sdv-bandeja') sdvBandejaCargar();
   if(target==='almacen-mapa') {
     var iframe = document.getElementById('almacen-mapa-iframe');
     if (iframe && !iframe.src) iframe.src = '/almacen-mapa.html';
@@ -19362,7 +19772,7 @@ function setHistorialUser() {
   // Para usuarios no-admin: navegar a la primera sección permitida
   // Usar navTo() para que se ejecuten los init específicos de cada sección (ej: initReposicion)
   if (_user.role !== 'admin') {
-    var ORDER = ['buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes',
+    var ORDER = ['sdv-portal','buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes',
       'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
     var first = ORDER.find(function(s){ return canSection(s); });
     if (first) { navTo(first); }
@@ -24806,6 +25216,566 @@ document.addEventListener('keydown', function(e){
 document.getElementById('devolver-modal') && document.getElementById('devolver-modal').addEventListener('click', function(e){
   if (e.target === this) closeDevolverModal();
 });
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// SOLICITUDES DE DESPACHO VENTAS (SDV)
+// ════════════════════════════════════════════════════════════════════════
+
+var _sdvTipo = '';             // tipo seleccionado
+var _sdvItems = [];            // artículos confirmados (de Odoo)
+var _sdvOrderRef = '';         // ref de orden resuelta
+var _sdvOrigenPrev = '';       // valor previo del select origen (para revertir)
+var _sdvMisFiltro = '';        // filtro activo en "Mis solicitudes"
+var _sdvBandejaFiltro = '';    // filtro activo en bandeja ops
+var _sdvAllSols = [];          // cache solicitudes bandeja
+
+// ── Helpers de badge ────────────────────────────────────────────────────
+var SDV_ESTADO_LABEL = {
+  pendiente_revision: 'Pendiente revisión',
+  en_proceso: 'En proceso',
+  despachada: 'Despachada',
+  cancelada: 'Cancelada'
+};
+var SDV_TIPO_LABEL = {
+  despacho_cliente: 'Despacho a cliente',
+  devolucion: 'Devolución',
+  traslado_interno: 'Traslado interno'
+};
+function sdvBadge(estado) {
+  var cls = estado==='pendiente_revision'?'sdv-badge-pendiente':
+            estado==='en_proceso'?'sdv-badge-proceso':
+            estado==='despachada'?'sdv-badge-despachada':'sdv-badge-cancelada';
+  return '<span class="sdv-badge '+cls+'">'+(SDV_ESTADO_LABEL[estado]||estado)+'</span>';
+}
+function sdvFmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'})
+           +' '+ d.toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',hour12:true});
+  } catch { return iso; }
+}
+
+// ── Helpers fecha AM/PM ───────────────────────────────────────────────────
+function sdvGetFecha(prefix) {
+  var d = (document.getElementById(prefix+'-date')||{}).value || '';
+  if (!d) return '';
+  var hr  = parseInt((document.getElementById(prefix+'-hr')||{}).value||'12', 10);
+  var min = (document.getElementById(prefix+'-min')||{}).value || '00';
+  var ampm = (document.getElementById(prefix+'-ampm')||{}).value || 'AM';
+  if (ampm==='PM' && hr<12) hr+=12;
+  if (ampm==='AM' && hr===12) hr=0;
+  return d+'T'+String(hr).padStart(2,'0')+':'+min+':00';
+}
+
+// ── Cambiar cantidad de artículo ──────────────────────────────────────────
+function sdvSetQty(idx, val) {
+  var item = _sdvItems.find(function(it){ return it._idx===idx; });
+  if (!item) return;
+  var max = item.maxQty || item.quantity;
+  var n = Math.max(1, Math.min(max, parseInt(val,10)||1));
+  item.quantity = n;
+  // Corregir el input si se ingresó valor fuera de rango
+  var inp = document.getElementById('sdv-qty-'+idx);
+  if (inp && parseInt(inp.value,10) !== n) inp.value = n;
+}
+
+// ── Inicializar portal (al navegar a sdv-portal) ─────────────────────────
+function sdvInitPortal() {
+  // Pre-llenar vendedora con el usuario logueado
+  var name = (_user && _user.name) || '';
+  var el1 = document.getElementById('sdv-vendedora');
+  var el2 = document.getElementById('sdv-vendedora-int');
+  if (el1) el1.value = name;
+  if (el2) el2.value = name;
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── Cambio de tab (Nueva / Mis solicitudes) ───────────────────────────────
+function sdvSwitchTab(tab) {
+  ['nueva','mis'].forEach(function(t) {
+    var tb = document.getElementById('sdv-tab-'+t);
+    var pn = document.getElementById('sdv-panel-'+t);
+    if (tb) tb.classList.toggle('active', t===tab);
+    if (pn) pn.classList.toggle('active', t===tab);
+  });
+  if (tab==='mis') sdvCargarMis();
+}
+
+// ── Seleccionar tipo de solicitud ─────────────────────────────────────────
+function sdvSetTipo(tipo) {
+  _sdvTipo = tipo;
+  _sdvItems = [];
+  _sdvOrderRef = '';
+  // Resaltar botón seleccionado
+  ['despacho_cliente','devolucion','traslado_interno'].forEach(function(t) {
+    var btn = document.getElementById('sdv-tipo-'+t);
+    if (btn) btn.classList.toggle('selected', t===tipo);
+  });
+  // Label del campo de búsqueda
+  var labels = {
+    despacho_cliente: 'No. Orden de Venta <span style="color:var(--red-text)">*</span>',
+    devolucion: 'No. Orden de Venta (para buscar el RET) <span style="color:var(--red-text)">*</span>',
+    traslado_interno: 'No. Orden o Ref. de Artículo <span style="color:var(--red-text)">*</span>'
+  };
+  var lbl = document.getElementById('sdv-lookup-label');
+  if (lbl) lbl.innerHTML = labels[tipo] || '';
+  // Mostrar secciones
+  _sdv$('sdv-lookup-section').style.display = '';
+  _sdv$('sdv-items-section').style.display = 'none';
+  _sdv$('sdv-items-list').innerHTML = '';
+  _sdv$('sdv-lookup-info').className = 'sdv-lookup-info';
+  _sdv$('sdv-lookup-info').textContent = '';
+  _sdv$('sdv-ref-input').value = '';
+  // Secciones de datos según tipo
+  _sdv$('sdv-entrega-section').style.display = (tipo==='traslado_interno') ? 'none' : 'none';
+  _sdv$('sdv-interno-section').style.display = (tipo==='traslado_interno') ? 'none' : 'none';
+  _sdv$('sdv-extra-section').style.display = 'none';
+  // Carrito de artículos adicionales para traslado interno
+  _sdv$('sdv-articulo-section').style.display = (tipo==='traslado_interno') ? '' : 'none';
+  if (window.lucide) lucide.createIcons();
+}
+
+function _sdv$(id) { return document.getElementById(id) || {}; }
+
+// ── Buscar en Odoo ────────────────────────────────────────────────────────
+async function sdvBuscar() {
+  var ref = (_sdv$('sdv-ref-input').value||'').trim();
+  if (!ref) { sdvInfo('Ingresa el número de orden', 'err'); return; }
+  if (!_sdvTipo) { sdvInfo('Selecciona el tipo de solicitud primero', 'err'); return; }
+  var btn = _sdv$('sdv-buscar-btn');
+  btn.disabled = true; btn.textContent = 'Buscando…';
+  sdvInfo('Consultando Odoo…', '');
+  try {
+    var url = '/api/sdv/lookup?ref='+encodeURIComponent(ref)+'&tipo='+encodeURIComponent(_sdvTipo);
+    var r = await authFetch(url);
+    var d = await r.json();
+    if (!r.ok || !d.ok) { sdvInfo(d.error||'No encontrado en Odoo', 'err'); return; }
+    _sdvOrderRef = d.orderRef || d.retRef || ref;
+    _sdvItems = (d.items||[]).map(function(it,i){ return Object.assign({},it,{_idx:i, maxQty:it.quantity}); });
+    // Auto-llenar campos
+    if (d.client) _sdv$('sdv-cliente').value = d.client;
+    if (d.salesperson) { _sdv$('sdv-vendedora').value = d.salesperson; _sdv$('sdv-vendedora-int').value = d.salesperson; }
+    if (d.deliveryAddress) _sdv$('sdv-direccion').value = d.deliveryAddress;
+    if (d.city) _sdv$('sdv-ciudad').value = d.city;
+    if (d.phone) _sdv$('sdv-receptor-contacto').value = d.phone;
+    // Info de resultado
+    var infoMsg = _sdvOrderRef ? ('Orden: '+_sdvOrderRef) : '';
+    if (d.tipo==='devolucion') infoMsg = 'RET: '+d.retRef+' ('+d.retState+') · Orden: '+d.orderRef;
+    if (d.noPick && _sdvTipo==='despacho_cliente') { sdvInfo('Sin pick ASSIGNED en Odoo para esta orden', 'err'); return; }
+    sdvInfo(infoMsg + ' · ' + _sdvItems.length + ' artículo(s)', 'ok');
+    sdvRenderItems();
+    // Mostrar formulario de datos
+    _sdv$('sdv-entrega-section').style.display = (_sdvTipo==='traslado_interno') ? 'none' : '';
+    _sdv$('sdv-interno-section').style.display = (_sdvTipo==='traslado_interno') ? '' : 'none';
+    _sdv$('sdv-extra-section').style.display = '';
+  } catch(e) {
+    sdvInfo('Error: '+e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar';
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+// ── Buscar artículo individual (traslado interno) ─────────────────────────
+async function sdvBuscarArticulo() {
+  var ref = (_sdv$('sdv-art-input').value||'').trim();
+  if (!ref) return;
+  var origen = (_sdv$('sdv-origen').value||'').trim();
+  if (!origen) { toast('Selecciona el almacén de origen primero'); _sdv$('sdv-origen').focus(); return; }
+  try {
+    var url = '/api/sdv/lookup?ref='+encodeURIComponent(ref)+'&tipo=traslado_interno&desde='+encodeURIComponent(origen);
+    var r = await authFetch(url);
+    var d = await r.json();
+    if (!r.ok||!d.ok||!d.items||!d.items.length) { toast(d.error||'Artículo no encontrado'); return; }
+    var it = d.items[0];
+    // Mostrar stock disponible en origen
+    if (d.stockOrigen !== null && d.stockOrigen !== undefined) {
+      if (d.stockOrigen === 0) { toast('Sin stock disponible en '+origen+' para este artículo'); return; }
+      it.maxQty = d.stockOrigen;
+      it.quantity = 1;
+    }
+    // Evitar duplicado
+    if (_sdvItems.some(function(x){ return x.odoo_product_id===it.odoo_product_id; })) { toast('Artículo ya en la lista'); return; }
+    it._idx = _sdvItems.length;
+    _sdvItems.push(it);
+    _sdv$('sdv-art-input').value = '';
+    sdvRenderItems();
+    _sdv$('sdv-interno-section').style.display = '';
+    _sdv$('sdv-extra-section').style.display = '';
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Al cambiar almacén origen — limpiar artículos (maxQty cambiaría) ──────
+function sdvOrigenChanged() {
+  if (_sdvItems.length) {
+    if (confirm('Cambiar el almacén origen limpiará los artículos ya agregados. ¿Continuar?')) {
+      _sdvItems = [];
+      sdvRenderItems();
+      _sdv$('sdv-extra-section').style.display = 'none';
+    } else {
+      // Revertir select al valor anterior
+      _sdv$('sdv-origen').value = _sdvOrigenPrev || '';
+    }
+  }
+  _sdvOrigenPrev = _sdv$('sdv-origen').value;
+}
+
+// ── Render lista de artículos ─────────────────────────────────────────────
+function sdvRenderItems() {
+  var list = _sdv$('sdv-items-list');
+  var sec  = _sdv$('sdv-items-section');
+  var cnt  = _sdv$('sdv-items-count');
+  if (!_sdvItems.length) { sec.style.display='none'; return; }
+  sec.style.display = '';
+  cnt.textContent = _sdvItems.length + ' artículo(s)';
+  var canDel = _sdvTipo === 'traslado_interno'; // solo traslado interno permite quitar
+  list.innerHTML = _sdvItems.map(function(it) {
+    var img = it.image
+      ? '<img class="sdv-item-img" src="'+it.image+'" alt="">'
+      : '<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>';
+    var maxQ = it.maxQty || it.quantity;
+    var ctrl = canDel
+      ? '<button class="sdv-item-del" onclick="sdvQuitarItem('+it._idx+')" title="Quitar"><i data-lucide="x" style="width:13px;height:13px"></i></button>'
+      : '<div style="text-align:center"><input type="number" id="sdv-qty-'+it._idx+'" class="sdv-item-qty-input" min="1" max="'+maxQ+'" value="'+it.quantity+'" onchange="sdvSetQty('+it._idx+',this.value)" onclick="event.stopPropagation()"><span class="sdv-item-qty-max">máx '+maxQ+'</span></div>';
+    return '<div class="sdv-item-row">'+img+
+      '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
+      ctrl+'</div>';
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function sdvQuitarItem(idx) {
+  _sdvItems = _sdvItems.filter(function(it){ return it._idx!==idx; });
+  _sdvItems.forEach(function(it,i){ it._idx=i; });
+  sdvRenderItems();
+  if (!_sdvItems.length) { _sdv$('sdv-extra-section').style.display='none'; _sdv$('sdv-interno-section').style.display='none'; }
+}
+
+function sdvInfo(msg, cls) {
+  var el = _sdv$('sdv-lookup-info');
+  el.textContent = msg;
+  el.className = 'sdv-lookup-info'+(cls?' '+cls:'');
+}
+
+// ── Enviar solicitud ──────────────────────────────────────────────────────
+async function sdvEnviar() {
+  if (!_sdvTipo) { toast('Selecciona el tipo de solicitud'); return; }
+  // Validaciones por tipo
+  if (_sdvTipo !== 'traslado_interno') {
+    var cliente = (_sdv$('sdv-cliente').value||'').trim();
+    var ciudad  = (_sdv$('sdv-ciudad').value||'').trim();
+    var dir     = (_sdv$('sdv-direccion').value||'').trim();
+    var recNom  = (_sdv$('sdv-receptor-nombre').value||'').trim();
+    var recCont = (_sdv$('sdv-receptor-contacto').value||'').trim();
+    var fecha   = sdvGetFecha('sdv-fecha');
+    if (!cliente||!ciudad||!dir||!recNom||!recCont||!fecha) { toast('Completa todos los campos obligatorios'); return; }
+    if (!_sdv$('sdv-transporte').checked && !confirm('¿Confirmas que el costo de transporte NO está incluido en la orden?')) return;
+  } else {
+    var origen  = (_sdv$('sdv-origen').value||'').trim();
+    var destino = (_sdv$('sdv-destino').value||'').trim();
+    var fechaI  = sdvGetFecha('sdv-fecha-int');
+    if (!origen||!destino||!fechaI) { toast('Completa almacén origen, destino y fecha'); return; }
+    if (!_sdvItems.length) { toast('Agrega al menos un artículo'); return; }
+  }
+  var btn = _sdv$('sdv-submit-btn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    var body = {
+      tipoSolicitud: _sdvTipo,
+      odooOrderRef: _sdvOrderRef,
+      articulosOdoo: _sdvItems.map(function(it){ return {item_id:it.item_id,odoo_product_id:it.odoo_product_id,product_name:it.product_name,sku:it.sku||'',quantity:it.quantity}; }),
+    };
+    if (_sdvTipo!=='traslado_interno') {
+      Object.assign(body,{
+        clienteNombre: _sdv$('sdv-cliente').value.trim(),
+        ciudadEntrega: _sdv$('sdv-ciudad').value.trim(),
+        direccionEntrega: _sdv$('sdv-direccion').value.trim(),
+        receptorNombre: _sdv$('sdv-receptor-nombre').value.trim(),
+        receptorContacto: _sdv$('sdv-receptor-contacto').value.trim(),
+        transporteIncluido: _sdv$('sdv-transporte').checked,
+        observaciones: _sdv$('sdv-observaciones').value.trim(),
+        gpsCoords: (_sdv$('sdv-gps').value||'').trim() || null,
+        fechaSolicitudDeseada: sdvGetFecha('sdv-fecha'),
+      });
+    } else {
+      Object.assign(body,{
+        ubicacionOrigen: _sdv$('sdv-origen').value.trim(),
+        ubicacionDestino: _sdv$('sdv-destino').value.trim(),
+        observaciones: _sdv$('sdv-observaciones').value.trim(),
+        fechaSolicitudDeseada: sdvGetFecha('sdv-fecha-int'),
+      });
+    }
+    var r = await authFetch('/api/sdv','POST',body);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al enviar'); return; }
+    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones', 'success');
+    sdvReset(true);
+    sdvSwitchTab('mis');
+  } catch(e) { toast('Error: '+e.message); }
+  finally { btn.disabled=false; btn.innerHTML='<i data-lucide="send" style="width:15px;height:15px;vertical-align:-2px"></i> Enviar Solicitud'; if(window.lucide)lucide.createIcons(); }
+}
+
+function sdvReset(skipConfirm) {
+  if (!skipConfirm && (_sdvTipo||_sdvItems.length)) {
+    if (!confirm('¿Limpiar el formulario? Se perderán los datos ingresados.')) return;
+  }
+  _sdvTipo=''; _sdvItems=[]; _sdvOrderRef='';
+  ['despacho_cliente','devolucion','traslado_interno'].forEach(function(t){
+    var b=document.getElementById('sdv-tipo-'+t); if(b) b.classList.remove('selected');
+  });
+  ['sdv-lookup-section','sdv-items-section','sdv-entrega-section','sdv-interno-section',
+   'sdv-extra-section','sdv-articulo-section'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+  ['sdv-ref-input','sdv-art-input','sdv-cliente','sdv-ciudad','sdv-direccion',
+   'sdv-receptor-nombre','sdv-receptor-contacto','sdv-observaciones','sdv-gps'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  // Selects de almacén (traslado interno)
+  var selOrigen=document.getElementById('sdv-origen'); if(selOrigen) selOrigen.value='';
+  var selDestino=document.getElementById('sdv-destino'); if(selDestino) selDestino.value='';
+  _sdvOrigenPrev='';
+  // Limpiar fecha entrega
+  ['sdv-fecha-date','sdv-fecha-int-date'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['sdv-fecha-hr','sdv-fecha-int-hr'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='10'; });
+  ['sdv-fecha-min','sdv-fecha-int-min'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='00'; });
+  ['sdv-fecha-ampm','sdv-fecha-int-ampm'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='PM'; });
+  var chk=document.getElementById('sdv-transporte'); if(chk) chk.checked=false;
+  var info=document.getElementById('sdv-lookup-info'); if(info){info.textContent='';info.className='sdv-lookup-info';}
+  // Re-llenar vendedora
+  var name=(_user&&_user.name)||'';
+  var v1=document.getElementById('sdv-vendedora'); if(v1) v1.value=name;
+  var v2=document.getElementById('sdv-vendedora-int'); if(v2) v2.value=name;
+}
+
+// ── Mapa GPS (modal SDV) ──────────────────────────────────────────────────
+var _sdvMapInstance = null, _sdvMapMarker = null;
+
+async function sdvOpenMapModal() {
+  var overlay = document.getElementById('sdv-map-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  await _ensureLeaflet();
+  if (!_sdvMapInstance) {
+    _sdvMapInstance = L.map('sdv-map-container').setView([18.4861, -69.9312], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
+    }).addTo(_sdvMapInstance);
+    _sdvMapMarker = L.marker([18.4861, -69.9312], {draggable: true}).addTo(_sdvMapInstance);
+    _sdvMapMarker.on('dragend', function() {
+      var ll = _sdvMapMarker.getLatLng();
+      var coordsEl = document.getElementById('sdv-map-coords');
+      if (coordsEl) coordsEl.textContent = 'Lat: '+ll.lat.toFixed(6)+', Lng: '+ll.lng.toFixed(6);
+    });
+  }
+  setTimeout(function(){ if(_sdvMapInstance) _sdvMapInstance.invalidateSize(); }, 200);
+  // Si ya hay coords guardadas, posicionar ahí sin geocodificar
+  var saved = (_sdv$('sdv-gps').value||'').trim();
+  if (saved) {
+    var parts = saved.split(',');
+    if (parts.length===2) {
+      var slat = parseFloat(parts[0]), slng = parseFloat(parts[1]);
+      if (!isNaN(slat) && !isNaN(slng)) {
+        _sdvMapInstance.setView([slat, slng], 16);
+        _sdvMapMarker.setLatLng([slat, slng]);
+        var coordsEl = document.getElementById('sdv-map-coords');
+        if (coordsEl) coordsEl.textContent = 'Lat: '+slat.toFixed(6)+', Lng: '+slng.toFixed(6);
+      }
+    }
+    return;
+  }
+  // Intentar geocodificar la dirección actual (solo si no hay coords manuales)
+  var dir = (_sdv$('sdv-direccion').value||'').trim();
+  var ciudad = (_sdv$('sdv-ciudad').value||'').trim();
+  if (dir || ciudad) {
+    var q = encodeURIComponent([(dir||''), (ciudad||''), 'República Dominicana'].filter(Boolean).join(' '));
+    fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&limit=1')
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (data && data[0]) {
+          var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+          _sdvMapInstance.setView([lat, lng], 16);
+          _sdvMapMarker.setLatLng([lat, lng]);
+          var coordsEl = document.getElementById('sdv-map-coords');
+          if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6)+' (basado en dirección)';
+        }
+      }).catch(function(){});
+  }
+}
+
+function sdvCloseMapModal() {
+  var overlay = document.getElementById('sdv-map-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function sdvConfirmMapLocation() {
+  if (!_sdvMapMarker) return;
+  var ll = _sdvMapMarker.getLatLng();
+  var coords = ll.lat.toFixed(6)+', '+ll.lng.toFixed(6);
+  _sdv$('sdv-gps').value = coords;
+  sdvCloseMapModal();
+}
+
+// ── Mis Solicitudes ───────────────────────────────────────────────────────
+async function sdvCargarMis() {
+  var list = document.getElementById('sdv-mis-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">Cargando…</div>';
+  try {
+    var url = '/api/sdv'+((_sdvMisFiltro)?'?estado='+_sdvMisFiltro:'');
+    var r = await authFetch(url);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error al cargar</div>'; return; }
+    var sols = d.solicitudes||[];
+    if (!sols.length) { list.innerHTML='<div style="color:var(--text-2);padding:20px;text-align:center">Sin solicitudes'+((_sdvMisFiltro)?' en este estado':'')+'</div>'; return; }
+    list.innerHTML = sols.map(function(s){ return sdvCardHtml(s, 'mis'); }).join('');
+    if (window.lucide) lucide.createIcons();
+  } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+
+function sdvMisFilter(btn, estado) {
+  _sdvMisFiltro = estado;
+  document.querySelectorAll('#sdv-mis-filters .sdv-bandeja-filter').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('sdv-mis-detail').style.display='none';
+  sdvCargarMis();
+}
+
+// ── Bandeja ops ───────────────────────────────────────────────────────────
+async function sdvBandejaCargar() {
+  var list = document.getElementById('sdv-bandeja-list');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">Cargando…</div>';
+  try {
+    var url = '/api/sdv'+((_sdvBandejaFiltro)?'?estado='+_sdvBandejaFiltro:'');
+    var r = await authFetch(url);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error al cargar</div>'; return; }
+    _sdvAllSols = d.solicitudes||[];
+    var sols = _sdvAllSols;
+    if (!sols.length) { list.innerHTML='<div style="color:var(--text-2);padding:20px;text-align:center">Sin solicitudes</div>'; return; }
+    list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
+    if (window.lucide) lucide.createIcons();
+  } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+
+function sdvBandejaFilter(btn, estado) {
+  _sdvBandejaFiltro = estado;
+  document.querySelectorAll('#sdv-bandeja-filters .sdv-bandeja-filter').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('sdv-bandeja-detail').style.display='none';
+  sdvBandejaCargar();
+}
+
+// ── Card HTML (lista) ──────────────────────────────────────────────────────
+function sdvCardHtml(s, ctx) {
+  var tipoLabel = SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud;
+  var ref = s.odooOrderRef ? (' · '+s.odooOrderRef) : (s.ubicacionOrigen?s.ubicacionOrigen+'→'+s.ubicacionDestino:'');
+  var arts = (s.articulosOdoo||[]).length;
+  return '<div class="sdv-list-card" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
+    '<div class="sdv-list-card-top">'+
+      '<span class="sdv-list-folio">'+s.folio+'</span>'+
+      sdvBadge(s.estado)+
+    '</div>'+
+    '<div class="sdv-list-meta">'+tipoLabel+ref+'</div>'+
+    '<div class="sdv-list-meta" style="margin-top:3px">'+
+      (s.clienteNombre?s.clienteNombre+' · ':'')+(arts?arts+' artículo(s) · ':'')+
+      (s.creadoNombre||'')+'  ·  '+sdvFmtDate(s.creadoAt)+
+    '</div>'+
+  '</div>';
+}
+
+// ── Detalle solicitud ─────────────────────────────────────────────────────
+async function sdvVerDetalle(id, ctx) {
+  var detailEl = document.getElementById('sdv-'+(ctx==='bandeja'?'bandeja':'mis')+'-detail');
+  if (!detailEl) return;
+  detailEl.innerHTML = '<div style="color:var(--text-2);padding:16px">Cargando…</div>';
+  detailEl.style.display = '';
+  detailEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+  try {
+    var r = await authFetch('/api/sdv/'+id);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+(d.error||'No encontrado')+'</div>'; return; }
+    var s = d.solicitud;
+    var isOps = _user&&(_user.role==='admin'||_user.role==='manager');
+    var artHtml = (s.articulosOdoo||[]).map(function(it){
+      return '<div class="sdv-item-row" style="background:var(--surface-2);border-radius:var(--radius);margin-bottom:6px">'+
+        '<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>'+
+        '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
+        '<span class="sdv-item-qty">×'+it.quantity+'</span></div>';
+    }).join('');
+    var acciones = '';
+    if (isOps && s.estado==='pendiente_revision') {
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Convertir en Tarea WWP</button>'+
+        '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'en_proceso\')">Marcar En Proceso</button>'+
+        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvCambiarEstado(\''+s.id+'\',\'cancelada\')">Cancelar</button>'+
+      '</div>';
+    } else if (isOps && s.estado==='en_proceso') {
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
+        '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
+      '</div>';
+    }
+    detailEl.innerHTML =
+      '<div class="sdv-detail">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">'+
+          '<div class="sdv-detail-title">'+s.folio+'</div>'+
+          sdvBadge(s.estado)+
+          '<button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="document.getElementById(\'sdv-'+(ctx==='bandeja'?'bandeja':'mis')+'-detail\').style.display=\'none\'">✕</button>'+
+        '</div>'+
+        '<div class="sdv-detail-sub">'+(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre+'</div>'+
+        '<div class="sdv-detail-section"><h4>Artículos</h4>'+(artHtml||'<span style="color:var(--text-2)">Sin artículos</span>')+'</div>'+
+        '<div class="sdv-detail-section"><h4>Datos</h4>'+
+          (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+s.clienteNombre+'</dd></div>':'')+
+          (s.ciudadEntrega?'<div class="sdv-detail-row"><dt>Ciudad</dt><dd>'+s.ciudadEntrega+'</dd></div>':'')+
+          (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+s.direccionEntrega+'</dd></div>':'')+
+          (s.receptorNombre?'<div class="sdv-detail-row"><dt>Receptor</dt><dd>'+s.receptorNombre+'</dd></div>':'')+
+          (s.receptorContacto?'<div class="sdv-detail-row"><dt>Contacto</dt><dd>'+s.receptorContacto+'</dd></div>':'')+
+          (s.ubicacionOrigen?'<div class="sdv-detail-row"><dt>Desde</dt><dd>'+s.ubicacionOrigen+'</dd></div>':'')+
+          (s.ubicacionDestino?'<div class="sdv-detail-row"><dt>Hasta</dt><dd>'+s.ubicacionDestino+'</dd></div>':'')+
+          '<div class="sdv-detail-row"><dt>Transporte incluido</dt><dd>'+(s.transporteIncluido?'Sí':'No')+'</dd></div>'+
+          (s.fechaSolicitudDeseada?'<div class="sdv-detail-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>':'')+
+          (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+s.gpsCoords+' 🗺</a></dd></div>':'')+
+          (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+s.observaciones+'</dd></div>':'')+
+          (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
+        '</div>'+
+        (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+t.titulo+'</dd></div>'; }).join('')+'</div>':'')+
+        acciones+
+      '</div>';
+    if (window.lucide) lucide.createIcons();
+  } catch(e) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+e.message+'</div>'; }
+}
+
+// ── Cambiar estado (ops) ──────────────────────────────────────────────────
+async function sdvCambiarEstado(id, estado) {
+  var labels = {en_proceso:'En proceso',despachada:'Despachada',cancelada:'Cancelada'};
+  if (!confirm('¿Marcar esta solicitud como "'+labels[estado]+'"?')) return;
+  try {
+    var r = await authFetch('/api/sdv/'+id,'PATCH',{estado:estado});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al actualizar'); return; }
+    toast('Estado actualizado a: '+(labels[estado]||estado));
+    sdvBandejaCargar();
+    document.getElementById('sdv-bandeja-detail').style.display='none';
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Convertir en tarea WWP ────────────────────────────────────────────────
+async function sdvConvertirTarea(id) {
+  try {
+    var r = await authFetch('/api/sdv/'+id);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast('Error: '+(d.error||'no encontrado')); return; }
+    var s = d.solicitud;
+    var titulo = (SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+(s.clienteNombre?' · '+s.clienteNombre:s.ubicacionOrigen?' · '+s.ubicacionOrigen+'→'+s.ubicacionDestino:'')+(s.odooOrderRef?' · '+s.odooOrderRef:'');
+    // Marcar en proceso si estaba pendiente
+    if (s.estado==='pendiente_revision') await authFetch('/api/sdv/'+id,'PATCH',{estado:'en_proceso'});
+    // Ir a WWP con los datos pre-llenados
+    var tipo = s.tipoSolicitud==='devolucion'?'general':'dispatch_order';
+    abrirNuevaTareaWWP(s.odooOrderRef||'', titulo, s.ciudadEntrega||s.ubicacionDestino||'', tipo);
+    toast('Redirigiendo a Workforce Labor para crear la tarea…');
+  } catch(e) { toast('Error: '+e.message); }
+}
 </script>
 
 <!-- ── Modal: Devolver tarea ─────────────────────────────────────────────── -->
