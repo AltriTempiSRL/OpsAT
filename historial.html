@@ -9231,12 +9231,13 @@ function renderListRow(t) {
     return `<span class="task-meta-chip ${extraClass}">${icon || ''}<span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(val)}</span></span>`;
   };
   if (mgr) meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(mgr,15)}</span><span class="meta-label">Responsable</span><span class="meta-value">${esc(mgr.name.split(' ')[0])}</span></span>`);
-  // Auxiliares bajo el responsable
+  // Auxiliares — avatar + nombre, mismo estilo que el responsable
   const auxIds = taskAuxiliaryIds(t);
-  if (auxIds.length) {
-    const aNames = auxIds.map(id => { const u=(_authUsers||[]).find(u=>u.id===id); return u?u.name.split(' ')[0]:'?'; }).join(', ');
-    meta.push(chip('Auxiliares', aNames));
-  }
+  auxIds.forEach(id => {
+    const u = (_authUsers||[]).find(u=>u.id===id);
+    if (!u) return;
+    meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`);
+  });
   if (t.odooRef) meta.push(chip('Orden Odoo', t.odooRef));
   // Tipo eliminado — redundante con el encabezado de grupo
   if (t.dueDate && t.type!=='staffing') meta.push(chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':''));
