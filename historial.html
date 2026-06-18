@@ -8389,7 +8389,7 @@ function filterTasks() {
       if (fd==='week'    && !(t.dueDate && t.dueDate >= today && t.dueDate <= endOfWeek)) return false;
       if (fd==='nodate'  && t.dueDate) return false;
     }
-    if (q && !(t.title.toLowerCase().includes(q)||(t.odooRef||'').toLowerCase().includes(q)||(t.location||'').toLowerCase().includes(q))) return false;
+    if (q && !(t.title.toLowerCase().includes(q)||(t.odooRef||'').toLowerCase().includes(q)||(t.location||'').toLowerCase().includes(q)||(t.managerName||'').toLowerCase().includes(q)||(t.requester||'').toLowerCase().includes(q)||taskAuxiliaryIds(t).map(id=>{const u=(_authUsers||[]).find(x=>x.id===id);return u?u.name.toLowerCase():'';}).join(' ').includes(q))) return false;
     return true;
   });
 
@@ -9387,9 +9387,17 @@ function renderTaskCard(t) {
     fields.push(`<div class="tc-field tc-field-full"><span class="tc-label">Auxiliares</span><span class="tc-value"><i data-lucide="users" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${esc(aNames)}</span></div>`);
   }
 
+  // Meta bajo el título: solicitante y periodo (solo staffing)
+  const cardSubMeta = [];
+  if (t.requester) cardSubMeta.push(`<span style="font-weight:700;color:var(--text-2)">${esc(t.requester)}</span>`);
+  if (t.staffStart) cardSubMeta.push(`<span style="color:var(--text-muted)">${esc(t.staffStart)}${t.staffEnd&&t.staffEnd!==t.staffStart?' → '+t.staffEnd:''}${t.staffFrom?' · '+t.staffFrom+(t.staffTo?'-'+t.staffTo:''):''}${t.totalHours!=null?' · '+t.totalHours+'h':''}</span>`);
+
   return `<div class="task-card" data-status="${t.status}" onclick="openDrawer('${t.id}')" style="${tier?DUE_CARD_STYLE[tier]:''}">
     <div class="tc-header">
-      <div class="tc-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:6px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
+      <div>
+        <div class="tc-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:6px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
+        ${cardSubMeta.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:11.5px">${cardSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>` : ''}
+      </div>
       ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
     </div>
     ${subs.length ? `<div class="tc-progress"><div class="tc-progress-bar" style="width:${progPct}%"></div></div>` : ''}
@@ -9401,10 +9409,6 @@ function renderTaskCard(t) {
       <div class="tc-field">
         <span class="tc-label">Prioridad</span>
         ${priorityBadge}
-      </div>
-      <div class="tc-field">
-        <span class="tc-label">Tipo</span>
-        <span class="tc-value">${typeIcon}${TYPE_LABELS[t.type]||t.type}</span>
       </div>
       ${fields.join('')}
     </div>
