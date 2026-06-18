@@ -2661,6 +2661,7 @@ body{font-family:var(--font);min-height:100dvh}
 .task-card[data-status="validated"]  {border-left-color:var(--purple-dot)}
 /* Header: título + badge vencida */
 .tc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
+.tc-header>div{min-width:0;flex:1}
 .tc-title{font-size:15px;font-weight:700;color:var(--text);line-height:1.35;letter-spacing:-.1px}
 .tc-overdue-pill{font-size:10px;font-weight:700;background:#fef2f2;color:var(--red);border:1px solid #fecaca;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
 /* Barra de progreso (subtareas) */
@@ -9396,7 +9397,7 @@ function renderTaskCard(t) {
     <div class="tc-header">
       <div>
         <div class="tc-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:6px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
-        ${cardSubMeta.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:11.5px">${cardSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>` : ''}
+        ${cardSubMeta.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:var(--fs-xs)">${cardSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>` : ''}
       </div>
       ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
     </div>
