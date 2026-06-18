@@ -2331,6 +2331,33 @@ function computeTeamMetrics(opts = {}) {
       const conf = it.empaque_confirmacion;
       if (conf && conf.by && conf.at) { const uid = resolveActor(conf.by); if (uid) bump(uid, conf.at); }
     });
+    // Evidencias por artículo (fotos de empaque/almacén subidas por auxiliares)
+    (t.items || []).forEach(it => {
+      (it.evidence_images || []).forEach(ev => {
+        const uid = resolveActor(ev.uploaded_by || ev.by);
+        if (uid) bump(uid, ev.uploaded_at || ev.date);
+      });
+    });
+    // Evidencia general de la tarea
+    (t.evidence || []).forEach(ev => {
+      const uid = resolveActor(ev.by);
+      if (uid) bump(uid, ev.date);
+    });
+    // auxDone — auxiliar marcó su parte terminada (userId directo como clave)
+    Object.entries(t.auxDone || {}).forEach(([uid, obj]) => {
+      if (stats[uid] && obj && obj.at) bump(uid, obj.at);
+    });
+    // Mensajes de chat (fromId es userId directo)
+    (t.messages || []).forEach(m => {
+      if (m.fromId && stats[m.fromId] && m.createdAt) bump(m.fromId, m.createdAt);
+    });
+    // Evidencias de fotos de guía
+    (t.fotos_guia || []).forEach(fg => {
+      (fg.evidencias || []).forEach(ev => {
+        const uid = resolveActor(ev.by || ev.uploaded_by);
+        if (uid) bump(uid, ev.at || ev.uploaded_at);
+      });
+    });
   });
 
   const arr = Object.values(stats);
