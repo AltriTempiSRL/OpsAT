@@ -2438,7 +2438,8 @@ function computeTeamMetrics(opts = {}) {
   });
 
   // ── Tasa de cierre por equipo ─────────────────────────────────────────────
-  // Atribuye tareas por auxDone (quien realmente trabajó). Excluye canceladas.
+  // Atribuye cada tarea a los equipos cuyos miembros aparecen en taskResponsibleIds.
+  // Cada categoría cuenta la tarea como máximo una vez. Excluye canceladas.
   // Pendientes (in_progress) cuentan en el denominador.
   const userCatMap = {};
   users.forEach(u => { if (u.categoria) userCatMap[u.id] = u.categoria; });
@@ -2446,7 +2447,7 @@ function computeTeamMetrics(opts = {}) {
   tasks.forEach(t => {
     if (t.status === 'cancelled') return;
     const cats = new Set();
-    Object.keys(t.auxDone || {}).forEach(uid => {
+    taskResponsibleIds(t).forEach(uid => {
       const cat = userCatMap[uid]; if (cat) cats.add(cat);
     });
     const isCerrada = t.status === 'completed' || t.status === 'validated';
