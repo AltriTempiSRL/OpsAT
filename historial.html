@@ -5708,8 +5708,10 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         </button>
         <select class="notif-snd-sel" id="notif-snd-sel" onchange="_notifChangeTone(this.value)">
           <option value="campana">Campana</option>
-          <option value="suave">Suave</option>
-          <option value="pop">Pop</option>
+          <option value="melodia">Melodía</option>
+          <option value="radio">Ding ×3</option>
+          <option value="suave">Ding-dong</option>
+          <option value="pop">Chirp</option>
           <option value="alerta">Alerta</option>
         </select>
         <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
@@ -7618,63 +7620,55 @@ function _playTone(tone) {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (_audioCtx.state === 'suspended') _audioCtx.resume();
     var ctx = _audioCtx;
-    var gain = ctx.createGain();
-    gain.connect(ctx.destination);
     var now = ctx.currentTime;
+    function note(freq, type, start, dur, vol, freqEnd) {
+      var o = ctx.createOscillator(); var g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = type; o.frequency.setValueAtTime(freq, now + start);
+      if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, now + start + dur * 0.85);
+      g.gain.setValueAtTime(0.001, now + start);
+      g.gain.linearRampToValueAtTime(vol, now + start + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+      o.start(now + start); o.stop(now + start + dur);
+    }
     if (tone === 'suave') {
-      var o = ctx.createOscillator(); o.connect(gain);
-      o.type = 'sine'; o.frequency.setValueAtTime(440, now);
-      o.frequency.linearRampToValueAtTime(330, now + 0.22);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-      o.start(now); o.stop(now + 0.28);
+      // Ding-dong ascendente — tarea completada/validada
+      note(880,  'triangle', 0,    0.55, 0.18);
+      note(1100, 'triangle', 0.28, 0.55, 0.15);
     } else if (tone === 'campana') {
-      var o = ctx.createOscillator(); o.connect(gain);
-      o.type = 'triangle'; o.frequency.setValueAtTime(880, now);
-      gain.gain.setValueAtTime(0.14, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
-      o.start(now); o.stop(now + 0.55);
+      // Campana rica con armónico — tono por defecto
+      note(1047, 'triangle', 0, 1.0, 0.20);
+      note(1568, 'triangle', 0, 0.7, 0.10);
+      note(2093, 'sine',     0, 0.4, 0.05);
     } else if (tone === 'pop') {
-      var o = ctx.createOscillator(); o.connect(gain);
-      o.type = 'sine'; o.frequency.setValueAtTime(1200, now);
-      o.frequency.exponentialRampToValueAtTime(600, now + 0.1);
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
-      o.start(now); o.stop(now + 0.13);
+      // Chirp ascendente brillante
+      note(880,  'sine', 0,    0.35, 0.22, 1760);
+      note(1320, 'sine', 0.18, 0.35, 0.16, 2200);
     } else if (tone === 'radio') {
-      // 2 pulsos cortos square 750Hz — tarea asignada
-      [0, 0.19].forEach(function(t) {
-        var o2 = ctx.createOscillator(); o2.connect(gain);
-        o2.type = 'square'; o2.frequency.setValueAtTime(750, now + t);
-        gain.gain.setValueAtTime(0.40, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.13);
-        o2.start(now + t); o2.stop(now + t + 0.13);
-      });
+      // Melodía 3 notas ascendentes — tarea asignada
+      note(660,  'square', 0,    0.20, 0.12);
+      note(880,  'square', 0.23, 0.20, 0.12);
+      note(1100, 'square', 0.46, 0.30, 0.12);
     } else if (tone === 'alarma') {
-      // 3 pulsos triangle 800Hz — mensaje/chat
-      [0, 0.22, 0.44].forEach(function(t) {
-        var o2 = ctx.createOscillator(); o2.connect(gain);
-        o2.type = 'triangle'; o2.frequency.setValueAtTime(800, now + t);
-        gain.gain.setValueAtTime(0.45, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.18);
-        o2.start(now + t); o2.stop(now + t + 0.18);
-      });
+      // Doble ping — comentario/mensaje
+      note(1319, 'sine', 0,    0.40, 0.20);
+      note(1047, 'sine', 0,    0.40, 0.08);
+      note(1319, 'sine', 0.50, 0.40, 0.18);
+      note(1047, 'sine', 0.50, 0.40, 0.07);
     } else if (tone === 'urgente') {
-      // sweep descendente 1000→480Hz — vencida/rechazada
-      var o = ctx.createOscillator(); o.connect(gain);
-      o.type = 'sine'; o.frequency.setValueAtTime(1000, now);
-      o.frequency.exponentialRampToValueAtTime(480, now + 0.35);
-      gain.gain.setValueAtTime(0.50, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
-      o.start(now); o.stop(now + 0.40);
-    } else { // alerta (legacy)
-      [0, 0.18].forEach(function(t) {
-        var o2 = ctx.createOscillator(); o2.connect(gain);
-        o2.type = 'square'; o2.frequency.setValueAtTime(t === 0 ? 600 : 800, now + t);
-        gain.gain.setValueAtTime(0.07, now + t);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.15);
-        o2.start(now + t); o2.stop(now + t + 0.15);
-      });
+      // Sirena doble descendente — vencida/rechazada
+      note(1600, 'sawtooth', 0,    0.35, 0.22, 800);
+      note(1600, 'sawtooth', 0.42, 0.35, 0.20, 800);
+      note(1600, 'sawtooth', 0.84, 0.30, 0.17, 900);
+    } else if (tone === 'melodia') {
+      // Do-Mi-Sol ascendente — tono festivo
+      note(523,  'triangle', 0,    0.28, 0.16);
+      note(659,  'triangle', 0.22, 0.28, 0.16);
+      note(784,  'triangle', 0.44, 0.40, 0.16);
+      note(1047, 'triangle', 0.66, 0.45, 0.14);
+    } else { // alerta (legacy / fallback)
+      note(1000, 'square', 0,    0.22, 0.14);
+      note(1200, 'square', 0.28, 0.22, 0.14);
     }
   } catch(e) {}
 }
