@@ -2265,7 +2265,7 @@ function computeTeamMetrics(opts = {}) {
   const localidad = opts.localidad || null;
   const N = opts.windowDays || 14;
   const tasks = loadWwpTasks();
-  const users = loadAuthUsers();
+  const users = loadAuthUsers().filter(u => u.active !== false);
   const resolveActor = buildActorResolver(users);
   const now = Date.now();
   const DAY = 864e5;
