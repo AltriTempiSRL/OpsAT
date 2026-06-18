@@ -2419,6 +2419,10 @@ function computeTeamMetrics(opts = {}) {
     if (directEntry && directEntry.total > 0) {
       u.termometro = Math.round((directEntry.activos / directEntry.total) * 100);
       u.termometroDetalle = [{ categoria: directEntry.categoria, pct: u.termometro, total: directEntry.total, activos: directEntry.activos }];
+    } else if (u.categoria) {
+      // Tiene categoría pero nadie en su equipo ha iniciado sesión aún
+      u.termometro = null;
+      u.termometroDetalle = [];
     } else {
       const allCats = Object.values(catMap);
       if (!allCats.length) { u.termometro = null; u.termometroDetalle = []; return; }
