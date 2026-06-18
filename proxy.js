@@ -6670,6 +6670,18 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ok:false,error:'Solo administradores pueden validar tareas'}));
         return;
       }
+      // Solo admin puede reactivar una tarea cancelada (cancelled → pending)
+      if (tasks[idx].status === 'cancelled' && d.status === 'pending' && jp.role !== 'admin') {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Solo administradores pueden reactivar tareas canceladas'}));
+        return;
+      }
+      // Bloquear cualquier otra transición desde 'cancelled' (excepto cancelled→pending por admin)
+      if (tasks[idx].status === 'cancelled' && d.status && d.status !== 'pending') {
+        res.writeHead(409,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Una tarea cancelada solo puede reactivarse a Pendiente. Usa "Reactivar tarea" para continuar.'}));
+        return;
+      }
       // ── Fin RBAC ─────────────────────────────────────────────────────────
 
       const oldTask = {...tasks[idx]}; // snapshot antes de modificar (para comparar en notifs)
@@ -6750,8 +6762,8 @@ const server = http.createServer(async (req, res) => {
         }
         tasks[idx].status=d.status;
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
-        // Audit log para estados críticos
-        if (d.status==='validated'||d.status==='in_progress'||d.status==='cancelled') {
+        // Audit log para estados críticos (incluye reactivación desde cancelled)
+        if (d.status==='validated'||d.status==='in_progress'||d.status==='cancelled'||(oldTask.status==='cancelled'&&d.status==='pending')) {
           appendAuditLog('task_status_change', { taskId:tasks[idx].id, taskTitle:tasks[idx].title, prevStatus:oldTask.status, newStatus:d.status, by:jp.userId, note:d.note||'' });
         }
         // Cancelar en cascada: al cancelar la madre, cancelar subtareas no cerradas

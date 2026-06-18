@@ -9737,6 +9737,17 @@ function renderDrawer(t) {
   if (isResponsibleCloser && !['validated','cancelled'].includes(t.status)) {
     actionHtml += `<div class="action-row"><button class="btn-danger" onclick="cancelTask('${t.id}')" style="background:transparent;color:var(--red-text);border:1.5px solid var(--red-dot)"><i data-lucide="x-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Cancelar ${t.parentId?'subtarea':'tarea'}</button></div>`;
   }
+  // Reactivar tarea cancelada (solo admin) — vuelve a Pendiente, conservando historial
+  if (t.status === 'cancelled' && _user.role === 'admin') {
+    const _cancelledSubs = subs.filter(s => s.status === 'cancelled');
+    const _subsWarning = _cancelledSubs.length > 0
+      ? `<div style="margin-top:6px;font-size:11px;color:var(--amber-text);line-height:1.4"><i data-lucide="alert-triangle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>${_cancelledSubs.length} subtarea(s) también fueron canceladas con esta tarea — deberás reactivarlas manualmente.</div>`
+      : '';
+    actionHtml += `<div class="action-row" style="flex-direction:column;align-items:stretch;gap:4px">
+      <button class="btn-primary" onclick="reactivateTask('${t.id}')" style="background:var(--amber-bg);color:var(--amber-text);border:1.5px solid var(--amber-dot)"><i data-lucide="rotate-ccw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Reactivar tarea</button>
+      ${_subsWarning}
+    </div>`;
+  }
   // Auxiliar: botón "Terminé mi parte" (handoff al encargado). Habilitado solo con fotos completas.
   if (_user.role==='assistant' && t.status==='in_progress' && isTaskParticipant(t)) {
     const _sel = (t.items||[]).filter(i=>i.selected);
@@ -10942,6 +10953,23 @@ async function cancelTask(taskId) {
     const d = await r.json();
     if (!d.ok) { toast(d.error||'Error al cancelar'); return; }
     toast('Tarea cancelada');
+    openDrawer(taskId);
+  } catch(e){ toast('Error: '+e.message); }
+}
+// Reactivar tarea cancelada (solo admin) — vuelve a Pendiente conservando el historial de cancelación
+async function reactivateTask(taskId) {
+  if (_user.role !== 'admin') { toast('Solo administradores pueden reactivar tareas canceladas'); return; }
+  const t = (_tasks||[]).find(x=>x.id===taskId) || _drawerTask;
+  if (!t) { toast('Tarea no encontrada'); return; }
+  const cancelledSubs = (_tasks||[]).filter(s=>s.parentId===taskId && s.status==='cancelled');
+  let msg = '¿Reactivar esta tarea? Volverá a estado Pendiente.\n\nEl historial de cancelación se conserva.';
+  if (cancelledSubs.length) msg += `\n\nNota: ${cancelledSubs.length} subtarea(s) también fueron canceladas y deberás reactivarlas manualmente desde cada una.`;
+  if (!await _iosConfirm(msg)) return;
+  try {
+    const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify({status:'pending', by:_user.name, byUserId:_user.id, note:'Reactivada por admin'})});
+    const d = await r.json();
+    if (!d.ok) { toast(d.error||'Error al reactivar'); return; }
+    toast('Tarea reactivada — ahora está en Pendiente');
     openDrawer(taskId);
   } catch(e){ toast('Error: '+e.message); }
 }
