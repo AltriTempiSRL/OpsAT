@@ -23605,6 +23605,7 @@ function eqpRenderAll() {
     return;
   }
   body.innerHTML =
+    eqpTermometroHtml(users) +
     eqpSemaforoHtml(users) +
     eqpLinesHtml(users) +
     eqpBarsHtml(users) +
@@ -23825,6 +23826,43 @@ function eqpSortBy(key) {
 }
 
 // ── Panel 5: Encargados (validaciones + cierres) ─────────────────────────────
+function eqpTermometroHtml(users) {
+  var mgrs = users.filter(function(u){ return u.role === 'manager' && u.termometro !== null && u.termometro !== undefined; });
+  if (!mgrs.length) return '';
+  var cards = mgrs.map(function(u) {
+    var detalle = u.termometroDetalle || [];
+    var pct = u.termometro;
+    var termoContent = '';
+    if (detalle.length > 1) {
+      var bars = detalle.map(function(d) {
+        var pctCls = d.pct >= 70 ? 'color:var(--green-text)' : d.pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+        return '<div class="eqp-termo-row">' +
+          '<div class="eqp-termo-lbl"><span>' + esc(d.categoria) + '</span><span class="eqp-termo-pct" style="' + pctCls + '">' + d.pct + '%</span></div>' +
+          eqpTermoBar(d.pct) +
+        '</div>';
+      }).join('');
+      var consPctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+      termoContent = bars + '<div class="eqp-termo-consolidado">Consolidado: <b style="' + consPctCls + '">' + pct + '%</b></div>';
+    } else if (detalle.length === 1) {
+      var d = detalle[0];
+      var pctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+      termoContent = '<div class="eqp-termo-row">' +
+        '<div class="eqp-termo-lbl"><span>' + esc(d.categoria) + '</span><span class="eqp-termo-pct" style="' + pctCls + '">' + pct + '%</span></div>' +
+        eqpTermoBar(pct) +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + d.activos + ' de ' + d.total + ' activos</div>' +
+      '</div>';
+    }
+    return '<div class="eqp-mgr-card">' +
+      '<div class="eqp-mgr-name">' + avatarHtml(u, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
+      '<div class="eqp-termo-wrap">' + termoContent + '</div>' +
+    '</div>';
+  }).join('');
+  return '<div class="eqp-panel">' +
+    '<div class="eqp-panel-hdr"><h3 class="eqp-panel-title"><i data-lucide="thermometer"></i>Termómetro de Adopción</h3></div>' +
+    '<p class="eqp-panel-sub">Qué porcentaje del equipo directo de cada encargado está usando la plataforma activamente. Verde ≥70% · Ámbar 40–69% · Rojo &lt;40%.</p>' +
+    '<div class="eqp-mgr-grid">' + cards + '</div></div>';
+}
+
 function eqpTermoBar(pct) {
   if (pct === null || pct === undefined) return '';
   var fillCls = pct >= 70 ? 'eqp-termo-fill-green' : pct >= 40 ? 'eqp-termo-fill-amber' : 'eqp-termo-fill-red';
@@ -23836,37 +23874,8 @@ function eqpManagersHtml(users) {
   var mgrs = users.filter(function(u){ return u.role === 'admin' || u.role === 'manager'; });
   if (!mgrs.length) return '';
   var cards = mgrs.map(function(u) {
-    var termoHtml = '';
-    var detalle = u.termometroDetalle || [];
-    var pct = u.termometro;
-    if (pct !== null && pct !== undefined) {
-      if (detalle.length > 1) {
-        // Meta-supervisor: una barra por equipo + consolidado
-        var bars = detalle.map(function(d) {
-          var pctCls = d.pct >= 70 ? 'color:var(--green-text)' : d.pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
-          return '<div class="eqp-termo-row">' +
-            '<div class="eqp-termo-lbl"><span>' + esc(d.categoria) + '</span><span class="eqp-termo-pct" style="' + pctCls + '">' + d.pct + '%</span></div>' +
-            eqpTermoBar(d.pct) +
-          '</div>';
-        }).join('');
-        var consPctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
-        termoHtml = '<div class="eqp-termo-wrap">' + bars +
-          '<div class="eqp-termo-consolidado">Consolidado: <b style="' + consPctCls + '">' + pct + '%</b></div>' +
-        '</div>';
-      } else if (detalle.length === 1) {
-        // Supervisor directo: una barra con su equipo
-        var d = detalle[0];
-        var pctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
-        termoHtml = '<div class="eqp-termo-wrap"><div class="eqp-termo-row">' +
-          '<div class="eqp-termo-lbl"><span><i data-lucide="thermometer" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Termómetro de Adopción</span><span class="eqp-termo-pct" style="' + pctCls + '">' + pct + '%</span></div>' +
-          eqpTermoBar(pct) +
-          '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + d.activos + ' de ' + d.total + ' activos · ' + esc(d.categoria) + '</div>' +
-        '</div></div>';
-      }
-    }
     return '<div class="eqp-mgr-card">' +
       '<div class="eqp-mgr-name">' + avatarHtml(u, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
-      termoHtml +
       '<div class="eqp-mgr-stats">' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.validacionesHechas||0) + '</div><div class="eqp-mgr-stat-lbl">Validaciones</div></div>' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.cierresGestionados||0) + '</div><div class="eqp-mgr-stat-lbl">Cierres gestionados</div></div>' +
