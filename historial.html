@@ -10943,13 +10943,38 @@ async function cancelTask(taskId) {
   const t = (_tasks||[]).find(x=>x.id===taskId) || _drawerTask;
   const esSub = t && t.parentId;
   const subs = (!esSub && t) ? _tasks.filter(s=>s.parentId===t.id && !['completed','validated','cancelled'].includes(s.status)) : [];
-  let msg = `¿Cancelar esta ${esSub?'subtarea':'tarea'}?`;
-  if (subs.length) msg += `\n\nSe cancelarán también ${subs.length} subtarea(s) de la cadena.`;
-  msg += '\n\nLa tarea quedará como "Cancelado" (no se borra) y la orden/pick quedará libre para reasignar.';
-  if (!await _iosConfirm(msg)) return;
-  const note = (typeof prompt==='function') ? (prompt('Motivo de la cancelación (opcional):','')||'') : '';
+
+  const motive = await new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+    const subsWarning = subs.length ? `<p style="margin:0 0 12px;padding:10px 12px;background:var(--amber-bg,#fffbeb);color:var(--amber-text,#92400e);border-radius:8px;font-size:13px">⚠️ Se cancelarán también <b>${subs.length} subtarea(s)</b> de la cadena.</p>` : '';
+    overlay.innerHTML = `<div style="background:var(--card-bg,#fff);border-radius:14px;padding:24px;max-width:420px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+      <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:var(--red-text,#dc2626)">Cancelar ${esSub?'subtarea':'tarea'}</h3>
+      <p style="margin:0 0 14px;font-size:13px;color:var(--text-secondary,#6b7280)">${t ? '"'+t.title+'"' : ''}</p>
+      ${subsWarning}
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-primary,#111)">Motivo de cancelación <span style="color:var(--red-text,#dc2626)">*</span></label>
+      <textarea id="_cancelMotiveTA" rows="3" placeholder="Describe por qué se cancela esta tarea..." style="width:100%;box-sizing:border-box;border:1.5px solid var(--border,#e5e7eb);border-radius:8px;padding:10px 12px;font-size:13px;resize:vertical;font-family:inherit;background:var(--input-bg,#f9fafb);color:var(--text-primary,#111)"></textarea>
+      <p id="_cancelMotiveErr" style="margin:4px 0 0;font-size:12px;color:var(--red-text,#dc2626);display:none">El motivo es obligatorio.</p>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+        <button id="_cancelNo" style="padding:8px 18px;border-radius:8px;border:1.5px solid var(--border,#e5e7eb);background:transparent;font-size:13px;cursor:pointer;color:var(--text-primary,#111)">No cancelar</button>
+        <button id="_cancelYes" style="padding:8px 18px;border-radius:8px;border:none;background:var(--red-text,#dc2626);color:#fff;font-size:13px;font-weight:600;cursor:pointer">Confirmar cancelación</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const ta = overlay.querySelector('#_cancelMotiveTA');
+    const err = overlay.querySelector('#_cancelMotiveErr');
+    overlay.querySelector('#_cancelNo').onclick = () => { overlay.remove(); resolve(null); };
+    overlay.querySelector('#_cancelYes').onclick = () => {
+      const v = ta.value.trim();
+      if (!v) { err.style.display='block'; ta.focus(); return; }
+      overlay.remove(); resolve(v);
+    };
+    ta.focus();
+  });
+
+  if (motive === null) return;
   try {
-    const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify({status:'cancelled', by:_user.name, byUserId:_user.id, note})});
+    const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify({status:'cancelled', by:_user.name, byUserId:_user.id, note:motive})});
     const d = await r.json();
     if (!d.ok) { toast(d.error||'Error al cancelar'); return; }
     toast('Tarea cancelada');

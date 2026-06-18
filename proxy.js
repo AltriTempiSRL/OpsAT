@@ -2743,7 +2743,7 @@ function checkOverdueTasks() {
   );
   tasks.filter(t =>
     t.dueDate && t.dueDate < today &&
-    !['completed','validated'].includes(t.status) &&
+    !['completed','validated','cancelled'].includes(t.status) &&
     !t.parentId &&
     !sentToday.has(t.id)
   ).forEach(t => {
@@ -6680,6 +6680,12 @@ const server = http.createServer(async (req, res) => {
       if (tasks[idx].status === 'cancelled' && d.status && d.status !== 'pending') {
         res.writeHead(409,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false,error:'Una tarea cancelada solo puede reactivarse a Pendiente. Usa "Reactivar tarea" para continuar.'}));
+        return;
+      }
+      // C: solo admin puede cancelar si la tarea ya tiene artículos cargados
+      if (d.status === 'cancelled' && jp.role !== 'admin' && (tasks[idx].items||[]).length > 0) {
+        res.writeHead(403,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Esta tarea ya tiene artículos cargados. Solo un administrador puede cancelarla. Contacta a tu supervisor.'}));
         return;
       }
       // ── Fin RBAC ─────────────────────────────────────────────────────────
