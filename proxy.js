@@ -2437,6 +2437,48 @@ function computeTeamMetrics(opts = {}) {
     }
   });
 
+  // ── Tasa de cierre por equipo ─────────────────────────────────────────────
+  // Atribuye tareas por auxDone (quien realmente trabajó). Excluye canceladas.
+  // Pendientes (in_progress) cuentan en el denominador.
+  const userCatMap = {};
+  users.forEach(u => { if (u.categoria) userCatMap[u.id] = u.categoria; });
+  const cierreMap = {};
+  tasks.forEach(t => {
+    if (t.status === 'cancelled') return;
+    const cats = new Set();
+    Object.keys(t.auxDone || {}).forEach(uid => {
+      const cat = userCatMap[uid]; if (cat) cats.add(cat);
+    });
+    const isCerrada = t.status === 'completed' || t.status === 'validated';
+    cats.forEach(cat => {
+      if (!cierreMap[cat]) cierreMap[cat] = { categoria: cat, total: 0, cerradas: 0 };
+      cierreMap[cat].total++;
+      if (isCerrada) cierreMap[cat].cerradas++;
+    });
+  });
+  out.forEach(u => {
+    if (u.role !== 'manager' && u.role !== 'admin') return;
+    const directEntry = cierreMap[u.categoria];
+    if (directEntry && directEntry.total > 0) {
+      u.tasaCierre = Math.round((directEntry.cerradas / directEntry.total) * 100);
+      u.cierreDetalle = [{ categoria: directEntry.categoria, pct: u.tasaCierre, total: directEntry.total, cerradas: directEntry.cerradas }];
+    } else if (!u.categoria) {
+      const allCats = Object.values(cierreMap);
+      if (!allCats.length) { u.tasaCierre = null; u.cierreDetalle = []; return; }
+      const totalAll = allCats.reduce((s, c) => s + c.total, 0);
+      const cerradasAll = allCats.reduce((s, c) => s + c.cerradas, 0);
+      u.tasaCierre = totalAll > 0 ? Math.round((cerradasAll / totalAll) * 100) : null;
+      u.cierreDetalle = allCats.map(c => ({
+        categoria: c.categoria,
+        pct: c.total > 0 ? Math.round((c.cerradas / c.total) * 100) : 0,
+        total: c.total, cerradas: c.cerradas
+      }));
+    } else {
+      u.tasaCierre = null;
+      u.cierreDetalle = [];
+    }
+  });
+
   const filtered = localidad ? out.filter(u => u.categoria === localidad) : out;
   return {
     generatedAt: new Date().toISOString(), windowDays: N,

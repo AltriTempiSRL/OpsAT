@@ -971,6 +971,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .eqp-termo-fill-red{background:var(--red-dot)}
 .eqp-termo-fill-gray{background:var(--text-3)}
 .eqp-termo-consolidado{font-size:11px;color:var(--text-muted);margin-top:2px;margin-bottom:9px}
+.eqp-termo-seccion-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);margin-top:10px;margin-bottom:5px;padding-top:8px;border-top:1px solid var(--border)}
 .eqp-empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
 .eqp-empty i{width:30px;height:30px;stroke:currentColor;color:var(--text-3);margin-bottom:8px;display:block;margin-left:auto;margin-right:auto}
 .eqp-403{text-align:center;padding:44px 24px;color:var(--text-muted);font-size:13px;max-width:420px;margin:0 auto}
@@ -23833,7 +23834,10 @@ function eqpTermometroHtml(users) {
     var detalle = u.termometroDetalle || [];
     var pct = u.termometro;
     var termoContent = '';
+    var cDet = u.cierreDetalle || [];
+    var cPct = u.tasaCierre;
     if (detalle.length > 1) {
+      // Adopción por equipo
       var bars = detalle.map(function(d) {
         var pctCls = d.pct >= 70 ? 'color:var(--green-text)' : d.pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
         return '<div class="eqp-termo-row">' +
@@ -23842,7 +23846,21 @@ function eqpTermometroHtml(users) {
         '</div>';
       }).join('');
       var consPctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
-      termoContent = bars + '<div class="eqp-termo-consolidado">Consolidado: <b style="' + consPctCls + '">' + pct + '%</b></div>';
+      termoContent = bars + '<div class="eqp-termo-consolidado">Adopción consolidada: <b style="' + consPctCls + '">' + pct + '%</b></div>';
+      // Cierre por equipo
+      if (cDet.length > 0 && cPct !== null) {
+        var cBars = cDet.map(function(cd) {
+          var cPctCls = cd.pct >= 70 ? 'color:var(--green-text)' : cd.pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+          return '<div class="eqp-termo-row">' +
+            '<div class="eqp-termo-lbl"><span>' + esc(cd.categoria) + '</span><span class="eqp-termo-pct" style="' + cPctCls + '">' + cd.pct + '%</span></div>' +
+            eqpTermoBar(cd.pct) +
+            '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + cd.cerradas + ' de ' + cd.total + ' cerradas</div>' +
+          '</div>';
+        }).join('');
+        var ccPctCls = cPct >= 70 ? 'color:var(--green-text)' : cPct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+        termoContent += '<div class="eqp-termo-seccion-lbl">Cierre de tareas</div>' + cBars +
+          '<div class="eqp-termo-consolidado">Cierre consolidado: <b style="' + ccPctCls + '">' + cPct + '%</b></div>';
+      }
     } else if (detalle.length === 1) {
       var d = detalle[0];
       var pctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
@@ -23851,6 +23869,16 @@ function eqpTermometroHtml(users) {
         eqpTermoBar(pct) +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + d.activos + ' de ' + d.total + ' conectados</div>' +
       '</div>';
+      // Cierre de tareas
+      if (cDet.length === 1 && cPct !== null) {
+        var cd = cDet[0];
+        var cPctCls = cPct >= 70 ? 'color:var(--green-text)' : cPct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+        termoContent += '<div class="eqp-termo-row" style="margin-top:8px">' +
+          '<div class="eqp-termo-lbl"><span>Cierre de tareas</span><span class="eqp-termo-pct" style="' + cPctCls + '">' + cPct + '%</span></div>' +
+          eqpTermoBar(cPct) +
+          '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + cd.cerradas + ' de ' + cd.total + ' cerradas</div>' +
+        '</div>';
+      }
     }
     return '<div class="eqp-mgr-card">' +
       '<div class="eqp-mgr-name">' + avatarHtml(u, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
