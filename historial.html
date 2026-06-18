@@ -3144,6 +3144,9 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-snd-sel{font-size:11px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;background:var(--surface);color:var(--text);flex:1;cursor:pointer;min-width:0}
 .notif-snd-test{font-size:10px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--surface);color:var(--text-2);cursor:pointer;white-space:nowrap;transition:background .15s}
 .notif-snd-test:hover{background:var(--surface-3)}
+.notif-snd-hours{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-3);flex-wrap:wrap}
+.notif-snd-hours input[type=time]{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2px 5px;font-size:10px;color:var(--text);width:80px}
+.notif-snd-hours-hint{font-size:10px;color:var(--text-3);opacity:.8;margin-top:1px}
 .notif-push-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)}
 .notif-push-row a,.notif-push-row button{font-size:10px;font-weight:700;color:var(--brand-light);background:none;border:none;cursor:pointer;padding:0;text-decoration:none}
 .notif-push-row a:hover,.notif-push-row button:hover{text-decoration:underline}
@@ -5711,6 +5714,13 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         </select>
         <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
       </div>
+      <div class="notif-snd-hours" id="notif-snd-hours" style="display:none">
+        <span>Sonar entre</span>
+        <input type="time" id="notif-snd-from" onchange="_notifSndHoursChange()">
+        <span>y</span>
+        <input type="time" id="notif-snd-to" onchange="_notifSndHoursChange()">
+        <span class="notif-snd-hours-hint">(vacío = siempre)</span>
+      </div>
       <div class="notif-push-row" id="notif-push-row" style="display:none">
         <i data-lucide="smartphone" style="width:10px;height:10px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>
         <span>Notificaciones aunque el tab esté minimizado —</span>
@@ -7671,9 +7681,35 @@ function _playTone(tone) {
 
 var _notifRepeatTimer = null;
 
+function withinNotifHours() {
+  try {
+    var stored = localStorage.getItem('wwp_notif_hours');
+    if (!stored) return true; // sin horario = a cualquier hora
+    var h = JSON.parse(stored);
+    if (!h || !h.from || !h.to) return true;
+    var now = new Date();
+    var cur = now.getHours() * 60 + now.getMinutes();
+    var fp = h.from.split(':').map(Number); var tp = h.to.split(':').map(Number);
+    var from = fp[0] * 60 + fp[1]; var to = tp[0] * 60 + tp[1];
+    if (from === to) return true;
+    return from < to ? (cur >= from && cur < to) : (cur >= from || cur < to); // cruza medianoche
+  } catch(e) { return true; }
+}
+
+function _notifSndHoursChange() {
+  var f = document.getElementById('notif-snd-from');
+  var t = document.getElementById('notif-snd-to');
+  if (!f || !t) return;
+  if (f.value && t.value) {
+    localStorage.setItem('wwp_notif_hours', JSON.stringify({ from: f.value, to: t.value }));
+  } else {
+    localStorage.removeItem('wwp_notif_hours');
+  }
+}
+
 function maybeChime(notif) {
   var unread = _notifications.filter(function(n){ return !n.readAt; }).length;
-  if (_notifSoundEnabled && (_lastUnread === null || unread > _lastUnread)) {
+  if (_notifSoundEnabled && !_notifPanelOpen && withinNotifHours() && (_lastUnread === null || unread > _lastUnread)) {
     var tone = (notif && _NOTIF_TONE_MAP[notif.type]) || _notifSoundTone;
     _playTone(tone);
     if (navigator.vibrate && !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
@@ -7846,11 +7882,23 @@ function _notifUpdateSoundUI() {
   var icon   = document.getElementById('notif-snd-icon');
   var label  = document.getElementById('notif-snd-label');
   var sel    = document.getElementById('notif-snd-sel');
+  var hoursRow = document.getElementById('notif-snd-hours');
   if (!toggle) return;
   toggle.classList.toggle('on', _notifSoundEnabled);
   if (icon) { icon.setAttribute('data-lucide', _notifSoundEnabled ? 'bell-ring' : 'bell-off'); if (window.lucide) lucide.createIcons(); }
   if (label) label.textContent = _notifSoundEnabled ? 'Sonido activado' : 'Sonido';
   if (sel) sel.value = _notifSoundTone;
+  // Mostrar rango horario solo cuando el sonido está activo
+  if (hoursRow) {
+    hoursRow.style.display = _notifSoundEnabled ? 'flex' : 'none';
+    try {
+      var h = JSON.parse(localStorage.getItem('wwp_notif_hours') || 'null');
+      var f = document.getElementById('notif-snd-from');
+      var t = document.getElementById('notif-snd-to');
+      if (f) f.value = (h && h.from) ? h.from : '';
+      if (t) t.value = (h && h.to)   ? h.to   : '';
+    } catch(e) {}
+  }
   _notifShowBrowserBanner();
 }
 
