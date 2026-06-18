@@ -3225,6 +3225,12 @@ body{font-family:var(--font);min-height:100dvh}
 .chat-send-btn{padding:9px 16px;border-radius:20px;background:var(--brand-light);color:#fff;
   border:none;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:opacity .15s}
 .chat-send-btn:hover{opacity:.85}
+.chat-input-col{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+.chat-attach-preview{display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--surface-2);border-radius:8px;border:1.5px solid var(--border);font-size:11px}
+.chat-attach-preview img{width:42px;height:42px;object-fit:cover;border-radius:6px;flex-shrink:0}
+.chat-att-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);font-size:11px}
+.chat-att-clr{background:none;border:none;cursor:pointer;padding:0;color:var(--text-3);font-size:15px;line-height:1;flex-shrink:0}
+.chat-att-clr:hover{color:var(--text)}
 
 /* Toast */
 .toast{
@@ -3772,6 +3778,10 @@ body{font-family:var(--font);min-height:100dvh}
   .chat-input{font-size:16px} /* prevent iOS zoom */
   .chat-send-btn{min-height:44px;padding:9px 14px}
   .chat-messages{max-height:220px}
+  @media(max-width:380px){
+    .chat-input-row{gap:5px}
+    .chat-send-btn{padding:9px 10px}
+  }
 
   /* — Modal: slide from bottom — */
   .modal-overlay{align-items:flex-end;padding:0}
@@ -9848,9 +9858,13 @@ function renderDrawer(t) {
       </div>
       <div class="chat-messages" id="dr-chat-messages"></div>
       <div class="chat-input-row">
-        <button class="chat-send-btn" onclick="chatAddPhoto('${t.id}')" title="Adjuntar foto" style="padding:0 12px;background:var(--surface-2);color:var(--text-2)"><i data-lucide="camera" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
-        <input class="chat-input" id="dr-chat-input" type="text" placeholder="Escribe un mensaje…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${t.id}')}" autocomplete="off">
-        <button class="chat-send-btn" onclick="sendChatMessage('${t.id}')">Enviar ↑</button>
+        <button class="chat-send-btn" onclick="chatAddPhoto('${t.id}')" title="Adjuntar foto" style="padding:0 12px;background:var(--surface-2);color:var(--text-2);flex-shrink:0"><i data-lucide="camera" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+        <button class="chat-send-btn" onclick="chatPickVideo('${t.id}')" title="Adjuntar video" style="padding:0 12px;background:var(--surface-2);color:var(--text-2);flex-shrink:0"><i data-lucide="film" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+        <div class="chat-input-col">
+          <div class="chat-attach-preview" id="dr-chat-preview" style="display:none"></div>
+          <input class="chat-input" id="dr-chat-input" type="text" placeholder="Escribe un mensaje…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${t.id}')}" autocomplete="off" style="flex:none;width:100%;box-sizing:border-box">
+        </div>
+        <button class="chat-send-btn" onclick="sendChatMessage('${t.id}')" style="flex-shrink:0">Enviar ↑</button>
       </div>
     </div>
   ` : `
@@ -9889,12 +9903,16 @@ function renderDrawer(t) {
       </div>
       <div class="chat-messages" id="dr-chat-messages"></div>
       <div class="chat-input-row">
-        <button class="chat-send-btn" onclick="chatAddPhoto('${t.id}')" title="Adjuntar foto" style="padding:0 12px;background:var(--surface-2);color:var(--text-2)"><i data-lucide="camera" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
-        <input class="chat-input" id="dr-chat-input" type="text"
-          placeholder="Escribe un mensaje…"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${t.id}')}"
-          autocomplete="off">
-        <button class="chat-send-btn" onclick="sendChatMessage('${t.id}')">Enviar ↑</button>
+        <button class="chat-send-btn" onclick="chatAddPhoto('${t.id}')" title="Adjuntar foto" style="padding:0 12px;background:var(--surface-2);color:var(--text-2);flex-shrink:0"><i data-lucide="camera" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+        <button class="chat-send-btn" onclick="chatPickVideo('${t.id}')" title="Adjuntar video" style="padding:0 12px;background:var(--surface-2);color:var(--text-2);flex-shrink:0"><i data-lucide="film" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+        <div class="chat-input-col">
+          <div class="chat-attach-preview" id="dr-chat-preview" style="display:none"></div>
+          <input class="chat-input" id="dr-chat-input" type="text"
+            placeholder="Escribe un mensaje…"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage('${t.id}')}"
+            autocomplete="off" style="flex:none;width:100%;box-sizing:border-box">
+        </div>
+        <button class="chat-send-btn" onclick="sendChatMessage('${t.id}')" style="flex-shrink:0">Enviar ↑</button>
       </div>
     </div>
   `;
@@ -9914,6 +9932,7 @@ function renderDrawer(t) {
 // CHAT
 // ═══════════════════════════════════════════════════════════════════════
 async function loadChatMessages(taskId) {
+  _chatSetPending(null);
   const el = document.getElementById('dr-chat-messages');
   if (!el) return;
   try {
@@ -9921,6 +9940,26 @@ async function loadChatMessages(taskId) {
     const d = await r.json();
     if (d.ok) renderChatMessages(d.messages || []);
   } catch(e) {}
+  // Ctrl+V / Cmd+V: pegar imagen directamente desde el portapapeles
+  const inputEl = document.getElementById('dr-chat-input');
+  if (inputEl && !inputEl._pasteListenerAdded) {
+    inputEl._pasteListenerAdded = true;
+    inputEl.addEventListener('paste', function(e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          var blob = items[i].getAsFile();
+          if (!blob) continue;
+          e.preventDefault();
+          _compressImage(blob).then(function(dataUrl) {
+            if (dataUrl) _chatSetPending({ type: 'image', dataUrl, taskId });
+          });
+          break;
+        }
+      }
+    });
+  }
 }
 
 function renderChatMessages(messages) {
@@ -9936,6 +9975,7 @@ function renderChatMessages(messages) {
       <div>
         <div class="chat-meta">${esc(mine ? 'Tú' : (m.fromName||'?'))} · ${time}</div>
         ${m.imageUrl?`<img src="${mediaUrl(m.imageUrl)}" onclick="openLightbox('${mediaUrl(m.imageUrl)}')" style="max-width:180px;max-height:180px;border-radius:10px;margin-top:3px;cursor:zoom-in;display:block;object-fit:cover" onerror="this.style.display='none'">`:''}
+        ${m.videoUrl?`<video src="${mediaUrl(m.videoUrl)}" controls playsinline style="max-width:240px;max-height:180px;border-radius:10px;margin-top:3px;display:block;background:var(--surface-3)"></video>`:''}
         ${m.text?`<div class="chat-text">${esc(m.text)}</div>`:''}
       </div>
       ${mine ? avatarHtml(_user, 28) : ''}
@@ -9946,41 +9986,95 @@ function renderChatMessages(messages) {
   el.scrollTop = el.scrollHeight;
 }
 
-// Adjuntar foto al chat (cámara o galería, comprimida)
+var _chatPendingAttach = null; // {type:'image'|'video', dataUrl, blob, name, taskId}
+
+function _chatSetPending(attach) {
+  _chatPendingAttach = attach;
+  var prev = document.getElementById('dr-chat-preview');
+  if (!prev) return;
+  if (!attach) { prev.innerHTML = ''; prev.style.display = 'none'; return; }
+  if (attach.type === 'image') {
+    prev.innerHTML = '<img src="' + attach.dataUrl + '">' +
+      '<span class="chat-att-name">Imagen adjunta</span>' +
+      '<button class="chat-att-clr" onclick="_chatSetPending(null)" title="Quitar">\xd7</button>';
+  } else {
+    var sizeMb = attach.blob ? (attach.blob.size / 1024 / 1024).toFixed(1) + ' MB' : '';
+    prev.innerHTML = '<i data-lucide="film" style="width:18px;height:18px;stroke:currentColor;flex-shrink:0;color:var(--text-2)"></i>' +
+      '<span class="chat-att-name">' + escHtml(attach.name || 'Video') + '</span>' +
+      (sizeMb ? '<span style="color:var(--text-3);font-size:10px;flex-shrink:0">' + sizeMb + '</span>' : '') +
+      '<button class="chat-att-clr" onclick="_chatSetPending(null)" title="Quitar">\xd7</button>';
+    if (window.lucide) lucide.createIcons({ nodes: [prev] });
+  }
+  prev.style.display = 'flex';
+  var inp = document.getElementById('dr-chat-input');
+  if (inp) inp.focus();
+}
+
+// Adjuntar foto al chat — muestra preview, envía al presionar Enviar
 function chatAddPhoto(taskId) {
   _openPhotoSource({
     title: 'Foto para el chat',
     multiple: false,
     onFiles: async function(files) {
       if (!files.length) return;
-      const b64 = await _compressImage(files[0]);
-      if (!b64) { toast('No se pudo procesar la imagen'); return; }
-      const inp = document.getElementById('dr-chat-input');
-      const text = inp ? inp.value.trim() : '';
-      toast('Enviando foto…');
-      try {
-        const r = await authFetch('/api/wwp/tasks/'+taskId+'/messages',{method:'POST',body:JSON.stringify({text, image:b64, ext:'jpg'})});
-        const d = await r.json();
-        if (!d.ok) { toast(d.error||'Error'); return; }
-        if (inp) inp.value='';
-        await loadChatMessages(taskId);
-      } catch(e){ toast('Error al enviar foto'); }
+      const dataUrl = await _compressImage(files[0]);
+      if (!dataUrl) { toast('No se pudo procesar la imagen'); return; }
+      _chatSetPending({ type: 'image', dataUrl, taskId });
     }
   });
 }
+
+// Adjuntar video al chat — muestra preview, envía al presionar Enviar
+function chatPickVideo(taskId) {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'video/mp4,video/webm,video/quicktime,video/*';
+  inp.onchange = function() {
+    if (!inp.files.length) return;
+    var f = inp.files[0];
+    if (f.size > 30 * 1024 * 1024) { toast('El video no puede superar 30 MB'); return; }
+    _chatSetPending({ type: 'video', name: f.name, blob: f, taskId });
+  };
+  inp.click();
+}
+
 async function sendChatMessage(taskId) {
   const inp = document.getElementById('dr-chat-input');
   if (!inp) return;
   const text = inp.value.trim();
-  if (!text) return;
+  const pending = _chatPendingAttach;
+  if (!text && !pending) return;
+
+  let payload = { text };
+
+  if (pending && pending.type === 'image') {
+    payload.image = pending.dataUrl;
+    payload.ext = 'jpg';
+  } else if (pending && pending.type === 'video') {
+    toast('Subiendo video…');
+    try {
+      const dataUrl = await new Promise(function(resolve, reject) {
+        var rd = new FileReader();
+        rd.onload = function(e) { resolve(e.target.result); };
+        rd.onerror = function() { reject(new Error('Error leyendo video')); };
+        rd.readAsDataURL(pending.blob);
+      });
+      const ext = ((pending.blob.name || 'video.mp4').split('.').pop() || 'mp4').toLowerCase();
+      payload.video = dataUrl;
+      payload.videoExt = ext;
+    } catch(e) { toast('Error al leer el video'); return; }
+  }
+
   inp.value = '';
+  _chatSetPending(null);
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId+'/messages', {
       method: 'POST',
-      body: JSON.stringify({text})
+      body: JSON.stringify(payload)
     });
     const d = await r.json();
     if (d.ok) await loadChatMessages(taskId);
+    else toast(d.error || 'Error al enviar');
   } catch(e) { toast('Error al enviar mensaje'); inp.value = text; }
 }
 

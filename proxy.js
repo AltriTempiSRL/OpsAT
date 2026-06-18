@@ -6307,13 +6307,30 @@ const server = http.createServer(async (req, res) => {
         _imgUrl = `/wwp-fotos/${fname}`;
       } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
     }
-    if (!_txt && !_imgUrl) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Mensaje vacío'})); return; }
+    // Video opcional en el mensaje
+    let _videoUrl = null;
+    if (d.video) {
+      try {
+        const vExt = ((d.videoExt||'mp4').replace(/[^a-zA-Z0-9]/g,'')||'mp4').toLowerCase();
+        const VALID_VIDEO_EXTS = ['mp4','webm','mov','m4v'];
+        if (!VALID_VIDEO_EXTS.includes(vExt)) throw new Error('Formato de video no permitido. Usa MP4, WebM o MOV');
+        const vB64 = d.video.replace(/^data:[^;]+;base64,/, '');
+        const vBytes = Math.ceil(vB64.length * 0.75);
+        if (vBytes > 30 * 1024 * 1024) throw new Error('Video demasiado grande (máx 30 MB)');
+        const ts = Date.now();
+        const fname = `${taskId}_chat_${ts}.${vExt}`;
+        fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(vB64,'base64'));
+        _videoUrl = `/wwp-fotos/${fname}`;
+      } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
+    }
+    if (!_txt && !_imgUrl && !_videoUrl) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Mensaje vacío'})); return; }
     const msg = {
       id: wwpId('msg'),
       fromId: jp.userId,
       fromName: jp.name,
       text: _txt,
       imageUrl: _imgUrl,
+      videoUrl: _videoUrl,
       createdAt: new Date().toISOString()
     };
     if (!tasks[idx].messages) tasks[idx].messages = [];
@@ -6330,7 +6347,7 @@ const server = http.createServer(async (req, res) => {
     recipients.forEach(uid => createNotification(uid, {
       type: 'comment_new',
       title: '💬 Mensaje nuevo',
-      message: msg.text ? `${jp.name}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : `${jp.name} envió una foto 📷`,
+      message: msg.text ? `${jp.name}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${jp.name} envió una foto 📷` : `${jp.name} envió un video 🎥`,
       relatedTaskId: taskId,
       by: jp.name
     }));
