@@ -2856,19 +2856,6 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* Actions */
 .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.comp-section{margin-bottom:16px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden}
-.comp-section-hdr{display:flex;align-items:center;gap:7px;padding:9px 13px;background:var(--surface-2);font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
-.comp-row{display:flex;align-items:center;gap:8px;padding:8px 13px;border-top:1px solid var(--border);background:var(--surface-1)}
-.comp-nombre{flex:1;font-size:13px;font-weight:500;color:var(--text-primary)}
-.comp-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px;flex-shrink:0}
-.comp-badge.pending{background:var(--surface-3);color:var(--text-secondary)}
-.comp-badge.completed{background:var(--green-bg);color:var(--green-text)}
-.comp-badge.cancelled{background:var(--red-bg);color:var(--red-text)}
-.comp-actions{display:flex;gap:5px;flex-shrink:0}
-.comp-btn{font-size:11px;padding:3px 8px;border-radius:5px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);cursor:pointer;font-weight:600;transition:background .12s,color .12s}
-.comp-btn:hover{background:var(--surface-3)}
-.comp-btn.ok:hover{background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)}
-.comp-btn.cancel:hover{background:var(--red-bg);color:var(--red-text);border-color:var(--red)}
 .btn-primary{padding:var(--sp-2) var(--sp-4);background:var(--brand-light);color:white;border:none;border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:background 0.15s}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-primary:disabled,.btn-primary[disabled]{opacity:0.45;cursor:not-allowed;pointer-events:none}
@@ -6020,7 +6007,6 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     <span class="drawer-title" id="drawer-title">—</span>
     <button class="btn-sm" onclick="refreshDrawer(this)" id="drawer-refresh-btn" title="Actualizar tarea"><i data-lucide="refresh-cw" class="sec-hdr-icon"></i></button>
     <button class="btn-sm" onclick="openEditTaskModal()" id="drawer-edit-btn" style="display:none"><i data-lucide="pen" class="sec-hdr-icon"></i>Editar</button>
-    <button class="btn-sm" onclick="openDividirModal()" id="drawer-dividir-btn" style="display:none" title="Dividir tarea en componentes"><i data-lucide="scissors" class="sec-hdr-icon"></i>Dividir</button>
   </div>
   <div class="drawer-body" id="drawer-body"></div>
 </div>
@@ -6167,25 +6153,6 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <button class="btn-primary" id="wiz-btn-back" style="background:#6b7280;min-width:80px;visibility:hidden" onclick="wizBack()">Atrás</button>
       <span class="wiz-slabel" id="wiz-step-label">Paso 1 de 4</span>
       <button class="btn-primary" id="wiz-btn-next" style="min-width:100px;display:none" onclick="wizNext()">Siguiente</button>
-    </div>
-  </div>
-</div>
-
-<!-- Dividir Tarea Modal -->
-<div class="modal-overlay" id="modal-dividir">
-  <div class="modal-card" style="max-width:420px">
-    <div class="modal-header">
-      <span class="modal-title"><i data-lucide="scissors" style="width:15px;height:15px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>Dividir tarea en componentes</span>
-      <button class="modal-close" onclick="closeDividirModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:12px;color:var(--text-3);margin:0 0 12px;line-height:1.45">Define los componentes de esta tarea. Cada uno tendrá su propio estado (Pendiente / Completado / Cancelado). La tarea principal se cierra manualmente.</p>
-      <div id="dividir-rows" style="display:flex;flex-direction:column;gap:7px"></div>
-      <button onclick="addDividirRow()" style="margin-top:9px;width:100%;padding:7px;border:1.5px dashed var(--border);border-radius:7px;background:none;color:var(--text-3);cursor:pointer;font-size:12px;font-weight:600;transition:background .12s" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">+ Agregar componente</button>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeDividirModal()">Cancelar</button>
-      <button class="btn-primary" onclick="submitDividir()"><i data-lucide="scissors" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Dividir</button>
     </div>
   </div>
 </div>
@@ -7834,8 +7801,7 @@ function enterApp() {
 
   // Botones que requieren admin|manager
   document.getElementById('btn-new-task').style.display = can('create_task') ? '' : 'none';
-  document.getElementById('drawer-edit-btn').style.display    = can('edit_task') ? '' : 'none';
-  document.getElementById('drawer-dividir-btn').style.display = can('edit_task') ? '' : 'none';
+  document.getElementById('drawer-edit-btn').style.display = can('edit_task') ? '' : 'none';
 
   // Ocultar opción "Validado" del filtro para auxiliares (ellos no pueden validar)
   const validatedOpt = document.querySelector('#filter-status option[value="validated"]');
@@ -9228,29 +9194,6 @@ function renderDrawer(t) {
   ) : [];
   const dispatchItemsOk = isDispatch && _dispSel.length>0 && dispatchItemsPending.length===0;
 
-  // ── Componentes (dividir tarea — Opción A) ───────────────────────────────
-  let componentesHtml = '';
-  if ((t.componentes||[]).length > 0) {
-    const COMP_LABEL = {pending:'Pendiente', completed:'Completado', cancelled:'Cancelado'};
-    const rows = t.componentes.map(c => {
-      const isDone = c.status==='completed' || c.status==='cancelled';
-      const actionBtns = (canEdit && !isDone) ? `
-        <div class="comp-actions">
-          <button class="comp-btn ok" onclick="updateComponente('${t.id}','${c.id}','completed')" title="Marcar completado">✓ Listo</button>
-          <button class="comp-btn cancel" onclick="updateComponente('${t.id}','${c.id}','cancelled')" title="Cancelar componente">✕ Cancelar</button>
-        </div>` : '';
-      return `<div class="comp-row">
-        <span class="comp-nombre">${esc(c.nombre)}</span>
-        <span class="comp-badge ${c.status}">${COMP_LABEL[c.status]||c.status}</span>
-        ${actionBtns}
-      </div>`;
-    }).join('');
-    componentesHtml = `<div class="comp-section">
-      <div class="comp-section-hdr"><i data-lucide="scissors" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>Componentes</div>
-      ${rows}
-    </div>`;
-  }
-
   let actionHtml = '';
   // Asignar encargado/auxiliares: admin asigna responsables; encargado asigna auxiliares.
   if (can('assign_task') && !['validated'].includes(t.status)) {
@@ -9580,7 +9523,7 @@ function renderDrawer(t) {
   // ── CADENA DE ACCIONES (subtareas) — solo en tareas madre ──
   let subsHtml = '';
   if (!t.parentId) {
-    const canAddSub = !isClosedTask && (_user.role==='admin' || _user.role==='manager');
+    const canAddSub = t.status !== 'validated' && (_user.role==='admin' || _user.role==='manager');
     const ordered = subs.slice().sort((a,b)=>(a.subIndex||0)-(b.subIndex||0));
     const doneN = ordered.filter(s=>['completed','validated'].includes(s.status)).length;
     const TYPE_LBL = {dispatch_order:'Despacho',warehouse_move:'Movimiento',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',general:'General'};
@@ -9906,7 +9849,6 @@ function renderDrawer(t) {
     ${dispatchChecklistHtml}
     ${_itemsHtml}
     <div style="border-top:1.5px solid var(--border);margin:16px 0 12px"></div>
-    ${componentesHtml}
     ${actionHtml}
     ${histHtml}
     ${traceHtml}
@@ -9948,7 +9890,6 @@ function renderDrawer(t) {
     ${descriptionHtml}
     <div id="dr-pick-sync"></div>
     ${guiaHtml}
-    ${componentesHtml}
     ${actionHtml}
     ${itemsHtml}
     ${subsHtml}
@@ -10856,64 +10797,6 @@ async function deleteItemEvidence(taskId, itemId, evId) {
   try {
     await authFetch('/api/wwp/tasks/'+taskId+'/items/'+itemId+'/evidence/'+evId,{method:'DELETE',body:JSON.stringify({by:_user.name})});
     toast('Foto eliminada'); openDrawer(taskId);
-  } catch(e) { toast(e.message); }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// DIVIDIR TAREA
-function openDividirModal() {
-  if (!_drawerTask || !can('edit_task')) return;
-  const existing = (_drawerTask.componentes||[]).map(c=>c.nombre);
-  const initial = existing.length >= 2 ? existing : ['', ''];
-  const rows = document.getElementById('dividir-rows');
-  rows.innerHTML = '';
-  initial.forEach(n => _addDividirRowEl(n));
-  document.getElementById('modal-dividir').classList.add('open');
-  if (window.lucide) lucide.createIcons();
-}
-function closeDividirModal() {
-  document.getElementById('modal-dividir').classList.remove('open');
-}
-function _addDividirRowEl(value) {
-  const rows = document.getElementById('dividir-rows');
-  const idx = rows.children.length + 1;
-  const div = document.createElement('div');
-  div.style.cssText = 'display:flex;align-items:center;gap:7px';
-  div.innerHTML = `<input class="form-input" placeholder="Componente ${idx}…" value="${esc(value||'')}" style="flex:1;font-size:13px">
-    <button onclick="this.parentElement.remove();_renumberDividirRows()" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:16px;padding:0 4px;line-height:1" title="Quitar">✕</button>`;
-  rows.appendChild(div);
-}
-function addDividirRow() { _addDividirRowEl(''); }
-function _renumberDividirRows() {
-  [...document.getElementById('dividir-rows').children].forEach((el, i) => {
-    const inp = el.querySelector('input');
-    if (inp && !inp.value) inp.placeholder = 'Componente ' + (i+1) + '…';
-  });
-}
-async function submitDividir() {
-  if (!_drawerTask) return;
-  const inputs = [...document.getElementById('dividir-rows').querySelectorAll('input')];
-  const nombres = inputs.map(i=>i.value.trim()).filter(Boolean);
-  if (nombres.length < 2) { toast('Agrega al menos 2 componentes'); return; }
-  try {
-    const r = await authFetch('/api/wwp/tasks/'+_drawerTask.id+'/dividir', {
-      method:'POST', body:JSON.stringify({componentes:nombres})
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error||'Error');
-    closeDividirModal();
-    toast('Tarea dividida en '+nombres.length+' componentes');
-    openDrawer(_drawerTask.id);
-  } catch(e) { toast(e.message); }
-}
-async function updateComponente(taskId, compId, status) {
-  try {
-    const r = await authFetch('/api/wwp/tasks/'+taskId+'/componentes/'+compId, {
-      method:'PATCH', body:JSON.stringify({status})
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error||'Error');
-    openDrawer(taskId);
   } catch(e) { toast(e.message); }
 }
 

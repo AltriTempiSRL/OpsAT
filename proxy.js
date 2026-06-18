@@ -8904,64 +8904,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // POST /api/wwp/tasks/:id/dividir — dividir tarea en componentes internos [edit_task]
-  if (reqPath.match(/^\/api\/wwp\/tasks\/wt_[a-z0-9]+\/dividir$/) && req.method === 'POST') {
-    const jp = requireJwt(req, res); if (!jp) return;
-    if (!['admin','manager'].includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso'})); return; }
-    const id = reqPath.split('/')[4];
-    try {
-      const d = await readBody(req);
-      const nombres = (d.componentes||[]).map(n=>(n||'').trim()).filter(Boolean);
-      if (nombres.length < 2) throw new Error('Se necesitan al menos 2 componentes');
-      if (nombres.length > 10) throw new Error('Máximo 10 componentes');
-      const tasks = loadWwpTasks();
-      const idx = tasks.findIndex(t=>t.id===id);
-      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
-      const task = tasks[idx];
-      if (['validated'].includes(task.status)) throw new Error('No se puede dividir una tarea validada');
-      const now = new Date().toISOString();
-      task.componentes = nombres.map((nombre, i) => ({
-        id: 'comp_' + Date.now() + '_' + i,
-        nombre,
-        status: 'pending',
-        createdAt: now
-      }));
-      task.updatedAt = now;
-      saveWwpTasks(tasks);
-      broadcastWwpTasks('task_updated', task, { taskId: id });
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, componentes:task.componentes}));
-    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
-    return;
-  }
-
-  // PATCH /api/wwp/tasks/:id/componentes/:compId — actualizar status de componente [edit_task]
-  if (reqPath.match(/^\/api\/wwp\/tasks\/wt_[a-z0-9]+\/componentes\/comp_[0-9_]+$/) && req.method === 'PATCH') {
-    const jp = requireJwt(req, res); if (!jp) return;
-    if (!['admin','manager'].includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso'})); return; }
-    const parts = reqPath.split('/'); const id = parts[4], compId = parts[6];
-    try {
-      const d = await readBody(req);
-      const VALID_COMP_STATUS = ['pending','completed','cancelled'];
-      if (!VALID_COMP_STATUS.includes(d.status)) throw new Error('Estado inválido');
-      const tasks = loadWwpTasks();
-      const idx = tasks.findIndex(t=>t.id===id);
-      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
-      const comp = (tasks[idx].componentes||[]).find(c=>c.id===compId);
-      if (!comp) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Componente no encontrado'})); return; }
-      comp.status = d.status;
-      comp.updatedAt = new Date().toISOString();
-      if (d.status==='completed') comp.completedAt = comp.updatedAt;
-      if (d.status==='cancelled') comp.cancelledAt = comp.updatedAt;
-      tasks[idx].updatedAt = comp.updatedAt;
-      saveWwpTasks(tasks);
-      broadcastWwpTasks('task_updated', tasks[idx], { taskId: id });
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, comp}));
-    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
-    return;
-  }
-
   // PATCH /api/wwp/tasks/:id/items/:itemId/condition — condición del artículo [cualquier rol participante]
   if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items\/[A-Za-z0-9_]+\/condition$/) && req.method === 'PATCH') {
     const _jpC = requireJwt(req, res); if (!_jpC) return;
