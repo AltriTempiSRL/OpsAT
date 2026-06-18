@@ -8495,7 +8495,7 @@ var _filteredTasks = [];
 function _updateOverdueBadge() {
   var today = new Date().toISOString().slice(0,10);
   var overdue = _tasks.filter(function(t) {
-    return !t.parentId && t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status);
+    return !t.parentId && t.dueDate && t.dueDate < today && !['completed','validated','cancelled'].includes(t.status);
   }).length;
   var badge = document.getElementById('tasks-overdue-badge');
   if (!badge) return;
