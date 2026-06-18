@@ -8,6 +8,7 @@ const fs         = require('fs');
 const path       = require('path');
 const url        = require('url');
 const crypto     = require('crypto');
+const zlib       = require('zlib');
 // nodemailer se carga de forma lazy (solo si está instalado y se usa SMTP)
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch { /* no disponible en este entorno */ }
@@ -3474,8 +3475,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/health — validar conexión con Odoo y Google Sheets ─────────────
+  // ── /api/health — Railway health check (respuesta inmediata) ─────────────
+  // Sin ?deep=true: responde en < 5 ms, no llama a Odoo ni Sheets.
+  // Con ?deep=true: verifica Odoo + Sheets (usar manualmente, no como health check de plataforma).
   if (reqPath === '/api/health' && req.method === 'GET') {
+    const deep = (url.parse(req.url, true).query.deep === 'true');
+    if (!deep) {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        mode: 'live',
+        ok: true,
+        odoo: { ok: !!odooUid, uid: odooUid || null },
+        note: 'shallow check — use ?deep=true for full Odoo+Sheets verification'
+      }));
+      return;
+    }
+
     const health = {
       timestamp: new Date().toISOString(),
       mode: 'live',
@@ -3515,8 +3531,6 @@ const server = http.createServer(async (req, res) => {
 
     health.allOk = health.odoo.ok && health.sheets.ok && health.contenedores.ok;
 
-    // Siempre 200 — Render usa este endpoint para health check y un 502 aquí
-    // haría que Render considere el servicio caído aunque el servidor esté corriendo.
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify(health));
     return;
@@ -8785,6 +8799,15 @@ const server = http.createServer(async (req, res) => {
     const tipo  = (q.tipo  || '').trim(); // despacho_cliente | devolucion | traslado_interno
     const desde = (q.desde || '').trim(); // CDP | PTN | NAVE2 (para stock traslado_interno)
     if (!ref) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'ref requerido'})); return; }
+
+    // Caché en memoria: evita hasta 11 roundtrips Odoo por búsqueda repetida (TTL 60 s)
+    if (!global._sdvLookupCache) global._sdvLookupCache = new Map();
+    const cacheKey = `${tipo}:${ref}:${desde}`;
+    const cached = global._sdvLookupCache.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < 60000) {
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(cached.data)); return;
+    }
+
     // Mapa almacén → patrón location en Odoo
     const SDV_LOC_PATTERN = { CDP:'A-CDP', PTN:'D-PTN', NAVE2:'NAVE2', 'Showroom PTN':'D-PTN' };
     try {
@@ -8819,9 +8842,11 @@ const server = http.createServer(async (req, res) => {
             quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
             selected:true, status:'pending' };
         });
+        const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:ret.name,retState:ret.state,
+          client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',items};
+        global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_retPayload});
         res.writeHead(200,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true,tipo:'devolucion',orderRef:so.name,retRef:ret.name,retState:ret.state,
-          client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',items}));
+        res.end(JSON.stringify(_retPayload));
         return;
       }
 
@@ -8846,12 +8871,14 @@ const server = http.createServer(async (req, res) => {
             stockOrigen = Math.max(0, Math.round(stockOrigen));
           } catch(e) { /* si falla stock, seguir sin max */ }
         }
-        res.writeHead(200,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:true,tipo:'articulo',ref:p.default_code||p.barcode||p.name,
+        const _artPayload = {ok:true,tipo:'articulo',ref:p.default_code||p.barcode||p.name,
           stockOrigen, desdeLabel: desde||null,
           items:[{item_id:'art_'+p.id,odoo_product_id:p.id,product_name:p.name,
             sku:p.default_code||p.barcode||'',quantity:1, maxQty: stockOrigen||null,
-            image:p.image_128?'data:image/png;base64,'+p.image_128:null,selected:true,status:'pending'}]}));
+            image:p.image_128?'data:image/png;base64,'+p.image_128:null,selected:true,status:'pending'}]};
+        global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_artPayload});
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(_artPayload));
         return;
       }
 
@@ -8879,10 +8906,12 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const items = noPick ? [] : (pickRes.items||[]);
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true,tipo:tipo||'despacho_cliente',orderRef:so.name,noPick,
+      const _soPayload = {ok:true,tipo:tipo||'despacho_cliente',orderRef:so.name,noPick,
         client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',
-        deliveryAddress,city,phone,picks:pickRes.picks||[],items}));
+        deliveryAddress,city,phone,picks:pickRes.picks||[],items};
+      global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_soPayload});
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify(_soPayload));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -10117,8 +10146,19 @@ const server = http.createServer(async (req, res) => {
       // Íconos PWA: caché corta para que los cambios se propaguen
       headers['Cache-Control'] = 'public, max-age=3600';
     }
-    res.writeHead(200, headers);
-    res.end(data);
+    const acceptsGzip = (req.headers['accept-encoding'] || '').includes('gzip');
+    if (acceptsGzip && data.length > 1024) {
+      zlib.gzip(data, (err2, gz) => {
+        if (err2) { res.writeHead(200, headers); res.end(data); return; }
+        headers['Content-Encoding'] = 'gzip';
+        headers['Vary'] = 'Accept-Encoding';
+        res.writeHead(200, headers);
+        res.end(gz);
+      });
+    } else {
+      res.writeHead(200, headers);
+      res.end(data);
+    }
   });
 });
 
