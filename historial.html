@@ -11840,7 +11840,8 @@ async function openTaskWizard(opts) {
     requester:'',            // solicitante (texto libre)
     activity:'',             // actividad (título)
     staffStart:'', staffEnd:'', staffFrom:'', staffTo:'', // fechas + horario
-    staffWorkers:[],         // [{id,name}] auxiliares de la mano de obra
+    staffManager: null,      // {id, name} encargado responsable principal (obligatorio)
+    staffWorkers:[],         // [{id,name}] auxiliares de la mano de obra (opcional)
     staffReleases:{}         // { auxId: { taskId, replacementId } } liberaciones de tareas en conflicto
   };
   _wizItems=[];_wizSearch=[];
@@ -12146,8 +12147,25 @@ function wizTime12Control(label, key){
 }
 function _wizS2Staffing(body){
   const aux=(_authUsers||[]).filter(u=>u.active!==false&&u.role==='assistant');
+  const mgrs=(_authUsers||[]).filter(u=>u.active!==false&&(u.role==='manager'||u.role==='admin'));
   const wl=_workloadMap||{};
   const total=wizStaffHours();
+  const selMgr=_wizState.staffManager;
+
+  // ── Sección encargados (selección única) ──────────────────────────
+  const mgrRows=mgrs.map(u=>{
+    const isSel=selMgr&&selMgr.id===u.id;
+    const wv=wl[u.id]||0;
+    const wc=wv===0?'var(--green-text)':wv>=4?'var(--red-text)':'var(--amber-text)';
+    const wt=wv===0?'Sin tareas activas':`${wv} tarea${wv!==1?'s':''} activa${wv!==1?'s':''}`;
+    return `<div class="wiz-urow${isSel?' wiz-sel':''}" onclick="wizSelectStaffManager('${u.id}')">
+      <div class="wiz-uavatar" style="background:${_wac(u.name)}">${_wai(u.name)}</div>
+      <div style="flex:1;min-width:0"><div class="wiz-uname">${esc(u.name)}</div><div class="wiz-uwl" style="color:${wc}">${wt}</div></div>
+      ${isSel?`<i data-lucide="check-circle" style="width:16px;height:16px;stroke:var(--accent);flex-shrink:0"></i>`:'<div style="width:16px"></div>'}
+    </div>`;
+  }).join('');
+
+  // ── Sección auxiliares (selección múltiple, opcional) ─────────────
   // dropdown de reemplazo: auxiliares no seleccionados ni en conflicto en esa misma tarea
   const replOptions=(auxId,taskId,selId)=>{
     const t=(_tasks||[]).find(x=>x.id===taskId);
@@ -12155,7 +12173,7 @@ function _wizS2Staffing(body){
     return aux.filter(u=>u.id!==auxId && !already.has(u.id))
       .map(u=>`<option value="${u.id}" ${u.id===selId?'selected':''}>${esc(u.name)}</option>`).join('');
   };
-  const rows=aux.map(u=>{
+  const auxRows=aux.map(u=>{
     const sel=_wizState.staffWorkers.some(p=>p.id===u.id);
     const wv=wl[u.id]||0;
     const wc=wv===0?'var(--green-text)':wv>=4?'var(--red-text)':'var(--amber-text)';
@@ -12209,11 +12227,27 @@ function _wizS2Staffing(body){
       ${wizTime12Control('Hora fin *','staffTo')}
     </div>
     ${total!=null?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:700;margin:2px 0 12px"><i data-lucide="clock" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${total} horas totales</div>`:'<div style="height:8px"></div>'}
-    <div class="wiz-role-lbl"><i data-lucide="users" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
-      ¿Quién hará la actividad? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">auxiliares · varios posibles</span>
+
+    <div class="wiz-role-lbl"><i data-lucide="user-check" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+      Encargado responsable <span style="font-size:9px;color:var(--red-text);font-weight:600;text-transform:none">obligatorio</span>
     </div>
-    <div class="wiz-ulist" style="max-height:260px">${rows||'<div style="color:var(--text-3);font-size:12px;padding:10px;text-align:center">No hay auxiliares activos</div>'}</div>`;
+    <div class="wiz-ulist" style="max-height:180px;margin-bottom:14px">${mgrRows||'<div style="color:var(--text-3);font-size:12px;padding:10px;text-align:center">No hay encargados activos</div>'}</div>
+
+    <div class="wiz-role-lbl"><i data-lucide="users" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+      ¿Quién hará la actividad? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">auxiliares · opcional · varios posibles</span>
+    </div>
+    <div class="wiz-ulist" style="max-height:220px">${auxRows||'<div style="color:var(--text-3);font-size:12px;padding:10px;text-align:center">No hay auxiliares activos</div>'}</div>`;
   if(window.lucide)lucide.createIcons();
+}
+function wizSelectStaffManager(id){
+  const u=(_authUsers||[]).find(x=>x.id===id);if(!u)return;
+  // toggle: si ya estaba seleccionado, deseleccionar
+  if(_wizState.staffManager&&_wizState.staffManager.id===id){
+    _wizState.staffManager=null;
+  } else {
+    _wizState.staffManager={id:u.id,name:u.name};
+  }
+  _wizS2Staffing(document.getElementById('wiz-body'));
 }
 function wizToggleWorker(id){
   const u=(_authUsers||[]).find(x=>x.id===id);if(!u)return;
@@ -12997,6 +13031,7 @@ function wizNext(){
       if(!_wizState.requester.trim()||!_wizState.activity.trim()){ toast('Indica el solicitante y la actividad'); return; }
       if(!_wizState.staffStart||!_wizState.staffFrom||!_wizState.staffTo){ toast('Indica la fecha de inicio y el horario'); return; }
       if(wizStaffHours()==null){ toast('La hora de fin debe ser mayor a la de inicio'); return; }
+      if(!_wizState.staffManager){ toast('Debes seleccionar un encargado responsable'); return; }
       if(_wizState.staffWorkers.length===0) toast('⚠ Sin auxiliares — puedes continuar y asignar después');
     } else if(_wizState.subtaskParentId){
       // Encargado obligatorio para el paso de la cadena
@@ -13031,7 +13066,9 @@ async function _wizSave(){
         totalHours: (total!=null?total:undefined),
         dueDate: ws.staffStart||null,
         assignees: ws.staffWorkers.map(w=>w.id),
-        managerId:_user.id, managerName:_user.name,
+        auxiliaryAssignees: ws.staffWorkers.map(w=>w.id),
+        managerId: ws.staffManager?ws.staffManager.id:_user.id,
+        managerName: ws.staffManager?ws.staffManager.name:_user.name,
         createdBy:_user.id, by:_user.name, byUserId:_user.id
       };
       const r=await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(body)});
