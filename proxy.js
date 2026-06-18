@@ -2402,6 +2402,37 @@ function computeTeamMetrics(opts = {}) {
     };
   });
 
+  // ── Termómetro de Adopción por supervisor ────────────────────────────────
+  // Mide qué % del equipo directo (assistants con lastLogin) está activo o tibio.
+  // Managers sin equipo directo (meta-supervisores) agregan todos los equipos.
+  const catMap = {};
+  out.forEach(u => {
+    if (!u.lastLogin || u.role !== 'assistant') return;
+    const cat = u.categoria; if (!cat) return;
+    if (!catMap[cat]) catMap[cat] = { categoria: cat, total: 0, activos: 0 };
+    catMap[cat].total++;
+    if (u.semaforo === 'activo' || u.semaforo === 'tibio') catMap[cat].activos++;
+  });
+  out.forEach(u => {
+    if (u.role !== 'manager' && u.role !== 'admin') return;
+    const directEntry = catMap[u.categoria];
+    if (directEntry && directEntry.total > 0) {
+      u.termometro = Math.round((directEntry.activos / directEntry.total) * 100);
+      u.termometroDetalle = [{ categoria: directEntry.categoria, pct: u.termometro, total: directEntry.total, activos: directEntry.activos }];
+    } else {
+      const allCats = Object.values(catMap);
+      if (!allCats.length) { u.termometro = null; u.termometroDetalle = []; return; }
+      const totalAll = allCats.reduce((s, c) => s + c.total, 0);
+      const activosAll = allCats.reduce((s, c) => s + c.activos, 0);
+      u.termometro = totalAll > 0 ? Math.round((activosAll / totalAll) * 100) : null;
+      u.termometroDetalle = allCats.map(c => ({
+        categoria: c.categoria,
+        pct: c.total > 0 ? Math.round((c.activos / c.total) * 100) : 0,
+        total: c.total, activos: c.activos
+      }));
+    }
+  });
+
   const filtered = localidad ? out.filter(u => u.categoria === localidad) : out;
   return {
     generatedAt: new Date().toISOString(), windowDays: N,

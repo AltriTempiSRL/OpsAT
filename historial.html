@@ -960,6 +960,17 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .eqp-mgr-stat{flex:1}
 .eqp-mgr-stat-val{font-size:22px;font-weight:800;color:var(--text-primary);line-height:1}
 .eqp-mgr-stat-lbl{font-size:10px;color:var(--text-muted);margin-top:3px}
+.eqp-termo-wrap{margin-bottom:11px}
+.eqp-termo-row{margin-bottom:7px}
+.eqp-termo-lbl{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-secondary)}
+.eqp-termo-pct{font-size:12px;font-weight:800}
+.eqp-termo-bar-bg{height:6px;border-radius:9px;background:var(--surface-3);overflow:hidden}
+.eqp-termo-bar-fill{height:100%;border-radius:9px;transition:width .4s ease}
+.eqp-termo-fill-green{background:var(--green-dot)}
+.eqp-termo-fill-amber{background:var(--amber-dot)}
+.eqp-termo-fill-red{background:var(--red-dot)}
+.eqp-termo-fill-gray{background:var(--text-3)}
+.eqp-termo-consolidado{font-size:11px;color:var(--text-muted);margin-top:2px;margin-bottom:9px}
 .eqp-empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
 .eqp-empty i{width:30px;height:30px;stroke:currentColor;color:var(--text-3);margin-bottom:8px;display:block;margin-left:auto;margin-right:auto}
 .eqp-403{text-align:center;padding:44px 24px;color:var(--text-muted);font-size:13px;max-width:420px;margin:0 auto}
@@ -23814,12 +23825,48 @@ function eqpSortBy(key) {
 }
 
 // ── Panel 5: Encargados (validaciones + cierres) ─────────────────────────────
+function eqpTermoBar(pct) {
+  if (pct === null || pct === undefined) return '';
+  var fillCls = pct >= 70 ? 'eqp-termo-fill-green' : pct >= 40 ? 'eqp-termo-fill-amber' : 'eqp-termo-fill-red';
+  var pctCls  = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+  return '<div class="eqp-termo-bar-bg"><div class="eqp-termo-bar-fill ' + fillCls + '" style="width:' + pct + '%"></div></div>';
+}
+
 function eqpManagersHtml(users) {
   var mgrs = users.filter(function(u){ return u.role === 'admin' || u.role === 'manager'; });
   if (!mgrs.length) return '';
   var cards = mgrs.map(function(u) {
+    var termoHtml = '';
+    var detalle = u.termometroDetalle || [];
+    var pct = u.termometro;
+    if (pct !== null && pct !== undefined) {
+      if (detalle.length > 1) {
+        // Meta-supervisor: una barra por equipo + consolidado
+        var bars = detalle.map(function(d) {
+          var pctCls = d.pct >= 70 ? 'color:var(--green-text)' : d.pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+          return '<div class="eqp-termo-row">' +
+            '<div class="eqp-termo-lbl"><span>' + esc(d.categoria) + '</span><span class="eqp-termo-pct" style="' + pctCls + '">' + d.pct + '%</span></div>' +
+            eqpTermoBar(d.pct) +
+          '</div>';
+        }).join('');
+        var consPctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+        termoHtml = '<div class="eqp-termo-wrap">' + bars +
+          '<div class="eqp-termo-consolidado">Consolidado: <b style="' + consPctCls + '">' + pct + '%</b></div>' +
+        '</div>';
+      } else if (detalle.length === 1) {
+        // Supervisor directo: una barra con su equipo
+        var d = detalle[0];
+        var pctCls = pct >= 70 ? 'color:var(--green-text)' : pct >= 40 ? 'color:var(--amber-text)' : 'color:var(--red-text)';
+        termoHtml = '<div class="eqp-termo-wrap"><div class="eqp-termo-row">' +
+          '<div class="eqp-termo-lbl"><span><i data-lucide="thermometer" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Termómetro de Adopción</span><span class="eqp-termo-pct" style="' + pctCls + '">' + pct + '%</span></div>' +
+          eqpTermoBar(pct) +
+          '<div style="font-size:10px;color:var(--text-muted);margin-top:3px">' + d.activos + ' de ' + d.total + ' activos · ' + esc(d.categoria) + '</div>' +
+        '</div></div>';
+      }
+    }
     return '<div class="eqp-mgr-card">' +
       '<div class="eqp-mgr-name">' + avatarHtml(u, 28) + '<span title="' + esc(u.name) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(u.name) + '</span></div>' +
+      termoHtml +
       '<div class="eqp-mgr-stats">' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.validacionesHechas||0) + '</div><div class="eqp-mgr-stat-lbl">Validaciones</div></div>' +
         '<div class="eqp-mgr-stat"><div class="eqp-mgr-stat-val">' + (u.cierresGestionados||0) + '</div><div class="eqp-mgr-stat-lbl">Cierres gestionados</div></div>' +
