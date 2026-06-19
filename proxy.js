@@ -6752,20 +6752,7 @@ const server = http.createServer(async (req, res) => {
           }
         }
         // Gate de inicio para despacho: el pick de Odoo debe estar realizado (done)
-        if (d.status==='in_progress' && tasks[idx].type==='dispatch_order' && tasks[idx].odooRef) {
-          try {
-            let realName = tasks[idx].odooRef;
-            const so = await odooCall('sale.order','search_read',[[['name','ilike',tasks[idx].odooRef]]],{fields:['name'],limit:1});
-            if (so && so.length) realName = so[0].name;
-            const picksAll = await odooCall('stock.picking','search_read',[[['origin','=',realName]]],{fields:['name','state'],limit:50});
-            const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name));
-            if (pickList.length && !pickList.every(p=>p.state==='done')) {
-              res.writeHead(409,{'Content-Type':'application/json'});
-              res.end(JSON.stringify({ok:false,error:'El pick aún no está realizado en Odoo. El despacho no puede iniciar todavía.'}));
-              return;
-            }
-          } catch(_) { /* si Odoo falla, no bloquear */ }
-        }
+        // Gate de pick temporalmente desactivado — pendiente de revisión de flujo
         tasks[idx].status=d.status;
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
         // Audit log para estados críticos (incluye reactivación desde cancelled)

@@ -9787,12 +9787,8 @@ function renderDrawer(t) {
   const canCloseDispatch = isResponsibleCloser || (isDispatch && taskAuxiliaryIds(t).includes(_user.id));
   const _btnDisabled = `background:var(--surface-3);color:var(--text-muted);cursor:not-allowed`;
   if (t.status==='assigned' && (isResponsibleCloser || canCloseDispatch)) {
-    if (isDispatch && !pickReady) {
-      // Gate: el despacho solo inicia cuando el pick de Odoo está realizado
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Iniciar (esperando pick realizado en Odoo ↑)</button></div>`;
-    } else {
+      // Gate de pick temporalmente desactivado — pendiente de revisión de flujo
       actionHtml += `<div class="step-ptr">▶ Falta iniciar — toca el botón</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','in_progress')">▶ Iniciar</button></div>`;
-    }
   }
   if (t.status==='in_progress' && isDispatch && canCloseDispatch) {
     // ── Completar DESPACHO: checklist (3 fotos) + entrega por artículo ──
