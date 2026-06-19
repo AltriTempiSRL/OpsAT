@@ -6830,6 +6830,7 @@ const server = http.createServer(async (req, res) => {
       }
       else if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
       if (d.title!==undefined) tasks[idx].title=d.title.trim();
+      if (d.type!==undefined && _validTypes.includes(d.type)) tasks[idx].type=d.type;
       if (d.description!==undefined) tasks[idx].description=d.description;
       if (d.priority!==undefined) tasks[idx].priority=d.priority;
       if (d.odooRef!==undefined) tasks[idx].odooRef=d.odooRef;
