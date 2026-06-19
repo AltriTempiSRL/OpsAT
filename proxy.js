@@ -9138,10 +9138,10 @@ const server = http.createServer(async (req, res) => {
       }
       const ST = {draft:'Borrador', waiting:'En espera', confirmed:'Por preparar', assigned:'En preparación', done:'Realizado', cancel:'Cancelado'};
       const picks = pickList.map(p => ({ name:p.name, state:p.state, stateLabel:ST[p.state]||p.state, done:p.state==='done', dateDone:p.date_done||null }));
-      const allDone = picks.every(p => p.done);
+      const allDone = picks.every(p => p.done || p.state === 'cancel');
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:true, hasPick:true, ready:allDone, picks,
-        reason: allDone ? 'Todos los picks realizados' : 'Pick aún en preparación' }));
+        reason: allDone ? 'Todos los picks realizados (o cancelados)' : 'Pick aún en preparación' }));
     } catch(e) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, ready:false, error:e.message})); }
     return;
   }
