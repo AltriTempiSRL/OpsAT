@@ -9829,6 +9829,9 @@ function renderDrawer(t) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingEmp.length} sin confirmar materiales ↓)</button></div>`;
     } else if (selItems.length && missingConf.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
+    } else if ((t.items||[]).length>0 && !selItems.length) {
+      const _nI=(t.items||[]).length;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${_nI} artículo${_nI>1?'s':''} sin verificar ↓)</button></div>`;
     } else if (missingGeneralEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
@@ -9875,6 +9878,8 @@ function renderDrawer(t) {
     const _yaTermine = !!((t.auxDone||{})[_user.id]);
     if (_yaTermine) {
       actionHtml += `<div class="action-row"><button class="btn-primary" style="background:var(--surface-2);color:var(--green-text);border:1.5px solid var(--green-dot)" onclick="setAuxDone('${t.id}',false)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Marcaste terminado · deshacer</button></div>`;
+    } else if ((t.items||[]).length>0 && !_sel.length) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (marca los artículos que trabajaste ↓)</button></div>`;
     } else if (_faltanFotos>0 || _genEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
     } else if (_faltanCond>0) {
