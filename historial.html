@@ -2867,6 +2867,13 @@ body{font-family:var(--font);min-height:100dvh}
 /* Section headers */
 .sec-header{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px}
 
+/* Step pointer chips — guía visual inline encima del botón requerido */
+.step-ptr{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot);margin-bottom:6px;position:relative;width:fit-content;max-width:100%}
+.step-ptr::after{content:'';position:absolute;bottom:-7px;left:12px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--amber-dot)}
+.step-ptr.sptr-g{background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)}
+.step-ptr.sptr-g::after{border-top-color:var(--green-dot)}
+.step-ptr.sptr-info::after{display:none}
+
 /* Actions */
 .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .btn-primary{padding:var(--sp-2) var(--sp-4);background:var(--brand-light);color:white;border:none;border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:background 0.15s}
@@ -9581,6 +9588,7 @@ async function refreshDrawer(btn) {
   try { await openDrawer(_drawerTask.id); } catch(e) { toast('Error al actualizar'); }
 }
 
+
 function renderDrawer(t) {
   const subs = _tasks.filter(s=>s.parentId===t.id);
   const statusOrder = ['pending','assigned','in_progress','completed','validated'];
@@ -9741,7 +9749,7 @@ function renderDrawer(t) {
       // Gate: el despacho solo inicia cuando el pick de Odoo está realizado
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Iniciar (esperando pick realizado en Odoo ↑)</button></div>`;
     } else {
-      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','in_progress')">▶ Iniciar</button></div>`;
+      actionHtml += `<div class="step-ptr">▶ Primer paso: inicia la tarea</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','in_progress')">▶ Iniciar</button></div>`;
     }
   }
   if (t.status==='in_progress' && isDispatch && canCloseDispatch) {
@@ -9752,7 +9760,7 @@ function renderDrawer(t) {
     } else if (!dispatchItemsOk) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Completar (${dispatchItemsPending.length} artículo${dispatchItemsPending.length>1?'s':''} sin registrar entrega ↓)</button></div>`;
     } else {
-      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">✓ Marcar Despacho Completado</button></div>`;
+      actionHtml += `<div class="step-ptr sptr-g">¡Despacho listo! Confirma para cerrar</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">✓ Marcar Despacho Completado</button></div>`;
     }
   } else if (t.status==='in_progress'&&isResponsibleCloser) {
     const completeVerb = (t.type === 'general' || t.taskConcept === 'free') ? 'Terminé mi parte' : 'Completar';
@@ -9779,7 +9787,7 @@ function renderDrawer(t) {
     } else if (missingGeneralEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
-      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">${completeButtonLabel}</button></div>`;
+      actionHtml += `<div class="step-ptr sptr-g">¡Todo listo! Pulsa para completar</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">${completeButtonLabel}</button></div>`;
     }
   }
   if (t.status==='completed' && isResponsibleCloser) {
@@ -9805,6 +9813,10 @@ function renderDrawer(t) {
       ${_subsWarning}
     </div>`;
   }
+  // Auxiliar de empaque esperando que el encargado inicie: chip informativo sin flecha (no hay botón destino)
+  if (_user.role==='assistant' && t.type==='packaging' && t.status==='assigned' && isTaskParticipant(t)) {
+    actionHtml += `<div class="step-ptr sptr-info">⏳ Espera que el encargado inicie la tarea</div>`;
+  }
   // Auxiliar: botón "Terminé mi parte" (handoff al encargado). Habilitado solo con fotos completas.
   if (_user.role==='assistant' && t.status==='in_progress' && isTaskParticipant(t)) {
     const _sel = (t.items||[]).filter(i=>i.selected);
@@ -9816,7 +9828,7 @@ function renderDrawer(t) {
     } else if (_faltanFotos>0 || _genEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
     } else {
-      actionHtml += `<div class="action-row"><button class="btn-primary btn-success" onclick="setAuxDone('${t.id}',true)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Terminé mi parte</button></div>`;
+      actionHtml += `<div class="step-ptr sptr-g">¡Fotos listas! Pulsa el botón abajo</div><div class="action-row"><button class="btn-primary btn-success" onclick="setAuxDone('${t.id}',true)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Terminé mi parte</button></div>`;
     }
   }
   // Encargado/admin: panel de estado de auxiliares (quién terminó)
@@ -9857,6 +9869,8 @@ function renderDrawer(t) {
     const sourceAction = isStorageFlow ? storageCopy.sourceAction : 'Actualizar desde pick';
     const sourceHint = isStorageFlow ? storageCopy.sourceHint : 'Re-consultar el pick y actualizar artículos/ubicaciones';
     const evidenceAlert = isStorageFlow ? storageCopy.evidenceAlert : 'Faltan fotos de evidencia en';
+    var _firstFotoItem = (items.find(i=>!(i.evidence_images||[]).length)||{}).item_id||null;
+    var _firstConfItem = _firstFotoItem ? null : (items.find(i=>(i.evidence_images||[]).length>0&&!i.confirmado&&canConfirmItem)||{}).item_id||null;
     itemsHtml = `<div class="sec-header">${itemSectionTitle}
       <span style="color:${sinConfirm?'#d97706':'#059669'};float:right;font-size:10px">${sinConfirm?sinConfirm+' SIN CONFIRMAR':'Todos confirmados'}</span>
       <span style="float:right;margin-right:8px;font-size:10px">${items.length-sinConfirm}/${items.length}</span>
@@ -9895,6 +9909,7 @@ function renderDrawer(t) {
       const damagePlaceholder = isStorageFlow ? storageCopy.damagePlaceholder : 'Tipo de avería…';
       const locationPrefix = isStorageFlow ? storageCopy.locationPrefix : '';
       return `<div class="item-card" style="border:1.5px solid ${isItemConf?'#16a34a':'var(--border)'}">
+        ${(it.item_id===_firstConfItem&&!isItemConf&&evs.length>0)?`<div class="step-ptr sptr-g" style="margin-bottom:8px">✓ Confirma este artículo — ya tiene foto</div>`:''}
         <div class="item-header" style="align-items:flex-start;gap:8px">
           <label style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;cursor:${canConfirmItem?'pointer':'default'};padding-top:2px">
             <input type="checkbox" ${isItemConf?'checked':''} ${canConfirmItem?'':'disabled'}
@@ -9946,6 +9961,7 @@ function renderDrawer(t) {
         ${evs.length?`<div class="ev-grid">${evs.map(e=>`<div class="ev-wrap"><img class="ev-img" src="${mediaUrl(e.url)}" onclick="openLightbox('${mediaUrl(e.url)}')" style="cursor:zoom-in" onerror="this.src='data:image/svg+xml,<svg/>'">
           ${canUpload?`<button class="ev-del" onclick="deleteItemEvidence('${t.id}','${it.item_id}','${e.id}')">✕</button>`:''}
         </div>`).join('')}</div>`:''}
+        ${(it.item_id===_firstFotoItem&&canUpload&&!evs.length)?`<div class="step-ptr" style="margin-top:6px">📷 ${addPhotoText}</div>`:''}
         ${canUpload?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${addPhotoText}</button>`:''}
         ${it.odoo_categ_id?`<div class="task-emp-section" id="emp-item-${it.item_id}"><div style="color:var(--text-muted);font-size:11px;padding:4px">Cargando materiales de empaque…</div></div>`:''}
       </div>`;
@@ -10316,7 +10332,6 @@ function renderDrawer(t) {
     </div>
     ${overdueReassignButtonHtml(t, {primary:true})}
   </div>` : '';
-
   document.getElementById('drawer-body').innerHTML = isDispatch ? `
     <div class="status-progress">${stepHtml}</div>
     ${overdueBannerHtml}
