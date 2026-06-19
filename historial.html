@@ -9870,7 +9870,8 @@ function renderDrawer(t) {
     const sourceHint = isStorageFlow ? storageCopy.sourceHint : 'Re-consultar el pick y actualizar artículos/ubicaciones';
     const evidenceAlert = isStorageFlow ? storageCopy.evidenceAlert : 'Faltan fotos de evidencia en';
     var _firstFotoItem = (items.find(i=>!(i.evidence_images||[]).length)||{}).item_id||null;
-    var _firstConfItem = _firstFotoItem ? null : (items.find(i=>(i.evidence_images||[]).length>0&&!i.confirmado&&canConfirmItem)||{}).item_id||null;
+    var _firstCondItem = _firstFotoItem ? null : (items.find(i=>(i.evidence_images||[]).length>0&&!i.condition)||{}).item_id||null;
+    var _firstConfItem = (_firstFotoItem||_firstCondItem) ? null : (items.find(i=>(i.evidence_images||[]).length>0&&!i.confirmado&&canConfirmItem)||{}).item_id||null;
     itemsHtml = `<div class="sec-header">${itemSectionTitle}
       <span style="color:${sinConfirm?'#d97706':'#059669'};float:right;font-size:10px">${sinConfirm?sinConfirm+' SIN CONFIRMAR':'Todos confirmados'}</span>
       <span style="float:right;margin-right:8px;font-size:10px">${items.length-sinConfirm}/${items.length}</span>
@@ -9946,7 +9947,8 @@ function renderDrawer(t) {
         </div>
         ${(()=>{ const dmg=it.condition==='damaged'; const good=it.condition==='good'; const unset=!it.condition; const DMG=['Rayado','Con golpe','Desperfecto de pintura','Defecto de fábrica'];
           const _bord = dmg?'var(--red-dot)':(unset?'var(--amber-dot)':'var(--border)');
-          return `<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+          const _condPtr = (it.item_id===_firstCondItem&&unset&&canUpload)?`<div class="step-ptr" style="margin-top:6px">📋 ${conditionLabel.replace(':','')}</div>`:'';
+          return _condPtr+`<div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text-3);font-weight:600">${conditionLabel}</span>
           <select ${canUpload?'':'disabled'} onchange="setItemCondition('${t.id}','${it.item_id}',this.value)" style="font-size:11px;padding:3px 6px;border:1.5px solid ${_bord};border-radius:6px;background:var(--surface);color:${dmg?'var(--red-text)':'var(--text)'};font-weight:600">
             <option value="" ${unset?'selected':''} disabled>${conditionEmpty}</option>
