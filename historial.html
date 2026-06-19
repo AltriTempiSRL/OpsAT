@@ -3075,11 +3075,13 @@ body{font-family:var(--font);min-height:100dvh}
 /* ── NOTIFICACIONES ──────────────────────────────────────────────── */
 .notif-btn{
   position:relative;background:transparent;border:none;
-  border-radius:50%;width:36px;height:36px;cursor:pointer;
+  border-radius:50%;width:44px;height:44px;min-width:44px;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;font-size:18px;
-  transition:background .2s;color:var(--text-2);flex-shrink:0;
+  transition:background .2s,color .2s;color:var(--text-2);flex-shrink:0;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
 }
 .notif-btn:hover{background:var(--surface-2)}
+.notif-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .notif-badge{
   position:absolute;top:-4px;right:-4px;
   background:#ef4444;color:white;font-size:9px;font-weight:800;
@@ -3500,7 +3502,7 @@ body{font-family:var(--font);min-height:100dvh}
   .user-avatar{width:32px;height:32px;font-size:13px}
   #presence-label{display:none}
   .presence-btn{padding:6px 8px;border-radius:50%;width:36px;height:36px;justify-content:center}
-  .notif-btn{width:32px;height:32px}
+  .notif-btn{width:44px;height:44px;min-width:44px}
 
   /* — Tabs de sección WWP: scroll horizontal (igual que desktop) — */
   .app-nav{
