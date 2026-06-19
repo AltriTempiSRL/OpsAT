@@ -9831,7 +9831,7 @@ function renderDrawer(t) {
       const _nI=(t.items||[]).length;
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${_nI} artículo${_nI>1?'s':''} sin verificar ↓)</button></div>`;
     } else if (missingGeneralEv) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
+      actionHtml += `<div class="step-ptr">📷 Sube una foto de evidencia ↓</div><div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
       actionHtml += `<div class="step-ptr sptr-g">✓ Todo listo — toca para completar</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">${completeButtonLabel}</button></div>`;
     }
@@ -9879,7 +9879,7 @@ function renderDrawer(t) {
     } else if ((t.items||[]).length>0 && !_sel.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (marca los artículos que trabajaste ↓)</button></div>`;
     } else if (_faltanFotos>0 || _genEv) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
+      actionHtml += `<div class="step-ptr">📷 Sube una foto de evidencia ↓</div><div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
     } else if (_faltanCond>0) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanCond} sin indicar estado ↓)</button></div>`;
     } else if (_faltanEmp>0) {
@@ -10314,6 +10314,7 @@ function renderDrawer(t) {
           <span style="font-size:9px;font-weight:700;color:${done?'var(--green-text)':'var(--amber-text)'};flex-shrink:0">${done?fotos.length+' foto'+(fotos.length!==1?'s':''):'REQUERIDO'}</span>
         </div>
         ${photosHtml}
+        ${canDispUpload&&!done&&!fotos.length?`<div class="step-ptr" style="margin-top:7px">📷 Falta foto — toca el botón de cámara</div>`:''}
         ${canDispUpload?`<button class="btn-add-photo" style="margin-top:7px" onclick="uploadFotoDespacho('${t.id}','${cat}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${fotos.length?'Agregar otra':'Subir foto'}</button>`:''}
       </div>`;
     };
