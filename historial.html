@@ -8668,23 +8668,21 @@ function isTaskParticipant(t) {
   return !!(_user && (taskParticipantIds(t).has(_user.id) || _user.role === 'admin'));
 }
 
-// ¿El auxiliar ya terminó su parte y la tarea NO fue modificada después?
-// Si terminó y sin cambios → ocultar de su lista (ve solo su próxima tarea).
-// Si el encargado modificó la lista de artículos o editó la tarea después → reaparece.
+// ¿El auxiliar ya terminó su parte y la tarea está cerrada por el encargado?
+// Solo ocultar cuando el encargado completó/validó la tarea (el aux no tiene nada más que hacer).
+// Si la tarea sigue en_progreso, el aux siempre la ve aunque haya marcado "Terminé mi parte".
 function auxFinishedAndStale(t, userId) {
   if (!t) return false;
+  // Mientras la tarea no esté cerrada por el encargado, el aux siempre la ve
+  if (!['completed','validated'].includes(t.status)) return false;
+  // Tarea cerrada: ocultar si el aux participó (ya no tiene nada que hacer)
+  if (!taskParticipantIds(t).has(userId)) return false;
+  // ¿El encargado modificó artículos después del cierre? → reaparece (devolver implícito)
   const ad = (t.auxDone||{})[userId];
-  let doneAt = ad && ad.at ? ad.at : null;
-  // Respaldo: tarea cerrada (completed/validated) en la que el auxiliar participó
-  if (!doneAt && ['completed','validated'].includes(t.status) && taskParticipantIds(t).has(userId)) {
-    const h = (t.statusHistory||[]).filter(x=>x.status==='completed'||x.status==='validated').pop();
-    doneAt = h ? h.date : (t.updatedAt||null);
-  }
-  if (!doneAt) return false; // no ha terminado → mostrar
-  // ¿Modificada por el encargado después de que terminó? → reaparece
+  const doneAt = ad && ad.at ? ad.at : null;
   const mod = t.itemsUpdatedAt;
-  if (mod && new Date(mod) > new Date(doneAt)) return false;
-  return true; // terminó y sin cambios → ocultar
+  if (doneAt && mod && new Date(mod) > new Date(doneAt)) return false;
+  return true; // tarea cerrada y sin cambios pendientes → ocultar
 }
 
 function canViewTaskLocal(t, userId) {
