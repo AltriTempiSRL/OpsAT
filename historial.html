@@ -1088,8 +1088,9 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .task-emp-mat-cb{width:20px;height:20px;border-radius:4px;accent-color:#0369a1;cursor:pointer;flex-shrink:0;margin:0}
 .task-emp-mat-row.omitido .task-emp-mat-name{text-decoration:line-through;opacity:.5}
 .task-emp-mat-row.omitido .task-emp-mat-desc{opacity:.4}
-.task-emp-btn-confirm{width:100%;padding:8px 14px;border:none;border-radius:8px;background:#0369a1;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .15s;margin-top:10px}
-.task-emp-btn-confirm:hover{background:#0284c7}
+.task-emp-btn-confirm{width:100%;padding:8px 14px;border:none;border-radius:8px;background:#0369a1;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .15s;margin-top:10px;animation:emp-btn-pulse 1.8s ease-in-out infinite}
+.task-emp-btn-confirm:hover{background:#0284c7;animation:none}
+@keyframes emp-btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(3,105,161,.65);transform:scale(1)}50%{box-shadow:0 0 0 10px rgba(3,105,161,0);transform:scale(1.025)}}
 /* Foto ampliada */
 .emp-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:3000;display:none;align-items:center;justify-content:center}
 .emp-lightbox.open{display:flex}
@@ -9779,6 +9780,7 @@ function renderDrawer(t) {
     const missingEv = selItems.filter(i=>!i.evidence_images||!i.evidence_images.length);
     const missingConf = selItems.filter(i=>!i.confirmado);
     const missingCond = selItems.filter(i=>!i.condition);
+    const missingEmp = selItems.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial'));
     const hasGuiaEvidencia = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const missingGeneralEv = !selItems.length && !(t.evidence||[]).length && !hasGuiaEvidencia;
     if (selItems.length && missingEv.length) {
@@ -9790,6 +9792,8 @@ function renderDrawer(t) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
     } else if (selItems.length && missingCond.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingCond.length} sin indicar condición)</button></div>`;
+    } else if (selItems.length && missingEmp.length) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingEmp.length} sin confirmar materiales ↓)</button></div>`;
     } else if (missingGeneralEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
@@ -9828,6 +9832,7 @@ function renderDrawer(t) {
     const _sel = (t.items||[]).filter(i=>i.selected);
     const _faltanFotos = _sel.filter(i=>!(i.evidence_images||[]).length).length;
     const _faltanCond  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.condition).length;
+    const _faltanEmp   = _sel.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial')).length;
     const _faltanConf  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!!i.condition&&!i.confirmado).length;
     const _genEv = !_sel.length && !(t.evidence||[]).length && !(t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const _yaTermine = !!((t.auxDone||{})[_user.id]);
@@ -9837,6 +9842,8 @@ function renderDrawer(t) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
     } else if (_faltanCond>0) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanCond} sin indicar estado ↓)</button></div>`;
+    } else if (_faltanEmp>0) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanEmp} sin confirmar materiales ↓)</button></div>`;
     } else if (_faltanConf>0) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanConf} artículo${_faltanConf>1?'s':''} sin confirmar ↓)</button></div>`;
     } else {
