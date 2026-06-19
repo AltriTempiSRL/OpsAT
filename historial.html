@@ -9822,18 +9822,24 @@ function renderDrawer(t) {
   if (_user.role==='assistant' && t.type==='packaging' && t.status==='assigned' && isTaskParticipant(t)) {
     actionHtml += `<div class="step-ptr sptr-info">⏳ Espera que el encargado inicie la tarea</div>`;
   }
-  // Auxiliar: botón "Terminé mi parte" (handoff al encargado). Habilitado solo con fotos completas.
+  // Auxiliar: botón "Terminé mi parte" (handoff al encargado). Requiere fotos + condición + confirmación.
   if (_user.role==='assistant' && t.status==='in_progress' && isTaskParticipant(t)) {
     const _sel = (t.items||[]).filter(i=>i.selected);
-    const _faltanFotos = _sel.filter(i=>!i.evidence_images||!i.evidence_images.length).length;
+    const _faltanFotos = _sel.filter(i=>!(i.evidence_images||[]).length).length;
+    const _faltanCond  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.condition).length;
+    const _faltanConf  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!!i.condition&&!i.confirmado).length;
     const _genEv = !_sel.length && !(t.evidence||[]).length && !(t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const _yaTermine = !!((t.auxDone||{})[_user.id]);
     if (_yaTermine) {
       actionHtml += `<div class="action-row"><button class="btn-primary" style="background:var(--surface-2);color:var(--green-text);border:1.5px solid var(--green-dot)" onclick="setAuxDone('${t.id}',false)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Marcaste terminado · deshacer</button></div>`;
     } else if (_faltanFotos>0 || _genEv) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="background:var(--surface-3);color:var(--text-muted);cursor:not-allowed"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
+    } else if (_faltanCond>0) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanCond} sin indicar estado ↓)</button></div>`;
+    } else if (_faltanConf>0) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanConf} artículo${_faltanConf>1?'s':''} sin confirmar ↓)</button></div>`;
     } else {
-      actionHtml += `<div class="step-ptr sptr-g">¡Fotos listas! Pulsa el botón abajo</div><div class="action-row"><button class="btn-primary btn-success" onclick="setAuxDone('${t.id}',true)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Terminé mi parte</button></div>`;
+      actionHtml += `<div class="step-ptr sptr-g">¡Todo listo! Pulsa el botón abajo</div><div class="action-row"><button class="btn-primary btn-success" onclick="setAuxDone('${t.id}',true)"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Terminé mi parte</button></div>`;
     }
   }
   // Encargado/admin: panel de estado de auxiliares (quién terminó)
