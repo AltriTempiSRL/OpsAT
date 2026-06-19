@@ -5786,16 +5786,48 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </div>
   </div>
 
+  <style>
+    .users-map-grid{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:12px;align-items:stretch}
+    .users-map-side{border:1px solid var(--border);border-radius:10px;background:var(--surface);min-height:62vh;max-height:62vh;overflow:hidden;display:flex;flex-direction:column}
+    .users-map-row{border:1px solid var(--border);background:var(--surface-2);border-radius:8px;padding:9px 10px;display:flex;gap:9px;align-items:center;text-align:left;cursor:pointer;color:var(--text);font-family:inherit}
+    .users-map-row:hover{border-color:var(--accent)}
+    .users-map-row.active{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)}
+    .users-map-dot{width:9px;height:9px;border-radius:999px;flex-shrink:0;background:var(--text-3)}
+    .users-map-dot.fresh{background:var(--green)}
+    .users-map-dot.stale{background:var(--amber)}
+    .users-map-dot.old{background:var(--red)}
+    @media(max-width:760px){
+      .users-map-grid{grid-template-columns:1fr}
+      .users-map-side{min-height:auto;max-height:260px}
+      #users-map{height:52vh!important}
+    }
+  </style>
   <!-- Mapa de ubicaciones (solo admin) -->
   <div class="modal-overlay" id="modal-users-map">
-    <div class="modal-card" style="max-width:760px;width:96vw">
+    <div class="modal-card" style="max-width:1120px;width:96vw">
       <div class="modal-header">
         <span class="modal-title" id="users-map-title">Mapa de auxiliares</span>
         <button class="modal-close" onclick="closeUsersMap()">✕</button>
       </div>
       <div style="padding:0 16px 8px">
         <div id="users-map-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-3);margin-bottom:8px"></div>
-        <div id="users-map" style="width:100%;height:62vh;border-radius:10px;overflow:hidden;background:var(--surface-2)"></div>
+        <div class="users-map-grid">
+          <aside class="users-map-side">
+            <div style="padding:10px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px">
+              <input id="users-map-search" class="form-input" placeholder="Buscar auxiliar..." oninput="renderUsersMapList()" style="height:38px;font-size:13px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+                <select id="users-map-filter" class="form-input" onchange="renderUsersMapList();drawUsersMapMarkers()" style="height:38px;font-size:12px">
+                  <option value="all">Todos</option>
+                  <option value="fresh">GPS reciente</option>
+                  <option value="stale">GPS viejo</option>
+                </select>
+                <input id="users-map-date" class="form-input" type="date" onchange="refreshSelectedUserRoute()" style="height:38px;font-size:12px">
+              </div>
+            </div>
+            <div id="users-map-list" style="overflow:auto;padding:8px;display:flex;flex-direction:column;gap:7px"></div>
+          </aside>
+          <div id="users-map" style="width:100%;height:62vh;border-radius:10px;overflow:hidden;background:var(--surface-2)"></div>
+        </div>
         <div id="users-map-empty" style="display:none;padding:30px;text-align:center;color:var(--text-3);font-size:13px"></div>
       </div>
     </div>
@@ -9780,23 +9812,21 @@ function renderDrawer(t) {
       : '';
     // Fotos obligatorias: por articulo cuando hay articulos, o evidencia general si no hay articulos.
     const selItems = (t.items||[]).filter(i=>i.selected);
-    const missingEv = selItems.filter(i=>!i.evidence_images||!i.evidence_images.length);
-    const missingConf = selItems.filter(i=>!i.confirmado);
-    const missingCond = selItems.filter(i=>!i.condition);
+    const missingEv = isStorageFlow ? selItems.filter(i=>!i.evidence_images||!i.evidence_images.length) : [];
+    const missingCond = isStorageFlow ? selItems.filter(i=>!i.condition) : [];
     const missingEmp = selItems.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial'));
+    const missingConf = selItems.filter(i=>!i.confirmado);
     const hasGuiaEvidencia = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const missingGeneralEv = !selItems.length && !(t.evidence||[]).length && !hasGuiaEvidencia;
     if (selItems.length && missingEv.length) {
-      const _missingEvText = isStorageFlow
-        ? `${storageCopy.evidenceLock} en ${missingEv.length} articulo${missingEv.length>1?'s':''}`
-        : `faltan ${missingEv.length} foto${missingEv.length>1?'s':''}`;
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (' + _missingEvText + ')'}</button></div>${freeEvidenceHint}`;
-    } else if (selItems.length && missingConf.length) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
+      const _missingEvText = `${storageCopy.evidenceLock} en ${missingEv.length} articulo${missingEv.length>1?'s':''}`;
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${_missingEvText})</button></div>${freeEvidenceHint}`;
     } else if (selItems.length && missingCond.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingCond.length} sin indicar condición)</button></div>`;
     } else if (selItems.length && missingEmp.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingEmp.length} sin confirmar materiales ↓)</button></div>`;
+    } else if (selItems.length && missingConf.length) {
+      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
     } else if (missingGeneralEv) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${(t.type === 'general' || t.taskConcept === 'free') ? 'Falta evidencia' : completeVerb + ' (falta evidencia fotográfica)'}</button></div>${freeEvidenceHint}`;
     } else {
@@ -9834,9 +9864,11 @@ function renderDrawer(t) {
   if (_user.role==='assistant' && t.status==='in_progress' && isTaskParticipant(t)) {
     const _sel = (t.items||[]).filter(i=>i.selected);
     const _faltanFotos = _sel.filter(i=>!(i.evidence_images||[]).length).length;
-    const _faltanCond  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.condition).length;
+    const _faltanCond  = isStorageFlow ? _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.condition).length : 0;
     const _faltanEmp   = _sel.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial')).length;
-    const _faltanConf  = _sel.filter(i=>(i.evidence_images||[]).length>0&&!!i.condition&&!i.confirmado).length;
+    const _faltanConf  = isStorageFlow
+      ? _sel.filter(i=>(i.evidence_images||[]).length>0&&!!i.condition&&!i.confirmado).length
+      : _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.confirmado).length;
     const _genEv = !_sel.length && !(t.evidence||[]).length && !(t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const _yaTermine = !!((t.auxDone||{})[_user.id]);
     if (_yaTermine) {
@@ -14797,6 +14829,7 @@ function dismissWelcome(){
 
 // ── Mapa de ubicaciones (Leaflet, solo admin) ──────────────────────────
 var _leafletLoaded=false, _usersMap=null, _usersMapLayer=null;
+var _usersMapState={users:[],selectedUser:null,selectedName:'',routePoints:[]};
 function _ensureLeaflet(){
   return new Promise(function(resolve,reject){
     if(_leafletLoaded && window.L){ resolve(); return; }
@@ -14812,12 +14845,93 @@ function _ensureLeaflet(){
   });
 }
 function _wac2(n){return _wac(n||'?');}
+function _localDateStr(d){
+  try{ const x=d?new Date(d):new Date(); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); }catch(e){ return ''; }
+}
+function _mapAgeInfo(loc){
+  const t=loc&&loc.at?new Date(loc.at).getTime():0;
+  const mins=t?Math.max(0,Math.round((Date.now()-t)/60000)):999999;
+  const cls=mins<=45?'fresh':mins<=240?'stale':'old';
+  const label=mins<=45?'GPS reciente':mins<=240?'GPS viejo':'Sin senal reciente';
+  return {mins,cls,label};
+}
+function _mapFilteredUsers(){
+  const q=((document.getElementById('users-map-search')||{}).value||'').trim().toLowerCase();
+  const f=((document.getElementById('users-map-filter')||{}).value||'all');
+  return (_usersMapState.users||[]).filter(function(u){
+    const a=_mapAgeInfo(u.lastLocation);
+    if(q && !(u.name||'').toLowerCase().includes(q)) return false;
+    if(f==='fresh' && a.cls!=='fresh') return false;
+    if(f==='stale' && a.cls==='fresh') return false;
+    return true;
+  });
+}
+function renderUsersMapList(){
+  const list=document.getElementById('users-map-list'); if(!list) return;
+  const users=_mapFilteredUsers();
+  if(!users.length){
+    list.innerHTML='<div style="padding:18px;text-align:center;color:var(--text-3);font-size:12px">Sin auxiliares para este filtro.</div>';
+    return;
+  }
+  list.innerHTML=users.map(function(u){
+    const a=_mapAgeInfo(u.lastLocation), active=_usersMapState.selectedUser===u.id;
+    const ago=u.lastLocation&&u.lastLocation.at?timeSince(u.lastLocation.at):'sin fecha';
+    const acc=u.lastLocation&&isFinite(u.lastLocation.accuracy)?' · ±'+Math.round(u.lastLocation.accuracy)+'m':'';
+    const ctx=u.lastLocation&&u.lastLocation.context?'<div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.lastLocation.context)+'</div>':'';
+    return '<button class="users-map-row '+(active?'active':'')+'" onclick="focusUserOnMap(\''+esc(u.id)+'\')">'
+      +'<span class="users-map-dot '+a.cls+'"></span>'
+      +'<span style="min-width:0;flex:1"><span style="display:block;font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.name||'Auxiliar')+'</span>'
+      +'<span style="display:block;font-size:11px;color:var(--text-3)">'+a.label+' · '+esc(ago)+acc+'</span>'+ctx+'</span>'
+      +'<i data-lucide="route" style="width:15px;height:15px;stroke:var(--accent);flex-shrink:0"></i>'
+      +'</button>';
+  }).join('');
+  if(window.lucide)lucide.createIcons();
+}
+function _initUsersMap(cb){
+  if(_usersMap){ _usersMap.remove(); _usersMap=null; _usersMapLayer=null; }
+  setTimeout(function(){
+    _usersMap=L.map('users-map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(_usersMap);
+    if(cb) cb();
+    setTimeout(function(){ if(_usersMap) _usersMap.invalidateSize(); },300);
+  },250);
+}
+function _userMarkerIcon(u){
+  const initials=_wai(u.name), color=_wac(u.name);
+  return L.divIcon({className:'', html:'<div style="background:'+color+';color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff"><span style="transform:rotate(45deg);font-size:10px;font-weight:700">'+initials+'</span></div>', iconSize:[30,30], iconAnchor:[15,30]});
+}
+function drawUsersMapMarkers(){
+  if(!_usersMap || !window.L) return;
+  if(_usersMapLayer){ _usersMap.removeLayer(_usersMapLayer); _usersMapLayer=null; }
+  _usersMapLayer=L.layerGroup().addTo(_usersMap);
+  const users=_mapFilteredUsers(), bounds=[];
+  users.forEach(function(u){
+    const ll=u.lastLocation, a=_mapAgeInfo(ll), ago=ll.at?timeSince(ll.at):'';
+    const m=L.marker([ll.lat,ll.lng],{icon:_userMarkerIcon(u)}).addTo(_usersMapLayer);
+    const nameArg=encodeURIComponent(u.name||'Auxiliar');
+    m.bindPopup('<div style="font-size:13px"><b>'+esc(u.name)+'</b><br><span style="color:#666;font-size:11px">'+a.label+(ago?' · '+ago:'')+(ll.context?' · '+esc(ll.context):'')+'</span><br><a href="#" onclick="showUserRoute(\''+esc(u.id)+'\',decodeURIComponent(\''+nameArg+'\'));return false;" style="font-size:12px;color:#2563eb">Ver recorrido</a></div>');
+    bounds.push([ll.lat,ll.lng]);
+  });
+  renderUsersMapList();
+  if(bounds.length===1) _usersMap.setView(bounds[0],15);
+  else if(bounds.length>1) _usersMap.fitBounds(bounds,{padding:[40,40]});
+}
+function focusUserOnMap(userId){
+  const u=(_usersMapState.users||[]).find(x=>x.id===userId); if(!u||!u.lastLocation) return;
+  _usersMapState.selectedUser=userId; _usersMapState.selectedName=u.name||'Auxiliar';
+  renderUsersMapList();
+  if(_usersMap) _usersMap.setView([u.lastLocation.lat,u.lastLocation.lng],16);
+  showUserRoute(userId,u.name||'Auxiliar');
+}
 async function openUsersMap(){
   if(_user.role!=='admin'){ toast('Solo admin'); return; }
   const modal=document.getElementById('modal-users-map');
   modal.classList.add('open');
   const empty=document.getElementById('users-map-empty');
   const mapEl=document.getElementById('users-map');
+  const dateEl=document.getElementById('users-map-date');
+  if(dateEl && !dateEl.value) dateEl.value=_localDateStr();
+  _usersMapState.selectedUser=null; _usersMapState.selectedName=''; _usersMapState.routePoints=[];
   document.getElementById('users-map-title').textContent='Mapa de auxiliares';
   document.getElementById('users-map-bar').innerHTML='<span>Cargando ubicaciones…</span>';
   try{
@@ -14825,6 +14939,7 @@ async function openUsersMap(){
     const r=await authFetch('/api/wwp/auth/locations');
     const d=await r.json();
     const users=(d.users||[]).filter(u=>u.lastLocation&&isFinite(u.lastLocation.lat)&&isFinite(u.lastLocation.lng));
+    _usersMapState.users=users;
     if(!users.length){
       mapEl.style.display='none'; empty.style.display='block';
       empty.innerHTML='<i data-lucide="map-pin-off" style="width:20px;height:20px;stroke:var(--text-3);display:block;margin:0 auto 8px"></i>Aún no hay ubicaciones registradas. Aparecerán cuando los auxiliares trabajen tareas con el GPS activado.';
@@ -14833,29 +14948,12 @@ async function openUsersMap(){
       return;
     }
     mapEl.style.display='block'; empty.style.display='none';
-    document.getElementById('users-map-bar').innerHTML=`<i data-lucide="users" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${users.length} usuario(s) con ubicación · clic en un marcador para ver detalle o recorrido`;
+    const fresh=users.filter(u=>_mapAgeInfo(u.lastLocation).cls==='fresh').length;
+    const stale=users.length-fresh;
+    document.getElementById('users-map-bar').innerHTML=`<i data-lucide="users" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${users.length} usuario(s) con ubicación · ${fresh} reciente(s) · ${stale} viejo(s) · historial 7 días`;
     if(window.lucide)lucide.createIcons();
-    // (Re)crear el mapa
-    if(_usersMap){ _usersMap.remove(); _usersMap=null; }
-    setTimeout(function(){
-      _usersMap=L.map('users-map');
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(_usersMap);
-      const bounds=[];
-      users.forEach(u=>{
-        const ll=u.lastLocation;
-        const initials=_wai(u.name), color=_wac(u.name);
-        const icon=L.divIcon({className:'', html:`<div style="background:${color};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff"><span style="transform:rotate(45deg);font-size:10px;font-weight:700">${initials}</span></div>`, iconSize:[30,30], iconAnchor:[15,30]});
-        const ago=ll.at?timeSince(ll.at):'';
-        const m=L.marker([ll.lat,ll.lng],{icon}).addTo(_usersMap);
-        m.bindPopup(`<div style="font-size:13px"><b>${esc(u.name)}</b><br><span style="color:#666;font-size:11px">${ago?('Última: '+ago):''}${ll.context?(' · '+esc(ll.context)):''}</span><br><a href="#" onclick="showUserRoute('${u.id}','${esc(u.name).replace(/'/g,"")}');return false;" style="font-size:12px;color:#2563eb">Ver recorrido →</a></div>`);
-        bounds.push([ll.lat,ll.lng]);
-      });
-      if(bounds.length===1) _usersMap.setView(bounds[0],15);
-      else _usersMap.fitBounds(bounds,{padding:[40,40]});
-      // El contenedor del modal cambió de tamaño tras la animación → recalcular tiles
-      setTimeout(function(){ if(_usersMap){ _usersMap.invalidateSize();
-        if(bounds.length===1) _usersMap.setView(bounds[0],15); else _usersMap.fitBounds(bounds,{padding:[40,40]}); } }, 300);
-    },250);
+    renderUsersMapList();
+    _initUsersMap(drawUsersMapMarkers);
   }catch(e){ toast('Error: '+e.message); document.getElementById('users-map-bar').innerHTML='Error al cargar el mapa'; }
 }
 function closeUsersMap(){ document.getElementById('modal-users-map').classList.remove('open'); }
@@ -14863,29 +14961,37 @@ function closeUsersMap(){ document.getElementById('modal-users-map').classList.r
 // Recorrido (historial) de un usuario sobre el mapa
 async function showUserRoute(userId, userName){
   try{
+    _usersMapState.selectedUser=userId; _usersMapState.selectedName=userName||'Auxiliar';
+    renderUsersMapList();
     const r=await authFetch('/api/wwp/auth/users/'+userId+'/locations');
     const d=await r.json();
-    const pts=(d.points||[]).filter(p=>isFinite(p.lat)&&isFinite(p.lng));
+    const date=((document.getElementById('users-map-date')||{}).value||'').trim();
+    const pts=(d.points||[]).filter(p=>isFinite(p.lat)&&isFinite(p.lng)&&(!date||_localDateStr(p.at)===date));
+    _usersMapState.routePoints=pts;
     if(!pts.length){ toast('Sin recorrido registrado'); return; }
     document.getElementById('users-map-title').textContent='Recorrido · '+userName;
-    document.getElementById('users-map-bar').innerHTML=`<i data-lucide="route" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${pts.length} punto(s) · <a href="#" onclick="openUsersMap();return false;" style="color:var(--accent)">← Ver todos</a>`;
+    const first=pts[0]&&pts[0].at?fmtDate(pts[0].at):'', last=pts[pts.length-1]&&pts[pts.length-1].at?fmtDate(pts[pts.length-1].at):'';
+    document.getElementById('users-map-bar').innerHTML=`<i data-lucide="route" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${pts.length} punto(s)${date?' · '+date:''}${first?' · '+first+' → '+last:''} · <a href="#" onclick="openUsersMap();return false;" style="color:var(--accent)">Ver todos</a>`;
     if(window.lucide)lucide.createIcons();
-    if(_usersMap){ _usersMap.remove(); _usersMap=null; }
-    setTimeout(function(){
-      _usersMap=L.map('users-map');
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(_usersMap);
+    _initUsersMap(function(){
+      const cs=getComputedStyle(document.documentElement);
+      const routeColor=cs.getPropertyValue('--accent').trim()||'#2563eb';
+      const green=cs.getPropertyValue('--green-dot').trim()||'#16a34a';
+      const red=cs.getPropertyValue('--red-dot').trim()||'#dc2626';
       const latlngs=pts.map(p=>[p.lat,p.lng]);
-      L.polyline(latlngs,{color:'#2563eb',weight:3,opacity:.7}).addTo(_usersMap);
+      L.polyline(latlngs,{color:routeColor,weight:3,opacity:.75}).addTo(_usersMap);
       pts.forEach((p,i)=>{
         const isLast=i===pts.length-1, isFirst=i===0;
-        const col=isLast?'#16a34a':isFirst?'#dc2626':'#2563eb';
+        const col=isLast?green:isFirst?red:routeColor;
         const m=L.circleMarker([p.lat,p.lng],{radius:isLast||isFirst?7:5,color:'#fff',weight:2,fillColor:col,fillOpacity:1}).addTo(_usersMap);
         m.bindPopup(`<div style="font-size:12px"><b>${isFirst?'Inicio':isLast?'Última':'Punto '+(i+1)}</b><br>${p.at?fmtDate(p.at):''}${p.context?('<br>'+esc(p.context)):''}</div>`);
       });
       _usersMap.fitBounds(latlngs,{padding:[40,40]});
-      setTimeout(function(){ if(_usersMap){ _usersMap.invalidateSize(); _usersMap.fitBounds(latlngs,{padding:[40,40]}); } }, 300);
-    },250);
+    });
   }catch(e){ toast('Error: '+e.message); }
+}
+function refreshSelectedUserRoute(){
+  if(_usersMapState.selectedUser) showUserRoute(_usersMapState.selectedUser,_usersMapState.selectedName);
 }
 
 function showChangePassword() { closeProfileMenu(); document.getElementById('pm-current').value=''; document.getElementById('pm-new').value=''; document.getElementById('pm-confirm').value=''; document.getElementById('pw-modal-error').classList.remove('show'); document.getElementById('modal-password').classList.add('open'); }
