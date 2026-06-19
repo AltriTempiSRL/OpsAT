@@ -2899,7 +2899,10 @@ body{font-family:var(--font);min-height:100dvh}
 .sub-meta{font-size:11px;color:var(--text-3)}
 
 /* Artículos */
-.item-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px}
+.item-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;overflow:hidden}
+.item-prog-bar{height:4px;background:var(--surface-3);margin:-12px -12px 10px}
+.item-prog-fill{height:100%;background:var(--amber-dot);transition:width .5s ease}
+.item-prog-fill.prog-done{background:var(--green-dot)}
 .item-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .item-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:var(--border);flex-shrink:0}
 .item-thumb-ph{width:48px;height:48px;border-radius:6px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
@@ -9926,6 +9929,7 @@ function renderDrawer(t) {
       const damagePlaceholder = isStorageFlow ? storageCopy.damagePlaceholder : 'Tipo de avería…';
       const locationPrefix = isStorageFlow ? storageCopy.locationPrefix : '';
       return `<div class="item-card" style="border:1.5px solid ${isItemConf?'#16a34a':'var(--border)'}">
+        ${(()=>{const _hE=!!it.odoo_categ_id;const _eD=_hE&&((it.empaque_confirmacion||{}).status==='confirmed'||(it.empaque_confirmacion||{}).status==='partial');const _s=_hE?4:3;const _d=(evs.length>0?1:0)+(!!it.condition?1:0)+(_hE?(_eD?1:0):0)+(isItemConf?1:0);const _p=Math.round(_d/_s*100);return `<div class="item-prog-bar"><div class="item-prog-fill${_p>=100?' prog-done':''}" style="width:${_p}%"></div></div>`;})()}
         ${(evs.length>0&&!!it.condition&&!isItemConf)?`<div class="step-ptr sptr-g" style="margin-bottom:8px">Último paso — confirma este artículo</div>`:''}
         <div class="item-header" style="align-items:flex-start;gap:8px">
           <label style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;cursor:${canConfirmItem?'pointer':'default'};padding-top:2px">
