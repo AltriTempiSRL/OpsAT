@@ -6507,12 +6507,13 @@ const server = http.createServer(async (req, res) => {
       const authId = odooStrToAuthId(uid);
       if (authId && authId !== jp.userId) recipients.add(authId);
     });
+    const firstName = jp.name.split(' ')[0];
     recipients.forEach(uid => createNotification(uid, {
       type: 'task_chat',
-      title: '💬 Mensaje nuevo en tarea',
-      message: msg.text ? `${jp.name}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${jp.name} envió una foto 📷` : `${jp.name} envió un video 🎥`,
+      title: task.title || task.id,
+      message: msg.text ? `${firstName}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${firstName} envió una foto 📷` : `${firstName} envió un video 🎥`,
       relatedTaskId: taskId,
-      by: jp.name
+      by: firstName
     }));
     // Push SSE del mensaje nuevo a todos los que tienen el drawer abierto
     // (incluyendo al sender para multi-tab sync)
