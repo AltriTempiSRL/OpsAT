@@ -26498,7 +26498,7 @@ async function sdvCambiarEstado(id, estado) {
   var labels = {en_proceso:'En proceso',despachada:'Despachada',cancelada:'Cancelada'};
   if (!confirm('¿Marcar esta solicitud como "'+labels[estado]+'"?')) return;
   try {
-    var r = await authFetch('/api/sdv/'+id,'PATCH',{estado:estado});
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:estado})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al actualizar'); return; }
     toast('Estado actualizado a: '+(labels[estado]||estado));
@@ -26516,7 +26516,7 @@ async function sdvConvertirTarea(id) {
     var s = d.solicitud;
     var titulo = (SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+(s.clienteNombre?' · '+s.clienteNombre:s.ubicacionOrigen?' · '+s.ubicacionOrigen+'→'+s.ubicacionDestino:'')+(s.odooOrderRef?' · '+s.odooOrderRef:'');
     // Marcar en proceso si estaba pendiente
-    if (s.estado==='pendiente_revision') await authFetch('/api/sdv/'+id,'PATCH',{estado:'en_proceso'});
+    if (s.estado==='pendiente_revision') await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso'})});
     // Ir a WWP con los datos pre-llenados
     var tipo = s.tipoSolicitud==='devolucion'?'general':'dispatch_order';
     abrirNuevaTareaWWP(s.odooOrderRef||'', titulo, s.ciudadEntrega||s.ubicacionDestino||'', tipo);
