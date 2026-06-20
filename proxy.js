@@ -101,9 +101,6 @@ function loadSupervisorUserIds() {
   return supervisorUserIds;
 }
 
-// Recargar supervisores en cada login o cambio de usuarios
-loadSupervisorUserIds();
-
 // ── Archivo de persistencia de averías ───────────────────────────────────────
 const AVERIAS_FILE  = path.join(DATA_DIR, 'averias.json');
 const AV_FOTOS_DIR  = path.join(DATA_DIR, 'av-fotos');
@@ -726,6 +723,9 @@ const JWT_SECRET = (() => {
   fs.writeFileSync(secretFile, s, 'utf-8');
   return s;
 })();
+
+// Cargar supervisores al iniciar (después de que WWP_AUTH_FILE esté definido)
+loadSupervisorUserIds();
 
 // JWT HS256 puro (sin librerías)
 function jwtSign(payload, expiresInSec) {
