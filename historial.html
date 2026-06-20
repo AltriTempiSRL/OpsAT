@@ -567,6 +567,55 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .dev-tl-label{font-size:10px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
 .dev-tl-value{font-size:11px;color:var(--text-primary);font-weight:600}
 
+/* ── Nuevos despachos ── */
+.nd-card{background:transparent;border:none;border-radius:0;overflow:visible}
+.nd-header{padding:14px 16px 12px;border-bottom:1px solid var(--border-light);display:flex;justify-content:space-between;align-items:center}
+.nd-header h3{margin:0;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.nd-count{font-size:11px;color:var(--text-muted);font-weight:500}
+.nd-filters{display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px;border-bottom:1px solid var(--border-light);background:var(--surface-2)}
+.nd-fbtn{padding:4px 11px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all .12s}
+.nd-fbtn:hover{border-color:var(--accent);color:var(--accent)}
+.nd-fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* Nuevos despachos — orden card individual */
+.nd-order-item{background:var(--surface);border-radius:var(--radius);margin:10px 12px;border:1px solid var(--border);border-left:4px solid var(--border);overflow:hidden;transition:all .1s}
+.nd-order-item:hover{border-color:var(--accent-light)}
+.nd-order-item:last-child{margin-bottom:12px}
+.nd-order-item.state-assigned{border-left-color:var(--amber-dot)}
+.nd-order-item.state-done{border-left-color:var(--green-dot)}
+/* Cabecera de la orden */
+.nd-order-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px 8px;flex-wrap:wrap;border-bottom:1px solid var(--border-light)}
+.nd-order-head-left{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nd-order-head-right{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.nd-orden-ref{font-size:10px;font-weight:700;color:var(--link);background:var(--blue-bg);padding:2px 7px;border-radius:var(--radius-sm);white-space:nowrap;cursor:pointer;text-decoration:none;user-select:none}
+.nd-orden-ref:hover{text-decoration:underline}
+.nd-client-name{font-size:13px;font-weight:600;color:var(--text-primary);cursor:pointer;text-decoration:none}
+.nd-client-name:hover{text-decoration:underline;color:var(--link)}
+.nd-picking-status{font-size:10px;font-weight:700;white-space:nowrap;padding:2px 8px;border-radius:var(--radius-sm)}
+.nd-picking-status.assigned{background:var(--amber-bg);color:var(--amber-text)}
+.nd-picking-status.done{background:var(--green-bg);color:var(--green-text)}
+.nd-picking-status.error{background:var(--red-bg);color:var(--red-text)}
+.nd-date-chip{font-size:11px;color:var(--text-muted);background:var(--surface-2);border:1px solid var(--border-light);padding:2px 7px;border-radius:var(--radius-sm);white-space:nowrap}
+/* Detalles de la orden */
+.nd-order-detail{padding:0}
+.nd-order-body{padding:10px 14px}
+.nd-order-section-lbl{font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin:8px 0 4px;display:block}
+/* Items expandibles */
+.nd-items-list{margin-top:4px}
+.nd-item-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0;user-select:none;color:var(--text-secondary);font-size:12px;font-weight:600}
+.nd-item-toggle:hover{color:var(--accent)}
+.nd-item-chevron{width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;transition:transform .15s;color:var(--text-muted);flex-shrink:0}
+.nd-item-chevron.open{transform:rotate(180deg)}
+.nd-items-expanded{margin-top:6px;padding:6px 8px;background:var(--surface-2);border-radius:var(--radius-sm);border:1px solid var(--border-light)}
+.nd-item-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border-light)}
+.nd-item-row:last-child{border-bottom:none}
+.nd-item-name{flex:1;min-width:0;color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nd-item-qty{font-weight:700;color:var(--text-secondary);min-width:40px;text-align:right}
+/* Botón de acción */
+.nd-order-footer{display:flex;gap:8px;justify-content:flex-end;padding:8px 14px;border-top:1px solid var(--border-light);background:var(--surface-2)}
+.nd-action-btn{background:var(--green-bg);color:var(--green-text);border:none;padding:6px 12px;border-radius:var(--radius);font-size:11px;font-weight:700;cursor:pointer;transition:all .1s;white-space:nowrap}
+.nd-action-btn:hover{background:var(--green-dot);color:#fff}
+.nd-action-btn:disabled{opacity:0.5;cursor:not-allowed}
+
 /* ── Status badges ── */
 .status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;white-space:nowrap}
 .status::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0}
@@ -4492,6 +4541,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </a>
 
     <div class="sidebar-group" id="navg-despachos">Despachos</div>
+    <a class="nav-item" id="nav-nuevos-despachos" href="#sec-nuevos-despachos" onclick="navTo('nuevos-despachos');return false;">
+      <span class="nav-icon"><i data-lucide="truck"></i></span>Nuevos despachos
+    </a>
     <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
       <span class="nav-icon"><i data-lucide="paperclip"></i></span>Sin Comprobante
     </a>
@@ -4545,6 +4597,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
     <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa Almacén</button>
+    <button class="mob-nav-btn"        id="mob-nav-nuevos-despachos" onclick="navTo('nuevos-despachos')"><i data-lucide="truck"></i>Nuevos Desp.</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
     <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
     <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Despacho Obsoleto</button>
@@ -5333,6 +5386,48 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       </div>
 
     </div><!-- /section-despacho-obsoleto -->
+
+    <!-- ══════════════════════════════════════════════════
+         NUEVOS DESPACHOS — Órdenes pendientes de procesar
+         ══════════════════════════════════════════════════ -->
+    <div id="section-nuevos-despachos" class="page-section" style="display:none">
+      <div class="nd-card" style="margin-bottom:12px">
+        <!-- Header -->
+        <div class="nd-header">
+          <h3>Nuevos despachos</h3>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="nd-count" id="nd-count-label"></span>
+            <button onclick="ndRecargar()" title="Actualizar lista"
+              style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:4px 8px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:4px">
+              <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor"></i>Actualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="nd-filters" id="nd-filters"></div>
+
+        <!-- List/Cards -->
+        <div id="nd-list"></div>
+
+        <!-- Empty state -->
+        <div id="nd-empty" style="display:none;text-align:center;padding:32px 16px;color:var(--text-muted)">
+          <i data-lucide="inbox" style="width:48px;height:48px;margin:0 auto 12px;opacity:0.5"></i>
+          <p style="font-size:14px">No hay órdenes pendientes de procesar</p>
+        </div>
+
+        <!-- Error state -->
+        <div id="nd-error" style="display:none;padding:16px;background:var(--red-bg);border-radius:var(--radius);color:var(--red-text);font-size:13px">
+          Error al cargar órdenes. Verifica tu conexión.
+        </div>
+
+        <!-- Loading state -->
+        <div id="nd-loading" style="display:none;text-align:center;padding:24px;color:var(--text-muted)">
+          <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite"></div>
+          <p style="font-size:13px;margin-top:8px">Cargando órdenes…</p>
+        </div>
+      </div>
+    </div><!-- /section-nuevos-despachos -->
 
     <!-- ══════════════════════════════════════════════════
          SDV — PORTAL VENTAS (Nueva solicitud + Mis solicitudes)
@@ -7015,8 +7110,8 @@ function can(perm) {
 function canSection(key) {
   if (!_user) return false;
   if (_user.role === 'admin') return true;
-  // Manager: acceso automático a bandeja ops y portal (para crear en nombre de vendedora)
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal')) return true;
+  // Manager: acceso automático a bandeja ops, portal (para crear en nombre de vendedora) y nuevos despachos (procesar órdenes)
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos')) return true;
   return !!(_user.sectionPerms||{})[key];
 }
 
@@ -7037,7 +7132,7 @@ function isHistorialUser(u) {
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
 const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas',
+  'solicitudes','almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas',
   'sdv-portal','sdv-bandeja'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
@@ -7053,7 +7148,7 @@ function isDespachosUser(u) {
 function applyNavPerms() {
   var sections = [
     'dashboard-ventas','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
-    'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
+    'almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'validacion','averias','reportes','wwp',
     'sdv-portal','sdv-bandeja'
   ];
@@ -7074,7 +7169,7 @@ function applyNavPerms() {
     'navg-analisis':    ['devoluciones','validacion','averias'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
-    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
+    'navg-despachos':   ['nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto'],
     'navg-ventas':      ['sdv-portal','sdv-bandeja']
   };
   Object.keys(GROUPS).forEach(function(gid) {
@@ -10474,6 +10569,16 @@ function renderDrawer(t) {
       dispatchItemsHtml = `<div class="sec-header">ARTÍCULOS A ENTREGAR
         <span style="float:right;font-size:10px;color:${dispatchItemsOk?'var(--green-text)':'var(--amber-text)'}">${_dispSel.length-dispatchItemsPending.length}/${_dispSel.length} registrados</span>
       </div>${cards}`;
+    } else {
+      dispatchItemsHtml = `<div class="sec-header">ARTÍCULOS A ENTREGAR</div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px 16px;background:rgba(217,119,6,.06);border:1.5px solid var(--amber-dot);border-radius:10px;text-align:center">
+        <i data-lucide="inbox" style="width:32px;height:32px;stroke:var(--amber-text)"></i>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">Sin artículos seleccionados</div>
+          <div style="font-size:11px;color:var(--text-3);line-height:1.4">Actualiza desde pick para cargar los artículos de esta tarea</div>
+        </div>
+        <button class="btn-primary" onclick="syncPickNow('${t.id}')" style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;font-size:13px;min-height:40px"><i data-lucide="refresh-cw" style="width:14px;height:14px;stroke:currentColor;flex-shrink:0"></i>Actualizar desde pick</button>
+      </div>`;
     }
   }
 
@@ -16861,6 +16966,249 @@ function _solRowHtml(sol, today) {
     + synthRows;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// NUEVOS DESPACHOS — D1b (Órdenes pendientes de procesar)
+// ═══════════════════════════════════════════════════════════════════════════════
+var _ndLoading = false;
+var _ndOrders = [];
+var _ndFilters = { search: '', pickingStatus: 'all', sortBy: 'date_desc' };
+
+function ndCargarLista() {
+  if (_ndLoading) return;
+  _ndLoading = true;
+  document.getElementById('nd-loading').style.display = 'block';
+  document.getElementById('nd-list').innerHTML = '';
+  document.getElementById('nd-empty').style.display = 'none';
+  document.getElementById('nd-error').style.display = 'none';
+
+  authFetch('/api/despachos/pendientes')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) throw new Error(d.error || 'Error del servidor');
+      _ndOrders = d.orders || [];
+      ndRenderLista();
+    })
+    .catch(e => {
+      console.error('Error cargando nuevos despachos:', e);
+      document.getElementById('nd-loading').style.display = 'none';
+      document.getElementById('nd-error').style.display = 'block';
+    })
+    .finally(() => {
+      _ndLoading = false;
+    });
+}
+
+function ndRecargar() {
+  _ndLoading = false;
+  ndCargarLista();
+}
+
+function ndRenderLista() {
+  const listEl = document.getElementById('nd-list');
+  const emptyEl = document.getElementById('nd-empty');
+  const loadingEl = document.getElementById('nd-loading');
+  const countEl = document.getElementById('nd-count-label');
+
+  if (!listEl) return;
+
+  loadingEl.style.display = 'none';
+
+  // Aplicar filtros
+  let filtered = _ndOrders.filter(o => {
+    let match = true;
+    // Búsqueda por orden o cliente
+    if (_ndFilters.search) {
+      const term = _ndFilters.search.toLowerCase();
+      match = match && (
+        (o.name && o.name.toLowerCase().includes(term)) ||
+        (o.clientName && o.clientName.toLowerCase().includes(term))
+      );
+    }
+    // Filtro por estado del picking
+    if (_ndFilters.pickingStatus !== 'all') {
+      match = match && (o.pickState === _ndFilters.pickingStatus);
+    }
+    return match;
+  });
+
+  // Ordenar
+  if (_ndFilters.sortBy === 'date_desc') {
+    filtered.sort((a, b) => new Date(b.commitment_date) - new Date(a.commitment_date));
+  } else if (_ndFilters.sortBy === 'date_asc') {
+    filtered.sort((a, b) => new Date(a.commitment_date) - new Date(b.commitment_date));
+  } else if (_ndFilters.sortBy === 'cliente_az') {
+    filtered.sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+  }
+
+  // Actualizar contador
+  if (countEl) {
+    countEl.textContent = filtered.length === _ndOrders.length
+      ? filtered.length + ' orden' + (filtered.length !== 1 ? 'es' : '')
+      : filtered.length + ' de ' + _ndOrders.length;
+  }
+
+  // Mostrar lista o estado vacío
+  if (filtered.length === 0) {
+    emptyEl.style.display = 'block';
+    listEl.innerHTML = '';
+  } else {
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = filtered.map(o => ndRenderOrderCard(o)).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Renderizar filtros
+  ndRenderFilters();
+}
+
+function ndRenderOrderCard(order) {
+  const orderUrl = ODOO_URL ? ODOO_URL + '/web#id=' + order.id + '&model=sale.order' : '#';
+  const clientName = order.clientName || 'Cliente desconocido';
+  const pickState = order.pickState || 'none';
+  const pickStateClass = `nd-picking-status ${pickState}`;
+  const pickStateLabel = {assigned: 'Asignado', done: 'Completado', error: 'Error', none: 'Sin picking'}[pickState] || 'Desconocido';
+  const commitDate = order.commitment_date ? new Date(order.commitment_date).toLocaleDateString('es-ES', {month: 'short', day: 'numeric'}) : '—';
+  const itemCount = (order.items || []).length;
+
+  const orderCardState = pickState === 'assigned' ? 'state-assigned' : pickState === 'done' ? 'state-done' : '';
+
+  return `
+    <div class="nd-order-item ${orderCardState}">
+      <div class="nd-order-head">
+        <div class="nd-order-head-left">
+          <a href="${orderUrl}" target="_blank" class="nd-orden-ref">${esc(order.name)}</a>
+          <span class="${pickStateClass}">${pickStateLabel}</span>
+        </div>
+        <div class="nd-order-head-right">
+          <span class="nd-date-chip">${commitDate}</span>
+        </div>
+      </div>
+      <div class="nd-order-detail">
+        <div class="nd-order-body">
+          <div class="nd-order-section-lbl">Cliente</div>
+          <div class="nd-client-name" onclick="ndShowClientTooltip(this, '${esc(order.clientName || '')}', '${esc(order.deliveryAddress || 'Sin dirección')}', event)" title="${esc(order.clientName || '')}">
+            ${esc(clientName)}
+          </div>
+
+          <div class="nd-order-section-lbl" style="margin-top:8px">Picking</div>
+          <div style="font-size:12px;color:var(--text-secondary)">${esc(order.pickNames || 'Sin picking')}</div>
+
+          ${itemCount > 0 ? `
+            <div class="nd-order-section-lbl" style="margin-top:8px">Artículos</div>
+            <div class="nd-items-list">
+              <div class="nd-item-toggle" onclick="ndToggleItems(this)">
+                <span class="nd-item-chevron"><i data-lucide="chevron-down" style="width:14px;height:14px"></i></span>
+                <span>${itemCount} art${itemCount !== 1 ? 'ículos' : 'ículo'}</span>
+              </div>
+              <div class="nd-items-expanded" style="display:none">
+                ${(order.items || []).map(item => `
+                  <div class="nd-item-row">
+                    <div class="nd-item-name">${esc(item.name || 'Sin nombre')}</div>
+                    <div class="nd-item-qty">${item.qty || item.quantity || '?'}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : '<div style="font-size:12px;color:var(--text-muted);font-style:italic;margin-top:4px">Sin artículos</div>'}
+        </div>
+      </div>
+      <div class="nd-order-footer">
+        <button class="nd-action-btn" onclick="ndAbrirWizard('${esc(order.name)}', '${esc(order.clientName || '')}', ${JSON.stringify(order.items || [])})">
+          <i data-lucide="arrow-right" style="width:12px;height:12px;display:inline;margin-right:4px"></i>Procesar
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function ndToggleItems(el) {
+  const expanded = el.parentElement.querySelector('.nd-items-expanded');
+  const chevron = el.querySelector('.nd-item-chevron');
+  if (expanded) {
+    const isOpen = expanded.style.display !== 'none';
+    expanded.style.display = isOpen ? 'none' : 'block';
+    if (chevron) chevron.classList.toggle('open', !isOpen);
+  }
+}
+
+function ndShowClientTooltip(el, name, address, evt) {
+  evt.stopPropagation();
+  // Tooltip simple: mostrar dirección en alert o tooltip
+  const msg = name + '\n\n📍 ' + address;
+  // Usar un tooltip más elegante si es posible
+  if (tooltip) {
+    // Si existe un sistema de tooltips, usarlo
+  } else {
+    // Fallback: suave hover con title
+    el.title = msg;
+  }
+}
+
+function ndAbrirWizard(orderName, clientName, items) {
+  if (!can('create_task')) {
+    toast('Sin permiso para crear tareas');
+    return;
+  }
+  // Abrir wizard con concepto pre-seleccionado (dispatch_order)
+  openTaskWizard({
+    type: 'dispatch_order',
+    odooRef: orderName,
+    title: 'Despacho ' + orderName,
+    description: 'Cliente: ' + clientName
+  });
+}
+
+function ndRenderFilters() {
+  const filterEl = document.getElementById('nd-filters');
+  if (!filterEl) return;
+
+  const searchVal = _ndFilters.search || '';
+  const statusOpts = [
+    {val:'all', label:'Todos los estados'},
+    {val:'assigned', label:'Asignado'},
+    {val:'done', label:'Completado'}
+  ];
+
+  filterEl.innerHTML = `
+    <input type="text" placeholder="Buscar orden o cliente…" value="${esc(searchVal)}"
+      style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;flex:1;max-width:200px"
+      onchange="ndSetFilter('search', this.value); ndRenderLista();"
+      oninput="ndSetFilter('search', this.value); ndRenderLista();">
+    <select style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px"
+      onchange="ndSetFilter('pickingStatus', this.value); ndRenderLista();">
+      ${statusOpts.map(opt => `<option value="${opt.val}" ${_ndFilters.pickingStatus === opt.val ? 'selected' : ''}>${opt.label}</option>`).join('')}
+    </select>
+    <select style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px"
+      onchange="ndSetFilter('sortBy', this.value); ndRenderLista();">
+      <option value="date_desc" ${_ndFilters.sortBy === 'date_desc' ? 'selected' : ''}>Fecha (más reciente)</option>
+      <option value="date_asc" ${_ndFilters.sortBy === 'date_asc' ? 'selected' : ''}>Fecha (más antiguo)</option>
+      <option value="cliente_az" ${_ndFilters.sortBy === 'cliente_az' ? 'selected' : ''}>Cliente (A-Z)</option>
+    </select>
+    <button class="nd-fbtn" onclick="ndClearFilters()">Limpiar</button>
+  `;
+}
+
+function ndSetFilter(key, val) {
+  _ndFilters[key] = val;
+  localStorage.setItem('nd_filters', JSON.stringify(_ndFilters));
+}
+
+function ndClearFilters() {
+  _ndFilters = { search: '', pickingStatus: 'all', sortBy: 'date_desc' };
+  localStorage.removeItem('nd_filters');
+  ndRenderLista();
+}
+
+// Cargar filtros guardados al iniciar
+(function() {
+  const saved = localStorage.getItem('nd_filters');
+  if (saved) {
+    try {
+      _ndFilters = JSON.parse(saved);
+    } catch (e) { }
+  }
+})();
+
 /** Genera HTML de una tarjeta (móvil) */
 function _solCardHtml(sol, today) {
   var m = _solMeta(sol, today);
@@ -19830,6 +20178,7 @@ var NAV_SECTION_MAP={
   'solicitudes-reposicion':  'solicitudes-reposicion',
   'solicitudes':             'solicitudes',
   'almacen-mapa':            'almacen-mapa',
+  'nuevos-despachos':        'nuevos-despachos',
   'sin-adjuntos':            'sin-adjuntos',
   'validacion':              'validacion',
   'averias':                 'averias',
@@ -20085,6 +20434,7 @@ function navTo(section){
   if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
+  if(target==='nuevos-despachos') ndCargarLista();
   if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='sdv-portal') sdvInitPortal();
   if(target==='sdv-bandeja') sdvBandejaCargar();
