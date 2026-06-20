@@ -59,6 +59,10 @@ function loadEnv(filename) {
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// ── WWP Auth — sin dependencias externas ────────────────────────────────────
+const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
+const WWP_SESSIONS_FILE = path.join(DATA_DIR, 'wwp-sessions.json');
+
 // ── Web Push — VAPID setup ───────────────────────────────────────────────────
 const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 
@@ -710,10 +714,6 @@ function wwpId(prefix) {
 // Se invalida con ?refresh=1 o automáticamente al vencer.
 const _repoCache = new Map(); // showroomId → { json, ts }
 const REPO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos en ms
-
-// ── WWP Auth — sin dependencias externas ────────────────────────────────────
-const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
-const WWP_SESSIONS_FILE = path.join(DATA_DIR, 'wwp-sessions.json');
 
 // Secreto JWT persistente
 const JWT_SECRET = (() => {
