@@ -2589,16 +2589,18 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   broadcastWwp('notification', { notif, userId });
   // Web Push a las subscripciones del usuario
   if (webpush) {
-    const iconEmoji = notif.type === 'task_chat' ? '💬' : notif.type === 'task_assigned' ? '📋' : notif.type === 'task_overdue' ? '⚠️' : '✓';
     const payload = JSON.stringify({
       title: notif.title,
       message: notif.message || '',
       id: notif.id,
       relatedTaskId: notif.relatedTaskId,
       tag: notif.id,
-      icon: '/icon-192.png',
-      badge: '/favicon-32.png',
-      data: { emoji: iconEmoji }
+      icon: '/icon-512.png',
+      badge: '/icon-192.png',
+      requireInteraction: notif.type === 'task_overdue',
+      actions: [{action:'open', title:'Abrir tarea'}],
+      vibrate: [100, 50, 100],
+      data: { taskId: notif.relatedTaskId, url: '/historial.html' }
     });
     const subs = loadPushSubs().filter(s => s.userId === userId);
     subs.forEach(s => {

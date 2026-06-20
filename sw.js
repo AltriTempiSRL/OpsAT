@@ -45,17 +45,25 @@ self.addEventListener('push', e => {
 
   const title   = data.title   || 'Ops AT';
   const body    = data.message || data.body || '';
-  const icon    = data.icon    || '/icon-192.png';
-  const badge   = data.badge   || '/favicon-32.png';
+  const icon    = data.icon    || '/icon-512.png';
+  const badge   = data.badge   || '/icon-192.png';
   const tag     = data.tag     || 'wwp-notif';
   const taskId  = data.relatedTaskId || null;
+  const vibrate = data.vibrate || [100, 50, 100];
+  const requireInteraction = data.requireInteraction || false;
+  const actions = data.actions || [{action:'open', title:'Abrir'}];
 
   e.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon,
+      badge,
       tag,
+      vibrate,
+      requireInteraction,
+      actions,
       renotify: true,
+      silent: false,
       data: { taskId, url: '/historial.html' }
     })
   );
@@ -63,11 +71,15 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const target = (e.notification.data && e.notification.data.url) || '/historial.html';
+  const taskId = e.notification.data && e.notification.data.taskId;
+  const target = taskId ? `/historial.html?task=${taskId}` : (e.notification.data && e.notification.data.url) || '/historial.html';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes('/historial.html') && 'focus' in c);
-      if (existing) return existing.focus();
+      if (existing) {
+        existing.postMessage({ type: 'NOTIFICATION_CLICK', taskId });
+        return existing.focus();
+      }
       return clients.openWindow(target);
     })
   );
