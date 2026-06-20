@@ -6485,6 +6485,20 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 <div id="wwp-drawer">
   <div class="drawer-header">
     <button class="drawer-back" id="drawer-back-btn" onclick="closeDrawer()">← Volver</button>
+    <!-- Breadcrumb navegable para subtareas -->
+    <div id="drawer-breadcrumb" style="display:none;flex:1;min-width:0;padding:0 12px;font-size:13px;color:var(--text-3);display:flex;align-items:center;gap:6px;overflow:hidden">
+      <span id="drawer-breadcrumb-parent"
+            style="cursor:pointer;color:var(--accent);text-decoration:underline;white-space:nowrap;flex-shrink:0;font-weight:600"
+            onclick="openDrawer(this.dataset.parentId)">
+        MADRE
+      </span>
+      <span style="color:var(--text-4)">›</span>
+      <span id="drawer-breadcrumb-current"
+            style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">
+        SUBTAREA
+      </span>
+    </div>
+    <!-- Título para tareas principales -->
     <span class="drawer-title" id="drawer-title">—</span>
     <button class="btn-sm" onclick="refreshDrawer(this)" id="drawer-refresh-btn" title="Actualizar tarea"><i data-lucide="refresh-cw" class="sec-hdr-icon"></i></button>
     <button class="btn-sm" onclick="openEditTaskModal()" id="drawer-edit-btn" style="display:none"><i data-lucide="pen" class="sec-hdr-icon"></i>Editar</button>
@@ -9637,7 +9651,25 @@ async function openDrawer(taskId) {
       _drawerPickStatus = await ps.json();
     } catch { _drawerPickStatus = null; }
   }
-  document.getElementById('drawer-title').textContent = (seqLabel(t)?seqLabel(t)+' · ':'') + t.title;
+  // Mostrar breadcrumb para subtareas, título para tareas principales
+  const isSubtask = !!t.parentId;
+  const titleEl = document.getElementById('drawer-title');
+  const breadcrumbEl = document.getElementById('drawer-breadcrumb');
+  const breadcrumbParentEl = document.getElementById('drawer-breadcrumb-parent');
+  const breadcrumbCurrentEl = document.getElementById('drawer-breadcrumb-current');
+
+  if (isSubtask) {
+    const parent = _tasks.find(p => p.id === t.parentId);
+    titleEl.style.display = 'none';
+    breadcrumbEl.style.display = 'flex';
+    breadcrumbParentEl.textContent = seqLabel(parent) || 'Madre';
+    breadcrumbParentEl.dataset.parentId = t.parentId;
+    breadcrumbCurrentEl.textContent = (seqLabel(t) || ('Sub ' + (t.subIndex||'?'))) + ' · ' + t.title;
+  } else {
+    titleEl.style.display = '';
+    breadcrumbEl.style.display = 'none';
+    titleEl.textContent = (seqLabel(t)?seqLabel(t)+' · ':'') + t.title;
+  }
   renderDrawer(t);
   document.getElementById('wwp-drawer-overlay').classList.add('open');
   document.getElementById('wwp-drawer').classList.add('open');
