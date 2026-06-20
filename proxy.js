@@ -2596,8 +2596,8 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
       id: notif.id,
       relatedTaskId: notif.relatedTaskId,
       tag: notif.id,
-      icon: '/icon-at.svg',
-      badge: '/icon-at-badge.svg',
+      icon: '/icon-192.png',
+      badge: '/favicon-32.png',
       data: { emoji: iconEmoji }
     });
     const subs = loadPushSubs().filter(s => s.userId === userId);
