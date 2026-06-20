@@ -6646,6 +6646,8 @@ const server = http.createServer(async (req, res) => {
         subIndex: null,                       // posición en la cadena (se asigna abajo)
         evidence: [],
         fotos_guia: [],
+        dispatchStartedAt: null,  // timestamp cuando dispatch_order inicia (in_progress)
+        dispatchCompletedAt: null, // timestamp cuando dispatch_order se completa (completed)
         statusHistory: [{ status:'pending', date:now, by:d.createdBy||'', note:'' }],
         createdBy: d.createdBy||'',
         createdAt: now,
@@ -6839,8 +6841,39 @@ const server = http.createServer(async (req, res) => {
           }
         }
         // Gate de inicio para despacho: el pick de Odoo debe estar realizado (done)
-        // Gate de pick temporalmente desactivado — pendiente de revisión de flujo
+        // ACTIVADO 2026-06-20: validar picking antes de permitir in_progress
+        if (d.status === 'in_progress' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
+          try {
+            let realName = tasks[idx].odooRef;
+            try {
+              const so = await odooCall('sale.order','search_read',[[['name','ilike',tasks[idx].odooRef]]],{fields:['name'],limit:1});
+              if (so && so.length) realName = so[0].name;
+            } catch {}
+            const picksAll = await odooCall('stock.picking','search_read',
+              [[['origin','=',realName]]],
+              {fields:['id','name','state','date_done'],limit:50});
+            const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name));
+            if (pickList.length > 0) {
+              const allDone = pickList.every(p => p.state === 'done' || p.state === 'cancel');
+              if (!allDone) {
+                res.writeHead(422, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa en Odoo antes de iniciar despacho'}));
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Gate picking validation error:', e);
+            // Log pero no bloquea si falla la llamada a Odoo
+          }
+        }
         tasks[idx].status=d.status;
+        // Auto-setear timestamps para dispatch_order al cambiar de estado
+        if (d.status === 'in_progress' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchStartedAt) {
+          tasks[idx].dispatchStartedAt = now;
+        }
+        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
+          tasks[idx].dispatchCompletedAt = now;
+        }
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
         // Audit log para estados críticos (incluye reactivación desde cancelled)
         if (d.status==='validated'||d.status==='in_progress'||d.status==='cancelled'||(oldTask.status==='cancelled'&&d.status==='pending')) {
@@ -9793,6 +9826,132 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('fotos_guia_evidencia_deleted', tasks[idx], { taskId, fotoId, fname: evFname });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    return;
+  }
+
+
+  // GET /api/despachos/pendientes — listar órdenes Odoo que no tienen tarea dispatch_order en WWP
+  // Usada en D1 (Nuevos despachos) para mostrar órdenes listas para procesar
+  if (reqPath === '/api/despachos/pendientes' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      // Obtener todas las tareas dispatch_order activas
+      const tasks = loadWwpTasks();
+      const dispatchTaskRefs = new Set();
+      tasks
+        .filter(t => t.type === 'dispatch_order' && !['completed','validated','cancelled'].includes(t.status))
+        .forEach(t => {
+          if (t.odooRef) dispatchTaskRefs.add(t.odooRef.trim());
+        });
+      
+      // Obtener órdenes de venta en Odoo en estado 'sale' (no entregadas)
+      const orders = await odooCall('sale.order', 'search_read',
+        [[['state','in',['sale','done']]]],
+        {fields:['id','name','partner_id','date_order','commitment_date','amount_total','state'], limit:100});
+      
+      // Filtrar: excluir órdenes que YA tienen tarea dispatch_order activa
+      const pendientes = (orders||[]).filter(o => !dispatchTaskRefs.has(o.name));
+      
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, orders:pendientes, count:pendientes.length}));
+    } catch(e) {
+      console.error('Error GET /api/despachos/pendientes:', e);
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  // POST /api/sdv/sync-to-odoo — sincronizar despacho completado a Odoo (marcar picking como done)
+  // Cuerpo: {dispatchTaskId: 'wt_xxx'} (ID de tarea type='dispatch_order', status='completed')
+  // Proceso: busca picking en Odoo por odooRef → actualiza state='done'
+  if (reqPath === '/api/sdv/sync-to-odoo' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    try {
+      const body = await readBody(req);
+      const { dispatchTaskId } = body;
+      
+      if (!dispatchTaskId) {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'dispatchTaskId requerido'}));
+        return;
+      }
+      
+      // Obtener la tarea dispatch_order
+      const tasks = loadWwpTasks();
+      const task = tasks.find(t => t.id === dispatchTaskId);
+      
+      if (!task) {
+        res.writeHead(404,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Tarea no encontrada'}));
+        return;
+      }
+      
+      if (task.type !== 'dispatch_order') {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La tarea no es de tipo dispatch_order'}));
+        return;
+      }
+      
+      if (task.status !== 'completed' && task.status !== 'validated') {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La tarea debe estar completada o validada para sincronizar'}));
+        return;
+      }
+      
+      if (!task.odooRef) {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La tarea no tiene referencia Odoo (odooRef)'}));
+        return;
+      }
+      
+      // Resolver nombre real de la orden en Odoo
+      let realOrderName = task.odooRef;
+      try {
+        const so = await odooCall('sale.order','search_read',[[['name','ilike',task.odooRef]]],{fields:['name'],limit:1});
+        if (so && so.length) realOrderName = so[0].name;
+      } catch(e) {
+        console.error('Error resolviendo orden en Odoo:', e);
+      }
+      
+      // Buscar el picking (OUT) asociado a esta orden
+      const pickings = await odooCall('stock.picking', 'search_read',
+        [[['origin','=',realOrderName], ['name','ilike','/OUT/']]],
+        {fields:['id','name','state','origin','type_code'], limit:10});
+      
+      if (!pickings || pickings.length === 0) {
+        res.writeHead(404,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No se encontró picking OUT en Odoo para esta orden'}));
+        return;
+      }
+      
+      // Tomar el primer picking no cancelado (usualmente hay uno principal)
+      const picking = pickings.find(p => p.state !== 'cancel') || pickings[0];
+      
+      if (picking.state === 'done') {
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, message:'Picking ya está en estado done en Odoo', picking}));
+        return;
+      }
+      
+      // Actualizar picking a state='done' en Odoo
+      await odooCall('stock.picking', 'write', [[picking.id], {state:'done'}]);
+      
+      // Log de sincronización
+      console.log(`[SYNC] Picking ${picking.name} (id=${picking.id}) actualizado a state='done' desde tarea ${dispatchTaskId}`);
+      
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({
+        ok:true,
+        message:'Picking sincronizado a Odoo como done',
+        picking: {id:picking.id, name:picking.name, state:'done'}
+      }));
+    } catch(e) {
+      console.error('Error POST /api/sdv/sync-to-odoo:', e);
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
     return;
   }
 
