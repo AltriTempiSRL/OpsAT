@@ -2597,7 +2597,6 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
       id: notif.id,
       relatedTaskId: notif.relatedTaskId,
       tag: notif.id,
-      icon: '/icon-512.png',
       badge: badgeSvg,
       requireInteraction: notif.type === 'task_overdue',
       actions: [{action:'open', title:'Abrir tarea'}],
