@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v3';
+const CACHE = 'wwp-v4';
 const STATIC = [
   '/manifest.json',
   '/icon-192.svg',
@@ -45,13 +45,10 @@ self.addEventListener('push', e => {
 
   const title   = data.title   || 'Ops AT';
   const body    = data.message || data.body || '';
-  const icon    = data.icon    || '/icon-512.png';
-  const badge   = data.badge;
+  const icon    = data.icon    || '/icon-192.png';
+  const badge   = data.badge   || '/favicon-32.png';
   const tag     = data.tag     || 'wwp-notif';
   const taskId  = data.relatedTaskId || null;
-  const vibrate = data.vibrate || [100, 50, 100];
-  const requireInteraction = data.requireInteraction || false;
-  const actions = data.actions || [{action:'open', title:'Abrir'}];
 
   e.waitUntil(
     self.registration.showNotification(title, {
@@ -59,11 +56,7 @@ self.addEventListener('push', e => {
       icon,
       badge,
       tag,
-      vibrate,
-      requireInteraction,
-      actions,
       renotify: true,
-      silent: false,
       data: { taskId, url: '/historial.html' }
     })
   );

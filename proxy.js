@@ -2589,19 +2589,15 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   broadcastWwp('notification', { notif, userId });
   // Web Push a las subscripciones del usuario
   if (webpush) {
-    // Badge SVG: círculo transparente con símbolo blanco (96x96)
-    const badgeSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='45' fill='none'/%3E%3Ctext x='48' y='60' font-size='28' font-weight='700' fill='white' text-anchor='middle' font-family='Arial'%3EOpsAT%3C/text%3E%3C/svg%3E`;
+    // Payload simple y probado (versión que llegaba al móvil). El SW
+    // aplica icon/badge OpsAT por default; sin actions/requireInteraction
+    // que en Android impedían renderizar la notificación.
     const payload = JSON.stringify({
       title: notif.title,
       message: notif.message || '',
       id: notif.id,
       relatedTaskId: notif.relatedTaskId,
-      tag: notif.id,
-      badge: badgeSvg,
-      requireInteraction: notif.type === 'task_overdue',
-      actions: [{action:'open', title:'Abrir tarea'}],
-      vibrate: [100, 50, 100],
-      data: { taskId: notif.relatedTaskId, url: '/historial.html' }
+      tag: notif.id
     });
     const subs = loadPushSubs().filter(s => s.userId === userId);
     subs.forEach(s => {
@@ -5516,8 +5512,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/push/test' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
-    const badgeSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ctext x='48' y='60' font-size='28' font-weight='700' fill='white' text-anchor='middle' font-family='Arial'%3EOpsAT%3C/text%3E%3C/svg%3E`;
-    const payload = JSON.stringify({ title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test', badge: badgeSvg, vibrate:[100,50,100], data:{ url:'/historial.html' } });
+    const payload = JSON.stringify({ title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
     const mine = loadPushSubs().filter(s => s.userId === jp.userId);
     const results = await Promise.all(mine.map(s =>
       webpush.sendNotification(s.subscription, payload)
