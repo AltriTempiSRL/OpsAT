@@ -1,0 +1,485 @@
+{
+ "capturedAt": "2026-06-16T20:42:24.933Z",
+ "location": "ALVEN/Stock/A-CDP/AA1",
+ "locationId": 55,
+ "productos": 68,
+ "unidades": 98,
+ "rows": [
+  {
+   "pid": 20353,
+   "qty": 1,
+   "ref": "FSV-S6760/C",
+   "name": "Armchair Col Cream",
+   "barcode": "FSV-S6760/C"
+  },
+  {
+   "pid": 20355,
+   "qty": 1,
+   "ref": "FSV-MC1002FB",
+   "name": "Armchair Col Light Gold + Black Frames",
+   "barcode": "FSV-MC1002FB"
+  },
+  {
+   "pid": 20358,
+   "qty": 1,
+   "ref": "IH-F9798100",
+   "name": "Armchair Col White",
+   "barcode": "IH-F9798100"
+  },
+  {
+   "pid": 20364,
+   "qty": 1,
+   "ref": "RM-8004-8",
+   "name": "Armchair Seat Col White + Beige Backrest",
+   "barcode": "RM-8004-8"
+  },
+  {
+   "pid": 20504,
+   "qty": 1,
+   "ref": "VS-VS08-234",
+   "name": "Barrel Armchair Black Frames",
+   "barcode": "VS-VS08-234"
+  },
+  {
+   "pid": 20580,
+   "qty": 1,
+   "ref": "SEL-18.457",
+   "name": "Bentley Berger Armchair",
+   "barcode": "SEL-18.457"
+  },
+  {
+   "pid": 20735,
+   "qty": 1,
+   "ref": "TEMPO-022",
+   "name": "Butaca",
+   "barcode": "TEMPO-022"
+  },
+  {
+   "pid": 20742,
+   "qty": 1,
+   "ref": "SJ-ZW-1012W",
+   "name": "Butaca Blanca",
+   "barcode": "SJ-ZW-1012W"
+  },
+  {
+   "pid": 20752,
+   "qty": 1,
+   "ref": "NI-CF001-OAK",
+   "name": "Butaca Marron",
+   "barcode": "NI-CF001-OAK"
+  },
+  {
+   "pid": 20753,
+   "qty": 1,
+   "ref": "SJ-FK-0731M",
+   "name": "Butaca Marron",
+   "barcode": "SJ-FK-0731M"
+  },
+  {
+   "pid": 20755,
+   "qty": 1,
+   "ref": "FSV-CC3011-3/M",
+   "name": "Butaca Morada",
+   "barcode": "FSV-CC3011-3/M"
+  },
+  {
+   "pid": 20757,
+   "qty": 1,
+   "ref": "KN-XL2110W",
+   "name": "Butaca Patricia",
+   "barcode": "KN-XL2110W"
+  },
+  {
+   "pid": 20763,
+   "qty": 4,
+   "ref": "BR-SAMMYA/G",
+   "name": "Butaca Sammy Gris",
+   "barcode": "BR-SAMMYA/G"
+  },
+  {
+   "pid": 20764,
+   "qty": 5,
+   "ref": "BR-SAMMYA/BR",
+   "name": "Butaca Sammy Marron",
+   "barcode": "BR-SAMMYA/BR"
+  },
+  {
+   "pid": 20769,
+   "qty": 1,
+   "ref": "JM-112372",
+   "name": "Butaca Swimg",
+   "barcode": "JM-112372"
+  },
+  {
+   "pid": 20834,
+   "qty": 3,
+   "ref": "SN-30",
+   "name": "Cama Pequena",
+   "barcode": "SN-30"
+  },
+  {
+   "pid": 20879,
+   "qty": 1,
+   "ref": "CG-DC8-008",
+   "name": "Carioca Side Chair",
+   "barcode": "CG-DC8-008"
+  },
+  {
+   "pid": 20941,
+   "qty": 1,
+   "ref": "SJ-ZW1064W",
+   "name": "Armchair",
+   "barcode": "SJ-ZW1064W"
+  },
+  {
+   "pid": 20943,
+   "qty": 1,
+   "ref": "SJ-ZW1061",
+   "name": "Armchair",
+   "barcode": "SJ-ZW1061"
+  },
+  {
+   "pid": 20948,
+   "qty": 1,
+   "ref": "SJ-FK-0731B",
+   "name": "Armchair Blue",
+   "barcode": "SJ-FK-0731B"
+  },
+  {
+   "pid": 21261,
+   "qty": 1,
+   "ref": "NZ-DC1193/PE",
+   "name": "Cordoba Sillas De Comedor",
+   "barcode": "NZ-DC1193/PE"
+  },
+  {
+   "pid": 21265,
+   "qty": 2,
+   "ref": "NZ-DC1193/PP",
+   "name": "Cordoba Sillas De Comedor",
+   "barcode": "NZ-DC1193/PP"
+  },
+  {
+   "pid": 21267,
+   "qty": 1,
+   "ref": "NZ-DC1193/W",
+   "name": "Cordoba Sillas De Comedor",
+   "barcode": "NZ-DC1193/W"
+  },
+  {
+   "pid": 21278,
+   "qty": 2,
+   "ref": "NI-CFH129",
+   "name": "Armchair",
+   "barcode": "NI-CFH129"
+  },
+  {
+   "pid": 21281,
+   "qty": 3,
+   "ref": "GD-HUC25231",
+   "name": "Armless Loungue",
+   "barcode": "GD-HUC25231"
+  },
+  {
+   "pid": 21286,
+   "qty": 1,
+   "ref": "NI-XL3120",
+   "name": "Dining Chair White",
+   "barcode": "NI-XL3120"
+  },
+  {
+   "pid": 21290,
+   "qty": 2,
+   "ref": "NI-CL045/K",
+   "name": "King Size Bed Upholstery",
+   "barcode": "NI-CL045/K"
+  },
+  {
+   "pid": 21292,
+   "qty": 2,
+   "ref": "NI-CLO45",
+   "name": "Queen Size Bed Upholstery",
+   "barcode": "NI-CLO45"
+  },
+  {
+   "pid": 21314,
+   "qty": 1,
+   "ref": "OC-10293-LCCI",
+   "name": "Honey Camb Lounge Chair",
+   "barcode": "OC-10293-LCCI"
+  },
+  {
+   "pid": 21514,
+   "qty": 3,
+   "ref": "SN-31",
+   "name": "Cama Grande",
+   "barcode": "SN-31"
+  },
+  {
+   "pid": 21609,
+   "qty": 1,
+   "ref": "DA-DOBLEZ",
+   "name": "Doblez Side",
+   "barcode": "DA-DOBLEZ"
+  },
+  {
+   "pid": 22074,
+   "qty": 1,
+   "ref": "MI-HAMILTON.SOFA.BG.C3",
+   "name": "Hamilton Lx Open End Sofa Col Beige",
+   "barcode": "33.0015.MI"
+  },
+  {
+   "pid": 26211,
+   "qty": 1,
+   "ref": "IH-F9798240",
+   "name": "Ih-F9798240",
+   "barcode": "IH-F9798240"
+  },
+  {
+   "pid": 26545,
+   "qty": 1,
+   "ref": "DEM-RT-LC-01",
+   "name": "Leisure Chair Ash Wood With Rattan And High Desinty Foam",
+   "barcode": "DEM-RT-LC-01"
+  },
+  {
+   "pid": 26652,
+   "qty": 4,
+   "ref": "SJ-FK-0731B/W",
+   "name": "Lounge White",
+   "barcode": "SJ-FK-0731B/W"
+  },
+  {
+   "pid": 26658,
+   "qty": 1,
+   "ref": "LS-25033F",
+   "name": "Ls-25033F",
+   "barcode": "LS-25033F"
+  },
+  {
+   "pid": 26726,
+   "qty": 1,
+   "ref": "WF-8P020",
+   "name": "Mampara Blanca",
+   "barcode": "WF-8P020"
+  },
+  {
+   "pid": 27004,
+   "qty": 2,
+   "ref": "SE-T318",
+   "name": "Mesita Niquelada",
+   "barcode": "SE-T318"
+  },
+  {
+   "pid": 27272,
+   "qty": 1,
+   "ref": "NZ-SF1160/C2",
+   "name": "Oregon Sofa De Dos Puestos",
+   "barcode": "NZ-SF1160/C2"
+  },
+  {
+   "pid": 27312,
+   "qty": 2,
+   "ref": "SJ-ZW369/G",
+   "name": "Ottoman",
+   "barcode": "SJ-ZW369/G"
+  },
+  {
+   "pid": 27382,
+   "qty": 1,
+   "ref": "FSV-S6760/W",
+   "name": "Pana Armchair Col Light Purple 109 X 83 X 62 Cm",
+   "barcode": "FSV-S6760/W"
+  },
+  {
+   "pid": 27530,
+   "qty": 1,
+   "ref": "YF-A22-35",
+   "name": "Pony Leather Armchair",
+   "barcode": "YF-A22-35"
+  },
+  {
+   "pid": 27693,
+   "qty": 1,
+   "ref": "SEL-18.464.1",
+   "name": "Retro One Armchair",
+   "barcode": "SEL-18.464.1"
+  },
+  {
+   "pid": 27722,
+   "qty": 1,
+   "ref": "CF-BR-RC031",
+   "name": "Room Chair",
+   "barcode": "CF-BR-RC031"
+  },
+  {
+   "pid": 28006,
+   "qty": 4,
+   "ref": "VS-VS07-263A",
+   "name": "Silla",
+   "barcode": "VS-VS07-263A"
+  },
+  {
+   "pid": 28016,
+   "qty": 1,
+   "ref": "FSV-MC1104/N",
+   "name": "Silla",
+   "barcode": "FSV-MC1104/N"
+  },
+  {
+   "pid": 28030,
+   "qty": 1,
+   "ref": "TW-DC1176/B",
+   "name": "Silla",
+   "barcode": "TW-DC1176/B"
+  },
+  {
+   "pid": 28092,
+   "qty": 2,
+   "ref": "NI-CF090W",
+   "name": "Sillas Blancas Con Tachuelas",
+   "barcode": "NI-CF090W"
+  },
+  {
+   "pid": 28100,
+   "qty": 4,
+   "ref": "KN-XL3120W",
+   "name": "Sillas De Comedor",
+   "barcode": "KN-XL3120W"
+  },
+  {
+   "pid": 28130,
+   "qty": 1,
+   "ref": "TEMPO-121",
+   "name": "Sillon 106X95X68",
+   "barcode": "TEMPO-121"
+  },
+  {
+   "pid": 29069,
+   "qty": 1,
+   "ref": "SN-023",
+   "name": "Sn-023",
+   "barcode": "SN-023"
+  },
+  {
+   "pid": 29070,
+   "qty": 2,
+   "ref": "SN-026",
+   "name": "Sn-026 Coffe Table",
+   "barcode": "SN-026"
+  },
+  {
+   "pid": 29078,
+   "qty": 1,
+   "ref": "JSF-NS0853A.1S.A2010-2A",
+   "name": "Sofa 1 Seat Col White",
+   "barcode": "JSF-NS0853A.1S.A2010-2A"
+  },
+  {
+   "pid": 29084,
+   "qty": 1,
+   "ref": "TEMPO-271",
+   "name": "Sofa Cama De 2 Puestos Leather 97X162X37",
+   "barcode": "TEMPO-271"
+  },
+  {
+   "pid": 29099,
+   "qty": 1,
+   "ref": "SJ-ZW-1006W-3",
+   "name": "Sofa De 3 Puestos White",
+   "barcode": "SJ-ZW-1006W-3"
+  },
+  {
+   "pid": 29285,
+   "qty": 1,
+   "ref": "SUL-SF122C",
+   "name": "Sul-Sf122C",
+   "barcode": "SUL-SF122C"
+  },
+  {
+   "pid": 29429,
+   "qty": 1,
+   "ref": "RM-701-8",
+   "name": "Teak Armchair",
+   "barcode": "RM-701-8"
+  },
+  {
+   "pid": 29463,
+   "qty": 1,
+   "ref": "TEMPO-030",
+   "name": "Tempo-030",
+   "barcode": "TEMPO-030"
+  },
+  {
+   "pid": 29790,
+   "qty": 1,
+   "ref": "NAT-28470032425FM",
+   "name": "Viaggio Butaca Leather",
+   "barcode": "NAT-28470032425FM"
+  },
+  {
+   "pid": 34899,
+   "qty": 1,
+   "ref": "NI-XL2035W",
+   "name": "Dining Chair White",
+   "barcode": "NI-XL2035W"
+  },
+  {
+   "pid": 35044,
+   "qty": 1,
+   "ref": "SN-JAVA/F",
+   "name": "Daybed",
+   "barcode": "SN-JAVA/F"
+  },
+  {
+   "pid": 35899,
+   "qty": 1,
+   "ref": "NI-F079-3",
+   "name": "3-Seater Sofa Grey",
+   "barcode": "NI-F079-3"
+  },
+  {
+   "pid": 35901,
+   "qty": 1,
+   "ref": "YU-F079-3",
+   "name": "3-Seater Sofa Grey",
+   "barcode": "YU-F079-3"
+  },
+  {
+   "pid": 35902,
+   "qty": 1,
+   "ref": "YU-F079-2",
+   "name": "Amora 2-Seater Sofa Grey",
+   "barcode": "YU-F079-2"
+  },
+  {
+   "pid": 35905,
+   "qty": 1,
+   "ref": "FSV-S8909",
+   "name": "Couch With Armrest",
+   "barcode": "FSV-S8909"
+  },
+  {
+   "pid": 35952,
+   "qty": 1,
+   "ref": "SJ-FK0725M",
+   "name": "4 Seater Sofa Mustard",
+   "barcode": "SJ-FK0725M"
+  },
+  {
+   "pid": 36021,
+   "qty": 1,
+   "ref": "BH-08030",
+   "name": "3 Doors Buffet Light Brown",
+   "barcode": "BH-08030"
+  },
+  {
+   "pid": 46495,
+   "qty": 1,
+   "ref": "DEM.THREE.CHAISE.GRY.C3",
+   "name": "Three Chaise R Sofa Col Grey",
+   "barcode": "133.0196.DEM"
+  }
+ ]
+}

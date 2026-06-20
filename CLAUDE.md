@@ -49,7 +49,7 @@ Los agentes (Mark, Pit, Ron, David, QA-WWP, Alpha) **no guardan conocimiento en 
 Su cerebro único, compartido entre Claude y Codex, vive en:
 
 ```
-C:\Users\Gabriel Ramirez\Agentes-Estandar\
+C:\Users\Gabriel Ramirez\OneDrive\Documentos\Agentes-Estandar\
 ```
 
 Antes de actuar como un agente, leer su expediente `<agente>.md` + `_NUCLEO-CARACTER.md` +
@@ -76,4 +76,4 @@ La plataforma expone endpoints seguros para que Codex pueda consultar datos vivo
 - Estos endpoints no llaman IA. Codex interpreta los datos y genera respuestas, gráficos o archivos desde el chat.
 
 > Nota: el roster y el protocolo de invocación de agentes ahora viven en el cerebro canónico
-> (`C:\Users\Gabriel Ramirez\Agentes-Estandar\`) y en la guía global, no duplicados aquí.
+> (`C:\Users\Gabriel Ramirez\OneDrive\Documentos\Agentes-Estandar\`) y en la guía global, no duplicados aquí.

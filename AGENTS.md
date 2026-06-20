@@ -6,7 +6,7 @@ Los agentes (Mark, Pit, Ron, David, QA-WWP, Alpha) **no guardan conocimiento en 
 Su cerebro es único y compartido entre Codex y Claude, y vive fuera de cualquier proyecto:
 
 ```
-C:\Users\Gabriel Ramirez\Agentes-Estandar\
+C:\Users\Gabriel Ramirez\OneDrive\Documentos\Agentes-Estandar\
 ```
 
 Antes de actuar como un agente, leer su expediente `<agente>.md` + `_NUCLEO-CARACTER.md` +
