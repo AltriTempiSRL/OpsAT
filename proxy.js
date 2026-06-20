@@ -6980,6 +6980,7 @@ const server = http.createServer(async (req, res) => {
             completed   :['task_completed','✅ Tarea completada','Está lista para validar'],
             validated   :['task_validated','🎉 Tarea validada','Ha sido validada'],
             pending     :['task_rejected','↩️ Tarea devuelta','Fue devuelta a Pendiente'],
+            cancelled   :['task_cancelled','❌ Tarea cancelada','Ha sido cancelada'],
           };
           const [type,prefix,suffix] = STATUS_MSG[d.status]||['status_changed','🔄 Estado actualizado',''];
           recipients.forEach(uid => {
