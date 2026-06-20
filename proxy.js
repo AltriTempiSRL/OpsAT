@@ -6871,6 +6871,7 @@ const server = http.createServer(async (req, res) => {
         tasks[idx].auxiliaryAssignees=_aux;
       }
       else if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
+      const _validTypes = ['dispatch_order','packaging','item_pickup','truck_loading','warehouse_move','general','staffing','free'];
       if (d.title!==undefined) tasks[idx].title=d.title.trim();
       if (d.type!==undefined && _validTypes.includes(d.type)) tasks[idx].type=d.type;
       if (d.description!==undefined) tasks[idx].description=d.description;
