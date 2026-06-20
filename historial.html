@@ -7879,6 +7879,57 @@ function _urlBase64ToUint8Array(base64String) {
   return arr;
 }
 
+// Suscripción push real (asume permiso ya concedido). Devuelve promesa.
+function _notifDoSubscribe() {
+  return navigator.serviceWorker.ready.then(function(reg) {
+    return authFetch('/api/wwp/push/vapid-public-key').then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (!data.key) throw new Error('VAPID key no disponible en el servidor');
+        // Limpiar suscripción vieja (puede tener una VAPID key anterior tras reinstalar)
+        return reg.pushManager.getSubscription().then(function(existing) {
+          if (existing) {
+            return existing.unsubscribe().catch(function(){}).then(function(){ return data.key; });
+          }
+          return data.key;
+        });
+      })
+      .then(function(key) {
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: _urlBase64ToUint8Array(key)
+        });
+      })
+      .then(function(sub) {
+        return authFetch('/api/wwp/push/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ subscription: sub.toJSON() })
+        }).then(function(r){ if (!r.ok) throw new Error('El servidor rechazó la suscripción ('+r.status+')'); return r; });
+      });
+  });
+}
+
+// Auto-activación al entrar a la app: si ya hay permiso, suscribe en silencio.
+// Si nunca se ha pedido, lo pide (el login cuenta como gesto del usuario).
+function _notifAutoEnablePush() {
+  if (typeof Notification === 'undefined') return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  function _ensure() {
+    navigator.serviceWorker.ready.then(function(reg){
+      return reg.pushManager.getSubscription();
+    }).then(function(sub){
+      if (sub) return; // ya suscrito en este dispositivo
+      _notifDoSubscribe().then(function(){
+        _notifShowBrowserBanner();
+      }).catch(function(err){ console.warn('Auto-push subscribe:', err && err.message); });
+    }).catch(function(){});
+  }
+  if (Notification.permission === 'granted') { _ensure(); return; }
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(function(perm){ if (perm === 'granted') _ensure(); });
+  }
+}
+
 function _notifRequestPush() {
   if (typeof Notification === 'undefined') return;
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -7889,32 +7940,7 @@ function _notifRequestPush() {
     if (perm !== 'granted') return;
     var btn = document.querySelector('#notif-push-row button');
     if (btn) { btn.disabled = true; btn.textContent = 'Activando…'; }
-    navigator.serviceWorker.ready.then(function(reg) {
-      return authFetch('/api/wwp/push/vapid-public-key').then(function(r){ return r.json(); })
-        .then(function(data) {
-          if (!data.key) throw new Error('VAPID key no disponible en el servidor');
-          // Limpiar suscripción vieja (puede tener una VAPID key anterior tras reinstalar)
-          return reg.pushManager.getSubscription().then(function(existing) {
-            if (existing) {
-              return existing.unsubscribe().catch(function(){}).then(function(){ return data.key; });
-            }
-            return data.key;
-          });
-        })
-        .then(function(key) {
-          return reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: _urlBase64ToUint8Array(key)
-          });
-        })
-        .then(function(sub) {
-          return authFetch('/api/wwp/push/subscribe', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ subscription: sub.toJSON() })
-          }).then(function(r){ if (!r.ok) throw new Error('El servidor rechazó la suscripción ('+r.status+')'); return r; });
-        });
-    }).then(function() {
+    _notifDoSubscribe().then(function() {
       var row = document.getElementById('notif-push-row');
       if (row) { row.innerHTML = '<span style="color:var(--green-text)">✓ Notificaciones push activas</span>'; }
     }).catch(function(err) {
@@ -8373,12 +8399,10 @@ function enterApp() {
   loadNotificationsFromServer();
   connectSSE();
   connectWwpRealtime();
-  // Pantalla de bienvenida + consentimiento de permisos (primera vez). Si ya la aceptó,
-  // pedimos notificaciones de forma no intrusiva como respaldo.
+  // Pantalla de bienvenida + auto-activación de notificaciones push.
+  // Si ya hay permiso, se suscribe en silencio; si no, lo pide.
   if (localStorage.getItem(_WELCOME_VER)) {
-    if ('Notification' in window && Notification.permission === 'default') {
-      setTimeout(() => Notification.requestPermission(), 3000);
-    }
+    setTimeout(_notifAutoEnablePush, 1500);
   } else {
     setTimeout(maybeShowWelcome, 400);
   }
@@ -14857,8 +14881,9 @@ function maybeShowWelcome(){
 async function acceptWelcome(){
   try{ localStorage.setItem(_WELCOME_VER,'1'); }catch(e){}
   const el=document.getElementById('wwp-welcome'); if(el) el.style.display='none';
-  // 1) Notificaciones (todos los usuarios)
+  // 1) Notificaciones (todos los usuarios) — pedir permiso y suscribir push
   try{ if('Notification' in window && Notification.permission==='default'){ await Notification.requestPermission(); } }catch(e){}
+  try{ _notifAutoEnablePush(); }catch(e){}
   // 2) Ubicación — solo si el rol del usuario tiene rastreo GPS (auxiliares)
   try{
     if(_user && (_user.sectionPerms||{})['wwp.rastreo_gps'] && navigator.geolocation){
