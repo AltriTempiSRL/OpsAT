@@ -2565,6 +2565,7 @@ const NOTIF_LABELS = {
   task_completed  : '✅ Tarea completada',
   task_validated  : '🎉 Tarea validada',
   task_rejected   : '↩️ Tarea devuelta',
+  task_chat       : '💬 Mensaje nuevo en tarea',
   comment_new     : '💬 Comentario nuevo',
   lunch_ended     : '🍴 Almuerzo terminado',
 };
@@ -6492,16 +6493,23 @@ const server = http.createServer(async (req, res) => {
     tasks[idx].messages.push(msg);
     tasks[idx].updatedAt = msg.createdAt;
     saveWwpTasks(tasks);
-    // Notificar a los participantes de la tarea (excepto quien envió)
+    // Notificar a todos los participantes de la tarea (excepto quien envió)
     const task = tasks[idx];
     const recipients = new Set();
     if (task.managerId && task.managerId !== jp.userId) recipients.add(task.managerId);
     const assigneeId = odooStrToAuthId(task.assignedTo);
     if (assigneeId && assigneeId !== jp.userId) recipients.add(assigneeId);
     if (task.createdBy && task.createdBy !== jp.userId) recipients.add(task.createdBy);
+    // Auxiliares de la tarea
+    (task.assignees || []).forEach(uid => { if (uid && uid !== jp.userId) recipients.add(uid); });
+    (task.auxiliaryAssignees || []).forEach(uid => { if (uid && uid !== jp.userId) recipients.add(uid); });
+    (task.executors || []).forEach(uid => {
+      const authId = odooStrToAuthId(uid);
+      if (authId && authId !== jp.userId) recipients.add(authId);
+    });
     recipients.forEach(uid => createNotification(uid, {
-      type: 'comment_new',
-      title: '💬 Mensaje nuevo',
+      type: 'task_chat',
+      title: '💬 Mensaje nuevo en tarea',
       message: msg.text ? `${jp.name}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${jp.name} envió una foto 📷` : `${jp.name} envió un video 🎥`,
       relatedTaskId: taskId,
       by: jp.name
