@@ -90,6 +90,20 @@ function savePushSubs(list)   { saveJson(PUSH_SUBS_FILE, list); }
   process.env._VAPID_PUBLIC_KEY = pub; // exponer para el endpoint GET
 })();
 
+// ── Supervisores — usuarios que reciben TODAS las notificaciones (fase implementación) ────
+// Mapea emails de supervisores a su userId una vez que loguean
+const SUPERVISOR_EMAILS = ['gsanchez@altritempi.com.do']; // Reciben todas las notificaciones
+let supervisorUserIds = [];
+
+function loadSupervisorUserIds() {
+  const users = loadAuthUsers();
+  supervisorUserIds = users.filter(u => SUPERVISOR_EMAILS.includes((u.email||'').toLowerCase())).map(u => u.id);
+  return supervisorUserIds;
+}
+
+// Recargar supervisores en cada login o cambio de usuarios
+loadSupervisorUserIds();
+
 // ── Archivo de persistencia de averías ───────────────────────────────────────
 const AVERIAS_FILE  = path.join(DATA_DIR, 'averias.json');
 const AV_FOTOS_DIR  = path.join(DATA_DIR, 'av-fotos');
@@ -2572,43 +2586,49 @@ const NOTIF_LABELS = {
 
 function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null}) {
   if (!userId) return null;
-  const notif = {
-    id: wwpId('notif'), userId, type,
-    title: title || NOTIF_LABELS[type] || type,
-    message, relatedTaskId, priority, dueDate, by,
-    status: 'sent', createdAt: new Date().toISOString(), readAt: null
-  };
-  const all = loadNotifications();
-  all.unshift(notif);
-  // Mantener máx 200 notificaciones por usuario (trim total a 2000)
-  const trimmed = all.slice(0, 2000);
-  saveNotifications(trimmed);
-  // Push SSE a todos los clientes del usuario
-  const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
-  (sseClients.get(userId)||new Set()).forEach(res => { try { res.write(data); } catch {} });
-  broadcastWwp('notification', { notif, userId });
-  // Web Push a las subscripciones del usuario
-  if (webpush) {
-    // Payload simple y probado. Sin icon/badge en payload — el SW
-    // usa defaults que están en sw.js (icon-192.png, favicon-32.png con OpsAT).
-    const payload = JSON.stringify({
-      title: notif.title,
-      message: notif.message || '',
-      id: notif.id,
-      relatedTaskId: notif.relatedTaskId,
-      tag: notif.id
-    });
-    const subs = loadPushSubs().filter(s => s.userId === userId);
-    subs.forEach(s => {
-      webpush.sendNotification(s.subscription, payload).catch(err => {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          // Subscription expirada — limpiar
-          const all = loadPushSubs().filter(x => x.endpoint !== s.subscription.endpoint);
-          savePushSubs(all);
-        }
+  // Enviar a userId original + todos los supervisores (actualizados en cada login)
+  const recipientIds = [userId, ...supervisorUserIds.filter(uid => uid !== userId)];
+
+  recipientIds.forEach(uid => {
+    const notif = {
+      id: wwpId('notif'), userId: uid, type,
+      title: title || NOTIF_LABELS[type] || type,
+      message, relatedTaskId, priority, dueDate, by,
+      status: 'sent', createdAt: new Date().toISOString(), readAt: null
+    };
+    const all = loadNotifications();
+    all.unshift(notif);
+    // Mantener máx 200 notificaciones por usuario (trim total a 2000)
+    const trimmed = all.slice(0, 2000);
+    saveNotifications(trimmed);
+    // Push SSE a todos los clientes del usuario
+    const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
+    (sseClients.get(uid)||new Set()).forEach(res => { try { res.write(data); } catch {} });
+    broadcastWwp('notification', { notif, userId: uid });
+    // Web Push a las subscripciones del usuario
+    if (webpush) {
+      // Payload simple y probado. Sin icon/badge en payload — el SW
+      // usa defaults que están en sw.js (icon-192.png, favicon-32.png con OpsAT).
+      const payload = JSON.stringify({
+        title: notif.title,
+        message: notif.message || '',
+        id: notif.id,
+        relatedTaskId: notif.relatedTaskId,
+        tag: notif.id
       });
-    });
-  }
+      const subs = loadPushSubs().filter(s => s.userId === uid);
+      subs.forEach(s => {
+        webpush.sendNotification(s.subscription, payload).catch(err => {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            // Subscription expirada — limpiar
+            const all = loadPushSubs().filter(x => x.endpoint !== s.subscription.endpoint);
+            savePushSubs(all);
+          }
+        });
+      });
+    }
+  });
+
   return notif;
 }
 
@@ -5557,6 +5577,8 @@ const server = http.createServer(async (req, res) => {
 
       clearLoginAttempts(email);
       appendAuditLog('login_ok', { userId: user.id, email, role: user.role, ip });
+      // Recargar lista de supervisores (por si gsanchez logueó por primera vez)
+      loadSupervisorUserIds();
 
       const accessToken  = jwtSign({userId:user.id,role:user.role,name:user.name,odooId:user.odooId}, 8*3600);
       const refreshToken = crypto.randomBytes(32).toString('hex');
