@@ -6512,6 +6512,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
             <option value="item_pickup">Recogida de Artículos</option>
             <option value="truck_loading">Carga en Camión</option>
             <option value="warehouse_move">Movimiento de Almacén</option>
+            <option value="staffing">Solicitud de Personal</option>
             <option value="general">General</option>
           </select>
         </div>
@@ -9397,7 +9398,7 @@ function renderListRow(t) {
   });
   if (t.odooRef) meta.push(chip('Orden Odoo', t.odooRef));
   // Tipo eliminado — redundante con el encabezado de grupo
-  if (t.dueDate && t.type!=='staffing') meta.push(chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':''));
+  if (t.dueDate) meta.push(chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':''));
   if (subs.length) meta.push(chip('Subtareas', `${doneSubs}/${subs.length} completadas`));
   if (t.location) meta.push(chip('Ubicacion', t.location));
   // Solicitante + periodo como subtítulo junto al título (staffing)
