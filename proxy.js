@@ -5496,6 +5496,45 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/wwp/push/status — cuántos dispositivos tiene el usuario suscritos
+  if (reqPath === '/api/wwp/push/status' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const mine = loadPushSubs().filter(s => s.userId === jp.userId);
+    const devices = mine.map(s => ({
+      endpoint: (s.subscription.endpoint || '').slice(0, 48) + '…',
+      createdAt: s.createdAt || s.updatedAt || null,
+      service: /fcm|googleapis/.test(s.subscription.endpoint) ? 'Android/Chrome (FCM)'
+             : /web\.push\.apple/.test(s.subscription.endpoint) ? 'iOS/Safari'
+             : /mozilla|wns/.test(s.subscription.endpoint) ? 'Firefox/Edge' : 'Otro'
+    }));
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, count: mine.length, devices, webpush: !!webpush }));
+    return;
+  }
+
+  // POST /api/wwp/push/test — envía un push de prueba a TODOS los dispositivos del usuario
+  if (reqPath === '/api/wwp/push/test' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
+    const badgeSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ctext x='48' y='60' font-size='28' font-weight='700' fill='white' text-anchor='middle' font-family='Arial'%3EOpsAT%3C/text%3E%3C/svg%3E`;
+    const payload = JSON.stringify({ title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test', badge: badgeSvg, vibrate:[100,50,100], data:{ url:'/historial.html' } });
+    const mine = loadPushSubs().filter(s => s.userId === jp.userId);
+    const results = await Promise.all(mine.map(s =>
+      webpush.sendNotification(s.subscription, payload)
+        .then(() => ({ service: /fcm|googleapis/.test(s.subscription.endpoint)?'Android/Chrome':/apple/.test(s.subscription.endpoint)?'iOS':'Otro', ok:true }))
+        .catch(err => {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
+            savePushSubs(all);
+          }
+          return { service: /fcm|googleapis/.test(s.subscription.endpoint)?'Android/Chrome':/apple/.test(s.subscription.endpoint)?'iOS':'Otro', ok:false, status: err.statusCode||null, error: err.body||err.message };
+        })
+    ));
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, sent: results.filter(r=>r.ok).length, total: results.length, results }));
+    return;
+  }
+
   // ════════════════════════════════════════════════════════════════════════════
   // ── WWP AUTH API ─────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════════

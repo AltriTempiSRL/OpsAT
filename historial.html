@@ -5746,6 +5746,10 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <span>Notificaciones aunque el tab esté minimizado —</span>
         <button onclick="_notifRequestPush()">Activar</button>
       </div>
+      <div class="notif-push-row" id="notif-push-status" style="display:flex;margin-top:4px;flex-wrap:wrap;gap:6px">
+        <button onclick="_notifPushTest()">Enviar prueba a este dispositivo</button>
+        <span id="notif-push-devices" style="color:var(--text-3)"></span>
+      </div>
     </div>
   </div>
 
@@ -7849,6 +7853,7 @@ function _notifUpdateTitle() {
 function _notifShowBrowserBanner() {
   var row = document.getElementById('notif-push-row');
   if (!row) return;
+  _notifLoadPushStatus();
   if (typeof Notification === 'undefined' || !('PushManager' in window)) { row.style.display = 'none'; return; }
   // Mostrar si: aún no concedido, O si ya granted pero no hay suscripción push activa
   if (Notification.permission === 'denied') { row.style.display = 'none'; return; }
@@ -7921,6 +7926,32 @@ function _notifRequestPush() {
       } else if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
     });
   });
+}
+
+function _notifPushTest() {
+  var st = document.getElementById('notif-push-devices');
+  var btn = document.querySelector('#notif-push-status button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+  authFetch('/api/wwp/push/test', { method:'POST' }).then(function(r){ return r.json(); }).then(function(d){
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar prueba a este dispositivo'; }
+    if (!st) return;
+    if (d.total === 0) { st.innerHTML = '<span style="color:var(--amber-text)">No hay dispositivos suscritos — toca "Activar" arriba</span>'; return; }
+    var ok = d.sent, total = d.total;
+    var detail = (d.results||[]).map(function(x){ return x.ok ? '✓ '+x.service : '✕ '+x.service+(x.status?(' ('+x.status+')'):''); }).join(' · ');
+    st.innerHTML = '<span style="color:'+(ok>0?'var(--green-text)':'var(--red-text)')+'">'+ok+'/'+total+' enviadas — '+detail+'</span>';
+  }).catch(function(e){
+    if (btn) { btn.disabled = false; btn.textContent = 'Reintentar prueba'; }
+    if (st) st.innerHTML = '<span style="color:var(--red-text)">Error: '+(e.message||'falló')+'</span>';
+  });
+}
+
+function _notifLoadPushStatus() {
+  var st = document.getElementById('notif-push-devices');
+  if (!st) return;
+  authFetch('/api/wwp/push/status').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.count) { st.textContent = 'Sin dispositivos suscritos.'; return; }
+    st.textContent = d.count + ' dispositivo(s): ' + d.devices.map(function(x){ return x.service; }).join(', ');
+  }).catch(function(){});
 }
 
 function _notifFireBrowser(notif) {
