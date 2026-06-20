@@ -5450,7 +5450,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/wwp/push/vapid-public-key — sin auth, necesario antes de subscribir
   if (reqPath === '/api/wwp/push/vapid-public-key' && req.method === 'GET') {
-    const key = process.env.VAPID_PUBLIC_KEY || '';
+    const key = process.env.VAPID_PUBLIC_KEY || process.env._VAPID_PUBLIC_KEY || '';
     res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ key }));
     return;

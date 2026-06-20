@@ -7887,10 +7887,19 @@ function _notifRequestPush() {
     navigator.serviceWorker.ready.then(function(reg) {
       return authFetch('/api/wwp/push/vapid-public-key').then(function(r){ return r.json(); })
         .then(function(data) {
-          if (!data.key) throw new Error('VAPID key no disponible');
+          if (!data.key) throw new Error('VAPID key no disponible en el servidor');
+          // Limpiar suscripción vieja (puede tener una VAPID key anterior tras reinstalar)
+          return reg.pushManager.getSubscription().then(function(existing) {
+            if (existing) {
+              return existing.unsubscribe().catch(function(){}).then(function(){ return data.key; });
+            }
+            return data.key;
+          });
+        })
+        .then(function(key) {
           return reg.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: _urlBase64ToUint8Array(data.key)
+            applicationServerKey: _urlBase64ToUint8Array(key)
           });
         })
         .then(function(sub) {
@@ -7898,14 +7907,18 @@ function _notifRequestPush() {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ subscription: sub.toJSON() })
-          });
+          }).then(function(r){ if (!r.ok) throw new Error('El servidor rechazó la suscripción ('+r.status+')'); return r; });
         });
     }).then(function() {
       var row = document.getElementById('notif-push-row');
       if (row) { row.innerHTML = '<span style="color:var(--green-text)">✓ Notificaciones push activas</span>'; }
     }).catch(function(err) {
       console.error('Push subscribe error:', err);
-      if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+      var row = document.getElementById('notif-push-row');
+      if (row) {
+        row.innerHTML = '<span style="color:var(--red-text);font-size:10px">⚠ ' + (err.message || 'No se pudo activar') + '</span> <button onclick="_notifRequestPush()" style="font-size:10px;font-weight:700;color:var(--brand-light);background:none;border:none;cursor:pointer;padding:0">Reintentar</button>';
+        if (window.lucide) lucide.createIcons();
+      } else if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
     });
   });
 }
