@@ -54,7 +54,6 @@ self.addEventListener('push', e => {
     self.registration.showNotification(title, {
       body,
       icon,
-      badge,
       tag,
       renotify: true,
       data: { taskId, url: '/historial.html' }
