@@ -6385,8 +6385,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/wwp/users — empleados de Odoo (Operaciones) + roles locales
+  // GET /api/wwp/users — empleados de Odoo (Operaciones) + roles locales [JWT requerido]
   if (reqPath === '/api/wwp/users' && req.method === 'GET') {
+    const _jpUsers = requireJwt(req, res); if (!_jpUsers) return;
     try {
       const employees = await odooCall('hr.employee','search_read',
         [[['department_id','child_of',[69,91]],['active','=',true]]],
@@ -6583,7 +6584,7 @@ const server = http.createServer(async (req, res) => {
       if (!d.title || !d.type) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Faltan campos: title y type son requeridos'})); return; }
       if (typeof d.title === 'string' && d.title.trim().length > 255) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Título máx 255 caracteres'})); return; }
       if (typeof d.description === 'string' && d.description.length > 5000) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Descripción máx 5000 caracteres'})); return; }
-      const _validTypes     = ['dispatch_order','packaging','item_pickup','truck_loading','warehouse_move','general','staffing'];
+      const _validTypes     = ['dispatch_order','packaging','item_pickup','truck_loading','warehouse_move','general','staffing','free'];
       const _validPriorities= ['low','medium','high','urgent'];
       if (!_validTypes.includes(d.type)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tipo de tarea inválido'})); return; }
       if (d.priority && !_validPriorities.includes(d.priority)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Prioridad inválida'})); return; }
