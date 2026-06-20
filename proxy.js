@@ -2589,6 +2589,8 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   broadcastWwp('notification', { notif, userId });
   // Web Push a las subscripciones del usuario
   if (webpush) {
+    // Badge SVG: círculo transparente con símbolo blanco (96x96)
+    const badgeSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='45' fill='none'/%3E%3Ctext x='48' y='60' font-size='40' font-weight='700' fill='white' text-anchor='middle' font-family='Arial'%3EAT%3C/text%3E%3C/svg%3E`;
     const payload = JSON.stringify({
       title: notif.title,
       message: notif.message || '',
@@ -2596,7 +2598,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
       relatedTaskId: notif.relatedTaskId,
       tag: notif.id,
       icon: '/icon-512.png',
-      badge: '/icon-192.png',
+      badge: badgeSvg,
       requireInteraction: notif.type === 'task_overdue',
       actions: [{action:'open', title:'Abrir tarea'}],
       vibrate: [100, 50, 100],
