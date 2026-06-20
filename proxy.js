@@ -2589,9 +2589,8 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   broadcastWwp('notification', { notif, userId });
   // Web Push a las subscripciones del usuario
   if (webpush) {
-    // Payload simple y probado (versión que llegaba al móvil). El SW
-    // aplica icon/badge OpsAT por default; sin actions/requireInteraction
-    // que en Android impedían renderizar la notificación.
+    // Payload simple y probado. Sin icon/badge en payload — el SW
+    // usa defaults que están en sw.js (icon-192.png, favicon-32.png con OpsAT).
     const payload = JSON.stringify({
       title: notif.title,
       message: notif.message || '',

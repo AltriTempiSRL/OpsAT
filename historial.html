@@ -7921,7 +7921,7 @@ function _notifAutoEnablePush() {
       if (sub) return; // ya suscrito en este dispositivo
       _notifDoSubscribe().then(function(){
         _notifShowBrowserBanner();
-      }).catch(function(err){ console.warn('Auto-push subscribe:', err && err.message); });
+      }).catch(function(err){});
     }).catch(function(){});
   }
   if (Notification.permission === 'granted') { _ensure(); return; }
@@ -7944,7 +7944,6 @@ function _notifRequestPush() {
       var row = document.getElementById('notif-push-row');
       if (row) { row.innerHTML = '<span style="color:var(--green-text)">✓ Notificaciones push activas</span>'; }
     }).catch(function(err) {
-      console.error('Push subscribe error:', err);
       var row = document.getElementById('notif-push-row');
       if (row) {
         row.innerHTML = '<span style="color:var(--red-text);font-size:10px">⚠ ' + (err.message || 'No se pudo activar') + '</span> <button onclick="_notifRequestPush()" style="font-size:10px;font-weight:700;color:var(--brand-light);background:none;border:none;cursor:pointer;padding:0">Reintentar</button>';
@@ -10509,7 +10508,7 @@ function renderDrawer(t) {
       ${t.location?`<div class="info-cell"><div class="info-cell-label">Localidad</div><div class="info-cell-val">${esc(t.location)}</div></div>`:''}
       ${t.taskConcept==='customer_return'&&t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Dirección de recogida</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
       ${t.taskConcept==='customer_return'&&t.phone?`<div class="info-cell"><div class="info-cell-label">Teléfono cliente</div><div class="info-cell-val">${esc(t.phone)}</div></div>`:''}
-      ${t.dueDate&&t.type!=='staffing'?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
+      ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
     </div>
     ${parentCtxHtml}
