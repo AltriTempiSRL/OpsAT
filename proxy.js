@@ -743,6 +743,7 @@ function jwtVerify(token) {
   if (parts.length !== 3) throw new Error('JWT malformado');
   const [h, p, s] = parts;
   const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${h}.${p}`).digest('base64url');
+  // Convertir base64url a base64 para comparación (padding para múltiplos de 4)
   const sBuf = Buffer.from(s.padEnd(Math.ceil(s.length/4)*4,'='), 'base64');
   const eBuf = Buffer.from(expected.padEnd(Math.ceil(expected.length/4)*4,'='), 'base64');
   if (sBuf.length !== eBuf.length || !crypto.timingSafeEqual(sBuf, eBuf)) throw new Error('Firma inválida');
@@ -776,7 +777,7 @@ function requireJwt(req, res) {
   const h = req.headers['authorization'] || '';
   if (!h.startsWith('Bearer ')) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No autenticado'})); return null; }
   try { return jwtVerify(h.slice(7)); }
-  catch(e) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return null; }
+  catch(e) { console.log('[AUTH ERROR]', e.message); res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return null; }
 }
 
 // RBAC middleware — valida que el rol del JWT esté en la lista permitida
