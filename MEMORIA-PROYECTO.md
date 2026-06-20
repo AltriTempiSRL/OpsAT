@@ -73,6 +73,48 @@ Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada
 - `maybeShowWelcome()` en `enterApp` si no existe flag `wwp_welcome_v1`. Describe la plataforma (foco en sección Tareas) + permisos. Botón "Aceptar y continuar" dispara notificaciones + ubicación (si rol con rastreo) en secuencia. Opción "Ahora no".
 - Para re-ver: `localStorage.removeItem('wwp_welcome_v1')` y recargar.
 
+## PLAN GO-LIVE SOLICITUD DE DESPACHO (2026-06-20)
+
+**Decisiones Aprobadas (Gabriel):**
+
+### D1: Creación de Solicitud de Despacho
+- **Vendedoras** crean orden en Odoo (`sale.order`)
+- **Encargado o Admin de Operaciones** procesa y convierte en tarea WWP (`dispatch_order`)
+- Implementación: nueva sección "Órdenes listas para despacho" (lista órdenes Odoo sin tarea WWP)
+- Estimación Fase 1: 16-20h (componente nuevo + filtrado + integración Odoo)
+
+### D2: Gate de Picking — ACTIVAR
+- Al clic "Iniciar despacho": validar picking Odoo `state='done'` + cantidades coinciden
+- Re-chequear cada inicio (no solo una vez)
+- Línea 6842 proxy.js: desactivar comentario "temporalmente desactivado"
+- Estimación: 4-6h
+
+### D3: Sync Rechazos/Averías a Odoo — OPCIÓN C (Híbrido, Fase 2)
+- Al completar despacho con items rechazados/dañados: mostrar panel "Sincronizar a Odoo"
+- Botón "Generar nota de crédito" → abre Odoo pre-rellena (NO automático)
+- Estimación Fase 2: 12-16h (puede avanzar si hay tiempo)
+
+### D4: KPIs de Despacho — FASE 2
+- Estructura datos ahora (Fase 1): campos `dispatchStartedAt`, `dispatchCompletedAt`
+- Dashboard post-Go-Live (despachos/turno, tiempo promedio, tasa rechazo)
+- Estimación Fase 1: 2h (schema); Fase 2: 12-16h (UI)
+
+**BLOQUEADORES CRÍTICOS (FASE 1 — pre-Go-Live):**
+1. Activar gate picking (QA/Pit, 4-6h)
+2. Estado vacío manejo (Mark, 3-4h)
+3. Sync Odoo retorno — `PATCH stock.picking.state='done'` (Ron, 12-16h)
+4. RBAC testeo con usuarios reales (QA, 4-6h)
+
+**SPRINT FASE 1 (jun 20-24):**
+- Mié 20 (tarde): B1 gate picking, D1 diseño
+- Jue 21: B2 UI, B4 RBAC test, D1 wizard
+- Vie 22-23: B3 sync Odoo, D1 backend
+- Lun 24: Go-Live testing + deploy
+
+**Implementación: Equipo (Pit, Mark, Ron, QA)**
+- Cerebro canónico: `C:\Users\Gabriel Ramirez\OneDrive\Documentos\GitHub\Agentes\Agentes-Estandar\_DECISIONES-DESPACHO-2026-06-20.md`
+- QA-WWP expediente actualizado con audit strategy 2026-06-20
+
 ## Pendientes / notas abiertas
 - (Ninguno crítico al cierre de esta sesión.)
 - Posibles mejoras sugeridas no implementadas: ubicación al subir cada evidencia individual de artículo (ya se captura en fotos de despacho).
