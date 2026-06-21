@@ -4397,7 +4397,16 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-edit-item-sku{color:var(--text-muted);font-size:var(--fs-xs)}
 .sdv-edit-item-qty{color:var(--text-2);font-weight:500;text-align:right}
 /* Botón refresh Odoo */
-.sdv-edit-refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-secondary);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s}
+/* Campos Odoo (read-only text display) */
+.sdv-edit-odoo-fields{display:grid;gap:14px;margin-bottom:16px}
+.sdv-edit-field-display{display:flex;flex-direction:column;gap:4px}
+.sdv-edit-field-label{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3)}
+.sdv-edit-field-value{font-size:var(--fs-base);color:var(--text-secondary);padding:8px 10px;background:rgba(0,0,0,.02);border-radius:var(--radius-sm);min-height:32px;display:flex;align-items:center}
+/* Warning/validación de campos Odoo */
+.sdv-edit-validation-warning{padding:12px;margin-bottom:14px;background:var(--amber-bg);border-left:3px solid var(--amber-text);border-radius:var(--radius-sm);font-size:var(--fs-sm);color:var(--amber-text);line-height:1.4}
+.sdv-edit-validation-warning svg{width:16px;height:16px;margin-right:6px;vertical-align:-2px}
+/* Botón refresh Odoo */
+.sdv-edit-refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-secondary);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s;margin-top:12px}
 .sdv-edit-refresh-btn:hover{background:var(--surface-2);color:var(--text-primary)}
 .sdv-edit-refresh-btn:disabled{opacity:.5;cursor:not-allowed}
 .sdv-edit-refresh-btn svg{width:14px;height:14px}
@@ -26143,6 +26152,21 @@ async function sdvBuscar() {
     var r = await authFetch(url);
     var d = await r.json();
     if (!r.ok || !d.ok) { sdvInfo(d.error||'No encontrado en Odoo', 'err'); return; }
+    // Validar campos Odoo obligatorios (solo para despacho_cliente y devolucion)
+    if (_sdvTipo !== 'traslado_interno') {
+      var clienteOk = !!(d.client && (d.client+'').trim());
+      var direccionOk = !!(d.deliveryAddress && (d.deliveryAddress+'').trim());
+      var ciudadOk = !!(d.city && (d.city+'').trim());
+      if (!clienteOk || !direccionOk || !ciudadOk) {
+        var faltantes = [];
+        if (!clienteOk) faltantes.push('Cliente');
+        if (!direccionOk) faltantes.push('Dirección');
+        if (!ciudadOk) faltantes.push('Ciudad');
+        var msg = 'Orden incompleta en Odoo. Completa estos campos en Odoo: '+faltantes.join(', ')+'. Luego busca la orden nuevamente.';
+        sdvInfo(msg, 'err');
+        return;
+      }
+    }
     _sdvOrderRef = d.orderRef || d.retRef || ref;
     _sdvItems = (d.items||[]).map(function(it,i){ return Object.assign({},it,{_idx:i, maxQty:it.quantity}); });
     // Auto-llenar campos
@@ -26261,7 +26285,16 @@ async function sdvEnviar() {
     var recNom  = (_sdv$('sdv-receptor-nombre').value||'').trim();
     var recCont = (_sdv$('sdv-receptor-contacto').value||'').trim();
     var fecha   = sdvGetFecha('sdv-fecha');
-    if (!cliente||!ciudad||!dir||!recNom||!recCont||!fecha) { toast('Completa todos los campos obligatorios'); return; }
+    // Validación estricta de campos Odoo requeridos
+    var faltantesOdoo = [];
+    if (!cliente) faltantesOdoo.push('Cliente');
+    if (!dir) faltantesOdoo.push('Dirección');
+    if (!ciudad) faltantesOdoo.push('Ciudad');
+    if (faltantesOdoo.length) {
+      toast('Debes completar en Odoo: '+faltantesOdoo.join(', ')+'. Busca nuevamente la orden después de editar en Odoo.');
+      return;
+    }
+    if (!recNom||!recCont||!fecha) { toast('Completa: Nombre de quien recibe, contacto y fecha deseada'); return; }
     if (!_sdv$('sdv-transporte').checked && !confirm('¿Confirmas que el costo de transporte NO está incluido en la orden?')) return;
   } else {
     var origen  = (_sdv$('sdv-origen').value||'').trim();
@@ -26561,12 +26594,15 @@ async function sdvOpenEditModal(id) {
     document.getElementById('sdv-edit-folio').textContent = s.folio;
     document.getElementById('sdv-edit-estado').textContent = SDV_ESTADO_LABEL[s.estado]||s.estado;
     document.getElementById('sdv-edit-timestamp').textContent = 'Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre;
+
+    // ── Sección ODOO (read-only) ──
+    sdvRenderEditOdooFields(s); // mostrar cliente, ciudad, dirección como text display
     sdvRenderEditItems(s.articulos||[]); // renderizar artículos en sección Odoo
+
     var draft = sdvLoadDraft(id);
     var data = draft || s;
-    document.getElementById('sdv-edit-cliente').value = data.clienteNombre||'';
-    document.getElementById('sdv-edit-ciudad').value = data.ciudadEntrega||'';
-    document.getElementById('sdv-edit-direccion').value = data.direccionEntrega||'';
+
+    // ── Sección LOCAL (editable) ──
     document.getElementById('sdv-edit-receptor-nombre').value = data.receptorNombre||'';
     document.getElementById('sdv-edit-receptor-contacto').value = data.receptorContacto||'';
     document.getElementById('sdv-edit-transporte').checked = data.transporteIncluido||false;
@@ -26592,11 +26628,52 @@ async function sdvOpenEditModal(id) {
   } catch(e) { toast('Error: '+e.message); }
 }
 
+function sdvRenderEditOdooFields(solicitud) {
+  // Mostrar cliente, ciudad, dirección como text display (read-only)
+  var clienteEl = document.getElementById('sdv-edit-odoo-cliente');
+  var ciudadEl = document.getElementById('sdv-edit-odoo-ciudad');
+  var direccionEl = document.getElementById('sdv-edit-odoo-direccion');
+  var warningsEl = document.getElementById('sdv-edit-odoo-warnings');
+
+  if (clienteEl) clienteEl.textContent = solicitud.clienteNombre || '—';
+  if (ciudadEl) ciudadEl.textContent = solicitud.ciudadEntrega || '—';
+  if (direccionEl) direccionEl.textContent = solicitud.direccionEntrega || '—';
+
+  // Validar campos requeridos
+  var warnings = [];
+  var required = [
+    { field: 'clienteNombre', label: 'Cliente' },
+    { field: 'ciudadEntrega', label: 'Ciudad' },
+    { field: 'direccionEntrega', label: 'Dirección' }
+  ];
+  required.forEach(function(req) {
+    if (!solicitud[req.field] || solicitud[req.field].trim() === '') {
+      warnings.push(req.label);
+    }
+  });
+
+  // Mostrar/ocultar warnings
+  if (warningsEl) {
+    if (warnings.length > 0) {
+      warningsEl.innerHTML = '<div class="sdv-edit-validation-warning">'+
+        '<svg data-lucide="alert-circle" style="width:16px;height:16px;display:inline-block;margin-right:6px;vertical-align:-2px"></svg>'+
+        '<strong>Campos requeridos en Odoo vacíos:</strong> '+warnings.join(', ')+'. '+
+        'Por favor completa estos campos en Odoo y haz clic en "Actualizar desde Odoo".'+
+        '</div>';
+      warningsEl.style.display = 'block';
+      if (window.lucide) lucide.createIcons();
+    } else {
+      warningsEl.style.display = 'none';
+      warningsEl.innerHTML = '';
+    }
+  }
+}
+
 function sdvRenderEditItems(items) {
   var container = document.getElementById('sdv-edit-items-container');
   if (!container) return;
   if (!items || items.length === 0) {
-    container.innerHTML = '<div style="font-size:var(--fs-sm);color:var(--text-muted);padding:8px">Sin artículos</div>';
+    container.innerHTML = '<div style="font-size:var(--fs-sm);color:var(--text-muted);padding:8px">Sin artículos en la orden</div>';
     return;
   }
   function escapeHtml(t) {
@@ -26606,14 +26683,14 @@ function sdvRenderEditItems(items) {
   var html = items.map(function(item) {
     var imgHtml = item.imagenUrl ?
       '<div class="sdv-edit-item-img"><img src="'+escapeHtml(item.imagenUrl)+'" alt="'+escapeHtml(item.nombre)+'" loading="lazy"></div>' :
-      '<div class="sdv-edit-item-img">sin foto</div>';
+      '<div class="sdv-edit-item-img" style="background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-3)">sin foto</div>';
     return '<div class="sdv-edit-item">'+
       imgHtml+
       '<div class="sdv-edit-item-content">'+
         '<div class="sdv-edit-item-name">'+escapeHtml(item.nombre)+'</div>'+
         '<div class="sdv-edit-item-sku">SKU: '+escapeHtml(item.sku)+'</div>'+
       '</div>'+
-      '<div class="sdv-edit-item-qty">Qty: '+item.cantidad+'</div>'+
+      '<div class="sdv-edit-item-qty">× '+item.cantidad+'</div>'+
     '</div>';
   }).join('');
   container.innerHTML = html;
@@ -26666,9 +26743,10 @@ function sdvCloseEditModal(saveDraft) {
 
 function sdvGetEditFormData() {
   return {
-    clienteNombre: document.getElementById('sdv-edit-cliente').value.trim(),
-    ciudadEntrega: document.getElementById('sdv-edit-ciudad').value.trim(),
-    direccionEntrega: document.getElementById('sdv-edit-direccion').value.trim(),
+    // Campos ODOO (no editables en el modal — vienen de solicitud.odoo)
+    // clienteNombre, ciudadEntrega, direccionEntrega son read-only
+
+    // Campos LOCAL (editables)
     receptorNombre: document.getElementById('sdv-edit-receptor-nombre').value.trim(),
     receptorContacto: document.getElementById('sdv-edit-receptor-contacto').value.trim(),
     transporteIncluido: document.getElementById('sdv-edit-transporte').checked,
@@ -26695,10 +26773,31 @@ async function sdvSaveEdit() {
   if (!id) return;
   var btn = document.getElementById('sdv-edit-save-btn');
   var formData = sdvGetEditFormData();
-  if (!formData.clienteNombre||!formData.ciudadEntrega||!formData.direccionEntrega||!formData.receptorNombre||!formData.receptorContacto) {
-    toast('Completa todos los campos obligatorios');
+
+  // Validar campos locales obligatorios
+  if (!formData.receptorNombre || !formData.receptorContacto) {
+    toast('Completa Receptor y Contacto (campos obligatorios)');
     return;
   }
+
+  // Validar que los campos Odoo no estén vacíos
+  if (_sdvEditCurrentSolicitud) {
+    var odooWarnings = [];
+    if (!_sdvEditCurrentSolicitud.clienteNombre || _sdvEditCurrentSolicitud.clienteNombre.trim() === '') {
+      odooWarnings.push('Cliente');
+    }
+    if (!_sdvEditCurrentSolicitud.ciudadEntrega || _sdvEditCurrentSolicitud.ciudadEntrega.trim() === '') {
+      odooWarnings.push('Ciudad');
+    }
+    if (!_sdvEditCurrentSolicitud.direccionEntrega || _sdvEditCurrentSolicitud.direccionEntrega.trim() === '') {
+      odooWarnings.push('Dirección');
+    }
+    if (odooWarnings.length > 0) {
+      toast('Completa primero en Odoo: '+odooWarnings.join(', '));
+      return;
+    }
+  }
+
   btn.disabled = true;
   btn.textContent = 'Guardando…';
   try {
@@ -26870,9 +26969,34 @@ async function sdvConvertirTarea(id) {
       <!-- Sección ODOO (read-only) -->
       <div class="sdv-edit-modal-odoo-section">
         <label class="sdv-edit-modal-odoo-section-title">Datos de Odoo</label>
-        <div class="sdv-edit-items-list" id="sdv-edit-items-container">
-          <!-- Artículos se inyectan aquí -->
+
+        <!-- Warnings de validación (si hay) -->
+        <div id="sdv-edit-odoo-warnings" style="display:none"></div>
+
+        <!-- Cliente, Ciudad, Dirección (read-only text display) -->
+        <div class="sdv-edit-odoo-fields">
+          <div class="sdv-edit-field-display">
+            <div class="sdv-edit-field-label">Cliente</div>
+            <div class="sdv-edit-field-value" id="sdv-edit-odoo-cliente">—</div>
+          </div>
+          <div class="sdv-edit-field-display">
+            <div class="sdv-edit-field-label">Ciudad</div>
+            <div class="sdv-edit-field-value" id="sdv-edit-odoo-ciudad">—</div>
+          </div>
+          <div class="sdv-edit-field-display">
+            <div class="sdv-edit-field-label">Dirección</div>
+            <div class="sdv-edit-field-value" id="sdv-edit-odoo-direccion">—</div>
+          </div>
         </div>
+
+        <!-- Artículos de la orden -->
+        <div style="margin-top:16px">
+          <div class="sdv-edit-field-label" style="margin-bottom:10px">Artículos</div>
+          <div class="sdv-edit-items-list" id="sdv-edit-items-container">
+            <!-- Artículos se inyectan aquí -->
+          </div>
+        </div>
+
         <button type="button" class="sdv-edit-refresh-btn" id="sdv-edit-refresh-btn" onclick="sdvRefreshFromOdoo()" title="Cargar cambios desde Odoo">
           <svg data-lucide="refresh-cw" style="width:14px;height:14px"></svg>
           Actualizar desde Odoo
@@ -26882,11 +27006,6 @@ async function sdvConvertirTarea(id) {
       <!-- Sección LOCAL (editable) -->
       <div class="sdv-edit-modal-local-section">
         <label class="sdv-edit-modal-local-section-title">Información Local</label>
-        <div class="sdv-form-grid">
-          <div class="sdv-field"><label>Cliente <span class="req">*</span></label><input type="text" id="sdv-edit-cliente" class="sdv-input" placeholder="Nombre del cliente"></div>
-          <div class="sdv-field"><label>Ciudad <span class="req">*</span></label><input type="text" id="sdv-edit-ciudad" class="sdv-input" placeholder="Santo Domingo"></div>
-        </div>
-        <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Dirección <span class="req">*</span></label><input type="text" id="sdv-edit-direccion" class="sdv-input" placeholder="Dirección completa"></div></div>
         <div class="sdv-form-grid">
           <div class="sdv-field"><label>Receptor <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-nombre" class="sdv-input" placeholder="Nombre completo"></div>
           <div class="sdv-field"><label>Contacto <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-contacto" class="sdv-input" placeholder="+1 809 000 0000"></div>
