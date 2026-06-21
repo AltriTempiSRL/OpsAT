@@ -2716,6 +2716,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
         title: notif.title,
         message: notif.message || '',
         id: notif.id,
+        type: notif.type || '',
         relatedTaskId: notif.relatedTaskId,
         tag: notif.id
       });
