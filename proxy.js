@@ -5762,6 +5762,42 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // POST /api/wwp/push/test-all — envía las 4 notificaciones de ejemplo (crítica, alerta, éxito, info)
+  if (reqPath === '/api/wwp/push/test-all' && req.method === 'POST') {
+    try {
+      const jp = requireJwt(req, res); if (!jp) return;
+      const mine = loadPushSubs().filter(s => s.userId === jp.userId);
+      if (mine.length === 0) {
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, message: 'No hay suscripciones registradas' }));
+        return;
+      }
+      const testNotifs = [
+        { type:'pick_incomplete', title:'🚨 Pick incompleto', message:'Pick PICK001 (orden S03874): falta ubicación. Disponible: 2/3.' },
+        { type:'evidence_incomplete', title:'⚠️ Evidencia incompleta', message:'Tarea TAR12345: 2 artículos sin foto. Auxiliar debe cargar.' },
+        { type:'task_validated', title:'✅ Tarea validada', message:'TAR10234 completada y validada por Marco. Disponible para cierre.' },
+        { type:'sdv_new_pending', title:'ℹ️ Nueva SDV asignada', message:'Solicitud de vendedora #0234: 5 artículos. Ops puede comenzar picking.' },
+      ];
+      const sendResults = [];
+      for (const notif of testNotifs) {
+        const payload = JSON.stringify({ ...notif, tag: 'push-test-' + notif.type });
+        const results = await Promise.all(mine.map(s =>
+          webpush.sendNotification(s.subscription, payload)
+            .then(() => true)
+            .catch(err => false)
+        ));
+        sendResults.push({ type: notif.type, ok: results.some(r => r) });
+      }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, sent: sendResults }));
+      return;
+    } catch (err) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:false, error: err.message }));
+      return;
+    }
+  }
+
   // ════════════════════════════════════════════════════════════════════════════
   // ── WWP AUTH API ─────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════════
