@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100" width="300" height="100">
+  <defs>
+    <linearGradient id="grad-critical" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9e8e8;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c42020;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="300" height="100" fill="url(#grad-critical)"/>
+  <text x="20" y="65" font-family="system-ui, sans-serif" font-size="48" font-weight="700" fill="#8b1a1a">🚨</text>
+</svg>

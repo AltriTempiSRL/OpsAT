@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v7';
+const CACHE = 'wwp-v8';
 const STATIC = [
   '/manifest.json',
   '/icon-192.svg',
@@ -8,6 +8,10 @@ const STATIC = [
   '/badge-alert.svg',
   '/badge-success.svg',
   '/badge-info.svg',
+  '/hero-critical.svg',
+  '/hero-alert.svg',
+  '/hero-success.svg',
+  '/hero-info.svg',
 ];
 
 self.addEventListener('install', e => {
@@ -76,12 +80,12 @@ const NOTIF_URGENCY = {
   reposicion_nueva: 'info',
 };
 
-// Badge SVG por urgencia (se ve en la barra de estado Android + Windows badge)
-const BADGES = {
-  critical: '/badge-critical.svg',
-  alert:    '/badge-alert.svg',
-  success:  '/badge-success.svg',
-  info:     '/badge-info.svg',
+// Imágenes heroicas y badges por urgencia
+const RICH_ASSETS = {
+  critical: { hero: '/hero-critical.svg', badge: '/badge-critical.svg' },
+  alert:    { hero: '/hero-alert.svg',    badge: '/badge-alert.svg' },
+  success:  { hero: '/hero-success.svg',  badge: '/badge-success.svg' },
+  info:     { hero: '/hero-info.svg',     badge: '/badge-info.svg' },
 };
 
 // Acciones por urgencia
@@ -89,7 +93,8 @@ const BADGES = {
 const ACTIONS = {
   critical: [
     { action: 'view',    title: '👁 Ver' },
-    { action: 'dismiss', title: 'Descartar' },
+    { action: 'later',   title: '⏱ Luego' },
+    { action: 'dismiss', title: '❌ Descartar' },
   ],
   alert: [
     { action: 'view',    title: '👁 Ver' },
@@ -114,7 +119,7 @@ self.addEventListener('push', e => {
   const notifType = data.type   || '';
 
   const urgency  = NOTIF_URGENCY[notifType] || 'info';
-  const badge    = BADGES[urgency];
+  const assets   = RICH_ASSETS[urgency];
   const actions  = ACTIONS[urgency];
 
   // requireInteraction solo para críticas (la notif no desaparece sola)
@@ -129,7 +134,8 @@ self.addEventListener('push', e => {
     self.registration.showNotification(title, {
       body,
       icon:  '/icon-192.png',
-      badge,
+      badge: assets.badge,
+      image: assets.hero,
       tag,
       renotify: true,
       requireInteraction,
@@ -141,13 +147,17 @@ self.addEventListener('push', e => {
 });
 
 self.addEventListener('notificationclick', e => {
-  e.notification.close();
   const { taskId, url } = e.notification.data || {};
   const action = e.action;
 
-  // "Descartar" solo cierra la notif sin navegar
-  if (action === 'dismiss') return;
+  // Acciones que no navegan
+  if (action === 'dismiss' || action === 'later') {
+    e.notification.close();
+    return;
+  }
 
+  // Acción 'view' o click en el cuerpo de la notificación
+  e.notification.close();
   const target = taskId ? `/historial.html?task=${taskId}` : (url || '/historial.html');
 
   e.waitUntil(
