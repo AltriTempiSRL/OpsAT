@@ -5733,7 +5733,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/push/test' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
-    const payload = JSON.stringify({ title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
+    const payload = JSON.stringify({ type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
     const mine = loadPushSubs().filter(s => s.userId === jp.userId);
     const results = await Promise.all(mine.map(s =>
       webpush.sendNotification(s.subscription, payload)
