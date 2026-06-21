@@ -27070,7 +27070,7 @@ async function sdvConvertirTarea(id) {
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── Abrir modal de cancelación ─────────────────────────────────────────────
-function sdvOpenCancelModal(id, estado, tipoSolicitud) {
+async function sdvOpenCancelModal(id, estado, tipoSolicitud) {
   var modal = document.getElementById('sdv-cancel-modal-overlay');
   if (!modal) return;
   // Guardar id y contexto
@@ -27081,8 +27081,23 @@ function sdvOpenCancelModal(id, estado, tipoSolicitud) {
   document.getElementById('sdv-cancel-motivo').value = '';
   document.getElementById('sdv-cancel-observaciones').value = '';
   document.getElementById('sdv-cancel-confirm-checkbox').checked = false;
-  // Validar si está bloqueado (estados D-E)
-  var bloqueado = (estado === 'despachada');
+
+  // Cargar datos de la solicitud para mostrar en modal
+  try {
+    var r = await authFetch('/api/sdv/'+id);
+    var d = await r.json();
+    if (r.ok && d.ok && d.solicitud) {
+      var s = d.solicitud;
+      document.getElementById('sdv-cancel-folio').textContent = s.folio || '—';
+      document.getElementById('sdv-cancel-cliente').textContent = s.clienteNombre || '—';
+      document.getElementById('sdv-cancel-estado-actual').textContent = SDV_ESTADO_LABEL[s.estado] || s.estado;
+    }
+  } catch(e) {
+    console.warn('Error precargando datos de cancelación:', e.message);
+  }
+
+  // Validar si está bloqueado (estados D-E, "despachada", "packing")
+  var bloqueado = (estado === 'despachada' || estado === 'packing' || estado === 'empaque_in_progress');
   if (bloqueado) {
     sdvOpenBlockModal(id, estado, tipoSolicitud);
     return;
@@ -27115,24 +27130,47 @@ async function sdvSubmitCancel() {
     return;
   }
 
+  var btnEl = document.querySelector('#sdv-cancel-modal-overlay .btn-primary');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando…'; }
+
   try {
     var payload = {
-      estado: 'cancelada',
       motivo: motivo,
       observaciones: observaciones || null
     };
-    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var r = await authFetch('/api/sdv/'+id+'?action=cancel', {method:'PATCH', body:JSON.stringify(payload)});
     var d = await r.json();
+
+    // Manejar 403: bloqueo por empaque en progreso
+    if (r.status === 403) {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Cancelar SDV'; }
+      sdvCloseCancelModal();
+      // Abrir modal de bloqueo con información del backend
+      var bloqueada = document.getElementById('sdv-block-modal-overlay');
+      if (bloqueada) {
+        document.getElementById('sdv-block-current-id').value = id;
+        document.getElementById('sdv-block-estado').value = d.estado_actual || 'desconocido';
+        bloqueada.classList.add('open');
+      }
+      toast('Cancelación bloqueada: empaque en progreso');
+      return;
+    }
+
     if (!r.ok || !d.ok) {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Cancelar SDV'; }
       toast('Error: '+(d.error||'No se pudo cancelar'));
       return;
     }
+
     toast('✓ Cancelación registrada. Ops ha sido notificado.');
     sdvCloseCancelModal();
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Cancelar SDV'; }
+
     // Recargar listado
     if (document.getElementById('sdv-mis-list')) sdvCargarMis();
     if (document.getElementById('sdv-bandeja-list')) sdvBandejaCargar();
   } catch(e) {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Cancelar SDV'; }
     toast('Error: '+e.message);
   }
 }
@@ -27186,22 +27224,30 @@ async function sdvSubmitReactivate() {
     return;
   }
 
+  var btnEl = document.querySelector('#sdv-reactivate-modal-overlay .btn-primary');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando…'; }
+
   try {
     var payload = {
-      accion: 'reactivar',
-      fechaPropuesta: fecha,
-      razon: razon || null
+      new_delivery_date: fecha,
+      motivo_reactivacion: razon || null
     };
-    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var r = await authFetch('/api/sdv/'+id+'/reactivation', {method:'POST', body:JSON.stringify(payload)});
     var d = await r.json();
+
     if (!r.ok || !d.ok) {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
       toast('Error: '+(d.error||'No se pudo reactivar'));
       return;
     }
+
     toast('✓ Reactivación solicitada. Ops la procesará pronto.');
     sdvCloseReactivateModal();
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
+
     if (document.getElementById('sdv-mis-list')) sdvCargarMis();
   } catch(e) {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
     toast('Error: '+e.message);
   }
 }
@@ -27212,36 +27258,55 @@ async function sdvLoadReactivations() {
   if (!container) return;
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Cargando reactivaciones…</div>';
   try {
-    var r = await authFetch('/api/sdv/reactivations');
+    var r = await authFetch('/api/sdv/reactivation?estado=pendiente');
     var d = await r.json();
     if (!r.ok || !d.ok) {
       container.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+(d.error||'No se pudieron cargar')+'</div>';
       return;
     }
-    var reactivations = d.reactivations || [];
+    var reactivations = d.reactivaciones || [];
     if (reactivations.length === 0) {
       container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Sin reactivaciones pendientes</div>';
       return;
     }
     var html = '<div class="sdv-reactivation-list">';
     reactivations.forEach(function(r) {
+      var fechaFormato = new Date(r.nueva_fecha_solicitada).toLocaleString('es-ES', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
       html += '<div class="sdv-reactivation-item">' +
         '<div class="sdv-reactivation-item-header">' +
-          '<div><div class="sdv-reactivation-item-title">'+r.folio+'</div><div class="sdv-reactivation-item-sub">Solicitado por: '+r.solicitadoPor+' · hace '+r.tiempoAgo+'</div></div>' +
+          '<div><div class="sdv-reactivation-item-title">'+r.sdv_id+'</div><div class="sdv-reactivation-item-sub">Solicitado por: '+r.solicitado_por+'</div></div>' +
         '</div>' +
         '<div class="sdv-reactivation-item-info">' +
-          '<div><strong>Cliente:</strong> '+(r.clienteNombre||'—')+'</div>' +
-          '<div><strong>Nueva fecha propuesta:</strong> '+r.fechaPropuesta+'</div>' +
-          '<div><strong>Motivo:</strong> '+(r.razon||'—')+'</div>' +
+          '<div><strong>Cliente:</strong> '+(r.cliente||'—')+'</div>' +
+          '<div><strong>Nueva fecha propuesta:</strong> '+fechaFormato+'</div>' +
+          '<div><strong>Motivo:</strong> '+(r.motivo||'—')+'</div>' +
         '</div>' +
         '<div class="sdv-reactivation-item-actions">' +
-          '<button onclick="sdvOpenProcessReactivationModal(\''+r.id+'\',\''+r.folio+'\')">Procesar</button>' +
-          '<button onclick="sdvRejectReactivation(\''+r.id+'\')">Rechazar</button>' +
+          '<button class="sdv-reactivation-btn-process" data-id="'+r.id+'" data-folio="'+r.sdv_id+'">Procesar</button>' +
+          '<button class="sdv-reactivation-btn-reject" data-id="'+r.id+'">Rechazar</button>' +
         '</div>' +
       '</div>';
     });
     html += '</div>';
     container.innerHTML = html;
+
+    // Attach event listeners después de inyectar HTML
+    var processButtons = container.querySelectorAll('.sdv-reactivation-btn-process');
+    processButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        var folio = this.getAttribute('data-folio');
+        sdvOpenProcessReactivationModal(id, folio);
+      });
+    });
+
+    var rejectButtons = container.querySelectorAll('.sdv-reactivation-btn-reject');
+    rejectButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        sdvRejectReactivation(id);
+      });
+    });
   } catch(e) {
     container.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+e.message+'</div>';
   }
@@ -27276,23 +27341,32 @@ async function sdvSubmitProcessReactivation() {
     return;
   }
 
+  var btnEl = document.querySelector('#sdv-process-reactivation-overlay .btn-primary');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando…'; }
+
   try {
+    // Combinar fecha + hora en formato ISO (cuando_procesar)
+    var cuandoProcesar = fecha + 'T' + (hora || '10:00') + ':00';
+
     var payload = {
-      accion: 'procesar_reactivacion',
-      fechaProceso: fecha,
-      horaProceso: hora,
-      notasInternas: notas || null
+      cuando_procesar: cuandoProcesar,
+      notas_ops: notas || null
     };
-    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var r = await authFetch('/api/sdv/reactivation/'+id+'?action=process', {method:'PATCH', body:JSON.stringify(payload)});
     var d = await r.json();
+
     if (!r.ok || !d.ok) {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Procesar'; }
       toast('Error: '+(d.error||'No se pudo procesar'));
       return;
     }
+
     toast('✓ Reactivación procesada. Nueva tarea creada.');
     sdvCloseProcessReactivationModal();
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Procesar'; }
     sdvLoadReactivations();
   } catch(e) {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Procesar'; }
     toast('Error: '+e.message);
   }
 }
@@ -27300,19 +27374,8 @@ async function sdvSubmitProcessReactivation() {
 // ── Rechazar reactivación ──────────────────────────────────────────────────
 async function sdvRejectReactivation(id) {
   if (!confirm('¿Rechazar esta solicitud de reactivación?')) return;
-  try {
-    var payload = {accion:'rechazar_reactivacion'};
-    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
-    var d = await r.json();
-    if (!r.ok || !d.ok) {
-      toast('Error: '+(d.error||'No se pudo rechazar'));
-      return;
-    }
-    toast('Reactivación rechazada.');
-    sdvLoadReactivations();
-  } catch(e) {
-    toast('Error: '+e.message);
-  }
+  // TODO: Endpoint de rechazo aún no implementado en backend
+  toast('Función no disponible aún. Contacta a Ops Manager para rechazar.');
 }
 
 // ── Cargar KPIs de Cancelaciones ───────────────────────────────────────────
