@@ -5731,24 +5731,35 @@ const server = http.createServer(async (req, res) => {
 
   // POST /api/wwp/push/test — envía un push de prueba a TODOS los dispositivos del usuario
   if (reqPath === '/api/wwp/push/test' && req.method === 'POST') {
-    const jp = requireJwt(req, res); if (!jp) return;
-    if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
-    const payload = JSON.stringify({ type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
-    const mine = loadPushSubs().filter(s => s.userId === jp.userId);
-    const results = await Promise.all(mine.map(s =>
-      webpush.sendNotification(s.subscription, payload)
-        .then(() => ({ service: /fcm|googleapis/.test(s.subscription.endpoint)?'Android/Chrome':/apple/.test(s.subscription.endpoint)?'iOS':'Otro', ok:true }))
-        .catch(err => {
-          if (err.statusCode === 410 || err.statusCode === 404) {
-            const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
-            savePushSubs(all);
-          }
-          return { service: /fcm|googleapis/.test(s.subscription.endpoint)?'Android/Chrome':/apple/.test(s.subscription.endpoint)?'iOS':'Otro', ok:false, status: err.statusCode||null, error: err.body||err.message };
-        })
-    ));
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ ok:true, sent: results.filter(r=>r.ok).length, total: results.length, results }));
-    return;
+    try {
+      const jp = requireJwt(req, res); if (!jp) return;
+      if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
+      const payload = JSON.stringify({ type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
+      const mine = loadPushSubs().filter(s => s.userId === jp.userId);
+      if (mine.length === 0) {
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, sent: 0, total: 0, message: 'No hay suscripciones registradas para este usuario' }));
+        return;
+      }
+      const results = await Promise.all(mine.map(s =>
+        webpush.sendNotification(s.subscription, payload)
+          .then(() => ({ ok:true }))
+          .catch(err => {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
+              savePushSubs(all);
+            }
+            return { ok:false, error: err.message };
+          })
+      ));
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, sent: results.filter(r=>r.ok).length, total: results.length }));
+      return;
+    } catch (err) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:false, error: err.message }));
+      return;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════
