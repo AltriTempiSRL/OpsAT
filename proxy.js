@@ -2676,6 +2676,15 @@ const NOTIF_LABELS = {
   task_chat       : '💬 Mensaje nuevo en tarea',
   comment_new     : '💬 Comentario nuevo',
   lunch_ended     : '🍴 Almuerzo terminado',
+  // ── Notificaciones críticas nuevas (Fase 1 go-live) ──────────────────────
+  sdv_new_pending     : '📋 Nueva SDV pendiente',
+  pick_incomplete     : '🚨 Pick incompleto',
+  packing_blocked     : '🚨 Bloqueo: picking no completado',
+  damage_detected     : '🔴 Daño detectado',
+  cancel_blocked      : '🚨 Cancelación bloqueada',
+  evidence_incomplete : '⚠️ Evidencia incompleta',
+  stock_changed       : '⚠️ Stock cambió en Odoo',
+  system_sync_error   : '🔴 Error de sincronización',
 };
 
 function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null}) {
@@ -2728,6 +2737,110 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
 
 function notifyMany(userIds, payload) {
   [...new Set(userIds.filter(Boolean))].forEach(uid => createNotification(uid, payload));
+}
+
+// ── Notificaciones críticas: 8 nuevas para go-live ────────────────────────────
+// Estas disparan cuando ocurren eventos críticos en el flujo SDV/picking/empaque.
+
+function notifyOpsNewSdv(sdvId, cliente, articulos) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'sdv_new_pending',
+    title: '📋 Nueva SDV pendiente',
+    message: `Cliente: ${cliente} · Orden: ${sdvId} · ${articulos} artículos. Revisar.`,
+    relatedTaskId: sdvId
+  });
+}
+
+function notifyOpsPickIncomplete(pickId, sdvId, razon = 'falta ubicación') {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'pick_incomplete',
+    title: '🚨 Pick incompleto',
+    message: `Pick ${pickId} (orden ${sdvId}): ${razon}. Sistema no puede proceder.`,
+    relatedTaskId: sdvId
+  });
+}
+
+function notifyOpsPackingBlocked(taskId, pickStatus) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'packing_blocked',
+    title: '🚨 Bloqueo: picking no completado',
+    message: `Tarea ${taskId} en empaque, pero picking aún en estado: ${pickStatus}. Detener empaque.`,
+    relatedTaskId: taskId
+  });
+}
+
+function notifyOpsDamageDetected(taskId, refArticulo, condicion) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'damage_detected',
+    title: '🔴 Daño detectado',
+    message: `Artículo ${refArticulo} (tarea ${taskId}): ${condicion}. Decisión requerida (reproceso/devolución/scrap).`,
+    relatedTaskId: taskId
+  });
+}
+
+function notifyOpsCancelBlocked(sdvId, cliente, estado) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'cancel_blocked',
+    title: '🚨 Cancelación bloqueada',
+    message: `Orden ${sdvId} (cliente: ${cliente}): empaque en estado ${estado}. Cancelación requiere desempaque.`,
+    relatedTaskId: sdvId
+  });
+}
+
+function notifyOpsEvidenceIncomplete(taskId, nFaltantes) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'evidence_incomplete',
+    title: '⚠️ Evidencia incompleta',
+    message: `Tarea ${taskId}: ${nFaltantes} artículos sin foto. No se puede cerrar.`,
+    relatedTaskId: taskId
+  });
+}
+
+function notifyOpsStockChanged(pickId, sdvId, disponibleActual, disponibleEsperada) {
+  const opsIds = getOpsUserIds();
+  notifyMany(opsIds, {
+    type: 'stock_changed',
+    title: '⚠️ Stock cambió en Odoo',
+    message: `Pick ${pickId} (orden ${sdvId}): disponible bajó a ${disponibleActual} (esperada: ${disponibleEsperada}). Crear backorder o proceder.`,
+    relatedTaskId: sdvId
+  });
+}
+
+function notifyAdminSyncError(errorMsg) {
+  const adminIds = getAdminUserIds();
+  notifyMany(adminIds, {
+    type: 'system_sync_error',
+    title: '🔴 Error de sincronización',
+    message: `Sincronización Odoo falló: ${errorMsg}. Tareas pueden estar desincronizadas. Revisar logs.`,
+    relatedTaskId: null
+  });
+}
+
+// Helper: obtener IDs de usuarios con rol ops_manager/admin para notificaciones críticas
+function getOpsUserIds() {
+  try {
+    const users = loadAuthUsers() || [];
+    return users.filter(u => u.role === 'ops_manager' || u.role === 'admin').map(u => u.id);
+  } catch (e) {
+    silentCatch(e, 'getOpsUserIds');
+    return [];
+  }
+}
+
+function getAdminUserIds() {
+  try {
+    const users = loadAuthUsers() || [];
+    return users.filter(u => u.role === 'admin').map(u => u.id);
+  } catch (e) {
+    silentCatch(e, 'getAdminUserIds');
+    return [];
+  }
 }
 
 // ── Auto-cierre de almuerzo ───────────────────────────────────────────────────

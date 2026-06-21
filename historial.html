@@ -8457,7 +8457,11 @@ function renderNotifications() {
   const NOTIF_ICONS = {
     task_assigned:'clipboard-list', subtask_assigned:'paperclip', status_changed:'refresh-cw',
     task_overdue:'alert-triangle', task_completed:'check-circle', task_validated:'award',
-    task_rejected:'x-circle', comment_new:'message-square', lunch_ended:'utensils'
+    task_rejected:'x-circle', comment_new:'message-square', lunch_ended:'utensils',
+    // Críticas fase 1 go-live
+    sdv_new_pending:'inbox', pick_incomplete:'alert-triangle', packing_blocked:'shield-alert',
+    damage_detected:'alert-circle', cancel_blocked:'x-circle', evidence_incomplete:'camera',
+    stock_changed:'package', system_sync_error:'alert-octagon'
   };
   list.innerHTML = _notifications.slice(0, 50).map(n => {
     const iconName = NOTIF_ICONS[n.type] || 'bell';
