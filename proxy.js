@@ -5695,11 +5695,14 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/push/subscribe' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     try {
-      const { subscription } = await readBody(req);
+      const { subscription, oldEndpoint } = await readBody(req);
       if (!subscription || !subscription.endpoint) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'subscription requerida'})); return;
       }
-      const subs = loadPushSubs();
+      let subs = loadPushSubs();
+      if (oldEndpoint && oldEndpoint !== subscription.endpoint) {
+        subs = subs.filter(s => s?.subscription?.endpoint !== oldEndpoint);
+      }
       const existing = subs.findIndex(s => s.subscription.endpoint === subscription.endpoint);
       if (existing >= 0) {
         subs[existing] = { userId: jp.userId, subscription, updatedAt: new Date().toISOString() };

@@ -8195,6 +8195,7 @@ function _urlBase64ToUint8Array(base64String) {
 
 // Suscripción push real (asume permiso ya concedido). Devuelve promesa.
 function _notifDoSubscribe() {
+  var oldEndpoint = null;
   return navigator.serviceWorker.ready.then(function(reg) {
     return authFetch('/api/wwp/push/vapid-public-key').then(function(r){ return r.json(); })
       .then(function(data) {
@@ -8202,6 +8203,7 @@ function _notifDoSubscribe() {
         // Limpiar suscripción vieja (puede tener una VAPID key anterior tras reinstalar)
         return reg.pushManager.getSubscription().then(function(existing) {
           if (existing) {
+            oldEndpoint = existing.endpoint || null;
             return existing.unsubscribe().catch(function(){}).then(function(){ return data.key; });
           }
           return data.key;
@@ -8217,7 +8219,7 @@ function _notifDoSubscribe() {
         return authFetch('/api/wwp/push/subscribe', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ subscription: sub.toJSON() })
+          body: JSON.stringify({ subscription: sub.toJSON(), oldEndpoint: oldEndpoint })
         }).then(function(r){ if (!r.ok) throw new Error('El servidor rechazó la suscripción ('+r.status+')'); return r; });
       });
   });
@@ -8280,10 +8282,7 @@ function _notifPushTest() {
       if (perm !== 'granted') throw new Error('Permiso no concedido.');
     });
   }).then(function(){
-    return navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); });
-  }).then(function(sub){
-    if (sub) return;
-    if (st) st.innerHTML = '<span style="color:var(--text-3)">Activando push en este dispositivo…</span>';
+    if (st) st.innerHTML = '<span style="color:var(--text-3)">Renovando suscripción push de este dispositivo…</span>';
     return _notifDoSubscribe();
   }).then(function(){
     if (st) st.innerHTML = '<span style="color:var(--text-3)">Enviando prueba…</span>';
