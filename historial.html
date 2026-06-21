@@ -4366,6 +4366,28 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
   .sdv-gps-row{flex-direction:column;align-items:stretch}
   .sdv-gps-btn{min-height:48px}
 }
+
+/* Modal de edición SDV */
+.sdv-edit-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+.sdv-edit-modal-card{background:var(--surface);border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden;max-height:92vh;display:flex;flex-direction:column}
+.sdv-edit-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sdv-edit-modal-title{font-size:15px;font-weight:700;color:var(--text-primary);margin:0}
+.sdv-edit-modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);line-height:1;padding:4px;min-width:36px;min-height:36px;border-radius:var(--radius-sm)}
+.sdv-edit-modal-close:hover{background:var(--surface-2);color:var(--text-primary)}
+.sdv-edit-modal-body{padding:20px;overflow-y:auto;flex:1}
+.sdv-edit-modal-info{font-size:var(--fs-sm);color:var(--text-2);margin-bottom:14px;padding:12px;background:var(--surface-2);border-radius:var(--radius)}
+.sdv-edit-modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0}
+.sdv-edit-modal-btn{padding:8px 18px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--surface-2);color:var(--text-primary);transition:all .15s}
+.sdv-edit-modal-btn:hover{background:var(--border-light)}
+.sdv-edit-modal-btn-primary{background:var(--brand-primary);border-color:var(--brand-primary);color:#fff}
+.sdv-edit-modal-btn-primary:hover{opacity:.9}
+.sdv-edit-modal-btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:767px){
+  .sdv-edit-modal-overlay{align-items:flex-end;padding:0}
+  .sdv-edit-modal-card{max-width:100%;border-radius:18px 18px 0 0}
+  .sdv-edit-modal-footer{flex-direction:column-reverse}
+  .sdv-edit-modal-footer button{width:100%;min-height:44px}
+}
 </style>
 <script>
 (function(){
@@ -26418,7 +26440,13 @@ function sdvCardHtml(s, ctx) {
   var tipoLabel = SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud;
   var ref = s.odooOrderRef ? (' · '+s.odooOrderRef) : (s.ubicacionOrigen?s.ubicacionOrigen+'→'+s.ubicacionDestino:'');
   var arts = (s.articulosOdoo||[]).length;
-  return '<div class="sdv-list-card" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
+  var acciones = '';
+  if (ctx==='mis' && s.estado==='pendiente_revision') {
+    acciones = '<div style="display:flex;gap:6px;margin-top:8px">'+
+      '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();sdvOpenEditModal(\''+s.id+'\')" style="flex:1"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-1px"></i> Editar</button>'+
+    '</div>';
+  }
+  return '<div class="sdv-list-card" style="cursor:pointer" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
     '<div class="sdv-list-card-top">'+
       '<span class="sdv-list-folio">'+s.folio+'</span>'+
       sdvBadge(s.estado)+
@@ -26428,6 +26456,7 @@ function sdvCardHtml(s, ctx) {
       (s.clienteNombre?s.clienteNombre+' · ':'')+(arts?arts+' artículo(s) · ':'')+
       (s.creadoNombre||'')+'  ·  '+sdvFmtDate(s.creadoAt)+
     '</div>'+
+    acciones+
   '</div>';
 }
 
@@ -26451,13 +26480,14 @@ async function sdvVerDetalle(id, ctx) {
         '<span class="sdv-item-qty">×'+it.quantity+'</span></div>';
     }).join('');
     var acciones = '';
-    if (isOps && s.estado==='pendiente_revision') {
+    // Solo mostrar acciones de ops en contexto bandeja (no en mis)
+    if (ctx==='bandeja' && isOps && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Convertir en Tarea WWP</button>'+
         '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'en_proceso\')">Marcar En Proceso</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvCambiarEstado(\''+s.id+'\',\'cancelada\')">Cancelar</button>'+
       '</div>';
-    } else if (isOps && s.estado==='en_proceso') {
+    } else if (ctx==='bandeja' && isOps && s.estado==='en_proceso') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
         '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
@@ -26486,11 +26516,193 @@ async function sdvVerDetalle(id, ctx) {
           (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+s.observaciones+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
         '</div>'+
-        (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+t.titulo+'</dd></div>'; }).join('')+'</div>':'')+
+        (s.wwpTaskId?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>ID</dt><dd><a href="javascript:void(0)" style="color:var(--brand-primary)">T-'+s.wwpTaskId+'</a></dd></div></div>':'')+
+        (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+t.titulo+'</dd></div>'; }).join('')+'</div>':'')+
         acciones+
       '</div>';
     if (window.lucide) lucide.createIcons();
   } catch(e) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+e.message+'</div>'; }
+}
+
+// ── Editar Solicitud (NUEVO) ──────────────────────────────────────────────
+var _sdvEditDraftInterval = null;
+async function sdvOpenEditModal(id) {
+  var modal = document.getElementById('sdv-edit-modal');
+  if (!modal) return;
+  document.getElementById('sdv-edit-current-id').value = id;
+  try {
+    var r = await authFetch('/api/sdv/'+id);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast('Error al cargar la solicitud'); return; }
+    var s = d.solicitud;
+    document.getElementById('sdv-edit-folio').textContent = s.folio;
+    document.getElementById('sdv-edit-estado').textContent = SDV_ESTADO_LABEL[s.estado]||s.estado;
+    document.getElementById('sdv-edit-timestamp').textContent = 'Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre;
+    var draft = sdvLoadDraft(id);
+    var data = draft || s;
+    document.getElementById('sdv-edit-cliente').value = data.clienteNombre||'';
+    document.getElementById('sdv-edit-ciudad').value = data.ciudadEntrega||'';
+    document.getElementById('sdv-edit-direccion').value = data.direccionEntrega||'';
+    document.getElementById('sdv-edit-receptor-nombre').value = data.receptorNombre||'';
+    document.getElementById('sdv-edit-receptor-contacto').value = data.receptorContacto||'';
+    document.getElementById('sdv-edit-transporte').checked = data.transporteIncluido||false;
+    document.getElementById('sdv-edit-observaciones').value = data.observaciones||'';
+    document.getElementById('sdv-edit-gps').value = data.gpsCoords||'';
+    if (data.fechaSolicitudDeseada) {
+      var dt = new Date(data.fechaSolicitudDeseada);
+      var yyyy = dt.getFullYear(), mm = String(dt.getMonth()+1).padStart(2,'0'), dd = String(dt.getDate()).padStart(2,'0');
+      document.getElementById('sdv-edit-fecha-date').value = yyyy+'-'+mm+'-'+dd;
+      var hrs = String(dt.getHours()).padStart(2,'0');
+      var mins = String(dt.getMinutes()).padStart(2,'0');
+      var ampm = dt.getHours() >= 12 ? 'PM' : 'AM';
+      document.getElementById('sdv-edit-fecha-hr').value = parseInt(hrs) % 12 || 12;
+      document.getElementById('sdv-edit-fecha-min').value = mins;
+      document.getElementById('sdv-edit-fecha-ampm').value = ampm;
+    }
+    modal.style.display = 'flex';
+    if (_sdvEditDraftInterval) clearInterval(_sdvEditDraftInterval);
+    _sdvEditDraftInterval = setInterval(function() {
+      if (modal.style.display === 'flex') sdvSaveDraft(id, sdvGetEditFormData());
+    }, 2000);
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+function sdvCloseEditModal(saveDraft) {
+  if (_sdvEditDraftInterval) clearInterval(_sdvEditDraftInterval);
+  if (saveDraft !== false) {
+    var id = document.getElementById('sdv-edit-current-id').value;
+    if (id) sdvSaveDraft(id, sdvGetEditFormData());
+  }
+  var modal = document.getElementById('sdv-edit-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function sdvGetEditFormData() {
+  return {
+    clienteNombre: document.getElementById('sdv-edit-cliente').value.trim(),
+    ciudadEntrega: document.getElementById('sdv-edit-ciudad').value.trim(),
+    direccionEntrega: document.getElementById('sdv-edit-direccion').value.trim(),
+    receptorNombre: document.getElementById('sdv-edit-receptor-nombre').value.trim(),
+    receptorContacto: document.getElementById('sdv-edit-receptor-contacto').value.trim(),
+    transporteIncluido: document.getElementById('sdv-edit-transporte').checked,
+    observaciones: document.getElementById('sdv-edit-observaciones').value.trim(),
+    gpsCoords: (document.getElementById('sdv-edit-gps').value||'').trim() || null,
+    fechaSolicitudDeseada: sdvGetEditFecha()
+  };
+}
+
+function sdvGetEditFecha() {
+  var date = document.getElementById('sdv-edit-fecha-date').value;
+  if (!date) return null;
+  var hr = parseInt(document.getElementById('sdv-edit-fecha-hr').value)||10;
+  var min = parseInt(document.getElementById('sdv-edit-fecha-min').value)||0;
+  var ampm = document.getElementById('sdv-edit-fecha-ampm').value || 'PM';
+  if (ampm==='AM' && hr===12) hr=0;
+  if (ampm==='PM' && hr!==12) hr+=12;
+  var d = new Date(date+'T'+String(hr).padStart(2,'0')+':'+String(min).padStart(2,'0')+':00');
+  return d.toISOString();
+}
+
+async function sdvSaveEdit() {
+  var id = document.getElementById('sdv-edit-current-id').value;
+  if (!id) return;
+  var btn = document.getElementById('sdv-edit-save-btn');
+  var formData = sdvGetEditFormData();
+  if (!formData.clienteNombre||!formData.ciudadEntrega||!formData.direccionEntrega||!formData.receptorNombre||!formData.receptorContacto) {
+    toast('Completa todos los campos obligatorios');
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify(formData)});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al guardar'); return; }
+    toast('Cambios guardados', 'success');
+    sdvSaveDraft(id, null);
+    sdvCloseEditModal(false);
+    sdvCargarMis();
+  } catch(e) { toast('Error: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='Guardar cambios'; }
+}
+
+function sdvSaveDraft(id, data) {
+  if (!id) return;
+  var key = 'sdv_draft_'+id;
+  if (data===null) {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, JSON.stringify(data));
+  }
+}
+
+function sdvLoadDraft(id) {
+  if (!id) return null;
+  var key = 'sdv_draft_'+id;
+  var stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : null;
+}
+
+var _sdvEditMapInstance = null, _sdvEditMapMarker = null;
+async function sdvEditOpenMapModal() {
+  var overlay = document.getElementById('sdv-edit-map-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  await _ensureLeaflet();
+  if (!_sdvEditMapInstance) {
+    _sdvEditMapInstance = L.map('sdv-edit-map-container').setView([18.4861, -69.9312], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap contributors', maxZoom: 19}).addTo(_sdvEditMapInstance);
+    _sdvEditMapMarker = L.marker([18.4861, -69.9312], {draggable: true}).addTo(_sdvEditMapInstance);
+    _sdvEditMapMarker.on('dragend', function() {
+      var ll = _sdvEditMapMarker.getLatLng();
+      var coordsEl = document.getElementById('sdv-edit-map-coords');
+      if (coordsEl) coordsEl.textContent = 'Lat: '+ll.lat.toFixed(6)+', Lng: '+ll.lng.toFixed(6);
+    });
+  }
+  setTimeout(function(){ if(_sdvEditMapInstance) _sdvEditMapInstance.invalidateSize(); }, 200);
+  var saved = (document.getElementById('sdv-edit-gps').value||'').trim();
+  if (saved) {
+    var parts = saved.split(',');
+    if (parts.length===2) {
+      var slat = parseFloat(parts[0]), slng = parseFloat(parts[1]);
+      if (!isNaN(slat) && !isNaN(slng)) {
+        _sdvEditMapInstance.setView([slat, slng], 16);
+        _sdvEditMapMarker.setLatLng([slat, slng]);
+        var coordsEl = document.getElementById('sdv-edit-map-coords');
+        if (coordsEl) coordsEl.textContent = 'Lat: '+slat.toFixed(6)+', Lng: '+slng.toFixed(6);
+      }
+    }
+    return;
+  }
+  var dir = (document.getElementById('sdv-edit-direccion').value||'').trim();
+  var ciudad = (document.getElementById('sdv-edit-ciudad').value||'').trim();
+  if (dir || ciudad) {
+    var q = encodeURIComponent([(dir||''), (ciudad||''), 'República Dominicana'].filter(Boolean).join(' '));
+    fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&limit=1')
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (data && data[0]) {
+          var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+          _sdvEditMapInstance.setView([lat, lng], 16);
+          _sdvEditMapMarker.setLatLng([lat, lng]);
+          var coordsEl = document.getElementById('sdv-edit-map-coords');
+          if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6)+' (basado en dirección)';
+        }
+      }).catch(function(){});
+  }
+}
+
+function sdvEditCloseMapModal() {
+  var overlay = document.getElementById('sdv-edit-map-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function sdvEditConfirmMapLocation() {
+  if (!_sdvEditMapMarker) return;
+  var ll = _sdvEditMapMarker.getLatLng();
+  var coords = ll.lat.toFixed(6)+', '+ll.lng.toFixed(6);
+  document.getElementById('sdv-edit-gps').value = coords;
+  sdvEditCloseMapModal();
 }
 
 // ── Cambiar estado (ops) ──────────────────────────────────────────────────
@@ -26554,6 +26766,54 @@ async function sdvConvertirTarea(id) {
   </div>
 </div>
 <input type="hidden" id="devolver-task-id">
+
+<!-- Modal: Editar Solicitud de Despacho -->
+<div id="sdv-edit-modal" class="sdv-edit-modal-overlay">
+  <div class="sdv-edit-modal-card" role="dialog" aria-modal="true">
+    <div class="sdv-edit-modal-header">
+      <h2 class="sdv-edit-modal-title">Editar Solicitud</h2>
+      <button onclick="sdvCloseEditModal()" class="sdv-edit-modal-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="sdv-edit-modal-body">
+      <div class="sdv-edit-modal-info">
+        <div><strong id="sdv-edit-folio"></strong> · <span id="sdv-edit-estado"></span></div>
+        <div style="font-size:var(--fs-sm);color:var(--text-3);margin-top:3px" id="sdv-edit-timestamp"></div>
+      </div>
+      <div class="sdv-form-grid">
+        <div class="sdv-field"><label>Cliente <span class="req">*</span></label><input type="text" id="sdv-edit-cliente" class="sdv-input" placeholder="Nombre del cliente"></div>
+        <div class="sdv-field"><label>Ciudad <span class="req">*</span></label><input type="text" id="sdv-edit-ciudad" class="sdv-input" placeholder="Santo Domingo"></div>
+      </div>
+      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Dirección <span class="req">*</span></label><input type="text" id="sdv-edit-direccion" class="sdv-input" placeholder="Dirección completa"></div></div>
+      <div class="sdv-form-grid">
+        <div class="sdv-field"><label>Receptor <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-nombre" class="sdv-input" placeholder="Nombre completo"></div>
+        <div class="sdv-field"><label>Contacto <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-contacto" class="sdv-input" placeholder="+1 809 000 0000"></div>
+      </div>
+      <div class="sdv-form-grid">
+        <div class="sdv-field"><label>Fecha deseada</label><input type="date" id="sdv-edit-fecha-date" class="sdv-input"></div>
+        <div class="sdv-field"><label>Hora (aprox.)</label><div class="sdv-fecha-time-wrap"><select id="sdv-edit-fecha-hr" class="sdv-time-sel" style="flex:1"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><span style="color:var(--text-2)">:</span><select id="sdv-edit-fecha-min" class="sdv-time-sel" style="flex:1"><option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option></select><select id="sdv-edit-fecha-ampm" class="sdv-time-sel" style="flex:1"><option value="AM">AM</option><option value="PM">PM</option></select></div></div>
+      </div>
+      <div class="sdv-form-grid">
+        <div class="sdv-field"><label>Transporte</label><div class="sdv-check-row"><input type="checkbox" id="sdv-edit-transporte"><span>Incluido en la orden</span></div></div>
+      </div>
+      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Observaciones (opcional)</label><textarea id="sdv-edit-observaciones" class="sdv-input" style="resize:vertical;min-height:80px" placeholder="Notas adicionales..."></textarea></div></div>
+      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>GPS (opcional)</label><div class="sdv-gps-row"><input type="text" id="sdv-edit-gps" class="sdv-input" placeholder="Lat, Lng — haz clic en Ver mapa" readonly><button type="button" class="btn btn-secondary sdv-gps-btn" onclick="sdvEditOpenMapModal()">Ver mapa</button></div></div></div>
+    </div>
+    <div class="sdv-edit-modal-footer">
+      <button onclick="sdvCloseEditModal()" class="sdv-edit-modal-btn">Cancelar</button>
+      <button onclick="sdvSaveEdit()" class="sdv-edit-modal-btn sdv-edit-modal-btn-primary" id="sdv-edit-save-btn">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="sdv-edit-current-id">
+
+<!-- Modal: Mapa SDV Edit -->
+<div id="sdv-edit-map-overlay" class="sdv-map-overlay" style="display:none">
+  <div class="sdv-map-modal">
+    <div class="sdv-map-modal-header"><h3>Ubicación de entrega</h3><button type="button" onclick="sdvEditCloseMapModal()" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px">×</button></div>
+    <div class="sdv-map-modal-body"><div id="sdv-edit-map-container" class="sdv-map-container"></div><div class="sdv-map-coords-label" id="sdv-edit-map-coords">Arrastra el marcador para ajustar la ubicación</div></div>
+    <div class="sdv-map-modal-footer"><button type="button" onclick="sdvEditCloseMapModal()" class="btn btn-secondary">Cancelar</button><button type="button" onclick="sdvEditConfirmMapLocation()" class="btn btn-primary">Confirmar</button></div>
+  </div>
+</div>
 
 </body>
 </html>
