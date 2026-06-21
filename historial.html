@@ -262,6 +262,10 @@ function _loadXlsx(cb){
 
 /* Notificaciones */
 [data-theme='dark'] .notif-item.unread{background:var(--blue-bg)}
+[data-theme='dark'] .notif-item.unread.ni-critical{background:var(--red-bg)}
+[data-theme='dark'] .notif-item.unread.ni-alert{background:var(--amber-bg)}
+[data-theme='dark'] .notif-item.unread.ni-success{background:var(--green-bg)}
+[data-theme='dark'] .notif-item.unread.ni-chat{background:var(--purple-bg)}
 [data-theme='dark'] .notif-item.unread:hover{background:#1a3050}
 
 /* Presencia */
@@ -3158,18 +3162,32 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-panel-btn:hover{text-decoration:underline}
 .notif-list{overflow-y:auto;flex:1}
 .notif-item{
-  display:flex;gap:10px;padding:12px 16px;cursor:pointer;
+  display:flex;gap:10px;padding:11px 14px;cursor:pointer;
   border-bottom:1px solid var(--border);transition:background .12s;
   align-items:flex-start;position:relative;color:var(--text);
+  border-left:3px solid transparent;
 }
 .notif-item:hover{background:var(--surface-2)}
-.notif-item.unread{background:var(--blue-bg)}
+.notif-item.unread{background:var(--blue-bg);border-left-color:var(--blue-dot)}
 .notif-item.unread:hover{background:var(--blue-bg);filter:brightness(.97)}
-.notif-dot{
-  width:8px;height:8px;border-radius:50%;background:var(--brand-light);
-  flex-shrink:0;margin-top:5px;
+/* Banda lateral de color por urgencia (solo no-leídas) */
+.notif-item.unread.ni-critical{background:var(--red-bg);border-left-color:var(--red-dot)}
+.notif-item.unread.ni-critical:hover{background:var(--red-bg);filter:brightness(.97)}
+.notif-item.unread.ni-alert{background:var(--amber-bg);border-left-color:var(--amber-dot)}
+.notif-item.unread.ni-alert:hover{background:var(--amber-bg);filter:brightness(.97)}
+.notif-item.unread.ni-success{background:var(--green-bg);border-left-color:var(--green-dot)}
+.notif-item.unread.ni-success:hover{background:var(--green-bg);filter:brightness(.97)}
+.notif-item.unread.ni-chat{background:var(--purple-bg);border-left-color:var(--purple-dot)}
+.notif-item.unread.ni-chat:hover{background:var(--purple-bg);filter:brightness(.97)}
+/* Ícono de color reemplaza el punto */
+.notif-icon-wrap{
+  width:30px;height:30px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--ni-bg,var(--surface-3));
+  color:var(--ni-color,var(--text-3));
+  margin-top:1px;
 }
-.notif-dot.read{background:transparent;border:1.5px solid var(--border)}
+.notif-icon-wrap svg,.notif-icon-wrap i{width:15px;height:15px;stroke:currentColor;display:block}
 .notif-content{flex:1;min-width:0}
 .notif-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
 .notif-msg{font-size:12px;color:var(--text-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -8454,26 +8472,53 @@ function renderNotifications() {
     list.innerHTML = '<div class="notif-empty">Sin notificaciones</div>';
     return;
   }
+  // Diseño unificado: ícono Lucide coloreado por tipo para TODAS las notificaciones
   const NOTIF_ICONS = {
-    task_assigned:'clipboard-list', subtask_assigned:'paperclip', status_changed:'refresh-cw',
-    task_overdue:'alert-triangle', task_completed:'check-circle', task_validated:'award',
-    task_rejected:'x-circle', comment_new:'message-square', lunch_ended:'utensils',
-    // Críticas fase 1 go-live
-    sdv_new_pending:'inbox', pick_incomplete:'alert-triangle', packing_blocked:'shield-alert',
-    damage_detected:'alert-circle', cancel_blocked:'x-circle', evidence_incomplete:'camera',
-    stock_changed:'package', system_sync_error:'alert-octagon'
+    // Tareas WWP
+    task_assigned    : { icon:'clipboard-list', cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+    subtask_assigned : { icon:'paperclip',      cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+    status_changed   : { icon:'refresh-cw',     cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+    task_overdue     : { icon:'alert-triangle',  cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    task_completed   : { icon:'check-circle',    cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+    task_validated   : { icon:'award',           cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+    task_rejected    : { icon:'x-circle',        cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    comment_new      : { icon:'message-square',  cls:'ni-chat',    bg:'--purple-bg', color:'--purple-text' },
+    lunch_ended      : { icon:'utensils',        cls:'ni-info',    bg:'--surface-3', color:'--text-3'      },
+    // SDV y operaciones críticas
+    sdv_new_pending  : { icon:'inbox',           cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+    pick_incomplete  : { icon:'alert-triangle',  cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    packing_blocked  : { icon:'shield-alert',    cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    damage_detected  : { icon:'alert-circle',    cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    cancel_blocked   : { icon:'x-circle',        cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    evidence_incomplete:{ icon:'camera',         cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+    stock_changed    : { icon:'package',         cls:'ni-alert',   bg:'--orange-bg', color:'--orange-text' },
+    system_sync_error: { icon:'alert-octagon',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+    // Reposición
+    reposicion_nueva : { icon:'package-plus',    cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+    reposicion_aprobada:{ icon:'check-circle',   cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+    reposicion_rechazada:{ icon:'x-circle',      cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+    // Agentes y sistema
+    agent_routine    : { icon:'cpu',             cls:'ni-info',    bg:'--purple-bg', color:'--purple-text' },
+    task_cancelled   : { icon:'slash',           cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+    task_status      : { icon:'refresh-cw',      cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+    reactivacion_pendiente: { icon:'rotate-ccw', cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+    reactivacion_procesada: { icon:'check-circle',cls:'ni-success',bg:'--green-bg',  color:'--green-text'  },
+    sdv_cancelada    : { icon:'x-circle',        cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
   };
+  const NOTIF_DEFAULT = { icon:'bell', cls:'ni-info', bg:'--sky-bg', color:'--sky-text' };
+
   list.innerHTML = _notifications.slice(0, 50).map(n => {
-    const iconName = NOTIF_ICONS[n.type] || 'bell';
-    const icon = `<i data-lucide="${iconName}" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px;flex-shrink:0"></i>`;
+    const def = NOTIF_ICONS[n.type] || NOTIF_DEFAULT;
     const time = n.createdAt ? timeSince(n.createdAt) : '';
-    const unreadClass = n.readAt ? '' : ' unread';
-    const dotClass = n.readAt ? ' read' : '';
-    // Usar data-id para evitar problemas de escapado con JSON en onclick
-    return `<div class="notif-item${unreadClass}" data-notif-id="${n.id}" onclick="openNotificationById(this)">
-      <div class="notif-dot${dotClass}"></div>
-      <div class="notif-body">
-        <div class="notif-title">${icon}${esc(n.title||n.type)}</div>
+    const unread = !n.readAt;
+    const itemCls = 'notif-item' + (unread ? (' unread ' + def.cls) : '');
+    // Ícono coloreado: usa CSS vars del proyecto
+    const iconStyle = `style="--ni-bg:var(${def.bg});--ni-color:var(${def.color})"`;
+    const iconWrap = `<div class="notif-icon-wrap" ${iconStyle}><i data-lucide="${def.icon}"></i></div>`;
+    return `<div class="${itemCls}" data-notif-id="${esc(n.id)}" onclick="openNotificationById(this)">
+      ${iconWrap}
+      <div class="notif-content">
+        <div class="notif-title">${esc(n.title||n.type)}</div>
         <div class="notif-msg">${esc(n.message||'')}</div>
         <div class="notif-time">${time}</div>
       </div>
