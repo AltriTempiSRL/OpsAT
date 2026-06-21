@@ -4410,6 +4410,92 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-edit-refresh-btn:hover{background:var(--surface-2);color:var(--text-primary)}
 .sdv-edit-refresh-btn:disabled{opacity:.5;cursor:not-allowed}
 .sdv-edit-refresh-btn svg{width:14px;height:14px}
+/* ─ Cancelación SDV ─────────────────────────────────── */
+.sdv-cancel-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.sdv-cancel-modal-overlay.open{display:flex}
+.sdv-cancel-modal{background:var(--surface);border-radius:var(--radius-lg);max-width:480px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.15)}
+.sdv-cancel-modal-header{padding:16px;border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600;color:var(--text-primary);display:flex;justify-content:space-between;align-items:center}
+.sdv-cancel-modal-close{background:none;border:none;font-size:24px;cursor:pointer;color:var(--text-muted);padding:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.sdv-cancel-modal-close:hover{color:var(--text-primary)}
+.sdv-cancel-modal-body{padding:20px}
+.sdv-cancel-modal-section{margin-bottom:16px}
+.sdv-cancel-modal-section label{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.sdv-cancel-modal-select,.sdv-cancel-modal-textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:var(--fs-base);color:var(--text-primary);background:var(--surface-2);font-family:inherit}
+.sdv-cancel-modal-select:focus,.sdv-cancel-modal-textarea:focus{outline:none;border-color:var(--border-focus)}
+.sdv-cancel-modal-textarea{min-height:80px;resize:none}
+.sdv-cancel-modal-checkbox{display:flex;gap:8px;align-items:flex-start;margin-top:12px}
+.sdv-cancel-modal-checkbox input{margin-top:2px;cursor:pointer}
+.sdv-cancel-modal-checkbox label{margin:0;font-weight:400;font-size:var(--fs-sm)}
+.sdv-cancel-modal-footer{padding:16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.sdv-cancel-modal-footer button{padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);cursor:pointer;font-size:var(--fs-sm);font-weight:500}
+.sdv-cancel-modal-footer .btn-primary{background:var(--red-bg);color:var(--red-text);border-color:var(--red-text)}
+.sdv-cancel-modal-footer .btn-primary:hover{background:rgba(220,38,38,.15)}
+.sdv-cancel-modal-footer .btn-secondary{background:var(--surface-2);color:var(--text-secondary);border-color:var(--border)}
+.sdv-cancel-modal-footer .btn-secondary:hover{background:var(--surface-3)}
+/* ─ Modal Bloqueo de Cancelación ────────────────────── */
+.sdv-block-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.sdv-block-modal-overlay.open{display:flex}
+.sdv-block-modal{background:var(--surface);border-radius:var(--radius-lg);max-width:480px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.15)}
+.sdv-block-modal-header{padding:20px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+.sdv-block-modal-icon{font-size:24px;flex-shrink:0}
+.sdv-block-modal-title{font-size:var(--fs-lg);font-weight:600;color:var(--text-primary)}
+.sdv-block-modal-body{padding:20px;font-size:var(--fs-base);line-height:1.5;color:var(--text-secondary)}
+.sdv-block-modal-section{margin-bottom:16px}
+.sdv-block-modal-section h4{font-size:var(--fs-md);font-weight:600;color:var(--text-primary);margin:0 0 8px}
+.sdv-block-modal-section ul{margin:0;padding-left:20px;color:var(--text-secondary)}
+.sdv-block-modal-section li{margin-bottom:6px}
+.sdv-block-modal-footer{padding:16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+.sdv-block-modal-footer button{padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);cursor:pointer;font-size:var(--fs-sm);font-weight:500;background:var(--surface-2);color:var(--text-secondary)}
+.sdv-block-modal-footer button:hover{background:var(--surface-3)}
+/* ─ Bandeja Reactivaciones (Ops) ────────────────────── */
+.sdv-reactivation-list{display:flex;flex-direction:column;gap:12px}
+.sdv-reactivation-item{padding:14px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-2);display:flex;flex-direction:column;gap:10px}
+.sdv-reactivation-item-header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.sdv-reactivation-item-title{font-size:var(--fs-md);font-weight:600;color:var(--text-primary)}
+.sdv-reactivation-item-sub{font-size:var(--fs-sm);color:var(--text-muted)}
+.sdv-reactivation-item-info{font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.4}
+.sdv-reactivation-item-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sdv-reactivation-item-actions button{padding:8px 12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:var(--fs-xs);font-weight:500;color:var(--text-secondary)}
+.sdv-reactivation-item-actions button:hover{background:var(--surface-3)}
+/* ─ Modal Procesar Reactivación ────────────────────── */
+.sdv-process-reactivation-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.sdv-process-reactivation-overlay.open{display:flex}
+.sdv-process-reactivation-modal{background:var(--surface);border-radius:var(--radius-lg);max-width:480px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.15)}
+.sdv-process-reactivation-modal-header{padding:16px;border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600;color:var(--text-primary)}
+.sdv-process-reactivation-modal-body{padding:20px}
+.sdv-process-reactivation-modal-section{margin-bottom:16px}
+.sdv-process-reactivation-modal-section label{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text-primary);margin-bottom:6px}
+.sdv-process-reactivation-modal-input,.sdv-process-reactivation-modal-select{width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:var(--fs-base);color:var(--text-primary);background:var(--surface-2);font-family:inherit}
+.sdv-process-reactivation-modal-input:focus,.sdv-process-reactivation-modal-select:focus{outline:none;border-color:var(--border-focus)}
+.sdv-process-reactivation-modal-note{font-size:var(--fs-sm);color:var(--text-muted);margin-top:6px}
+.sdv-process-reactivation-modal-footer{padding:16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.sdv-process-reactivation-modal-footer button{padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);cursor:pointer;font-size:var(--fs-sm);font-weight:500}
+.sdv-process-reactivation-modal-footer .btn-primary{background:var(--brand-primary);color:white;border-color:var(--brand-primary)}
+.sdv-process-reactivation-modal-footer .btn-primary:hover{background:var(--accent)}
+.sdv-process-reactivation-modal-footer .btn-secondary{background:var(--surface-2);color:var(--text-secondary);border-color:var(--border)}
+.sdv-process-reactivation-modal-footer .btn-secondary:hover{background:var(--surface-3)}
+/* ─ Dashboard: Cancelaciones & Devoluciones ────────── */
+.can-dev-section{margin-bottom:28px}
+.can-dev-title{font-size:var(--fs-xl);font-weight:600;color:var(--text-primary);margin-bottom:16px;display:flex;gap:8px;align-items:center}
+.can-dev-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.can-dev-kpi-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;text-align:center}
+.can-dev-kpi-val{font-size:var(--fs-3xl);font-weight:700;color:var(--text-primary);margin-bottom:4px}
+.can-dev-kpi-lbl{font-size:var(--fs-sm);color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.can-dev-kpi-sub{font-size:var(--fs-xs);color:var(--text-3);margin-top:4px}
+.can-dev-alert{padding:12px;border-radius:var(--radius);background:var(--amber-bg);border-left:3px solid var(--amber-text);font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:14px}
+.can-dev-alert-icon{display:inline-block;margin-right:6px}
+.can-dev-list{display:flex;flex-direction:column;gap:10px}
+.can-dev-item{padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);font-size:var(--fs-sm)}
+.can-dev-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.can-dev-item-title{font-weight:600;color:var(--text-primary)}
+.can-dev-item-sub{font-size:var(--fs-xs);color:var(--text-muted)}
+.can-dev-item-time{font-size:var(--fs-xs);color:var(--text-3)}
+.can-dev-item-status{display:inline-block;padding:2px 8px;border-radius:var(--radius-sm);background:var(--blue-bg);color:var(--blue-text);font-weight:500;font-size:var(--fs-xs)}
+.can-dev-analysis{background:var(--surface-2);border-radius:var(--radius);padding:14px;margin-top:14px}
+.can-dev-analysis-title{font-size:var(--fs-md);font-weight:600;color:var(--text-primary);margin-bottom:8px}
+.can-dev-analysis-item{font-size:var(--fs-sm);color:var(--text-secondary);margin-bottom:4px;display:flex;justify-content:space-between}
+.can-dev-download-btn{padding:10px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);cursor:pointer;font-size:var(--fs-sm);font-weight:500;color:var(--text-secondary)}
+.can-dev-download-btn:hover{background:var(--surface-2)}
 @media(max-width:767px){
   .sdv-edit-modal-overlay{align-items:flex-end;padding:0}
   .sdv-edit-modal-card{max-width:100%;border-radius:18px 18px 0 0}
@@ -4417,6 +4503,18 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
   .sdv-edit-modal-footer button{width:100%;min-height:44px}
   .sdv-edit-item{flex-direction:column}
   .sdv-edit-item-img{width:100%;height:80px}
+  .sdv-cancel-modal{width:95%;max-height:85vh}
+  .sdv-cancel-modal-footer{flex-direction:column-reverse}
+  .sdv-cancel-modal-footer button{width:100%}
+  .sdv-block-modal{width:95%}
+  .sdv-block-modal-footer{flex-direction:column-reverse}
+  .sdv-block-modal-footer button{width:100%}
+  .sdv-process-reactivation-modal{width:95%;max-height:85vh}
+  .sdv-process-reactivation-modal-footer{flex-direction:column-reverse}
+  .sdv-process-reactivation-modal-footer button{width:100%}
+  .sdv-reactivation-item-actions{flex-direction:column}
+  .sdv-reactivation-item-actions button{width:100%}
+  .can-dev-kpi-grid{grid-template-columns:1fr}
 }
 </style>
 <script>
@@ -4612,6 +4710,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </a>
     <a class="nav-item" id="nav-sdv-bandeja" href="#" onclick="navTo('sdv-bandeja');return false;">
       <span class="nav-icon"><i data-lucide="inbox"></i></span>Bandeja Solicitudes
+    </a>
+    <a class="nav-item" id="nav-sdv-reactivations" href="#" onclick="navTo('sdv-reactivations');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="refresh-cw"></i></span>Reactivaciones
     </a>
 
     <div class="sidebar-spacer"></div>
@@ -5757,6 +5858,21 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <div id="sdv-bandeja-detail" style="display:none;margin-top:16px"></div>
       </div>
     </div><!-- /section-sdv-bandeja -->
+
+    <!-- ══════════════════════════════════════════════════
+         REACTIVACIONES (Bandeja Ops)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-sdv-reactivations" class="page-section" style="display:none">
+      <div class="sdv-wrap" style="max-width:900px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="margin:0;font-size:var(--fs-xl)">Reactivaciones Pendientes</h2>
+          <button class="btn btn-sm btn-secondary" onclick="sdvLoadReactivations()">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i> Actualizar
+          </button>
+        </div>
+        <div id="sdv-reactivations-list" class="sdv-reactivation-list"></div>
+      </div>
+    </div><!-- /section-sdv-reactivations -->
 
     <!-- ══════════════════════════════════════════════════
          REPORTES OPERACIONALES
@@ -7093,6 +7209,15 @@ var _wwpLastVersion = 0;
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
 
 // ════════════════════════════════════════════════════
+//  ✅ C7: LOGGING HELPER — reemplaza catch(e) {} silencioso
+// ════════════════════════════════════════════════════
+function silentCatch(e, context) {
+  // Loguea errores que antes se silenciaban
+  console.warn('[' + context + '] Error handled silently:', e.message);
+  // TODO: enviar a auditoría en Semana 2
+}
+
+// ════════════════════════════════════════════════════
 //  ODOO LIVE API
 // ════════════════════════════════════════════════════
 var ODOO_LIVE=false;
@@ -7492,7 +7617,13 @@ function checkStoredSession() {
         } else { showScreen('screen-login'); }
       });
       return;
-    } catch(e) {}
+    } catch(e) {
+      // ✅ C4: Logging en lugar de silencio
+      console.error('Auth init failed — corrupt token or data:', e.message);
+      _token = null; _refreshToken = null; _user = null;
+      localStorage.removeItem('wwp_auth');
+      sessionStorage.removeItem('wwp_auth');
+    }
   }
   showScreen('screen-login');
 }
@@ -7536,7 +7667,7 @@ async function doLogout() {
   // Close SSE connection and reset notifications
   if (_sseSource) { _sseSource.close(); _sseSource = null; }
   if (_wwpSocketRetry) { clearTimeout(_wwpSocketRetry); _wwpSocketRetry = null; }
-  if (_wwpSocket) { try { _wwpSocket.close(); } catch(e) {} _wwpSocket = null; }
+  if (_wwpSocket) { try { _wwpSocket.close(); } catch(e) { silentCatch(e, 'closeWwpSocket'); } _wwpSocket = null; }
   _notifications = [];
   closeNotifPanel();
   showScreen('screen-login');
@@ -8251,7 +8382,7 @@ function connectSSE() {
 
 function connectWwpRealtime() {
   if (_wwpSocket) {
-    try { _wwpSocket.close(); } catch(e) {}
+    try { _wwpSocket.close(); } catch(e) { silentCatch(e, 'disconnectWwpSocket'); }
     _wwpSocket = null;
   }
   if (_wwpSocketRetry) { clearTimeout(_wwpSocketRetry); _wwpSocketRetry = null; }
@@ -8300,7 +8431,7 @@ function connectWwpRealtime() {
     if (_wwpSocket === ws) _wwpSocket = null;
     if (_token) _wwpSocketRetry = setTimeout(connectWwpRealtime, 2500);
   };
-  ws.onerror = function() { try { ws.close(); } catch(e) {} };
+  ws.onerror = function() { try { ws.close(); } catch(e) { silentCatch(e, 'wsErrorClose'); } };
 }
 
 async function loadNotificationsFromServer() {
@@ -8393,7 +8524,7 @@ async function markAllRead() {
   _notifications.forEach(n => { if (!n.readAt) n.readAt = new Date().toISOString(); });
   renderNotifications();
   try { await authFetch('/api/wwp/notifications/read-all', {method:'PATCH'}); }
-  catch(e) {}
+  catch(e) { silentCatch(e, 'markAllNotificationsRead'); }
 }
 
 async function clearReadNotifs() {
@@ -19963,15 +20094,15 @@ async function cargarSinAdjuntos(){
       var uU     =p.user_id?p.user_id[1]:'';
       var usuario=(wU&&wU.toLowerCase()!=='odoobot')?wU:(uU&&uU.toLowerCase()!=='odoobot')?uU:(wU||uU||'—');
       var ovCell=ovKey
-        ?'<a class="desp-ov" href="#" onclick="setSearchMode(\'orden\');buscarDirecta(\''+ovKey+'\');return false;">'+ovName+'</a>'
-        :'<span style="color:var(--text-muted)">'+ovName+'</span>';
+        ?'<a class="desp-ov" href="#" onclick="setSearchMode(\'orden\');buscarDirecta(\''+esc(ovKey)+'\');return false;">'+esc(ovName)+'</a>'
+        :'<span style="color:var(--text-muted)">'+esc(ovName)+'</span>';
       var tr=document.createElement('tr');
       tr.innerHTML=''
-        +'<td><a class="desp-ref" href="#" onclick="setSearchMode(\'transferencia\');buscarTransferencia(\''+ref+'\');return false;">'+ref+'</a></td>'
-        +'<td style="color:var(--text-secondary);white-space:nowrap">'+fecha+'</td>'
+        +'<td><a class="desp-ref" href="#" onclick="setSearchMode(\'transferencia\');buscarTransferencia(\''+esc(ref)+'\');return false;">'+esc(ref)+'</a></td>'
+        +'<td style="color:var(--text-secondary);white-space:nowrap">'+esc(fecha)+'</td>'
         +'<td>'+ovCell+'</td>'
-        +'<td style="font-size:11px;color:var(--text-primary)">'+cliente+'</td>'
-        +'<td style="font-size:11px;color:var(--text-secondary)">'+usuario+'</td>';
+        +'<td style="font-size:11px;color:var(--text-primary)">'+esc(cliente)+'</td>'
+        +'<td style="font-size:11px;color:var(--text-secondary)">'+esc(usuario)+'</td>';  // ✅ C3: XSS escapado
       tbody.appendChild(tr);
     });
 
@@ -20219,7 +20350,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','sdv-portal','sdv-bandeja'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -24048,7 +24179,7 @@ function vehExportCSV() {
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── MOCK DATA — cambiar POL_USE_MOCK = false para usar datos reales ──────────
-var POL_USE_MOCK = true;
+var POL_USE_MOCK = false;  // ✅ PRODUCCIÓN: desactivado
 
 var _POL_MOCK_EMPLOYEES = [
   { id:'m1', name:'Carlos Méndez',    lunchTimeAllowed:30 },
@@ -26534,17 +26665,29 @@ async function sdvVerDetalle(id, ctx) {
         '<span class="sdv-item-qty">×'+it.quantity+'</span></div>';
     }).join('');
     var acciones = '';
-    // Solo mostrar acciones de ops en contexto bandeja (no en mis)
+    // Contexto Bandeja (Ops)
     if (ctx==='bandeja' && isOps && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Convertir en Tarea WWP</button>'+
         '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'en_proceso\')">Marcar En Proceso</button>'+
-        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvCambiarEstado(\''+s.id+'\',\'cancelada\')">Cancelar</button>'+
+        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
     } else if (ctx==='bandeja' && isOps && s.estado==='en_proceso') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
         '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
+      '</div>';
+    }
+    // Contexto Mis Solicitudes (Vendedora)
+    else if (ctx==='mis' && s.estado==='pendiente_revision') {
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<button class="btn btn-secondary" onclick="sdvOpenEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Editar</button>'+
+        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
+      '</div>';
+    } else if (ctx==='mis' && s.estado==='cancelada') {
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">'+
+        '<div style="font-size:var(--fs-sm);color:var(--text-muted)">Cancelada por '+s.creadoNombre+' el '+sdvFmtDate(s.creadoAt)+'</div>'+
+        '<button class="btn btn-secondary" onclick="sdvOpenReactivateModal(\''+s.id+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px"></i> Solicitar Reactivación</button>'+
       '</div>';
     }
     detailEl.innerHTML =
@@ -26921,6 +27064,281 @@ async function sdvConvertirTarea(id) {
     toast('Redirigiendo a Workforce Labor para crear la tarea…');
   } catch(e) { toast('Error: '+e.message); }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// CANCELACIÓN SDV + REACTIVACIÓN (Fase 2)
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Abrir modal de cancelación ─────────────────────────────────────────────
+function sdvOpenCancelModal(id, estado, tipoSolicitud) {
+  var modal = document.getElementById('sdv-cancel-modal-overlay');
+  if (!modal) return;
+  // Guardar id y contexto
+  document.getElementById('sdv-cancel-current-id').value = id;
+  document.getElementById('sdv-cancel-estado').value = estado;
+  document.getElementById('sdv-cancel-tipo').value = tipoSolicitud || 'despacho_cliente';
+  // Limpiar formulario
+  document.getElementById('sdv-cancel-motivo').value = '';
+  document.getElementById('sdv-cancel-observaciones').value = '';
+  document.getElementById('sdv-cancel-confirm-checkbox').checked = false;
+  // Validar si está bloqueado (estados D-E)
+  var bloqueado = (estado === 'despachada');
+  if (bloqueado) {
+    sdvOpenBlockModal(id, estado, tipoSolicitud);
+    return;
+  }
+  modal.classList.add('open');
+}
+
+function sdvCloseCancelModal() {
+  var modal = document.getElementById('sdv-cancel-modal-overlay');
+  if (modal) modal.classList.remove('open');
+}
+
+// ── Enviar cancelación ─────────────────────────────────────────────────────
+async function sdvSubmitCancel() {
+  var id = document.getElementById('sdv-cancel-current-id').value;
+  var motivo = document.getElementById('sdv-cancel-motivo').value;
+  var observaciones = document.getElementById('sdv-cancel-observaciones').value;
+  var confirmado = document.getElementById('sdv-cancel-confirm-checkbox').checked;
+
+  if (!motivo) {
+    toast('Selecciona el motivo de cancelación');
+    return;
+  }
+  if (motivo === 'otro' && !observaciones.trim()) {
+    toast('Describe el motivo de cancelación');
+    return;
+  }
+  if (!confirmado) {
+    toast('Debes confirmar la cancelación');
+    return;
+  }
+
+  try {
+    var payload = {
+      estado: 'cancelada',
+      motivo: motivo,
+      observaciones: observaciones || null
+    };
+    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      toast('Error: '+(d.error||'No se pudo cancelar'));
+      return;
+    }
+    toast('✓ Cancelación registrada. Ops ha sido notificado.');
+    sdvCloseCancelModal();
+    // Recargar listado
+    if (document.getElementById('sdv-mis-list')) sdvCargarMis();
+    if (document.getElementById('sdv-bandeja-list')) sdvBandejaCargar();
+  } catch(e) {
+    toast('Error: '+e.message);
+  }
+}
+
+// ── Abrir modal de bloqueo ─────────────────────────────────────────────────
+function sdvOpenBlockModal(id, estado, tipoSolicitud) {
+  var modal = document.getElementById('sdv-block-modal-overlay');
+  if (!modal) return;
+  document.getElementById('sdv-block-current-id').value = id;
+  document.getElementById('sdv-block-estado').value = estado;
+  modal.classList.add('open');
+}
+
+function sdvCloseBlockModal() {
+  var modal = document.getElementById('sdv-block-modal-overlay');
+  if (modal) modal.classList.remove('open');
+  sdvCloseCancelModal();
+}
+
+// ── Contactar Ops (desde modal bloqueo) ────────────────────────────────────
+function sdvContactarOps() {
+  var id = document.getElementById('sdv-block-current-id').value;
+  // Podría abrir otro modal o simplemente notificar
+  toast('Solicitud de contacto enviada a Ops. Te notificaremos pronto.');
+  sdvCloseBlockModal();
+}
+
+// ── Reactivar solicitud (desde detalle cancelada) ──────────────────────────
+function sdvOpenReactivateModal(id) {
+  var modal = document.getElementById('sdv-reactivate-modal-overlay');
+  if (!modal) return;
+  document.getElementById('sdv-reactivate-current-id').value = id;
+  document.getElementById('sdv-reactivate-fecha').value = '';
+  document.getElementById('sdv-reactivate-razon').value = '';
+  modal.classList.add('open');
+}
+
+function sdvCloseReactivateModal() {
+  var modal = document.getElementById('sdv-reactivate-modal-overlay');
+  if (modal) modal.classList.remove('open');
+}
+
+// ── Enviar solicitud de reactivación ───────────────────────────────────────
+async function sdvSubmitReactivate() {
+  var id = document.getElementById('sdv-reactivate-current-id').value;
+  var fecha = document.getElementById('sdv-reactivate-fecha').value;
+  var razon = document.getElementById('sdv-reactivate-razon').value;
+
+  if (!fecha) {
+    toast('Especifica la nueva fecha de entrega');
+    return;
+  }
+
+  try {
+    var payload = {
+      accion: 'reactivar',
+      fechaPropuesta: fecha,
+      razon: razon || null
+    };
+    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      toast('Error: '+(d.error||'No se pudo reactivar'));
+      return;
+    }
+    toast('✓ Reactivación solicitada. Ops la procesará pronto.');
+    sdvCloseReactivateModal();
+    if (document.getElementById('sdv-mis-list')) sdvCargarMis();
+  } catch(e) {
+    toast('Error: '+e.message);
+  }
+}
+
+// ── Bandeja Reactivaciones (Ops) ───────────────────────────────────────────
+async function sdvLoadReactivations() {
+  var container = document.getElementById('sdv-reactivations-list');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Cargando reactivaciones…</div>';
+  try {
+    var r = await authFetch('/api/sdv/reactivations');
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      container.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+(d.error||'No se pudieron cargar')+'</div>';
+      return;
+    }
+    var reactivations = d.reactivations || [];
+    if (reactivations.length === 0) {
+      container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)">Sin reactivaciones pendientes</div>';
+      return;
+    }
+    var html = '<div class="sdv-reactivation-list">';
+    reactivations.forEach(function(r) {
+      html += '<div class="sdv-reactivation-item">' +
+        '<div class="sdv-reactivation-item-header">' +
+          '<div><div class="sdv-reactivation-item-title">'+r.folio+'</div><div class="sdv-reactivation-item-sub">Solicitado por: '+r.solicitadoPor+' · hace '+r.tiempoAgo+'</div></div>' +
+        '</div>' +
+        '<div class="sdv-reactivation-item-info">' +
+          '<div><strong>Cliente:</strong> '+(r.clienteNombre||'—')+'</div>' +
+          '<div><strong>Nueva fecha propuesta:</strong> '+r.fechaPropuesta+'</div>' +
+          '<div><strong>Motivo:</strong> '+(r.razon||'—')+'</div>' +
+        '</div>' +
+        '<div class="sdv-reactivation-item-actions">' +
+          '<button onclick="sdvOpenProcessReactivationModal(\''+r.id+'\',\''+r.folio+'\')">Procesar</button>' +
+          '<button onclick="sdvRejectReactivation(\''+r.id+'\')">Rechazar</button>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+e.message+'</div>';
+  }
+}
+
+// ── Modal: Procesar Reactivación ───────────────────────────────────────────
+function sdvOpenProcessReactivationModal(id, folio) {
+  var modal = document.getElementById('sdv-process-reactivation-overlay');
+  if (!modal) return;
+  document.getElementById('sdv-process-reactivation-id').value = id;
+  document.getElementById('sdv-process-reactivation-folio').textContent = folio;
+  document.getElementById('sdv-process-reactivation-fecha').value = '';
+  document.getElementById('sdv-process-reactivation-hora').value = '10:00';
+  document.getElementById('sdv-process-reactivation-notas').value = '';
+  modal.classList.add('open');
+}
+
+function sdvCloseProcessReactivationModal() {
+  var modal = document.getElementById('sdv-process-reactivation-overlay');
+  if (modal) modal.classList.remove('open');
+}
+
+// ── Enviar procesamiento de reactivación ───────────────────────────────────
+async function sdvSubmitProcessReactivation() {
+  var id = document.getElementById('sdv-process-reactivation-id').value;
+  var fecha = document.getElementById('sdv-process-reactivation-fecha').value;
+  var hora = document.getElementById('sdv-process-reactivation-hora').value;
+  var notas = document.getElementById('sdv-process-reactivation-notas').value;
+
+  if (!fecha) {
+    toast('Especifica la fecha de despacho');
+    return;
+  }
+
+  try {
+    var payload = {
+      accion: 'procesar_reactivacion',
+      fechaProceso: fecha,
+      horaProceso: hora,
+      notasInternas: notas || null
+    };
+    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      toast('Error: '+(d.error||'No se pudo procesar'));
+      return;
+    }
+    toast('✓ Reactivación procesada. Nueva tarea creada.');
+    sdvCloseProcessReactivationModal();
+    sdvLoadReactivations();
+  } catch(e) {
+    toast('Error: '+e.message);
+  }
+}
+
+// ── Rechazar reactivación ──────────────────────────────────────────────────
+async function sdvRejectReactivation(id) {
+  if (!confirm('¿Rechazar esta solicitud de reactivación?')) return;
+  try {
+    var payload = {accion:'rechazar_reactivacion'};
+    var r = await authFetch('/api/sdv/'+id, {method:'PATCH', body:JSON.stringify(payload)});
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      toast('Error: '+(d.error||'No se pudo rechazar'));
+      return;
+    }
+    toast('Reactivación rechazada.');
+    sdvLoadReactivations();
+  } catch(e) {
+    toast('Error: '+e.message);
+  }
+}
+
+// ── Cargar KPIs de Cancelaciones ───────────────────────────────────────────
+async function loadCancelacionesKPIs() {
+  var container = document.getElementById('can-dev-kpis-container');
+  if (!container) return;
+  try {
+    var r = await authFetch('/api/sdv/kpis/cancelaciones');
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      container.innerHTML = '<div style="color:var(--red-text)">Error al cargar KPIs</div>';
+      return;
+    }
+    var kpis = d.kpis || {};
+    var html = '<div class="can-dev-kpi-grid">' +
+      '<div class="can-dev-kpi-card"><div class="can-dev-kpi-val">'+kpis.totalCancelaciones+'</div><div class="can-dev-kpi-lbl">Cancelaciones totales</div></div>' +
+      '<div class="can-dev-kpi-card"><div class="can-dev-kpi-val">'+kpis.reactivacionesProcesadas+'</div><div class="can-dev-kpi-lbl">Reactivaciones procesadas</div></div>' +
+      '<div class="can-dev-kpi-card"><div class="can-dev-kpi-val">'+kpis.porcentajePostEmpaque+'%</div><div class="can-dev-kpi-lbl">Post-empaque</div><div class="can-dev-kpi-sub">meta &lt;5%</div></div>' +
+      '<div class="can-dev-kpi-card"><div class="can-dev-kpi-val">'+kpis.tiempoPromedio+'</div><div class="can-dev-kpi-lbl">Respuesta Ops promedio</div><div class="can-dev-kpi-sub">meta &lt;5min</div></div>' +
+      '</div>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div style="color:var(--red-text)">Error: '+e.message+'</div>';
+  }
+}
+
 </script>
 
 <!-- ── Modal: Devolver tarea ─────────────────────────────────────────────── -->
@@ -27037,6 +27455,170 @@ async function sdvConvertirTarea(id) {
     <div class="sdv-map-modal-footer"><button type="button" onclick="sdvEditCloseMapModal()" class="btn btn-secondary">Cancelar</button><button type="button" onclick="sdvEditConfirmMapLocation()" class="btn btn-primary">Confirmar</button></div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     MODALES: CANCELACIÓN SDV + REACTIVACIÓN (Fase 2)
+     ══════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Modal: Cancelar SDV (Vendedora) -->
+<div id="sdv-cancel-modal-overlay" class="sdv-cancel-modal-overlay">
+  <div class="sdv-cancel-modal" role="dialog" aria-modal="true">
+    <div class="sdv-cancel-modal-header">
+      <span>¿Cancelar Solicitud <span id="sdv-cancel-folio"></span>?</span>
+      <button class="sdv-cancel-modal-close" onclick="sdvCloseCancelModal()" aria-label="Cerrar">×</button>
+    </div>
+    <div class="sdv-cancel-modal-body">
+      <div class="sdv-cancel-modal-section">
+        <div style="font-size:var(--fs-sm);color:var(--text-secondary);margin-bottom:12px">
+          <div><strong>Cliente:</strong> <span id="sdv-cancel-cliente">—</span></div>
+          <div><strong>Estado actual:</strong> <span id="sdv-cancel-estado-actual">—</span></div>
+        </div>
+      </div>
+
+      <div class="sdv-cancel-modal-section">
+        <label for="sdv-cancel-motivo">Motivo de cancelación<span style="color:var(--red-text)">*</span></label>
+        <select id="sdv-cancel-motivo" class="sdv-cancel-modal-select">
+          <option value="">— Selecciona un motivo —</option>
+          <option value="cliente-cambio-idea">Cliente cambió idea</option>
+          <option value="falta-presupuesto">Falta de presupuesto</option>
+          <option value="error-venta">Error de venta</option>
+          <option value="cambio-fecha">Cambio de fecha (quiero reprogramar)</option>
+          <option value="otro">Otro (describir)</option>
+        </select>
+      </div>
+
+      <div class="sdv-cancel-modal-section">
+        <label for="sdv-cancel-observaciones">Observaciones (opcional)</label>
+        <textarea id="sdv-cancel-observaciones" class="sdv-cancel-modal-textarea" placeholder="Notas adicionales…"></textarea>
+      </div>
+
+      <div class="sdv-cancel-modal-checkbox">
+        <input type="checkbox" id="sdv-cancel-confirm-checkbox">
+        <label for="sdv-cancel-confirm-checkbox">Confirmo que la cancelación es definitiva</label>
+      </div>
+    </div>
+    <div class="sdv-cancel-modal-footer">
+      <button class="btn-secondary" onclick="sdvCloseCancelModal()">No, mantener</button>
+      <button class="btn-primary" onclick="sdvSubmitCancel()">Cancelar SDV</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Bloqueo de Cancelación (Estados D-E) -->
+<div id="sdv-block-modal-overlay" class="sdv-block-modal-overlay">
+  <div class="sdv-block-modal" role="dialog" aria-modal="true">
+    <div class="sdv-block-modal-header">
+      <div class="sdv-block-modal-icon">🔴</div>
+      <div>
+        <div class="sdv-block-modal-title">CANCELACIÓN BLOQUEADA</div>
+        <button class="sdv-cancel-modal-close" onclick="sdvCloseBlockModal()" aria-label="Cerrar" style="position:absolute;right:16px;top:16px">×</button>
+      </div>
+    </div>
+    <div class="sdv-block-modal-body">
+      <div class="sdv-block-modal-section">
+        <div><strong>Estado:</strong> <span id="sdv-block-estado-label">Empaque completado (listo a despacho)</span></div>
+        <div style="margin-top:8px;font-size:var(--fs-sm)"><strong>Responsable:</strong> <span id="sdv-block-responsable">Julio (encargado empaque)</span></div>
+      </div>
+
+      <div style="padding:12px;background:var(--amber-bg);border-radius:var(--radius);margin:16px 0;border-left:3px solid var(--amber-text)">
+        <div style="font-size:var(--fs-sm);color:var(--amber-text)">
+          <strong>⚠️ El paquete está listo para despachar.</strong><br>
+          Desempacarlo tiene alto riesgo de daño.
+        </div>
+      </div>
+
+      <div class="sdv-block-modal-section">
+        <h4>¿Qué necesitas?</h4>
+        <ul style="margin:0;padding-left:20px">
+          <li><strong>A) Cambiar fecha de entrega</strong> (sin cancelar) → Requiere coordinación con Ops</li>
+          <li><strong>B) Cancelar definitivamente</strong> → Requiere aprobación de Ops Manager</li>
+          <li><strong>C) Hold temporal</strong> → Notificar a Ops</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sdv-block-modal-footer">
+      <button onclick="sdvCloseBlockModal()">Entendido, mantener</button>
+      <button onclick="sdvContactarOps()">Contactar a Ops</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar Reactivación (Vendedora - en SDV cancelada) -->
+<div id="sdv-reactivate-modal-overlay" class="sdv-cancel-modal-overlay">
+  <div class="sdv-cancel-modal" role="dialog" aria-modal="true">
+    <div class="sdv-cancel-modal-header">
+      <span>Solicitar Reactivación</span>
+      <button class="sdv-cancel-modal-close" onclick="sdvCloseReactivateModal()" aria-label="Cerrar">×</button>
+    </div>
+    <div class="sdv-cancel-modal-body">
+      <div class="sdv-cancel-modal-section">
+        <div style="font-size:var(--fs-sm);color:var(--text-secondary);margin-bottom:12px">
+          <div><strong>Solicitud cancelada previamente por:</strong> <span id="sdv-reactivate-by">—</span></div>
+        </div>
+      </div>
+
+      <div class="sdv-cancel-modal-section">
+        <label for="sdv-reactivate-fecha">Nueva fecha de entrega propuesta<span style="color:var(--red-text)">*</span></label>
+        <input type="datetime-local" id="sdv-reactivate-fecha" class="sdv-cancel-modal-select" style="padding:10px;font-family:inherit">
+      </div>
+
+      <div class="sdv-cancel-modal-section">
+        <label for="sdv-reactivate-razon">Breve motivo de reactivación (opcional)</label>
+        <textarea id="sdv-reactivate-razon" class="sdv-cancel-modal-textarea" placeholder="Ej: Cliente confirmó; puede ser el 25 jun…"></textarea>
+      </div>
+
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface-2);padding:10px;border-radius:var(--radius);margin-top:12px">
+        ℹ️ Ops decidirá cuándo procesar tu solicitud. Recibirás notificación.
+      </div>
+    </div>
+    <div class="sdv-cancel-modal-footer">
+      <button class="btn-secondary" onclick="sdvCloseReactivateModal()">Cancelar</button>
+      <button class="btn-primary" onclick="sdvSubmitReactivate()">Solicitar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Procesar Reactivación (Ops) -->
+<div id="sdv-process-reactivation-overlay" class="sdv-process-reactivation-overlay">
+  <div class="sdv-process-reactivation-modal" role="dialog" aria-modal="true">
+    <div class="sdv-process-reactivation-modal-header">
+      Procesar Reactivación <span id="sdv-process-reactivation-folio">S001-05</span>
+    </div>
+    <div class="sdv-process-reactivation-modal-body">
+      <div class="sdv-process-reactivation-modal-section">
+        <label for="sdv-process-reactivation-fecha">Fecha de despacho<span style="color:var(--red-text)">*</span></label>
+        <input type="date" id="sdv-process-reactivation-fecha" class="sdv-process-reactivation-modal-input">
+      </div>
+
+      <div class="sdv-process-reactivation-modal-section">
+        <label for="sdv-process-reactivation-hora">Hora aproximada</label>
+        <input type="time" id="sdv-process-reactivation-hora" class="sdv-process-reactivation-modal-input" value="10:00">
+      </div>
+
+      <div class="sdv-process-reactivation-modal-section">
+        <label for="sdv-process-reactivation-notas">Notas internas (opcional)</label>
+        <textarea id="sdv-process-reactivation-notas" class="sdv-cancel-modal-textarea" placeholder="Para coordinación interna…" style="min-height:60px"></textarea>
+      </div>
+
+      <div class="sdv-process-reactivation-modal-note">
+        El cliente será notificado automáticamente de la nueva fecha.
+      </div>
+    </div>
+    <div class="sdv-process-reactivation-modal-footer">
+      <button class="btn-secondary" onclick="sdvCloseProcessReactivationModal()">Cancelar</button>
+      <button class="btn-primary" onclick="sdvSubmitProcessReactivation()">Procesar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden inputs para guardar contexto -->
+<input type="hidden" id="sdv-cancel-current-id">
+<input type="hidden" id="sdv-cancel-estado">
+<input type="hidden" id="sdv-cancel-tipo">
+<input type="hidden" id="sdv-block-current-id">
+<input type="hidden" id="sdv-block-estado">
+<input type="hidden" id="sdv-reactivate-current-id">
+<input type="hidden" id="sdv-process-reactivation-id">
 
 </body>
 </html>
