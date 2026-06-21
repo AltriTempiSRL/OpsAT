@@ -1,4 +1,4 @@
-/**
+﻿/**
  * proxy.js — Servidor local para Dashboard Despachos
  * Sirve archivos estáticos + hace de proxy a Odoo JSON-RPC (resuelve CORS)
  */
@@ -712,6 +712,53 @@ function wwpId(prefix) {
 // ── Caché en memoria para /api/analysis/reposicion ───────────────────────────
 // Guarda el resultado por showroomId. TTL: 10 minutos.
 // Se invalida con ?refresh=1 o automáticamente al vencer.
+
+// ── Helper: Crear tarea WWP desde solicitud SDV ──────────────────────────────
+// Crea una tarea de tipo 'dispatch_order' vinculada a una solicitud SDV
+function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
+  const now = new Date().toISOString();
+  const task = {
+    id: wwpId('wt'),
+    seq: null,  // se asignará en nextTaskSeq() si es necesario
+    parentId: null,
+    title: 'Despacho ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente'),
+    type: 'dispatch_order',
+    description: 'Generado automáticamente desde solicitud SDV ' + sdv.id,
+    priority: 'medium',
+    status: 'pending',
+    sdvId: sdv.id,      // Vínculo bidireccional
+    assignedTo: null,
+    managerId: null,
+    managerName: null,
+    executors: [],
+    assignees: [],
+    odooRef: sdv.odooOrderRef || '',
+    client: sdv.clienteNombre || '',
+    salesperson: '',
+    deliveryAddress: sdv.direccionEntrega || '',
+    phone: sdv.receptorContacto || '',
+    location: sdv.ubicacionDestino || '',
+    dueDate: sdv.fechaSolicitudDeseada || null,
+    actionNote: sdv.observaciones || '',
+    requester: '',
+    staffStart: null,
+    staffEnd: null,
+    staffFrom: '',
+    staffTo: '',
+    totalHours: null,
+    dependsOnPrev: false,
+    subIndex: null,
+    evidence: [],
+    fotos_guia: [],
+    dispatchStartedAt: null,
+    dispatchCompletedAt: null,
+    statusHistory: [{ status: 'pending', date: now, by: createdBy, note: 'Creada desde SDV' }],
+    createdBy: createdBy,
+    createdAt: now,
+    updatedAt: now
+  };
+  return task;
+}
 const _repoCache = new Map(); // showroomId → { json, ts }
 const REPO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos en ms
 
@@ -6622,6 +6669,7 @@ const server = http.createServer(async (req, res) => {
         description: d.description||'',
         priority: d.priority||'medium',
         status: 'pending',
+        sdvId: d.sdvId||null,                 // ID solicitud SDV origen (relación)
         assignedTo: d.assignedTo||null,       // Encargado (solo tareas principales)
         managerId: d.managerId||null,          // Auth user ID del encargado
         managerName: d.managerName||null,      // Nombre del encargado
@@ -6875,6 +6923,30 @@ const server = http.createServer(async (req, res) => {
           tasks[idx].dispatchCompletedAt = now;
         }
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
+        // ── AUTOMÁTICO: Actualizar SDV a 'despachada' cuando tarea se valida ──
+        if (d.status === 'validated' && tasks[idx].sdvId) {
+          try {
+            const sdvList = loadSdv();
+            const sdvIdx = sdvList.findIndex(s => s.id === tasks[idx].sdvId);
+            if (sdvIdx >= 0) {
+              const sdv = sdvList[sdvIdx];
+              sdv.estado = 'despachada';
+              sdv.fechaDespacho = now;
+              sdv.statusHistory.push({
+                estado: 'despachada',
+                por: 'sistema',
+                nombre: 'Sistema',
+                at: now,
+                nota: 'Tarea WWP validada: ' + tasks[idx].id
+              });
+              sdvList[sdvIdx] = sdv;
+              saveSdv(sdvList);
+              console.log('[WWP→SDV] Solicitud marcada como despachada:', sdv.id, 'desde tarea:', tasks[idx].id);
+            }
+          } catch (e) {
+            console.error('[WWP→SDV] Error actualizando SDV:', e.message);
+          }
+        }
         // Audit log para estados críticos (incluye reactivación desde cancelled)
         if (d.status==='validated'||d.status==='in_progress'||d.status==='cancelled'||(oldTask.status==='cancelled'&&d.status==='pending')) {
           appendAuditLog('task_status_change', { taskId:tasks[idx].id, taskTitle:tasks[idx].title, prevStatus:oldTask.status, newStatus:d.status, by:jp.userId, note:d.note||'' });
@@ -9080,6 +9152,9 @@ const server = http.createServer(async (req, res) => {
         creadoAt: now,
         statusHistory: [{estado:'pendiente_revision',por:jp.userId,nombre:jp.name,at:now}],
         wwpTareas: [],
+        wwpTaskId: null,      // ID de tarea WWP creada
+        fechaDespacho: null,  // Fecha cuando se validó automáticamente
+        alertas: [],
       };
       const list = loadSdv();
       list.push(sol);
@@ -9121,6 +9196,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // PATCH /api/sdv/:id — actualizar solicitud [admin/manager: cualquier campo; ventas: solo si pendiente]
+  // Crea alerta si hay cambios en estado != pendiente_revision
   if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'PATCH') {
     const jp = requireJwt(req, res); if (!jp) return;
     const id = reqPath.split('/')[3];
@@ -9130,14 +9206,23 @@ const server = http.createServer(async (req, res) => {
       const idx = list.findIndex(s=>s.id===id);
       if (idx<0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       const sol = list[idx];
+      const solAnterior = JSON.parse(JSON.stringify(sol)); // Copia para detectar cambios
       const isOps = jp.role==='admin'||jp.role==='manager';
       if (!isOps && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
-      if (!isOps && sol.estado!=='pendiente_revision') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La solicitud ya no es editable'})); return; }
+      
+      // Bloquear edición si no es ops y estado != pendiente_revision
+      if (!isOps && sol.estado!=='pendiente_revision') { 
+        res.writeHead(400,{'Content-Type':'application/json'}); 
+        res.end(JSON.stringify({ok:false,error:'Ya fue procesada'})); 
+        return; 
+      }
+      
       const now = new Date().toISOString();
       const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
         'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada'];
       EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
       if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
+      
       // Ops-only: estado, fechaEntrega, wwpTareas
       if (isOps) {
         if (d.estado && d.estado!==sol.estado) {
@@ -9146,7 +9231,40 @@ const server = http.createServer(async (req, res) => {
         }
         if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
         if (d.wwpTarea) sol.wwpTareas.push({taskId:d.wwpTarea.taskId,titulo:d.wwpTarea.titulo,creadoAt:now});
+        
+        // ── AUTOMÁTICO: Crear tarea WWP cuando se aprueba solicitud (in_process) ──
+        if (d.estado === 'in_process' && !sol.wwpTaskId) {
+          try {
+            const newTask = createWwpTaskFromSdv(sol, jp.userId);
+            const tasks = loadWwpTasks();
+            newTask.seq = nextTaskSeq();
+            tasks.push(newTask);
+            saveWwpTasks(tasks);
+            sol.wwpTaskId = newTask.id;
+            sol.wwpTareas.push({ taskId: newTask.id, titulo: newTask.title, creadoAt: now });
+            console.log('[SDV→WWP] Tarea creada:', newTask.id, 'para solicitud:', sol.id);
+          } catch (e) {
+            console.error('[SDV→WWP] Error creando tarea:', e.message);
+          }
+        }
       }
+      
+      // Detectar cambios y crear alerta si hay modificaciones en estado != pendiente_revision
+      if (sol.estado !== 'pendiente_revision') {
+        const {cambios, campos_modificados} = detectarCambiosSdv(solAnterior, sol);
+        if (campos_modificados.length > 0) {
+          const alerta = crearAlertaModificacion(id, jp, cambios, campos_modificados, d.razon);
+          agregarAlertaASolicitud(sol, alerta);
+        }
+      }
+      
+      // Agregar últimaModificacion si vendedor edita
+      if (!isOps) {
+        sol.ultimaModificacion = now;
+        sol.modificadoPor = jp.userId;
+        sol.modificadoPorNombre = jp.name;
+      }
+      
       list[idx]=sol;
       saveSdv(list);
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
@@ -9154,6 +9272,84 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+
+  // POST /api/sdv/:id/alert — crear alerta de modificación [ventas]
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/alert$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['ventas','manager','admin'])) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      if (!d.campos_modificados || d.campos_modificados.length === 0) {
+        res.writeHead(422,{'Content-Type':'application/json'}); 
+        res.end(JSON.stringify({ok:false,error:'campos_modificados requerido'})); 
+        return; 
+      }
+      
+      const list = loadSdv();
+      const sol = list.find(s=>s.id===id);
+      if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      
+      // Crear alerta
+      const alerta = crearAlertaModificacion(id, jp, d.cambios||{}, d.campos_modificados, d.razon);
+      agregarAlertaASolicitud(sol, alerta);
+      
+      saveSdv(list);
+      res.writeHead(201,{'Content-Type':'application/json'}); 
+      res.end(JSON.stringify({ok:true,alerta}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/sdv/:id/alertas — obtener alertas de una solicitud [admin/manager]
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/alertas$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['manager','admin'])) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const todas_alertas = loadSdvAlertas();
+      const alertas = todas_alertas.filter(a => a.solicitud_id === id);
+      res.writeHead(200,{'Content-Type':'application/json'}); 
+      res.end(JSON.stringify({ok:true,alertas}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // PATCH /api/sdv/:id/alertas/:alertaId — revisar alerta (marcar como revisada) [admin/manager]
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/alertas\/[a-z0-9_]+$/) && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['manager','admin'])) return;
+    const id = reqPath.split('/')[3];
+    const alertaId = reqPath.split('/')[5];
+    try {
+      const d = await readBody(req);
+      const alertas = loadSdvAlertas();
+      const idx = alertas.findIndex(a => a.id === alertaId && a.solicitud_id === id);
+      if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Alerta no encontrada'})); return; }
+      
+      const ahora = new Date().toISOString();
+      alertas[idx].estado = d.estado || 'revisada';
+      alertas[idx].revisadoPor = jp.userId;
+      alertas[idx].revisadoPorNombre = jp.name;
+      alertas[idx].fechaRevision = ahora;
+      alertas[idx].notaRevision = d.nota || '';
+      
+      saveSdvAlertas(alertas);
+      
+      // Actualizar también el resumen en la solicitud
+      const list = loadSdv();
+      const sol = list.find(s => s.id === id);
+      if (sol && sol.alertas) {
+        const alerta_ref = sol.alertas.find(a => a.id === alertaId);
+        if (alerta_ref) alerta_ref.estado = alertas[idx].estado;
+      }
+      saveSdv(list);
+      
+      res.writeHead(200,{'Content-Type':'application/json'}); 
+      res.end(JSON.stringify({ok:true,alerta:alertas[idx]}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
   // PUT /api/wwp/tasks/:id/items — guardar artículos seleccionados en tarea [admin|manager]
   if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items$/) && req.method === 'PUT') {
     const _jpItems = requireJwt(req, res); if (!_jpItems) return;
@@ -10484,3 +10680,61 @@ server.listen(PORT, async () => {
     console.warn('   El proxy funcionará pero las llamadas a /api/odoo fallarán hasta corregir credenciales.\n');
   }
 });
+
+// ── Alertas de solicitudes SDV ─────────────────────────────────────────────
+const SDV_ALERTAS_FILE = path.join(DATA_DIR, 'sdv-alertas.json');
+function loadSdvAlertas() { return loadJson(SDV_ALERTAS_FILE, []); }
+function saveSdvAlertas(list) { saveJson(SDV_ALERTAS_FILE, list); }
+
+// Detectar cambios en solicitud (solo campos editables por vendedor)
+function detectarCambiosSdv(solAnterior, solNueva) {
+  const MONITOREADOS = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
+    'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada'];
+  const cambios = {};
+  const campos_modificados = [];
+  
+  MONITOREADOS.forEach(k => {
+    const anterior = solAnterior[k];
+    const nueva = solNueva[k];
+    if (JSON.stringify(anterior) !== JSON.stringify(nueva)) {
+      cambios[k] = {old: anterior, new: nueva};
+      campos_modificados.push(k);
+    }
+  });
+  
+  return {cambios, campos_modificados};
+}
+
+// Crear alerta de modificación
+function crearAlertaModificacion(solicitud_id, jp, cambios, campos_modificados, razon) {
+  const ahora = new Date().toISOString();
+  const alerta = {
+    id: wwpId('alert'),
+    solicitud_id,
+    tipo: 'modificacion',
+    creado_por: jp.userId,
+    creado_por_nombre: jp.name,
+    fecha: ahora,
+    estado: 'pendiente_revision',
+    campos: campos_modificados,
+    cambios,
+    razon: razon || ''
+  };
+  return alerta;
+}
+
+// Agregar alerta a solicitud
+function agregarAlertaASolicitud(sol, alerta) {
+  if (!sol.alertas) sol.alertas = [];
+  sol.alertas.push({
+    id: alerta.id,
+    tipo: alerta.tipo,
+    fecha: alerta.fecha,
+    estado: alerta.estado
+  });
+  // Guardar alerta completa en archivo separado
+  const alertas = loadSdvAlertas();
+  alertas.push(alerta);
+  saveSdvAlertas(alertas);
+}
+
