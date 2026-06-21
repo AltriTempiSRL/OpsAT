@@ -32,12 +32,32 @@ function loadJson(file, fallback) {
   catch { return fallback !== undefined ? fallback : []; }
 }
 function saveJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(file, JSON.stringify(data), 'utf-8');
   try {
     const st = fs.statSync(file);
     _jsonFileCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, data });
   } catch {
     _jsonFileCache.delete(file);
+  }
+}
+
+// ── Helper: respuesta JSON con gzip si el cliente lo acepta ──────────────────
+function sendGzipJson(req, res, code, obj) {
+  const body = JSON.stringify(obj);
+  const headers = { 'Content-Type': 'application/json' };
+  if ((req.headers['accept-encoding'] || '').includes('gzip')) {
+    zlib.gzip(body, (err, gz) => {
+      if (err) { res.writeHead(code, headers); res.end(body); return; }
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      headers['Content-Length'] = gz.length;
+      res.writeHead(code, headers);
+      res.end(gz);
+    });
+  } else {
+    headers['Content-Length'] = Buffer.byteLength(body);
+    res.writeHead(code, headers);
+    res.end(body);
   }
 }
 
@@ -5483,8 +5503,7 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     const all = loadNotifications().filter(n => n.userId === jp.userId);
     const limit = parseInt((parsed.query||{}).limit)||60;
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true, notifications:all.slice(0, limit)}));
+    sendGzipJson(req, res, 200, {ok:true, notifications:all.slice(0, limit)});
     return;
   }
 
@@ -6569,10 +6588,22 @@ const server = http.createServer(async (req, res) => {
       const dd = a.dueDate.localeCompare(b.dueDate);
       return dd !== 0 ? dd : new Date(b.createdAt) - new Date(a.createdAt);
     });
-    // Excluir array de mensajes del listado (para reducir payload)
-    const slim = tasks.map(({messages, ...rest}) => rest);
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify(slim));
+    // Excluir mensajes e imágenes base64 del listado (reducir payload ~90%)
+    const slim = tasks.map(({messages, ...rest}) => {
+      if (rest.items?.length) {
+        rest = { ...rest, items: rest.items.map(({ image, kitImage, ...item }) => item) };
+      }
+      return rest;
+    });
+    // ETag basado en el último updatedAt para 304 Not Modified en móviles
+    const lastUp = tasks.reduce((max, t) => (t.updatedAt > max ? t.updatedAt : max), '');
+    const etag = `"${Buffer.from(lastUp + tasks.length).toString('base64').slice(0, 12)}"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304); res.end(); return;
+    }
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    sendGzipJson(req, res, 200, slim);
     return;
   }
 
@@ -9298,8 +9329,7 @@ const server = http.createServer(async (req, res) => {
       const q = parsed.query||{};
       if (q.estado) list = list.filter(s=>s.estado===q.estado);
       list = list.slice().sort((a,b)=>new Date(b.creadoAt)-new Date(a.creadoAt));
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true,solicitudes:list}));
+      sendGzipJson(req, res, 200, {ok:true,solicitudes:list});
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
