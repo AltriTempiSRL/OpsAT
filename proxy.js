@@ -7008,6 +7008,14 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ok:false,error:'No hay artículos asignados a esta tarea. Carga los items antes de iniciar.'}));
             return;
           }
+          // N-008: Notificar a Ops si empaque inicia pero hay subtareas de picking sin completar
+          try {
+            const subtasks = tasks.filter(s => s.parentId === tasks[idx].id);
+            const pickingPendiente = subtasks.filter(s => s.type === 'item_pickup' && !['completed','validated'].includes(s.status));
+            if (pickingPendiente.length > 0) {
+              notifyOpsPackingBlocked(tasks[idx].id, pickingPendiente.map(s=>s.status).join(', '));
+            }
+          } catch(e) { silentCatch(e,'notifyOpsPackingBlocked'); }
         }
         // Validar antes de completar/validar — distinto para despacho vs empaque/otros
         if (d.status==='completed'||d.status==='validated') {
@@ -7029,6 +7037,8 @@ const server = http.createServer(async (req, res) => {
           } else {
             const missing=selItems.filter(it=>!it.evidence_images||it.evidence_images.length===0);
             if (missing.length>0) {
+              // N-010: Notificar a Ops que faltan fotos antes de bloquear el cierre
+              try { notifyOpsEvidenceIncomplete(tasks[idx].id, missing.length); } catch(e) { silentCatch(e,'notifyOpsEvidenceIncomplete'); }
               res.writeHead(422,{'Content-Type':'application/json'});
               res.end(JSON.stringify({ok:false,error:'Faltan evidencias para: '+missing.map(it=>it.product_name).join(', ')}));
               return;
@@ -7070,6 +7080,8 @@ const server = http.createServer(async (req, res) => {
             }
           } catch (e) {
             console.error('Gate picking validation error:', e);
+            // N-037: Notificar a Admin si la sincronización con Odoo falla
+            try { notifyAdminSyncError(e.message || 'Gate picking validation error'); } catch(_e) { silentCatch(_e,'notifyAdminSyncError'); }
             // Log pero no bloquea si falla la llamada a Odoo
           }
         }
@@ -9412,6 +9424,8 @@ const server = http.createServer(async (req, res) => {
       const list = loadSdv();
       list.push(sol);
       saveSdv(list);
+      // N-005: Notificar a Ops que hay una nueva SDV pendiente de revisión
+      try { notifyOpsNewSdv(sol.id, sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e) { silentCatch(e,'notifyOpsNewSdv'); }
       res.writeHead(201,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -9892,6 +9906,14 @@ const server = http.createServer(async (req, res) => {
       tasks[idx].items[itemIdx].damageType = damageType;
       tasks[idx].updatedAt=new Date().toISOString();
       saveWwpTasks(tasks);
+      // N-011: Notificar a Ops cuando se detecta daño en un artículo
+      if (condition === 'damaged') {
+        try {
+          const _item = tasks[idx].items[itemIdx];
+          const _ref = _item.ref || _item.sku || _item.item_id || itemId;
+          notifyOpsDamageDetected(taskId, _ref, damageType || 'Daño detectado');
+        } catch(e) { silentCatch(e,'notifyOpsDamageDetected'); }
+      }
       // ── S1: Puente Averías — crear registro automático cuando un artículo se marca como dañado ──
       if (condition === 'damaged') {
         try {
@@ -10432,6 +10454,8 @@ const server = http.createServer(async (req, res) => {
       // Validar estado: bloqueo en D, E
       if (['D', 'E', 'empaque_in_progress', 'packing'].includes(estado)) {
         if (!force) {
+          // N-014: Notificar a Ops que hay una cancelación bloqueada que requiere decisión
+          try { notifyOpsCancelBlocked(sdvId, sdv.clienteNombre || sdv.odooOrderRef || 'N/A', estado); } catch(e) { silentCatch(e,'notifyOpsCancelBlocked'); }
           res.writeHead(403, {'Content-Type':'application/json'});
           res.end(JSON.stringify({ok:false, error:'Cancelación bloqueada: empaque en progreso', estado_actual:estado, riesgo:'alto'}));
           return;
