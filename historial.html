@@ -4382,11 +4382,32 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-edit-modal-btn-primary{background:var(--brand-primary);border-color:var(--brand-primary);color:#fff}
 .sdv-edit-modal-btn-primary:hover{opacity:.9}
 .sdv-edit-modal-btn:disabled{opacity:.5;cursor:not-allowed}
+/* Secciones Odoo (read-only) y Local (editable) */
+.sdv-edit-modal-odoo-section{padding:16px;margin-bottom:20px;border-radius:var(--radius);background:var(--surface-2);opacity:.9}
+.sdv-edit-modal-odoo-section-title{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:14px;display:block}
+.sdv-edit-modal-local-section{padding:16px;margin-bottom:20px;border-radius:var(--radius);background:var(--surface)}
+.sdv-edit-modal-local-section-title{font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:14px;display:block}
+/* Listado de artículos Odoo (read-only) */
+.sdv-edit-items-list{display:flex;flex-direction:column;gap:12px}
+.sdv-edit-item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:var(--radius-sm);background:rgba(0,0,0,.02)}
+.sdv-edit-item-img{width:40px;height:40px;border-radius:var(--radius-sm);background:var(--surface-3);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-muted)}
+.sdv-edit-item-img img{width:100%;height:100%;object-fit:cover}
+.sdv-edit-item-content{flex:1;font-size:var(--fs-sm);line-height:1.4}
+.sdv-edit-item-name{color:var(--text-primary);font-weight:500}
+.sdv-edit-item-sku{color:var(--text-muted);font-size:var(--fs-xs)}
+.sdv-edit-item-qty{color:var(--text-2);font-weight:500;text-align:right}
+/* Botón refresh Odoo */
+.sdv-edit-refresh-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-secondary);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:all .15s}
+.sdv-edit-refresh-btn:hover{background:var(--surface-2);color:var(--text-primary)}
+.sdv-edit-refresh-btn:disabled{opacity:.5;cursor:not-allowed}
+.sdv-edit-refresh-btn svg{width:14px;height:14px}
 @media(max-width:767px){
   .sdv-edit-modal-overlay{align-items:flex-end;padding:0}
   .sdv-edit-modal-card{max-width:100%;border-radius:18px 18px 0 0}
   .sdv-edit-modal-footer{flex-direction:column-reverse}
   .sdv-edit-modal-footer button{width:100%;min-height:44px}
+  .sdv-edit-item{flex-direction:column}
+  .sdv-edit-item-img{width:100%;height:80px}
 }
 </style>
 <script>
@@ -26526,6 +26547,7 @@ async function sdvVerDetalle(id, ctx) {
 
 // ── Editar Solicitud (NUEVO) ──────────────────────────────────────────────
 var _sdvEditDraftInterval = null;
+var _sdvEditCurrentSolicitud = null; // almacena el objeto solicitud actual
 async function sdvOpenEditModal(id) {
   var modal = document.getElementById('sdv-edit-modal');
   if (!modal) return;
@@ -26535,9 +26557,11 @@ async function sdvOpenEditModal(id) {
     var d = await r.json();
     if (!r.ok||!d.ok) { toast('Error al cargar la solicitud'); return; }
     var s = d.solicitud;
+    _sdvEditCurrentSolicitud = s; // guardar para refresh
     document.getElementById('sdv-edit-folio').textContent = s.folio;
     document.getElementById('sdv-edit-estado').textContent = SDV_ESTADO_LABEL[s.estado]||s.estado;
     document.getElementById('sdv-edit-timestamp').textContent = 'Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre;
+    sdvRenderEditItems(s.articulos||[]); // renderizar artículos en sección Odoo
     var draft = sdvLoadDraft(id);
     var data = draft || s;
     document.getElementById('sdv-edit-cliente').value = data.clienteNombre||'';
@@ -26560,11 +26584,74 @@ async function sdvOpenEditModal(id) {
       document.getElementById('sdv-edit-fecha-ampm').value = ampm;
     }
     modal.style.display = 'flex';
+    if (window.lucide) lucide.createIcons(); // renderizar icono refresh
     if (_sdvEditDraftInterval) clearInterval(_sdvEditDraftInterval);
     _sdvEditDraftInterval = setInterval(function() {
       if (modal.style.display === 'flex') sdvSaveDraft(id, sdvGetEditFormData());
     }, 2000);
   } catch(e) { toast('Error: '+e.message); }
+}
+
+function sdvRenderEditItems(items) {
+  var container = document.getElementById('sdv-edit-items-container');
+  if (!container) return;
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div style="font-size:var(--fs-sm);color:var(--text-muted);padding:8px">Sin artículos</div>';
+    return;
+  }
+  function escapeHtml(t) {
+    if (!t) return '';
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  var html = items.map(function(item) {
+    var imgHtml = item.imagenUrl ?
+      '<div class="sdv-edit-item-img"><img src="'+escapeHtml(item.imagenUrl)+'" alt="'+escapeHtml(item.nombre)+'" loading="lazy"></div>' :
+      '<div class="sdv-edit-item-img">sin foto</div>';
+    return '<div class="sdv-edit-item">'+
+      imgHtml+
+      '<div class="sdv-edit-item-content">'+
+        '<div class="sdv-edit-item-name">'+escapeHtml(item.nombre)+'</div>'+
+        '<div class="sdv-edit-item-sku">SKU: '+escapeHtml(item.sku)+'</div>'+
+      '</div>'+
+      '<div class="sdv-edit-item-qty">Qty: '+item.cantidad+'</div>'+
+    '</div>';
+  }).join('');
+  container.innerHTML = html;
+}
+
+async function sdvRefreshFromOdoo() {
+  var id = document.getElementById('sdv-edit-current-id').value;
+  if (!id) return;
+  var btn = document.getElementById('sdv-edit-refresh-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  var originalText = btn.innerHTML;
+  btn.innerHTML = '<svg data-lucide="loader" style="width:14px;height:14px;animation:spin .8s linear infinite"></svg> Actualizando…';
+  try {
+    var r = await authFetch('/api/sdv/'+id+'/odoo/refresh');
+    var d = await r.json();
+    if (!r.ok || !d.ok) {
+      toast(d.error || 'Error al actualizar desde Odoo');
+      return;
+    }
+    // Si no hay cambios
+    if (!d.cambios || d.cambios.length === 0) {
+      toast('Sin cambios desde Odoo', 'info');
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      return;
+    }
+    // Mostrar modal de comparación (TO DO: Ron implementará backend)
+    toast('Cambios detectados: '+d.cambios.length, 'info');
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  } catch(e) {
+    toast('Error: '+e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+    if (window.lucide) lucide.createIcons();
+  }
 }
 
 function sdvCloseEditModal(saveDraft) {
@@ -26779,24 +26866,41 @@ async function sdvConvertirTarea(id) {
         <div><strong id="sdv-edit-folio"></strong> · <span id="sdv-edit-estado"></span></div>
         <div style="font-size:var(--fs-sm);color:var(--text-3);margin-top:3px" id="sdv-edit-timestamp"></div>
       </div>
-      <div class="sdv-form-grid">
-        <div class="sdv-field"><label>Cliente <span class="req">*</span></label><input type="text" id="sdv-edit-cliente" class="sdv-input" placeholder="Nombre del cliente"></div>
-        <div class="sdv-field"><label>Ciudad <span class="req">*</span></label><input type="text" id="sdv-edit-ciudad" class="sdv-input" placeholder="Santo Domingo"></div>
+
+      <!-- Sección ODOO (read-only) -->
+      <div class="sdv-edit-modal-odoo-section">
+        <label class="sdv-edit-modal-odoo-section-title">Datos de Odoo</label>
+        <div class="sdv-edit-items-list" id="sdv-edit-items-container">
+          <!-- Artículos se inyectan aquí -->
+        </div>
+        <button type="button" class="sdv-edit-refresh-btn" id="sdv-edit-refresh-btn" onclick="sdvRefreshFromOdoo()" title="Cargar cambios desde Odoo">
+          <svg data-lucide="refresh-cw" style="width:14px;height:14px"></svg>
+          Actualizar desde Odoo
+        </button>
       </div>
-      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Dirección <span class="req">*</span></label><input type="text" id="sdv-edit-direccion" class="sdv-input" placeholder="Dirección completa"></div></div>
-      <div class="sdv-form-grid">
-        <div class="sdv-field"><label>Receptor <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-nombre" class="sdv-input" placeholder="Nombre completo"></div>
-        <div class="sdv-field"><label>Contacto <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-contacto" class="sdv-input" placeholder="+1 809 000 0000"></div>
+
+      <!-- Sección LOCAL (editable) -->
+      <div class="sdv-edit-modal-local-section">
+        <label class="sdv-edit-modal-local-section-title">Información Local</label>
+        <div class="sdv-form-grid">
+          <div class="sdv-field"><label>Cliente <span class="req">*</span></label><input type="text" id="sdv-edit-cliente" class="sdv-input" placeholder="Nombre del cliente"></div>
+          <div class="sdv-field"><label>Ciudad <span class="req">*</span></label><input type="text" id="sdv-edit-ciudad" class="sdv-input" placeholder="Santo Domingo"></div>
+        </div>
+        <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Dirección <span class="req">*</span></label><input type="text" id="sdv-edit-direccion" class="sdv-input" placeholder="Dirección completa"></div></div>
+        <div class="sdv-form-grid">
+          <div class="sdv-field"><label>Receptor <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-nombre" class="sdv-input" placeholder="Nombre completo"></div>
+          <div class="sdv-field"><label>Contacto <span class="req">*</span></label><input type="text" id="sdv-edit-receptor-contacto" class="sdv-input" placeholder="+1 809 000 0000"></div>
+        </div>
+        <div class="sdv-form-grid">
+          <div class="sdv-field"><label>Fecha deseada</label><input type="date" id="sdv-edit-fecha-date" class="sdv-input"></div>
+          <div class="sdv-field"><label>Hora (aprox.)</label><div class="sdv-fecha-time-wrap"><select id="sdv-edit-fecha-hr" class="sdv-time-sel" style="flex:1"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><span style="color:var(--text-2)">:</span><select id="sdv-edit-fecha-min" class="sdv-time-sel" style="flex:1"><option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option></select><select id="sdv-edit-fecha-ampm" class="sdv-time-sel" style="flex:1"><option value="AM">AM</option><option value="PM">PM</option></select></div></div>
+        </div>
+        <div class="sdv-form-grid">
+          <div class="sdv-field"><label>Transporte</label><div class="sdv-check-row"><input type="checkbox" id="sdv-edit-transporte"><span>Incluido en la orden</span></div></div>
+        </div>
+        <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Observaciones (opcional)</label><textarea id="sdv-edit-observaciones" class="sdv-input" style="resize:vertical;min-height:80px" placeholder="Notas adicionales..."></textarea></div></div>
+        <div class="sdv-form-grid cols1"><div class="sdv-field"><label>GPS (opcional)</label><div class="sdv-gps-row"><input type="text" id="sdv-edit-gps" class="sdv-input" placeholder="Lat, Lng — haz clic en Ver mapa" readonly><button type="button" class="btn btn-secondary sdv-gps-btn" onclick="sdvEditOpenMapModal()">Ver mapa</button></div></div></div>
       </div>
-      <div class="sdv-form-grid">
-        <div class="sdv-field"><label>Fecha deseada</label><input type="date" id="sdv-edit-fecha-date" class="sdv-input"></div>
-        <div class="sdv-field"><label>Hora (aprox.)</label><div class="sdv-fecha-time-wrap"><select id="sdv-edit-fecha-hr" class="sdv-time-sel" style="flex:1"><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><span style="color:var(--text-2)">:</span><select id="sdv-edit-fecha-min" class="sdv-time-sel" style="flex:1"><option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option></select><select id="sdv-edit-fecha-ampm" class="sdv-time-sel" style="flex:1"><option value="AM">AM</option><option value="PM">PM</option></select></div></div>
-      </div>
-      <div class="sdv-form-grid">
-        <div class="sdv-field"><label>Transporte</label><div class="sdv-check-row"><input type="checkbox" id="sdv-edit-transporte"><span>Incluido en la orden</span></div></div>
-      </div>
-      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>Observaciones (opcional)</label><textarea id="sdv-edit-observaciones" class="sdv-input" style="resize:vertical;min-height:80px" placeholder="Notas adicionales..."></textarea></div></div>
-      <div class="sdv-form-grid cols1"><div class="sdv-field"><label>GPS (opcional)</label><div class="sdv-gps-row"><input type="text" id="sdv-edit-gps" class="sdv-input" placeholder="Lat, Lng — haz clic en Ver mapa" readonly><button type="button" class="btn btn-secondary sdv-gps-btn" onclick="sdvEditOpenMapModal()">Ver mapa</button></div></div></div>
     </div>
     <div class="sdv-edit-modal-footer">
       <button onclick="sdvCloseEditModal()" class="sdv-edit-modal-btn">Cancelar</button>
