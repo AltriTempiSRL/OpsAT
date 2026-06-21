@@ -10300,6 +10300,402 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // CANCELACIONES Y REACTIVACIONES SDV
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * PATCH /api/sdv/:id?action=cancel
+   * Cancela una solicitud SDV. Validaciones de estado:
+   * - Estado A,B,C: procede sin restricción
+   * - Estado D,E: 403 salvo que force=true y role=admin/ops_manager
+   * - Estado F: 400 (en tránsito, no se puede cancelar)
+   */
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'PATCH' && parsed.query?.action === 'cancel') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const sdvId = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      if (!d.motivo) { res.writeHead(422, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'Motivo requerido'})); return; }
+
+      const sdvList = loadSdv();
+      const idx = sdvList.findIndex(s => s.id === sdvId);
+      if (idx < 0) { res.writeHead(404, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'SDV no encontrada'})); return; }
+
+      const sdv = sdvList[idx];
+      const estado = sdv.estado;
+      const force = parsed.query.force === 'true';
+
+      // Validar estado: bloqueo en D, E
+      if (['D', 'E', 'empaque_in_progress', 'packing'].includes(estado)) {
+        if (!force) {
+          res.writeHead(403, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false, error:'Cancelación bloqueada: empaque en progreso', estado_actual:estado, riesgo:'alto'}));
+          return;
+        }
+        // Si force=true, solo admin/ops pueden forzar
+        if (!['admin', 'ops_manager', 'manager'].includes(jp.role)) {
+          res.writeHead(403, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false, error:'No autorizado para forzar cancelación'}));
+          return;
+        }
+      }
+
+      // Estado F (en tránsito): imposible cancelar
+      if (estado === 'F' || estado === 'in_transit') {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No se puede cancelar: en tránsito'}));
+        return;
+      }
+
+      const ahora = new Date().toISOString();
+
+      // Actualizar SDV
+      sdv.estado = 'cancelada';
+      sdv.cancelado_por = jp.userId;
+      sdv.cancelado_por_nombre = jp.name;
+      sdv.cancelado_at = ahora;
+      if (!sdv.statusHistory) sdv.statusHistory = [];
+      sdv.statusHistory.push({estado:'cancelada', por:jp.userId, nombre:jp.name, at:ahora, nota:d.motivo});
+
+      // Auditar
+      const audId = auditLogSdvEvent('cancelada', sdvId, jp.userId, jp.name, {
+        motivo: d.motivo,
+        urgencia: d.urgencia,
+        estado_al_momento: estado,
+        riesgo_asumido: force,
+        fuerza_aplicada: force
+      });
+
+      // Si existe tarea WWP ligada, marcarla como cancelled
+      if (sdv.wwpTaskId) {
+        const tasks = loadWwpTasks();
+        const taskIdx = tasks.findIndex(t => t.id === sdv.wwpTaskId);
+        if (taskIdx >= 0) {
+          tasks[taskIdx].status = 'cancelled';
+          tasks[taskIdx].updatedAt = ahora;
+          saveWwpTasks(tasks);
+        }
+      }
+
+      // Guardar SDV actualizada
+      sdvList[idx] = sdv;
+      saveSdv(sdvList);
+
+      // Notificar a Ops
+      await notifySdvToOps(sdvId, 'sdv_cancelada', sdv.clienteNombre, {
+        motivo: d.motivo,
+        estado_previo: estado,
+        cancelada_por: jp.name
+      });
+
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, sdv, auditoriaId:audId}));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  /**
+   * POST /api/sdv/:id/reactivation
+   * Vendedora solicita reactivación CON nueva fecha (sin rechazar)
+   * Crea registro "pendiente" para que Ops procese en su bandeja
+   */
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/reactivation$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const sdvId = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      if (!d.new_delivery_date) { res.writeHead(422, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'new_delivery_date requerida'})); return; }
+      if (!d.motivo_reactivacion) { res.writeHead(422, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'motivo_reactivacion requerido'})); return; }
+
+      const sdvList = loadSdv();
+      const sdv = sdvList.find(s => s.id === sdvId);
+      if (!sdv) { res.writeHead(404, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'SDV no encontrada'})); return; }
+
+      // Solo se reactivan canceladas
+      if (sdv.estado !== 'cancelada') {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Solo se pueden reactivar solicitudes canceladas'}));
+        return;
+      }
+
+      // Validar fecha no retroactiva
+      const nuevaFecha = new Date(d.new_delivery_date);
+      if (nuevaFecha < new Date()) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Fecha de reactivación no puede ser retroactiva'}));
+        return;
+      }
+
+      const ahora = new Date().toISOString();
+      const reac = {
+        id: 'reac_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        sdv_id: sdvId,
+        solicitado_por: jp.userId,
+        solicitado_por_nombre: jp.name,
+        solicitado_at: ahora,
+        nueva_fecha_entrega: d.new_delivery_date,
+        motivo_reactivacion: d.motivo_reactivacion,
+        estado: 'pendiente',
+        procesado_por: null,
+        procesado_at: null,
+        cuando_procesar: null,
+        notas_ops: null,
+        nueva_tarea_id: null
+      };
+
+      // Guardar reactivación
+      const reacList = loadReactivationRequests();
+      reacList.push(reac);
+      saveReactivationRequests(reacList);
+
+      // Auditar
+      auditLogSdvEvent('reactivacion_solicitada', sdvId, jp.userId, jp.name, {
+        nueva_fecha: d.new_delivery_date,
+        motivo: d.motivo_reactivacion
+      });
+
+      // Notificar a Ops
+      await notifySdvToOps(sdvId, 'reactivacion_pendiente', sdv.clienteNombre, {
+        nueva_fecha_solicitada: d.new_delivery_date,
+        motivo: d.motivo_reactivacion
+      });
+
+      res.writeHead(201, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, reactivacion_id:reac.id, estado:'pendiente', mensaje:'Reactivación solicitada. Ops la procesará en su programación.'}));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  /**
+   * PATCH /api/sdv/reactivation/:id?action=process
+   * Ops procesa reactivación: elige CUÁNDO procesarla
+   * Crea nueva tarea WWP con nueva fecha
+   * Notifica vendedora + cliente
+   */
+  if (reqPath.match(/^\/api\/sdv\/reactivation\/[a-z0-9_]+$/) && req.method === 'PATCH' && parsed.query?.action === 'process') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+
+    const reacId = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      if (!d.cuando_procesar) { res.writeHead(422, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'cuando_procesar requerido'})); return; }
+
+      const reacList = loadReactivationRequests();
+      const reacIdx = reacList.findIndex(r => r.id === reacId);
+      if (reacIdx < 0) { res.writeHead(404, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'Reactivación no encontrada'})); return; }
+
+      const reac = reacList[reacIdx];
+      if (reac.estado !== 'pendiente') {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Solo se pueden procesar reactivaciones en estado pendiente'}));
+        return;
+      }
+
+      // Validar fecha
+      const cuandoDate = new Date(d.cuando_procesar);
+      if (cuandoDate < new Date()) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Fecha de procesamiento no puede ser retroactiva'}));
+        return;
+      }
+
+      // Buscar SDV original
+      const sdvList = loadSdv();
+      const sdv = sdvList.find(s => s.id === reac.sdv_id);
+      if (!sdv) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'SDV original no encontrada'})); return; }
+
+      const ahora = new Date().toISOString();
+
+      // Crear nueva tarea WWP (derivada de la SDV original)
+      const nuevaTarea = createWwpTaskFromSdv(sdv, jp.userId);
+      nuevaTarea.title = `${sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente'} (REV)`;
+      nuevaTarea.dueDate = d.cuando_procesar;
+      nuevaTarea.description = `Reactivación de ${reac.sdv_id}. Original cancelada el ${reac.solicitado_at}`;
+      nuevaTarea.relacionada_a_sdv = reac.sdv_id;
+      nuevaTarea.sdvOriginalCancelada = reac.sdv_id;
+
+      const tasks = loadWwpTasks();
+      nuevaTarea.seq = nextTaskSeq();
+      tasks.push(nuevaTarea);
+      saveWwpTasks(tasks);
+
+      // Actualizar reactivación
+      reac.estado = 'procesado';
+      reac.procesado_por = jp.userId;
+      reac.procesado_por_nombre = jp.name;
+      reac.procesado_at = ahora;
+      reac.cuando_procesar = d.cuando_procesar;
+      reac.notas_ops = d.notas_ops || '';
+      reac.nueva_tarea_id = nuevaTarea.id;
+
+      reacList[reacIdx] = reac;
+      saveReactivationRequests(reacList);
+
+      // Auditar
+      auditLogSdvEvent('reactivacion_procesada', reac.sdv_id, jp.userId, jp.name, {
+        cuando_procesar: d.cuando_procesar,
+        nueva_tarea_id: nuevaTarea.id,
+        notas_ops: d.notas_ops
+      });
+
+      // Notificar a Ops (actualizar bandeja de reactivaciones)
+      await notifySdvToOps(reac.sdv_id, 'reactivacion_procesada', sdv.clienteNombre, {
+        nueva_tarea_id: nuevaTarea.id,
+        cuando: d.cuando_procesar
+      });
+
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({
+        ok:true,
+        nueva_tarea_id:nuevaTarea.id,
+        nueva_fecha:d.cuando_procesar,
+        mensaje:'Reactivación procesada. Nueva tarea creada.'
+      }));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  /**
+   * GET /api/sdv/reactivation?estado=pendiente
+   * Bandeja para Ops: reactivaciones filtradas por estado
+   */
+  if (reqPath === '/api/sdv/reactivation' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+
+    try {
+      const q = parsed.query || {};
+      let reacList = loadReactivationRequests();
+
+      // Filtrar por estado (default: pendiente)
+      if (q.estado) {
+        reacList = reacList.filter(r => r.estado === q.estado);
+      } else {
+        reacList = reacList.filter(r => r.estado === 'pendiente');
+      }
+
+      // Enriquecer con datos de SDV
+      const sdvList = loadSdv();
+      const sdvMap = {};
+      sdvList.forEach(s => { sdvMap[s.id] = s; });
+
+      const reacEnriquecidas = reacList.map(r => ({
+        id: r.id,
+        sdv_id: r.sdv_id,
+        cliente: sdvMap[r.sdv_id]?.clienteNombre || 'Sin cliente',
+        solicitado_por: r.solicitado_por_nombre || r.solicitado_por,
+        solicitado_at: r.solicitado_at,
+        nueva_fecha_solicitada: r.nueva_fecha_entrega,
+        motivo: r.motivo_reactivacion,
+        estado: r.estado,
+        procesado_por: r.procesado_por_nombre || r.procesado_por || null,
+        cuando_procesar: r.cuando_procesar,
+        nueva_tarea_id: r.nueva_tarea_id
+      }));
+
+      // Ordenar por solicitado_at DESC
+      reacEnriquecidas.sort((a, b) => new Date(b.solicitado_at) - new Date(a.solicitado_at));
+
+      sendGzipJson(req, res, 200, {ok:true, reactivaciones:reacEnriquecidas});
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  /**
+   * GET /api/sdv/kpis/cancelaciones
+   * Dashboard KPI: "Cancelaciones & Devoluciones"
+   * Período: semana actual
+   */
+  if (reqPath === '/api/sdv/kpis/cancelaciones' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+
+    try {
+      const ahora = new Date();
+      const hace7Dias = new Date(ahora - 7 * 24 * 60 * 60 * 1000);
+
+      // Cargar auditoría
+      const audits = loadCancellationAudit().filter(a => new Date(a.timestamp) >= hace7Dias);
+
+      // Contar cancelaciones
+      const totalCancelaciones = audits.filter(a => a.tipo_evento === 'cancelada').length;
+
+      // Contar reactivaciones procesadas
+      const reactivacionesProcesadas = audits.filter(a => a.tipo_evento === 'reactivacion_procesada').length;
+
+      // % cancelaciones post-empaque (estado D, E al momento)
+      const postEmpaque = audits.filter(a =>
+        a.tipo_evento === 'cancelada' &&
+        (['D', 'E', 'empaque_in_progress', 'packing'].includes(a.detalles?.estado_al_momento))
+      ).length;
+      const porcentajePostEmpaque = totalCancelaciones > 0 ? Math.round((postEmpaque / totalCancelaciones) * 100) : 0;
+
+      // Tiempo promedio de respuesta Ops (entre cancelación y decisión)
+      let tiempoPromedioOps = 0;
+      const tiemposRespuesta = [];
+      const cancelaciones = audits.filter(a => a.tipo_evento === 'cancelada');
+      cancelaciones.forEach(cancel => {
+        // Buscar evento relacionado de reactivación o actualización
+        const reactivacion = audits.find(a =>
+          a.sdv_id === cancel.sdv_id &&
+          (a.tipo_evento === 'reactivacion_procesada' || a.tipo_evento === 'reactivacion_solicitada') &&
+          new Date(a.timestamp) > new Date(cancel.timestamp)
+        );
+        if (reactivacion) {
+          const dt = (new Date(reactivacion.timestamp) - new Date(cancel.timestamp)) / 60000; // minutos
+          tiemposRespuesta.push(dt);
+        }
+      });
+      if (tiemposRespuesta.length > 0) {
+        tiempoPromedioOps = Math.round(tiemposRespuesta.reduce((a,b) => a+b, 0) / tiemposRespuesta.length * 10) / 10;
+      }
+
+      // Detectar alertas
+      const alertas = [];
+      const reacPendientes = loadReactivationRequests().filter(r => r.estado === 'pendiente');
+      const reacEnTimeout = reacPendientes.filter(r => {
+        const minDesdeRac = (ahora - new Date(r.solicitado_at)) / 60000;
+        return minDesdeRac > 60; // más de 1h sin procesar
+      });
+      if (reacEnTimeout.length > 0) {
+        alertas.push({
+          tipo: 'warning',
+          mensaje: `${reacEnTimeout.length} reactivaciones en timeout (>1h sin procesar)`
+        });
+      }
+
+      const kpis = {
+        totalCancelaciones,
+        reactivacionesProcesadas,
+        porcentajePostEmpaque,
+        porcentajePostEmpaqueTarget: 5,
+        tiempoPromedioOps,
+        tiempoPromedioTarget: 5,
+        alertas
+      };
+
+      sendGzipJson(req, res, 200, {ok:true, kpis});
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // EMPAQUE — catálogo de materiales, reglas por categoría, resolución
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -10838,6 +11234,14 @@ const SDV_ALERTAS_FILE = path.join(DATA_DIR, 'sdv-alertas.json');
 function loadSdvAlertas() { return loadJson(SDV_ALERTAS_FILE, []); }
 function saveSdvAlertas(list) { saveJson(SDV_ALERTAS_FILE, list); }
 
+// ── Cancelaciones y Reactivaciones SDV ───────────────────────────────────────
+const SDV_REACTIVATION_FILE = path.join(DATA_DIR, 'sdv-reactivation-requests.json');
+const SDV_CANCELLATION_AUDIT_FILE = path.join(DATA_DIR, 'sdv-cancellation-audit.json');
+function loadReactivationRequests() { return loadJson(SDV_REACTIVATION_FILE, []); }
+function saveReactivationRequests(list) { saveJson(SDV_REACTIVATION_FILE, list); }
+function loadCancellationAudit() { return loadJson(SDV_CANCELLATION_AUDIT_FILE, []); }
+function saveCancellationAudit(list) { saveJson(SDV_CANCELLATION_AUDIT_FILE, list); }
+
 // Detectar cambios en solicitud (solo campos editables por vendedor)
 function detectarCambiosSdv(solAnterior, solNueva) {
   const MONITOREADOS = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
@@ -10888,5 +11292,65 @@ function agregarAlertaASolicitud(sol, alerta) {
   const alertas = loadSdvAlertas();
   alertas.push(alerta);
   saveSdvAlertas(alertas);
+}
+
+// ── Auditoría centralizada para cancelaciones/reactivaciones ──────────────────
+/**
+ * Registra evento de cancelación/reactivación en auditoría inmutable
+ */
+function auditLogSdvEvent(tipo_evento, sdv_id, usuario_id, usuario_nombre, detalles = {}) {
+  const ahora = new Date().toISOString();
+  const audit = {
+    id: 'aud_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    sdv_id,
+    tipo_evento, // 'cancelada' | 'reactivacion_solicitada' | 'reactivacion_procesada'
+    usuario_id,
+    usuario_nombre,
+    timestamp: ahora,
+    detalles
+  };
+  const audits = loadCancellationAudit();
+  audits.push(audit);
+  saveCancellationAudit(audits);
+  return audit.id;
+}
+
+/**
+ * Notifica a Ops cuando ocurre un evento de SDV (cancelación, reactivación, etc)
+ * Guarda en bandeja + envía PUSH si está online
+ */
+async function notifySdvToOps(sdv_id, tipo, cliente, detalles = {}) {
+  const ahora = new Date().toISOString();
+  const mensaje = {
+    id: 'notif_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    sdv_id,
+    tipo, // 'sdv_cancelada' | 'reactivacion_pendiente'
+    cliente,
+    detalles,
+    leido: false,
+    timestamp: ahora
+  };
+
+  // Guardar en bandeja de Ops (usar archivo de notificaciones)
+  const notifs = loadJson(path.join(DATA_DIR, 'ops-notifications.json'), []);
+  notifs.push(mensaje);
+  saveJson(path.join(DATA_DIR, 'ops-notifications.json'), notifs);
+
+  // Si webpush está disponible, enviar PUSH a supervisores/ops
+  if (webpush && supervisorUserIds.length > 0) {
+    const subs = loadPushSubs();
+    const opsMessages = subs.filter(s => supervisorUserIds.includes(s.userId));
+    opsMessages.forEach(sub => {
+      try {
+        webpush.sendNotification(sub.subscription, JSON.stringify({
+          title: tipo === 'sdv_cancelada' ? 'SDV Cancelada' : 'Reactivación Pendiente',
+          body: `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || ''}`,
+          icon: '/favicon.ico'
+        })).catch(() => {});
+      } catch (e) { /* PUSH fallida, ignorar */ }
+    });
+  }
+
+  return mensaje.id;
 }
 
