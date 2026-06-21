@@ -9345,7 +9345,7 @@ const server = http.createServer(async (req, res) => {
 
   // PATCH /api/sdv/:id — actualizar solicitud [admin/manager: cualquier campo; ventas: solo si pendiente]
   // Crea alerta si hay cambios en estado != pendiente_revision
-  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'PATCH') {
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'PATCH' && !parsed.query?.action) {
     const jp = requireJwt(req, res); if (!jp) return;
     const id = reqPath.split('/')[3];
     try {
