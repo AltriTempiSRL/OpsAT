@@ -8759,6 +8759,8 @@ async function loadTasks() {
     _tasks = Array.isArray(data) ? data : (data.tasks || []);
     populateTaskUserFilter();
     renderTasks();
+    // Precarga en idle los datos Odoo de mis tareas vivas → drawer abre instantáneo
+    (window.requestIdleCallback || function(f){ setTimeout(f, 800); })(prefetchMyTasksOdoo);
     // Toast de alerta si hay tareas vencidas
     const today = new Date().toISOString().slice(0,10);
     const overdue = _tasks.filter(t => !t.parentId && t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status));
@@ -9883,12 +9885,78 @@ function renderTaskCard(t) {
 // ═══════════════════════════════════════════════════════════════════════
 // DRAWER
 // ═══════════════════════════════════════════════════════════════════════
+// ── Caché de órdenes Odoo para apertura instantánea del drawer ──────────────
+// El cuello de botella al abrir una tarea de empaque/despacho era la consulta EN
+// VIVO a Odoo (/api/wwp/odoo-order/...), 300-900ms, que bloqueaba el render.
+// Ahora: render-primero (pinta ya) + prefetch en idle de las tareas asignadas.
+var _odooOrderCache = {};            // { [ref]: { data, ts, promise } }
+const ODOO_ORDER_TTL = 120000;       // 2 min — stock/ubicaciones cambian poco; checkPickSync cubre cambios reales
+var _drawerOpenSeq = 0;              // guarda contra respuestas tardías si el usuario cambia de tarea
+
+function getOdooCachedSync(ref) {
+  const c = _odooOrderCache[ref];
+  if (c && c.data && (Date.now() - c.ts) < ODOO_ORDER_TTL) return c.data;
+  return null;
+}
+
+async function getOdooOrder(ref, { force = false } = {}) {
+  if (!ref) return null;
+  const c = _odooOrderCache[ref];
+  const fresh = c && c.data && (Date.now() - c.ts) < ODOO_ORDER_TTL;
+  if (fresh && !force) return c.data;
+  if (c && c.promise) return c.promise;          // dedupe: ya hay un fetch en vuelo
+  const p = authFetch('/api/wwp/odoo-order/' + encodeURIComponent(ref))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d) _odooOrderCache[ref] = { data: d, ts: Date.now(), promise: null }; return d; })
+    .catch(() => null);
+  _odooOrderCache[ref] = Object.assign({}, c, { promise: p });
+  return p;
+}
+
+// Aplica stock/ubicaciones + categoría de Odoo a la tarea del drawer.
+function applyOdooOrderToDrawer(t, od) {
+  if (!od) return;
+  (od.items || []).forEach(oi => {
+    if (oi.odoo_product_id) _drawerStockMap[oi.odoo_product_id] = oi.locations || [];
+    // Enriquecer items con categ_id fresco (resuelve tareas antiguas y artículos directos)
+    if (oi.odoo_categ_id && oi.odoo_product_id) {
+      const taskItem = t.items ? t.items.find(it => it.odoo_product_id === oi.odoo_product_id) : null;
+      if (taskItem && !taskItem.odoo_categ_id) {
+        taskItem.odoo_categ_id = oi.odoo_categ_id;
+        taskItem.odoo_categ_nombre = oi.odoo_categ_nombre || null;
+      }
+    }
+  });
+}
+
+// ¿La tarea está asignada al usuario actual y sigue VIVA (no histórica)?
+// Históricas = canceladas + validadas (igual que la regla de "cerradas" del sistema).
+function isAssignedActiveForPrefetch(t) {
+  if (!_user || !t) return false;
+  if (['validated','cancelled'].includes(t.status)) return false; // histórico: NO precargar
+  if (!(t.odooRef && t.items && t.items.length)) return false;     // sin pick: no necesita Odoo
+  if (t.managerId === _user.id) return true;
+  try { return taskAuxiliaryIds(t).includes(_user.id); } catch (e) { return false; }
+}
+
+// Precarga en segundo plano (idle) los datos Odoo de las tareas vivas asignadas al usuario.
+// Secuencial + tope de 8 → throttle natural, sin saturar Odoo.
+function prefetchMyTasksOdoo() {
+  try {
+    const mine = (_tasks || []).filter(isAssignedActiveForPrefetch).slice(0, 8);
+    if (!mine.length) return;
+    (async () => { for (const t of mine) { await getOdooOrder(t.odooRef); } })();
+  } catch (e) { silentCatch(e, 'prefetchMyTasksOdoo'); }
+}
+
 async function openDrawer(taskId) {
+  const mySeq = ++_drawerOpenSeq;
   // Re-fetch fresh data
   try {
     const r = await authFetch('/api/wwp/tasks');
     _tasks = await r.json();
   } catch {}
+  if (mySeq !== _drawerOpenSeq) return;          // otra apertura tomó el control
   // Carga de trabajo (tareas activas por usuario) para mostrar al asignar auxiliares
   if (_user && (_user.role==='admin' || _user.role==='manager')) {
     try {
@@ -9897,38 +9965,11 @@ async function openDrawer(taskId) {
       if (wd.ok) _workloadMap = wd.workload || {};
     } catch {}
   }
+  if (mySeq !== _drawerOpenSeq) return;
   const t = _tasks.find(x=>x.id===taskId);
   if (!t) return;
   _drawerTask = t;
-  // Fetch live stock/location data from Odoo for this order
-  _drawerStockMap = {};
-  if (t.odooRef && t.items && t.items.length) {
-    try {
-      const sr = await authFetch('/api/wwp/odoo-order/' + encodeURIComponent(t.odooRef));
-      if (sr.ok) {
-        const od = await sr.json();
-        (od.items||[]).forEach(oi => {
-          if (oi.odoo_product_id) _drawerStockMap[oi.odoo_product_id] = oi.locations || [];
-          // Enriquecer items de la tarea con categ_id fresco de Odoo (resuelve tareas antiguas y artículos directos)
-          if (oi.odoo_categ_id && oi.odoo_product_id) {
-            const taskItem = t.items ? t.items.find(it => it.odoo_product_id === oi.odoo_product_id) : null;
-            if (taskItem && !taskItem.odoo_categ_id) {
-              taskItem.odoo_categ_id = oi.odoo_categ_id;
-              taskItem.odoo_categ_nombre = oi.odoo_categ_nombre || null;
-            }
-          }
-        });
-      }
-    } catch {}
-  }
-  // Estado del pick de Odoo (gate de inicio para tareas de despacho)
-  _drawerPickStatus = null;
-  if (t.type === 'dispatch_order' && t.odooRef) {
-    try {
-      const ps = await authFetch('/api/wwp/tasks/'+taskId+'/pick-status');
-      _drawerPickStatus = await ps.json();
-    } catch { _drawerPickStatus = null; }
-  }
+
   // Mostrar breadcrumb para subtareas, título para tareas principales
   const isSubtask = !!t.parentId;
   const titleEl = document.getElementById('drawer-title');
@@ -9948,9 +9989,39 @@ async function openDrawer(taskId) {
     breadcrumbEl.style.display = 'none';
     titleEl.textContent = (seqLabel(t)?seqLabel(t)+' · ':'') + t.title;
   }
+
+  // ── RENDER-PRIMERO: pinta de inmediato. Si el stock de Odoo ya está en caché
+  //    (prefetch), lo usa sin esperar; si no, pinta sin ubicaciones y las rellena después.
+  _drawerStockMap = {};
+  _drawerPickStatus = null;
+  const needsOdoo = !!(t.odooRef && t.items && t.items.length);
+  const cached = needsOdoo ? getOdooCachedSync(t.odooRef) : null;
+  if (cached) applyOdooOrderToDrawer(t, cached);
   renderDrawer(t);
   document.getElementById('wwp-drawer-overlay').classList.add('open');
   document.getElementById('wwp-drawer').classList.add('open');
+
+  // ── ENRIQUECIMIENTO EN SEGUNDO PLANO (no bloquea la apertura) ──
+  if (needsOdoo && !cached) {
+    getOdooOrder(t.odooRef).then(od => {
+      if (mySeq !== _drawerOpenSeq) return;       // el usuario ya abrió otra tarea
+      if (!_drawerTask || _drawerTask.id !== t.id) return;
+      applyOdooOrderToDrawer(t, od);
+      renderDrawer(t);                            // re-render: rellena las ubicaciones
+    });
+  }
+  // Estado del pick de Odoo (gate de inicio para tareas de despacho) — async
+  if (t.type === 'dispatch_order' && t.odooRef) {
+    authFetch('/api/wwp/tasks/'+taskId+'/pick-status')
+      .then(ps => ps.json())
+      .then(ds => {
+        if (mySeq !== _drawerOpenSeq) return;
+        if (!_drawerTask || _drawerTask.id !== t.id) return;
+        _drawerPickStatus = ds;
+        renderDrawer(t);
+      })
+      .catch(() => { _drawerPickStatus = null; });
+  }
   // Chequeo async de cambios en el pick (no bloquea el render)
   if (t.odooRef && (_user.role==='admin'||_user.role==='manager')) checkPickSync(taskId);
 }
