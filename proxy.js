@@ -4669,8 +4669,7 @@ const server = http.createServer(async (req, res) => {
         { fields: ['id','name','origin','date_done','partner_id'], limit: 500, order: 'date_done desc' });
 
       if (!rets.length) {
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok:true, rows:[], total:0, byStore:{}, retCount:0 }));
+        sendGzipJson(req, res, 200, { ok:true, rows:[], total:0, byStore:{}, retCount:0 });
         return;
       }
 
@@ -4776,8 +4775,7 @@ const server = http.createServer(async (req, res) => {
         });
       });
 
-      res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok:true, rows, total:rows.length, byStore, retCount:rets.length }));
+      sendGzipJson(req, res, 200, { ok:true, rows, total:rows.length, byStore, retCount:rets.length });
     } catch(e) {
       res.writeHead(502, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:false, error:e.message }));
@@ -4787,8 +4785,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── GET /api/averias — lista todas las averías ───────────────────────────
   if (reqPath === '/api/averias' && req.method === 'GET') {
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true,averias:loadAverias()}));
+    sendGzipJson(req, res, 200, {ok:true,averias:loadAverias()});
     return;
   }
 
@@ -4797,8 +4794,7 @@ const server = http.createServer(async (req, res) => {
     const ref = (parsed.query.ref||'').trim().toUpperCase();
     const all = loadAverias();
     const found = all.filter(a=>(a.ref||'').toUpperCase()===ref||(a.barcode||'').toUpperCase()===ref);
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true,averias:found}));
+    sendGzipJson(req, res, 200, {ok:true,averias:found});
     return;
   }
 
@@ -5232,8 +5228,7 @@ const server = http.createServer(async (req, res) => {
     const qSolic  = (parsed.query.solicitanteId||'').trim();
     if (qEstado) list = list.filter(r => r.estado === qEstado);
     if (qSolic)  list = list.filter(r => r.solicitanteId === qSolic);
-    res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true, reposiciones:list}));
+    sendGzipJson(req, res, 200, {ok:true, reposiciones:list});
     return;
   }
 
@@ -6092,7 +6087,7 @@ const server = http.createServer(async (req, res) => {
       } catch(_) { /* silencioso — si falla el check, devolver lista tal cual */ }
     }
 
-    res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitudes: list}));
+    sendGzipJson(req, res, 200, {ok:true, solicitudes: list});
     return;
   }
 
@@ -6106,8 +6101,7 @@ const server = http.createServer(async (req, res) => {
       const activas = list.filter(s => s.status === 'activo');
 
       if (!activas.length) {
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok: true, movimientos: {} })); return;
+        sendGzipJson(req, res, 200, { ok: true, movimientos: {} }); return;
       }
 
       // ── 1. Resolver solId → productId de Odoo ──────────────────────────────
@@ -6198,8 +6192,7 @@ const server = http.createServer(async (req, res) => {
         };
       });
 
-      res.writeHead(200, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok: true, movimientos: resultado }));
+      sendGzipJson(req, res, 200, { ok: true, movimientos: resultado });
     } catch(e) {
       res.writeHead(502, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok: false, error: e.message }));
@@ -6277,8 +6270,7 @@ const server = http.createServer(async (req, res) => {
         try { data.files[key] = JSON.parse(fs.readFileSync(file, 'utf-8')); }
         catch { data.files[key] = null; }
       });
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="data-export.json"' });
-      res.end(JSON.stringify(data, null, 2));
+      sendGzipJson(req, res, 200, data);
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -6519,8 +6511,7 @@ const server = http.createServer(async (req, res) => {
         role:     roles['oe_' + emp.id] || 'assistant',
         active:   true
       }));
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify(users));
+      sendGzipJson(req, res, 200, users);
     } catch(e) {
       res.writeHead(500,{'Content-Type':'application/json'});
       res.end(JSON.stringify({error:e.message}));
