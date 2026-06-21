@@ -18,12 +18,27 @@ let webpush = null;
 try { webpush = require('web-push'); } catch { /* web-push no instalado */ }
 
 // ── Helpers de persistencia JSON ─────────────────────────────────────────────
+const _jsonFileCache = new Map();
+
 function loadJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); }
+  try {
+    const st = fs.statSync(file);
+    const hit = _jsonFileCache.get(file);
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.data;
+    const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    _jsonFileCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, data });
+    return data;
+  }
   catch { return fallback !== undefined ? fallback : []; }
 }
 function saveJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+  try {
+    const st = fs.statSync(file);
+    _jsonFileCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, data });
+  } catch {
+    _jsonFileCache.delete(file);
+  }
 }
 
 // ── Leer credenciales desde archivo .env / .env.txt ──────────────────────────
@@ -657,7 +672,7 @@ const BUILTIN_ROLE_DEFS = [
 ];
 function loadRoleDefs() {
   let defs;
-  try { defs = fs.existsSync(WWP_ROLE_DEFS_FILE) ? JSON.parse(fs.readFileSync(WWP_ROLE_DEFS_FILE,'utf-8')) : null; }
+  try { defs = fs.existsSync(WWP_ROLE_DEFS_FILE) ? loadJson(WWP_ROLE_DEFS_FILE, null) : null; }
   catch { defs = null; }
   if (!defs) {
     defs = BUILTIN_ROLE_DEFS.map(r=>({...r, sectionPerms: r.sectionPerms ? {...r.sectionPerms} : r.sectionPerms}));
@@ -679,7 +694,7 @@ function loadRoleDefs() {
   }
   return defs;
 }
-function saveRoleDefs(defs) { fs.writeFileSync(WWP_ROLE_DEFS_FILE, JSON.stringify(defs,null,2)); }
+function saveRoleDefs(defs) { saveJson(WWP_ROLE_DEFS_FILE, defs); }
 /** Devuelve sectionPerms para un roleId. Admin → {} (bypassed en frontend). */
 function getRoleDefPerms(roleId) {
   if (roleId === 'admin') return {};
@@ -2228,13 +2243,13 @@ setInterval(() => {
 const lunchTimerMap = new Map();
 
 const WWP_NOTIF_FILE = path.join(DATA_DIR, 'wwp-notifications.json');
-function loadNotifications()    { try { return JSON.parse(fs.readFileSync(WWP_NOTIF_FILE,'utf-8')); } catch { return []; } }
-function saveNotifications(arr) { fs.writeFileSync(WWP_NOTIF_FILE, JSON.stringify(arr)); }
+function loadNotifications()    { return loadJson(WWP_NOTIF_FILE, []); }
+function saveNotifications(arr) { saveJson(WWP_NOTIF_FILE, arr); }
 
 // Historial de ubicaciones GPS por acción (recorrido). Retención: últimos 7 días.
 const WWP_LOCATIONS_FILE = path.join(DATA_DIR, 'wwp-locations.json');
-function loadLocations()    { try { return JSON.parse(fs.readFileSync(WWP_LOCATIONS_FILE,'utf-8')); } catch { return []; } }
-function saveLocations(arr) { try { fs.writeFileSync(WWP_LOCATIONS_FILE, JSON.stringify(arr)); } catch(e){} }
+function loadLocations()    { return loadJson(WWP_LOCATIONS_FILE, []); }
+function saveLocations(arr) { try { saveJson(WWP_LOCATIONS_FILE, arr); } catch(e){} }
 
 function wsEncodeFrame(payload) {
   const data = Buffer.from(JSON.stringify(payload));
@@ -2280,11 +2295,23 @@ function broadcastWwpTasks(action, task=null, extra={}) {
 }
 
 // Mapear oe_<n> → auth userId
+let _authByOdooSource = null;
+let _authByOdooMap = new Map();
+function getAuthUserByOdooIdMap() {
+  const users = loadAuthUsers();
+  if (users !== _authByOdooSource) {
+    _authByOdooSource = users;
+    _authByOdooMap = new Map();
+    users.forEach(u => {
+      if (u.odooId != null && u.odooId !== '') _authByOdooMap.set(Number(u.odooId), u.id);
+    });
+  }
+  return _authByOdooMap;
+}
 function odooStrToAuthId(odooStr) {
   if (!odooStr) return null;
   const num = parseInt((odooStr+'').replace('oe_',''));
-  const u = loadAuthUsers().find(u => Number(u.odooId) === num);
-  return u?.id || null;
+  return getAuthUserByOdooIdMap().get(num) || null;
 }
 
 function taskResponsibleIds(t) {
@@ -6522,13 +6549,15 @@ const server = http.createServer(async (req, res) => {
         (t.assignees||[]).includes(uid);
       const direct = tasks.filter(isParticipant);
       const ids = new Set(direct.map(t => t.id));
+      const directIds = new Set(ids);
+      const visibleParentIds = new Set(direct.map(t => t.parentId).filter(Boolean));
       // Incluir relacionadas para contexto de cadena:
       //  - el padre de una subtarea visible (el chofer necesita el contexto de la orden)
       //  - las subtareas de un padre visible
       tasks.forEach(t => {
         if (ids.has(t.id)) return;
-        if (direct.some(d => d.parentId === t.id)) ids.add(t.id);          // padre de mi subtarea
-        if (t.parentId && direct.some(d => d.id === t.parentId)) ids.add(t.id); // hija de mi tarea
+        if (visibleParentIds.has(t.id)) ids.add(t.id);        // padre de mi subtarea
+        if (t.parentId && directIds.has(t.parentId)) ids.add(t.id); // hija de mi tarea
       });
       tasks = tasks.filter(t => ids.has(t.id));
     }
@@ -10689,6 +10718,8 @@ const server = http.createServer(async (req, res) => {
     } else if (['.png','.svg'].includes(ext) && /icon|apple-touch|favicon/.test(path.basename(filePath))) {
       // Íconos PWA: caché corta para que los cambios se propaguen
       headers['Cache-Control'] = 'public, max-age=3600';
+    } else {
+      headers['Cache-Control'] = 'public, max-age=3600';
     }
     const acceptsGzip = (req.headers['accept-encoding'] || '').includes('gzip');
     if (acceptsGzip && data.length > 1024) {
@@ -10696,10 +10727,12 @@ const server = http.createServer(async (req, res) => {
         if (err2) { res.writeHead(200, headers); res.end(data); return; }
         headers['Content-Encoding'] = 'gzip';
         headers['Vary'] = 'Accept-Encoding';
+        headers['Content-Length'] = gz.length;
         res.writeHead(200, headers);
         res.end(gz);
       });
     } else {
+      headers['Content-Length'] = data.length;
       res.writeHead(200, headers);
       res.end(data);
     }
