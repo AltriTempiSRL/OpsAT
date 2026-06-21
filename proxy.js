@@ -103,6 +103,19 @@ const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 
 function loadPushSubs()       { return loadJson(PUSH_SUBS_FILE, []); }
 function savePushSubs(list)   { saveJson(PUSH_SUBS_FILE, list); }
+function pushServiceLabel(endpoint = '') {
+  return /fcm|googleapis/i.test(endpoint) ? 'Chrome/Android (FCM)'
+       : /web\.push\.apple/i.test(endpoint) ? 'iOS/Safari'
+       : /mozilla/i.test(endpoint) ? 'Firefox'
+       : /wns/i.test(endpoint) ? 'Edge/Windows'
+       : 'Web Push';
+}
+function pushUrgencyForType(type = '') {
+  if (/overdue|rejected|incomplete|blocked|damage|sync_error/i.test(type)) return 'critical';
+  if (/evidence|stock|cancel|reactivacion_pendiente/i.test(type)) return 'alert';
+  if (/completed|validated|aprobada|procesada/i.test(type)) return 'success';
+  return 'info';
+}
 
 // VAPID keys: desde env vars (Railway) o generadas al vuelo y persistidas
 (function setupVapid() {
@@ -122,7 +135,7 @@ function savePushSubs(list)   { saveJson(PUSH_SUBS_FILE, list); }
     }
   }
   webpush.setVapidDetails(
-    'mailto:gsanchez@altritempi.com.do',
+    process.env.VAPID_SUBJECT || 'mailto:gsanchez@altritempi.com.do',
     pub,
     priv
   );
@@ -2715,17 +2728,22 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
       const payload = JSON.stringify({
         title: notif.title,
         message: notif.message || '',
+        body: notif.message || '',
+        appTitle: 'Ops AT',
         id: notif.id,
         type: notif.type || '',
+        urgency: pushUrgencyForType(notif.type || ''),
         relatedTaskId: notif.relatedTaskId,
-        tag: notif.id
+        url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+        actionUrl: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+        tag: notif.relatedTaskId || notif.id
       });
       const subs = loadPushSubs().filter(s => s.userId === uid);
       subs.forEach(s => {
         webpush.sendNotification(s.subscription, payload).catch(err => {
           if (err.statusCode === 410 || err.statusCode === 404) {
             // Subscription expirada — limpiar
-            const all = loadPushSubs().filter(x => x.endpoint !== s.subscription.endpoint);
+            const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
             savePushSubs(all);
           }
         });
@@ -5734,7 +5752,17 @@ const server = http.createServer(async (req, res) => {
     try {
       const jp = requireJwt(req, res); if (!jp) return;
       if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
-      const payload = JSON.stringify({ type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
+      const payload = JSON.stringify({
+        type:'info',
+        urgency:'info',
+        appTitle:'Ops AT',
+        title:'Prueba Ops AT',
+        message:'Si ves esto, las notificaciones push funcionan en este dispositivo.',
+        body:'Si ves esto, las notificaciones push funcionan en este dispositivo.',
+        tag:'push-test',
+        url:'/historial.html',
+        actionUrl:'/historial.html'
+      });
       const mine = loadPushSubs().filter(s => s.userId === jp.userId);
       if (mine.length === 0) {
         res.writeHead(200,{'Content-Type':'application/json'});
@@ -5743,17 +5771,28 @@ const server = http.createServer(async (req, res) => {
       }
       const results = await Promise.all(mine.map(s =>
         webpush.sendNotification(s.subscription, payload)
-          .then(() => ({ ok:true }))
+          .then(() => ({
+            ok:true,
+            service: pushServiceLabel(s.subscription.endpoint),
+            endpoint: (s.subscription.endpoint || '').slice(0, 48) + '…'
+          }))
           .catch(err => {
             if (err.statusCode === 410 || err.statusCode === 404) {
               const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
               savePushSubs(all);
             }
-            return { ok:false, error: err.message };
+            return {
+              ok:false,
+              service: pushServiceLabel(s.subscription.endpoint),
+              endpoint: (s.subscription.endpoint || '').slice(0, 48) + '…',
+              status: err.statusCode || null,
+              error: err.message,
+              body: err.body ? String(err.body).slice(0, 180) : ''
+            };
           })
       ));
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok:true, sent: results.filter(r=>r.ok).length, total: results.length }));
+      res.end(JSON.stringify({ ok:true, sent: results.filter(r=>r.ok).length, total: results.length, results }));
       return;
     } catch (err) {
       res.writeHead(500,{'Content-Type':'application/json'});
@@ -5773,18 +5812,31 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const testNotifs = [
-        { type:'pick_incomplete', title:'🚨 Pick incompleto', message:'Pick PICK001 (orden S03874): falta ubicación. Disponible: 2/3.' },
-        { type:'evidence_incomplete', title:'⚠️ Evidencia incompleta', message:'Tarea TAR12345: 2 artículos sin foto. Auxiliar debe cargar.' },
-        { type:'task_validated', title:'✅ Tarea validada', message:'TAR10234 completada y validada por Marco. Disponible para cierre.' },
-        { type:'sdv_new_pending', title:'ℹ️ Nueva SDV asignada', message:'Solicitud de vendedora #0234: 5 artículos. Ops puede comenzar picking.' },
+        { type:'pick_incomplete', urgency:'critical', title:'Pick incompleto', message:'Pick PICK001 (orden S03874): falta ubicación. Disponible: 2/3.' },
+        { type:'evidence_incomplete', urgency:'alert', title:'Evidencia incompleta', message:'Tarea TAR12345: 2 artículos sin foto. Auxiliar debe cargar.' },
+        { type:'task_validated', urgency:'success', title:'Tarea validada', message:'TAR10234 completada y validada por Marco. Disponible para cierre.' },
+        { type:'sdv_new_pending', urgency:'info', title:'Nueva SDV asignada', message:'Solicitud de vendedora #0234: 5 artículos. Ops puede comenzar picking.' },
       ];
       const sendResults = [];
       for (const notif of testNotifs) {
-        const payload = JSON.stringify({ ...notif, tag: 'push-test-' + notif.type });
+        const payload = JSON.stringify({
+          ...notif,
+          appTitle:'Ops AT',
+          body:notif.message,
+          tag: 'push-test-' + notif.type,
+          url:'/historial.html',
+          actionUrl:'/historial.html'
+        });
         const results = await Promise.all(mine.map(s =>
           webpush.sendNotification(s.subscription, payload)
             .then(() => true)
-            .catch(err => false)
+            .catch(err => {
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
+                savePushSubs(all);
+              }
+              return false;
+            })
         ));
         sendResults.push({ type: notif.type, ok: results.some(r => r) });
       }
@@ -11309,7 +11361,7 @@ const server = http.createServer(async (req, res) => {
     const ext  = path.extname(filePath);
     const mime = MIME[ext] || 'application/octet-stream';
     const headers = {'Content-Type': mime};
-    if (ext === '.html' || filePath.endsWith('manifest.json')) {
+    if (ext === '.html' || filePath.endsWith('manifest.json') || filePath.endsWith('sw.js')) {
       headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
       headers['Pragma'] = 'no-cache';
     } else if (['.png','.svg'].includes(ext) && /icon|apple-touch|favicon/.test(path.basename(filePath))) {
@@ -11518,11 +11570,29 @@ async function notifySdvToOps(sdv_id, tipo, cliente, detalles = {}) {
     const opsMessages = subs.filter(s => supervisorUserIds.includes(s.userId));
     opsMessages.forEach(sub => {
       try {
-        webpush.sendNotification(sub.subscription, JSON.stringify({
-          title: tipo === 'sdv_cancelada' ? 'SDV Cancelada' : 'Reactivación Pendiente',
-          body: `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || ''}`,
-          icon: '/favicon.ico'
-        })).catch(() => {});
+        const title = tipo === 'sdv_cancelada' ? 'SDV cancelada'
+          : tipo === 'reactivacion_procesada' ? 'Reactivación procesada'
+          : 'Reactivación pendiente';
+        const body = `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || detalles.cuando || ''}`;
+        const payload = JSON.stringify({
+          appTitle: 'Ops AT',
+          title,
+          message: body,
+          body,
+          id: mensaje.id,
+          type: tipo,
+          urgency: pushUrgencyForType(tipo),
+          relatedTaskId: detalles.nueva_tarea_id || null,
+          tag: sdv_id + '-' + tipo,
+          url: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html',
+          actionUrl: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html'
+        });
+        webpush.sendNotification(sub.subscription, payload).catch(err => {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            const all = loadPushSubs().filter(x => x.subscription.endpoint !== sub.subscription.endpoint);
+            savePushSubs(all);
+          }
+        });
       } catch (e) { /* PUSH fallida, ignorar */ }
     });
   }

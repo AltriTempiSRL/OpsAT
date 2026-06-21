@@ -1,7 +1,9 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v8';
+const CACHE = 'wwp-v9-push-rich';
 const STATIC = [
   '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
   '/icon-192.svg',
   '/icon-512.svg',
   '/badge-critical.svg',
@@ -110,17 +112,22 @@ const ACTIONS = {
 
 self.addEventListener('push', e => {
   let data = {};
-  try { data = e.data ? e.data.json() : {}; } catch(err) {}
+  try {
+    data = e.data ? e.data.json() : {};
+  } catch(err) {
+    data = { title: 'Ops AT', body: e.data ? e.data.text() : '' };
+  }
 
-  const title    = data.title   || 'Ops AT';
+  const title    = data.title || data.appTitle || 'Ops AT';
   const body     = data.message || data.body || '';
   const tag      = data.tag     || 'wwp-notif';
   const taskId   = data.relatedTaskId || null;
   const notifType = data.type   || '';
 
-  const urgency  = NOTIF_URGENCY[notifType] || 'info';
+  const urgency  = data.urgency || NOTIF_URGENCY[notifType] || 'info';
   const assets   = RICH_ASSETS[urgency];
   const actions  = ACTIONS[urgency];
+  const url      = data.actionUrl || data.url || '/historial.html';
 
   // requireInteraction solo para críticas (la notif no desaparece sola)
   const requireInteraction = urgency === 'critical';
@@ -141,7 +148,7 @@ self.addEventListener('push', e => {
       requireInteraction,
       vibrate,
       actions,
-      data: { taskId, url: '/historial.html', notifType, urgency }
+      data: { taskId, url, notifType, urgency }
     })
   );
 });
