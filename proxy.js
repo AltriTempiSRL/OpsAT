@@ -5733,7 +5733,15 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/push/test' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!webpush) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'web-push no disponible en el servidor'})); return; }
-    const payload = JSON.stringify({ type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.', tag:'push-test' });
+    const testType = req.query.type || 'info';
+    const testPayloads = {
+      critical: { type:'pick_incomplete', title:'🚨 Pick incompleto', message:'Pick PICK001: falta ubicación.' },
+      alert: { type:'evidence_incomplete', title:'⚠️ Evidencia incompleta', message:'TAR12345: 2 artículos sin foto.' },
+      success: { type:'task_validated', title:'✅ Tarea validada', message:'TAR10234 completada y validada.' },
+      info: { type:'info', title:'Prueba OpsAT ✅', message:'Si ves esto, las notificaciones push funcionan en este dispositivo.' },
+    };
+    const testData = testPayloads[testType] || testPayloads.info;
+    const payload = JSON.stringify({ ...testData, tag:'push-test' });
     const mine = loadPushSubs().filter(s => s.userId === jp.userId);
     const results = await Promise.all(mine.map(s =>
       webpush.sendNotification(s.subscription, payload)
