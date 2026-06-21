@@ -6588,13 +6588,8 @@ const server = http.createServer(async (req, res) => {
       const dd = a.dueDate.localeCompare(b.dueDate);
       return dd !== 0 ? dd : new Date(b.createdAt) - new Date(a.createdAt);
     });
-    // Excluir mensajes e imágenes base64 del listado (reducir payload ~90%)
-    const slim = tasks.map(({messages, ...rest}) => {
-      if (rest.items?.length) {
-        rest = { ...rest, items: rest.items.map(({ image, kitImage, ...item }) => item) };
-      }
-      return rest;
-    });
+    // Excluir mensajes del listado (imágenes se mantienen — necesarias en empaque)
+    const slim = tasks.map(({messages, ...rest}) => rest);
     // ETag basado en el último updatedAt para 304 Not Modified en móviles
     const lastUp = tasks.reduce((max, t) => (t.updatedAt > max ? t.updatedAt : max), '');
     const etag = `"${Buffer.from(lastUp + tasks.length).toString('base64').slice(0, 12)}"`;
