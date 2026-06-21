@@ -8991,6 +8991,100 @@ const server = http.createServer(async (req, res) => {
   // SOLICITUDES DE DESPACHO VENTAS (SDV)
   // ══════════════════════════════════════════════════════════════════════════════
 
+
+  // GET /api/sdv/:id/odoo/refresh — refresh de artículos desde Odoo
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/odoo\/refresh$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const id = reqPath.split('/')[3];
+    
+    // Ejecutar lógica async
+    (async () => {
+      try {
+        const list = loadSdv();
+        const sol = list.find(s=>s.id===id);
+        if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Not found'})); return; }
+        if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
+        
+        const currentItems = sol.articulosOdoo || [];
+        if (!sol.odooOrderRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No ref'})); return; }
+        
+        // Fetch desde Odoo
+        let odooItems = [];
+        const ref = sol.odooOrderRef;
+        const tipo = sol.tipoSolicitud;
+        
+        if (tipo === 'devolucion') {
+          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name'],limit:1});
+          if (sos && sos.length) {
+            const so = sos[0];
+            const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
+            const outNames = (outs||[]).filter(p=>/\/OUT\//i.test(p.name)).map(p=>p.name);
+            if (outNames.length > 0) {
+              const retConds = outNames.map(n=>['origin','ilike',n]);
+              const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
+              const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name'],limit:20});
+              const retList = (rets||[]).filter(p=>/\/RET\//i.test(p.name));
+              if (retList.length > 0) {
+                const ret = retList[retList.length-1];
+                const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done'],limit:500});
+                const pids = [...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
+                const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode']}) : [];
+                const prodMap = {}; prods.forEach(p=>{ prodMap[p.id]=p; });
+                mls.forEach(function(m){
+                  if (!m.product_id) return;
+                  const p = prodMap[m.product_id[0]]||{};
+                  const qty = Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
+                  odooItems.push({sku:p.default_code||p.barcode||'',quantity:qty});
+                });
+              }
+            }
+          }
+        } else {
+          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name'],limit:1});
+          if (sos && sos.length) {
+            const so = sos[0];
+            const pickRes = await buildItemsFromPicks(so.name, ['assigned']);
+            (pickRes.items||[]).forEach(item=>{
+              odooItems.push({sku:item.sku,quantity:item.quantity});
+            });
+          }
+        }
+        
+        // Comparar
+        const getSku = item => (item.sku || '').trim();
+        const currentMap = new Map();
+        const odooMap = new Map();
+        currentItems.forEach(item => { const sku = getSku(item); if (sku) currentMap.set(sku, item); });
+        odooItems.forEach(item => { const sku = getSku(item); if (sku) odooMap.set(sku, item); });
+        
+        const added = odooItems.filter(item => { const sku = getSku(item); return sku && !currentMap.has(sku); });
+        const removed = currentItems.filter(item => { const sku = getSku(item); return sku && !odooMap.has(sku); });
+        const modified = [];
+        odooItems.forEach(item => {
+          const sku = getSku(item);
+          if (sku) {
+            const curr = currentMap.get(sku);
+            if (curr && curr.quantity !== item.quantity) modified.push({sku,current:curr.quantity,odoo:item.quantity});
+          }
+        });
+        
+        const response = {
+          ok: true,
+          timestamp: new Date().toISOString(),
+          changes: {added,removed,modified,current:odooItems},
+          summary: {totalCurrent:currentItems.length,totalOdoo:odooItems.length,addedCount:added.length,removedCount:removed.length,modifiedCount:modified.length}
+        };
+        
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(response));
+      } catch(e) {
+        res.writeHead(500,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:e.message}));
+      }
+    })();
+    return;
+  }
+
   // GET /api/sdv/lookup?ref=&tipo= — lookup Odoo para el formulario de ventas
   if (reqPath === '/api/sdv/lookup' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
