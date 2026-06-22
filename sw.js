@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v9-push-rich';
+const CACHE = 'wwp-v10-push-no-hero';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -10,10 +10,6 @@ const STATIC = [
   '/badge-alert.svg',
   '/badge-success.svg',
   '/badge-info.svg',
-  '/hero-critical.svg',
-  '/hero-alert.svg',
-  '/hero-success.svg',
-  '/hero-info.svg',
 ];
 
 self.addEventListener('install', e => {
@@ -82,12 +78,13 @@ const NOTIF_URGENCY = {
   reposicion_nueva: 'info',
 };
 
-// Imágenes heroicas y badges por urgencia
+// Badges por urgencia. No usar `image`: Chrome muestra una imagen grande que
+// ocupa demasiado espacio y distrae en notificaciones operativas.
 const RICH_ASSETS = {
-  critical: { hero: '/hero-critical.svg', badge: '/badge-critical.svg' },
-  alert:    { hero: '/hero-alert.svg',    badge: '/badge-alert.svg' },
-  success:  { hero: '/hero-success.svg',  badge: '/badge-success.svg' },
-  info:     { hero: '/hero-info.svg',     badge: '/badge-info.svg' },
+  critical: { badge: '/badge-critical.svg' },
+  alert:    { badge: '/badge-alert.svg' },
+  success:  { badge: '/badge-success.svg' },
+  info:     { badge: '/badge-info.svg' },
 };
 
 // Acciones por urgencia
@@ -142,7 +139,6 @@ self.addEventListener('push', e => {
       body,
       icon:  '/icon-192.png',
       badge: assets.badge,
-      image: assets.hero,
       tag,
       renotify: true,
       requireInteraction,
