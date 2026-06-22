@@ -10040,10 +10040,13 @@ function prefetchMyTasksOdoo() {
 
 async function openDrawer(taskId) {
   const mySeq = ++_drawerOpenSeq;
+  // Guardar referencia previa (puede venir del WebSocket sin filtro RBAC)
+  const preTask = (_tasks||[]).find(x=>x.id===taskId);
   // Re-fetch fresh data
   try {
     const r = await authFetch('/api/wwp/tasks');
-    _tasks = await r.json();
+    const fresh = await r.json();
+    if (Array.isArray(fresh)) _tasks = fresh;
   } catch {}
   if (mySeq !== _drawerOpenSeq) return;          // otra apertura tomó el control
   // Carga de trabajo (tareas activas por usuario) para mostrar al asignar auxiliares
@@ -10055,7 +10058,8 @@ async function openDrawer(taskId) {
     } catch {}
   }
   if (mySeq !== _drawerOpenSeq) return;
-  const t = _tasks.find(x=>x.id===taskId);
+  // Fallback a la tarea pre-fetch (visible vía WebSocket pero fuera del filtro RBAC REST)
+  const t = (_tasks||[]).find(x=>x.id===taskId) || preTask;
   if (!t) return;
   _drawerTask = t;
 
