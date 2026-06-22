@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v19-etag-fix';
+const APP_BUILD = 'v20-clean';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -3754,58 +3754,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
     res.end(JSON.stringify({ build: APP_BUILD }));
     return;
-  }
-
-  // ── /api/diag/task/:id — DIAGNÓSTICO TEMPORAL (protegido por clave) ─────────
-  // Revela: instancia/réplica que atiende (para detectar divergencia) + estado
-  // REAL en disco de una tarea (id, status, conteo de subtareas). Protegido con
-  // ?key= secreta para poder llamarlo desde cualquier sesión. QUITAR tras diagnosticar.
-  {
-    const _md = reqPath.match(/^\/api\/diag\/task\/([a-z0-9_]+)$/);
-    if (_md && req.method === 'GET') {
-      const _diagKey = url.parse(req.url, true).query.key || '';
-      if (_diagKey !== 'at-diag-9f3k2x7q') {
-        res.writeHead(403, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
-        return;
-      }
-      const id = _md[1];
-      const all = loadWwpTasks();
-      // Buscar por id interno O por seq (número de display, ej "0049" → seq 49)
-      const seqNum = parseInt(id, 10);
-      const t = all.find(x => x.id === id)
-             || (Number.isFinite(seqNum) ? all.find(x => x.seq === seqNum) : null)
-             || null;
-      const describe = (x) => x ? {
-        id: x.id, seq: x.seq, parentId: x.parentId || null, type: x.type,
-        status: x.status, updatedAt: x.updatedAt,
-        itemsTotal: (x.items||[]).length,
-        itemsConfirmed: (x.items||[]).filter(i=>i.confirmado).length,
-        fotosVehiculo: (x.fotos_vehiculo||[]).length,
-        fotosEntrega: (x.fotos_entrega||[]).length,
-        fotosRecepcion: (x.fotos_recepcion||[]).length
-      } : null;
-      const subs = t ? all.filter(x => x.parentId === t.id) : [];
-      const subsDone = subs.filter(s => s.status === 'completed' || s.status === 'validated').length;
-      res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
-      res.end(JSON.stringify({
-        build: APP_BUILD,
-        instance: {
-          pid: process.pid,
-          host: os.hostname(),
-          replicaId: process.env.RAILWAY_REPLICA_ID || null,
-          deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || null,
-          uptimeSec: Math.round(process.uptime())
-        },
-        dataDir: DATA_DIR,
-        totalTasks: all.length,
-        task: describe(t),
-        subtaskCount: subs.length,
-        subtasksDone: subsDone,
-        subtasks: subs.map(describe)
-      }));
-      return;
-    }
   }
 
   if (reqPath === '/api/health' && req.method === 'GET') {
