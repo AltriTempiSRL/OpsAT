@@ -10456,12 +10456,12 @@ function renderDrawer(t) {
       const wl = (_workloadMap||{})[u.id] || 0;
       const wlTxt = wl>0 ? (wl+' '+(wl===1?'tarea activa':'tareas activas')) : 'Sin tareas activas';
       const wlColor = wl===0 ? 'var(--green-text)' : (wl>=4 ? 'var(--red-text)' : (wl>=2?'var(--amber-text)':'var(--text-3)'));
-      return `<label class="assign-multi-row${checkedCls}" onclick="toggleAssignRow(this)">
-        <input type="checkbox" value="${u.id}" data-odoo="${u.odooId||''}" data-name="${esc(u.name)}" ${checkedAttr} onclick="event.stopPropagation()">
+      return `<div class="assign-multi-row${checkedCls}" onclick="toggleAssignRow(this)">
+        <input type="checkbox" value="${u.id}" data-odoo="${u.odooId||''}" data-name="${esc(u.name)}" ${checkedAttr} onclick="event.stopPropagation();this.closest('.assign-multi-row').classList.toggle('checked',this.checked)">
         <span class="assign-multi-avatar"${u.id?` data-oavatar-uid="${esc(String(u.id))}"`:(u.odooId?` data-oavatar-oid="${esc(String(u.odooId))}"`:'')} style="background:${aColor(u.name)}">${aInit(u.name)}</span>
         <span class="assign-multi-name">${esc(u.name)}<span style="display:block;font-size:10px;font-weight:600;color:${wlColor}">${wlTxt}</span></span>
         <span class="assign-multi-badge ${roleCss}">${roleLabel}</span>
-      </label>`;
+      </div>`;
     }).join('');
 
     actionHtml += `<div style="margin-bottom:16px">
