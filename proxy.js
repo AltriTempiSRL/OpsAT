@@ -2704,6 +2704,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   if (!userId) return null;
   // Enviar a userId original + todos los supervisores (actualizados en cada login)
   const recipientIds = [userId, ...supervisorUserIds.filter(uid => uid !== userId)];
+  let primaryNotif = null;
 
   recipientIds.forEach(uid => {
     const notif = {
@@ -2749,9 +2750,10 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
         });
       });
     }
+    if (uid === userId) primaryNotif = notif;
   });
 
-  return notif;
+  return primaryNotif;
 }
 
 function notifyMany(userIds, payload) {
@@ -6886,16 +6888,28 @@ const server = http.createServer(async (req, res) => {
       if (authId && authId !== jp.userId) recipients.add(authId);
     });
     const firstName = jp.name.split(' ')[0];
-    recipients.forEach(uid => createNotification(uid, {
-      type: 'task_chat',
-      title: task.title || task.id,
-      message: msg.text ? `${firstName}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${firstName} envió una foto 📷` : `${firstName} envió un video 🎥`,
-      relatedTaskId: taskId,
-      by: firstName
-    }));
+    recipients.forEach(uid => {
+      try {
+        createNotification(uid, {
+          type: 'task_chat',
+          title: task.title || task.id,
+          message: msg.text ? `${firstName}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${firstName} envió una foto 📷` : `${firstName} envió un video 🎥`,
+          relatedTaskId: taskId,
+          by: firstName
+        });
+      } catch(e) {
+        console.warn('[chat-notification]', taskId, uid, e.message);
+      }
+    });
     // Push SSE del mensaje nuevo a todos los que tienen el drawer abierto
     // (incluyendo al sender para multi-tab sync)
     const allParticipants = new Set([task.managerId, assigneeId, task.createdBy].filter(Boolean));
+    (task.assignees || []).forEach(uid => { if (uid) allParticipants.add(uid); });
+    (task.auxiliaryAssignees || []).forEach(uid => { if (uid) allParticipants.add(uid); });
+    (task.executors || []).forEach(uid => {
+      const authId = odooStrToAuthId(uid);
+      if (authId) allParticipants.add(authId);
+    });
     const sseData = `data: ${JSON.stringify({event:'chat_message', taskId, message:msg})}\n\n`;
     allParticipants.forEach(uid => {
       (sseClients.get(uid)||new Set()).forEach(r => { try { r.write(sseData); } catch {} });
