@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v18-version-gate';
+const APP_BUILD = 'v19-etag-fix';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -6908,9 +6908,13 @@ const server = http.createServer(async (req, res) => {
     });
     // Excluir mensajes del listado (imágenes se mantienen — necesarias en empaque)
     const slim = tasks.map(({messages, ...rest}) => rest);
-    // ETag basado en el último updatedAt para 304 Not Modified en móviles
+    // ETag para 304 Not Modified en móviles. Hash sha1 del último updatedAt +
+    // conteo: la avalancha del hash garantiza que CUALQUIER cambio de estado
+    // (no solo alta/baja de tareas) produzca un ETag distinto.
+    // ⚠️ NO truncar el timestamp con base64.slice — eso colapsaba el ETag a la
+    // fecha (mismo valor todo el día) y devolvía 304 aunque la tarea cambiara.
     const lastUp = tasks.reduce((max, t) => (t.updatedAt > max ? t.updatedAt : max), '');
-    const etag = `"${Buffer.from(lastUp + tasks.length).toString('base64').slice(0, 12)}"`;
+    const etag = `"${crypto.createHash('sha1').update(lastUp + '|' + tasks.length).digest('hex').slice(0, 16)}"`;
     if (req.headers['if-none-match'] === etag) {
       res.writeHead(304); res.end(); return;
     }
