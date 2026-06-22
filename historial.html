@@ -15861,7 +15861,8 @@ if ('serviceWorker' in navigator) {
   // Cuando el SW nuevo toma control (después de skipWaiting), recargar la página
   // para que el nuevo JS (polling, fixes) entre en efecto sin que el usuario haga nada.
   navigator.serviceWorker.addEventListener('controllerchange', function() {
-    window.location.reload();
+    toast('Actualizando app…');
+    setTimeout(function() { window.location.reload(); }, 1500);
   });
 }
 

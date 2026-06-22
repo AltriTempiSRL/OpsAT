@@ -2264,6 +2264,13 @@ const sseClients = new Map();
 const wwpWsClients = new Set();
 let wwpStateVersion = Date.now();
 
+// Limpieza de sockets muertos cada 30s — iOS puede matar WS sin disparar close/error
+setInterval(() => {
+  wwpWsClients.forEach(socket => {
+    if (!socket.writable || socket.destroyed) wwpWsClients.delete(socket);
+  });
+}, 30000);
+
 // Limpieza periódica de conexiones SSE destruidas (cada 5 min)
 setInterval(() => {
   sseClients.forEach((set, uid) => {
