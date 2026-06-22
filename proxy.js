@@ -2317,11 +2317,11 @@ function broadcastWwp(event, payload={}) {
 }
 
 function broadcastWwpTasks(action, task=null, extra={}) {
+  // No incluir tasks en el broadcast — cada cliente re-fetcha via REST (RBAC correcto)
   broadcastWwp('tasks:changed', {
     action,
     task,
     taskId: task?.id || extra.taskId || null,
-    tasks: loadWwpTasks(),
     dashboardDirty: true,
     ...extra
   });
@@ -11433,8 +11433,8 @@ server.on('upgrade', (req, socket) => {
     scope: 'wwp',
     event: 'hello',
     version: wwpStateVersion,
-    at: new Date().toISOString(),
-    tasks: loadWwpTasks()
+    at: new Date().toISOString()
+    // tasks omitido — cliente re-fetcha via REST con RBAC correcto
   });
 
   socket.on('data', buf => {

@@ -8456,21 +8456,43 @@ function connectWwpRealtime() {
       if (msg.scope !== 'wwp' || (msg.version && msg.version <= _wwpLastVersion)) return;
       if (msg.version) _wwpLastVersion = msg.version;
 
-      if ((msg.event === 'hello' || msg.event === 'tasks:changed') && Array.isArray(msg.tasks)) {
-        _tasks = msg.tasks;
-        if (!_drawerTask) renderTasks();
-        if (_drawerTask) {
-          const fresh = _tasks.find(t => t.id === _drawerTask.id);
-          if (fresh) {
-            _drawerTask = fresh;
-            renderDrawer(fresh);
-            const chatBox = document.getElementById('dr-chat-messages');
-            if (chatBox && msg.action === 'message_created') loadChatMessages(fresh.id);
-          } else {
-            closeDrawer();
+      if (msg.event === 'hello' || msg.event === 'tasks:changed') {
+        if (Array.isArray(msg.tasks)) {
+          // Legado: servidor antiguo envió tasks en el payload — usar directamente
+          _tasks = msg.tasks;
+          if (!_drawerTask) renderTasks();
+          if (_drawerTask) {
+            const fresh = _tasks.find(t => t.id === _drawerTask.id);
+            if (fresh) {
+              _drawerTask = fresh;
+              renderDrawer(fresh);
+              const chatBox = document.getElementById('dr-chat-messages');
+              if (chatBox && msg.action === 'message_created') loadChatMessages(fresh.id);
+            } else {
+              closeDrawer();
+            }
           }
+          if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
+        } else {
+          // Nuevo protocolo: re-fetchear via REST (RBAC correcto por usuario)
+          authFetch('/api/wwp/tasks').then(r => r.json()).then(function(fresh) {
+            if (!Array.isArray(fresh)) return;
+            _tasks = fresh;
+            if (!_drawerTask) renderTasks();
+            if (_drawerTask) {
+              const t = _tasks.find(t => t.id === _drawerTask.id);
+              if (t) {
+                _drawerTask = t;
+                renderDrawer(t);
+                const chatBox = document.getElementById('dr-chat-messages');
+                if (chatBox && msg.action === 'message_created') loadChatMessages(t.id);
+              } else {
+                closeDrawer();
+              }
+            }
+            if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
+          }).catch(function(){});
         }
-        if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
       }
 
       if (msg.event === 'notification' && msg.notif && msg.userId === (_user && _user.id)) {
