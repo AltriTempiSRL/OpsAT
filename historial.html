@@ -7282,7 +7282,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v20-clean';
+var APP_BUILD = 'v21-chat-input-fix';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8526,7 +8526,7 @@ function connectWwpRealtime() {
             const fresh = _tasks.find(t => t.id === _drawerTask.id);
             if (fresh) {
               _drawerTask = fresh;
-              renderDrawer(fresh);
+              if (!_isTypingInDrawer()) renderDrawer(fresh);   // no reconstruir mientras el usuario escribe
               const chatBox = document.getElementById('dr-chat-messages');
               if (chatBox && msg.action === 'message_created') loadChatMessages(fresh.id);
             } else {
@@ -8544,7 +8544,7 @@ function connectWwpRealtime() {
               const t = _tasks.find(t => t.id === _drawerTask.id);
               if (t) {
                 _drawerTask = t;
-                renderDrawer(t);
+                if (!_isTypingInDrawer()) renderDrawer(t);   // no reconstruir mientras el usuario escribe
                 const chatBox = document.getElementById('dr-chat-messages');
                 if (chatBox && msg.action === 'message_created') loadChatMessages(t.id);
               } else {
@@ -8587,7 +8587,7 @@ function connectWwpRealtime() {
     if (!_drawerTask) renderTasks();
     if (_drawerTask) {
       var t = _tasks.find(function(x) { return x.id === _drawerTask.id; });
-      if (t) { _drawerTask = t; renderDrawer(t); }
+      if (t) { _drawerTask = t; if (!_isTypingInDrawer()) renderDrawer(t); }  // no reconstruir mientras escribe
       else closeDrawer();
     }
     if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
@@ -10323,6 +10323,17 @@ function closeDrawer() {
   document.getElementById('wwp-drawer').classList.remove('open');
   _drawerTask = null;
   renderTasks();
+}
+// True si el usuario está escribiendo dentro del drawer (input/textarea con foco).
+// Se usa para NO reconstruir el drawer en un refresh de fondo (poll/WS) y evitar
+// que se borre el texto y se cierre el teclado en móvil mientras escribe en el chat.
+function _isTypingInDrawer() {
+  var el = document.activeElement;
+  if (!el) return false;
+  var tag = el.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !el.isContentEditable) return false;
+  var drawer = document.getElementById('wwp-drawer');
+  return !!(drawer && drawer.contains(el));
 }
 // Recarga la tarea abierta desde el servidor sin refrescar el browser
 async function refreshDrawer(btn) {
