@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v14-poll-fallback';
+const CACHE = 'wwp-v15-auto-reload';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',

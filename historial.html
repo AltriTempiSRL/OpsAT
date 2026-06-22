@@ -15858,6 +15858,11 @@ if ('serviceWorker' in navigator) {
         .catch(e => console.warn('[SW] error:', e));
     }
   });
+  // Cuando el SW nuevo toma control (después de skipWaiting), recargar la página
+  // para que el nuevo JS (polling, fixes) entre en efecto sin que el usuario haga nada.
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    window.location.reload();
+  });
 }
 
 // ── PWA Install prompt ────────────────────────────────────────────────
