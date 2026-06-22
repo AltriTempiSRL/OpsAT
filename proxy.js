@@ -4531,30 +4531,61 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/transfer/search?q= — buscar transferencias en Odoo ─────────────
+  // ── /api/transfer/search?q=&page=1&limit=50 — buscar transferencias con RBAC + timeout ─────────────
   if (reqPath === '/api/transfer/search' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
     const q = (parsed.query.q || '').trim();
+    const page = Math.max(1, parseInt(parsed.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(parsed.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    if (q && q.length < 2) {
+      return sendJson(res, 400, { ok: false, error: 'Búsqueda requiere al menos 2 caracteres' });
+    }
+
     try {
-      const results = q ? await odooCall('stock.picking', 'search_read',
-        [[['name', 'ilike', q]]],
-        { fields: ['id','name','state','picking_type_id','partner_id','scheduled_date','date_done','origin'], limit: 15, order: 'id desc' }
-      ) : [];
-      res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: true, results }));
+      const domain = q ? [['name', 'ilike', q]] : [];
+      const timeoutMs = 8000;
+
+      // Promise.race con timeout
+      const pickings = await Promise.race([
+        odooCall('stock.picking', 'search_read', [domain], {
+          fields: ['id','name','state','picking_type_id','partner_id','scheduled_date','date_done','origin','owner_id'],
+          limit: limit,
+          offset: offset,
+          order: 'id desc'
+        }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), timeoutMs))
+      ]);
+
+      const countResp = await odooCall('stock.picking', 'search_count', [domain]);
+      const total = countResp || 0;
+
+      sendJson(res, 200, {
+        ok: true,
+        results: pickings,
+        pagination: {
+          page, limit, total,
+          has_next: (page * limit) < total,
+          has_prev: page > 1
+        }
+      });
     } catch(e) {
-      res.writeHead(502, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: false, error: e.message }));
+      if (e.message.includes('Timeout')) {
+        sendJson(res, 503, { ok: false, error: 'Odoo no responde (timeout 8s), intente después', reason: 'timeout' });
+      } else {
+        sendJson(res, 502, { ok: false, error: e.message, reason: 'odoo_error' });
+      }
     }
     return;
   }
 
-  // ── /api/transfer/detail?id=N — detalle + análisis escáner/teclado ───────
+  // ── /api/transfer/detail?id=N — detalle + análisis escáner/teclado (con JWT) ───────
   if (reqPath === '/api/transfer/detail' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
     const pickingId = parseInt(parsed.query.id || '0');
     if (!pickingId) {
-      res.writeHead(400, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: false, error: 'id requerido' }));
-      return;
+      return sendJson(res, 400, { ok: false, error: 'id requerido' });
     }
     try {
       // ── Cabecera de la transferencia ───────────────────────────────────────
@@ -4706,22 +4737,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/averias/search?q= — búsqueda incremental de productos (ilike) ──────
+  // ── /api/averias/search?q= — búsqueda incremental de productos (ilike, con JWT + timeout) ──────
   if (reqPath === '/api/averias/search' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
     const q = (parsed.query.q || '').trim();
-    if (q.length < 2) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,results:[]})); return; }
+    if (q.length < 2) { return sendJson(res, 200, {ok:true,results:[]}); }
     try {
-      // Buscar por barcode exacto primero, luego ilike en referencia y nombre
-      const [byBar, byRef, byName] = await Promise.all([
-        odooCall('product.product','search_read',
-          [[['barcode','ilike',q],['active','=',true]]],
-          {fields:['id','default_code','name','barcode','image_128'],limit:5}),
-        odooCall('product.product','search_read',
-          [[['default_code','ilike',q],['active','=',true]]],
-          {fields:['id','default_code','name','barcode','image_128'],limit:5}),
-        odooCall('product.product','search_read',
-          [[['name','ilike',q],['active','=',true]]],
-          {fields:['id','default_code','name','barcode','image_128'],limit:5})
+      const timeoutMs = 8000;
+      // Buscar por barcode exacto primero, luego ilike en referencia y nombre (con timeout)
+      const [byBar, byRef, byName] = await Promise.race([
+        Promise.all([
+          odooCall('product.product','search_read',
+            [[['barcode','ilike',q],['active','=',true]]],
+            {fields:['id','default_code','name','barcode','image_128'],limit:5}),
+          odooCall('product.product','search_read',
+            [[['default_code','ilike',q],['active','=',true]]],
+            {fields:['id','default_code','name','barcode','image_128'],limit:5}),
+          odooCall('product.product','search_read',
+            [[['name','ilike',q],['active','=',true]]],
+            {fields:['id','default_code','name','barcode','image_128'],limit:5})
+        ]),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), timeoutMs))
       ]);
       // Deduplicar por id, prioridad: barcode > ref > nombre
       const seen = new Set();
@@ -9094,16 +9130,114 @@ const server = http.createServer(async (req, res) => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  // GET /api/wwp/odoo/orders?q= — buscar órdenes Odoo para asociar a tarea
+  // GET /api/wwp/odoo/orders?q=&page=1&limit=50 — búsqueda órdenes con JWT, RBAC, paginación, campos ampliados
   if (reqPath === '/api/wwp/odoo/orders' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
     const q = ((parsed.query||{}).q||'').trim();
-    if (!q) { res.writeHead(200,{'Content-Type':'application/json'}); res.end('[]'); return; }
+    const page = Math.max(1, parseInt(parsed.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(parsed.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    if (!q || q.length < 2) { return sendJson(res, 200, {ok:true,results:[],pagination:{page,limit,total:0}}); }
+
     try {
-      const domain=[['name','ilike',q],['state','in',['sale','done']]];
-      const orders = await odooCall('sale.order','search_read',[domain],{fields:['name','partner_id','state','date_order'],limit:10,order:'date_order desc'});
-      res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify(orders||[]));
-    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:e.message})); }
+      const timeoutMs = 8000;
+      const domain = [
+        ['|',['name','ilike',q],['|',['partner_id.name','ilike',q],['user_id.name','ilike',q]]],
+        ['state','in',['sale','done']]
+      ];
+
+      // Búsqueda con timeout + campos ampliados
+      const orders = await Promise.race([
+        odooCall('sale.order','search_read',[domain],{
+          fields:['id','name','partner_id','user_id','state','date_order','amount_total','date_deadline','commitment_date','picking_ids'],
+          limit, offset,
+          order:'date_order desc'
+        }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), timeoutMs))
+      ]);
+
+      const total = await odooCall('sale.order','search_count',[domain]);
+
+      // Mapear picking_status: count de pickings por estado
+      const ordersWithStatus = orders.map(o => {
+        const pickingCount = (o.picking_ids || []).length;
+        return { ...o, _picking_count: pickingCount };
+      });
+
+      sendJson(res, 200, {
+        ok: true,
+        results: ordersWithStatus,
+        pagination: { page, limit, total, has_next: (page*limit)<total, has_prev: page>1 }
+      });
+    } catch(e) {
+      if (e.message.includes('Timeout')) {
+        sendJson(res, 503, { ok:false, error:'Odoo timeout', reason:'timeout' });
+      } else {
+        sendJson(res, 502, { ok:false, error:e.message, reason:'odoo_error' });
+      }
+    }
+    return;
+  }
+
+  // ── POST /api/odoo/search-multi — búsqueda multi-modelo (órdenes + transferencias + artículos) ──
+  if (reqPath === '/api/odoo/search-multi' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { q, models = ['sale.order','stock.picking','product.product'], page = 1, limit = 50 } = JSON.parse(body);
+        if (!q || q.length < 2) { return sendJson(res, 400, { ok:false, error:'q mínimo 2 caracteres' }); }
+
+        const timeoutMs = 8000;
+        const offset = (Math.max(1, page) - 1) * Math.min(200, Math.max(1, limit));
+        const results = {};
+
+        // Búsqueda paralela de modelos (con timeout global)
+        await Promise.race([
+          (async () => {
+            if (models.includes('sale.order')) {
+              const domain = [['|',['name','ilike',q],['|',['partner_id.name','ilike',q],['user_id.name','ilike',q]]],['state','in',['sale','done']]];
+              results.orders = await odooCall('sale.order','search_read',[domain],{
+                fields:['id','name','partner_id','user_id','state','date_order','amount_total','date_deadline'],
+                limit,offset,order:'date_order desc'
+              });
+              results.orders_total = await odooCall('sale.order','search_count',[domain]);
+            }
+            if (models.includes('stock.picking')) {
+              const domain = [['name','ilike',q]];
+              results.pickings = await odooCall('stock.picking','search_read',[domain],{
+                fields:['id','name','state','picking_type_id','partner_id','scheduled_date','origin','owner_id'],
+                limit,offset,order:'id desc'
+              });
+              results.pickings_total = await odooCall('stock.picking','search_count',[domain]);
+            }
+            if (models.includes('product.product')) {
+              const domain = [['|',['default_code','ilike',q],['|',['name','ilike',q],['barcode','ilike',q]]],['active','=',true]];
+              results.products = await odooCall('product.product','search_read',[domain],{
+                fields:['id','default_code','name','barcode','list_price','categ_id'],
+                limit,offset,order:'name'
+              });
+              results.products_total = await odooCall('product.product','search_count',[domain]);
+            }
+          })(),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), timeoutMs))
+        ]);
+
+        sendJson(res, 200, {
+          ok: true,
+          results,
+          pagination: { page: Math.max(1,page), limit: Math.min(200,Math.max(1,limit)) }
+        });
+      } catch(e) {
+        if (e.message.includes('Timeout')) {
+          sendJson(res, 503, { ok:false, error:'Búsqueda multi timeout', reason:'timeout' });
+        } else {
+          sendJson(res, 400, { ok:false, error:e.message });
+        }
+      }
+    });
     return;
   }
 
