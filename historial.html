@@ -7282,7 +7282,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v22-assign-fix';
+var APP_BUILD = 'v23';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11407,7 +11407,8 @@ async function assignManager(taskId) {
     const primaryOdoo = checked[0].dataset.odoo;
     payload.managerId = assignees[0];
     payload.managerName = primaryUser ? primaryUser.name : (checked[0].dataset.name||'');
-    payload.assignedTo = primaryOdoo ? ('oe_'+primaryOdoo) : undefined;
+    // null limpia assignedTo viejo cuando el nuevo encargado no tiene Odoo ID
+    payload.assignedTo = primaryOdoo ? ('oe_'+primaryOdoo) : null;
     // Solo pasar a 'assigned' si la tarea aún no fue iniciada
     if (_drawerTask?.status === 'pending') payload.status = 'assigned';
   }
@@ -11416,7 +11417,16 @@ async function assignManager(taskId) {
     const d = await r.json();
     if (!d.ok && !d.task) { toast('Error al asignar'); return; }
     toast('Asignado' + (names.length ? ': ' + names.slice(0,2).join(', ') + (names.length>2?' +'+( names.length-2):'') : ''));
-    openDrawer(taskId);
+    // Usar la tarea devuelta por el PATCH directamente — evita un GET adicional
+    // que en Railway multi-instancia podría traer datos viejos de otra réplica.
+    if (d.task) {
+      const _ti = (_tasks||[]).findIndex(t=>t.id===taskId);
+      if (_ti !== -1) _tasks[_ti] = d.task;
+      _drawerTask = d.task;
+      renderDrawer(d.task);
+    } else {
+      openDrawer(taskId);
+    }
   } catch(e) { toast('Error: '+e.message); }
 }
 
