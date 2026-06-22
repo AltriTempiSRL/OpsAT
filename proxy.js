@@ -9,6 +9,7 @@ const path       = require('path');
 const url        = require('url');
 const crypto     = require('crypto');
 const zlib       = require('zlib');
+const os         = require('os');
 // nodemailer se carga de forma lazy (solo si está instalado y se usa SMTP)
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch { /* no disponible en este entorno */ }
@@ -3753,6 +3754,47 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
     res.end(JSON.stringify({ build: APP_BUILD }));
     return;
+  }
+
+  // ── /api/diag/task/:id — DIAGNÓSTICO TEMPORAL (protegido por clave) ─────────
+  // Revela: instancia/réplica que atiende (para detectar divergencia) + estado
+  // REAL en disco de una tarea (id, status, conteo de subtareas). Protegido con
+  // ?key= secreta para poder llamarlo desde cualquier sesión. QUITAR tras diagnosticar.
+  {
+    const _md = reqPath.match(/^\/api\/diag\/task\/([a-z0-9_]+)$/);
+    if (_md && req.method === 'GET') {
+      const _diagKey = url.parse(req.url, true).query.key || '';
+      if (_diagKey !== 'at-diag-9f3k2x7q') {
+        res.writeHead(403, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
+        return;
+      }
+      const id = _md[1];
+      const all = loadWwpTasks();
+      const t = all.find(x => x.id === id) || null;
+      const subs = all.filter(x => x.parentId === id);
+      const subsDone = subs.filter(s => s.status === 'completed' || s.status === 'validated').length;
+      res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+      res.end(JSON.stringify({
+        build: APP_BUILD,
+        instance: {
+          pid: process.pid,
+          host: os.hostname(),
+          replicaId: process.env.RAILWAY_REPLICA_ID || null,
+          deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || null,
+          uptimeSec: Math.round(process.uptime())
+        },
+        dataDir: DATA_DIR,
+        totalTasks: all.length,
+        task: t ? {
+          id: t.id, status: t.status, updatedAt: t.updatedAt,
+          subtasks: subs.length, subtasksDone: subsDone,
+          itemsTotal: (t.items||[]).length,
+          itemsConfirmed: (t.items||[]).filter(i=>i.confirmado).length
+        } : null
+      }));
+      return;
+    }
   }
 
   if (reqPath === '/api/health' && req.method === 'GET') {
