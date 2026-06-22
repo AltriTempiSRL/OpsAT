@@ -8569,10 +8569,9 @@ function connectWwpRealtime() {
   ws.onerror = function() { try { ws.close(); } catch(e) { silentCatch(e, 'wsErrorClose'); } };
 }
 
-// ── Mobile PWA foreground refresh ───────────────────────────────────────────
-// iOS/Android matan el WS silenciosamente cuando la PWA va al background.
-// ws.onclose puede dispararse tarde o nunca. Al volver al foreground, forzamos
-// un re-fetch inmediato sin esperar a que el WS notifique.
+// ── Mobile PWA foreground refresh + polling fallback ────────────────────────
+// iOS/Android matan el WS silenciosamente en background y visibilitychange
+// es inconsistente en modo standalone. Triple capa: evento + bfcache + poll.
 (function() {
   var _lastVisibilityFetch = 0;
 
@@ -8588,27 +8587,34 @@ function connectWwpRealtime() {
     if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
   }
 
+  function _doFetch() {
+    if (!_token || document.hidden) return;
+    authFetch('/api/wwp/tasks').then(function(r) { return r.json(); })
+      .then(_applyFreshTasks).catch(function(){});
+  }
+
+  // Capa 1: visibilitychange (funciona en Android y parcialmente en iOS)
   document.addEventListener('visibilitychange', function() {
     if (document.hidden || !_token) return;
     var now = Date.now();
-    if (now - _lastVisibilityFetch < 3000) return; // debounce: evitar flood en iOS
+    if (now - _lastVisibilityFetch < 3000) return;
     _lastVisibilityFetch = now;
-    // Re-fetch inmediato — WS se reconecta solo via onclose, no en paralelo
-    authFetch('/api/wwp/tasks').then(function(r) { return r.json(); })
-      .then(_applyFreshTasks).catch(function(){});
+    _doFetch();
   });
 
-  // bfcache iOS Safari (navegación hacia atrás/adelante restaura la página congelada)
+  // Capa 2: bfcache iOS Safari (restauración de página congelada)
   window.addEventListener('pageshow', function(e) {
     if (!e.persisted || !_token) return;
-    // WS de la página congelada ya no sirve — reconectar explícitamente
     if (_wwpSocket && _wwpSocket.readyState >= 2) {
       _wwpSocket = null;
       connectWwpRealtime();
     }
-    authFetch('/api/wwp/tasks').then(function(r) { return r.json(); })
-      .then(_applyFreshTasks).catch(function(){});
+    _doFetch();
   });
+
+  // Capa 3: polling cada 25s — red de seguridad cuando WS y eventos fallan
+  // Solo hace fetch si el tab es visible y hay sesión activa (no genera carga extra)
+  setInterval(_doFetch, 25000);
 })();
 
 async function loadNotificationsFromServer() {
