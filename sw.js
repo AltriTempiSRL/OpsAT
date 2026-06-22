@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v10-push-no-hero';
+const CACHE = 'wwp-v11-push-no-hero-force';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -24,6 +24,10 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', e => {
