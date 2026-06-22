@@ -9668,7 +9668,7 @@ function overdueBadgeHtml(t) {
 
 function overdueReassignButtonHtml(t, opts) {
   opts = opts || {};
-  if (!isOverdueTask(t) || !canReassignTask()) return '';
+  if (!isOverdueTask(t) || !canReassignTask() || t.type === 'staffing') return '';
   const label = opts.label || 'Reasignar';
   const compact = !!opts.compact;
   return `<button class="btn-sm btn-reassign-soft ${compact?'btn-reassign-icon':''}" onclick="openTaskReassignPicker(event,'${t.id}')" title="Elegir otro responsable" aria-label="Reasignar tarea">
