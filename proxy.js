@@ -3771,8 +3771,21 @@ const server = http.createServer(async (req, res) => {
       }
       const id = _md[1];
       const all = loadWwpTasks();
-      const t = all.find(x => x.id === id) || null;
-      const subs = all.filter(x => x.parentId === id);
+      // Buscar por id interno O por seq (número de display, ej "0049" → seq 49)
+      const seqNum = parseInt(id, 10);
+      const t = all.find(x => x.id === id)
+             || (Number.isFinite(seqNum) ? all.find(x => x.seq === seqNum) : null)
+             || null;
+      const describe = (x) => x ? {
+        id: x.id, seq: x.seq, parentId: x.parentId || null, type: x.type,
+        status: x.status, updatedAt: x.updatedAt,
+        itemsTotal: (x.items||[]).length,
+        itemsConfirmed: (x.items||[]).filter(i=>i.confirmado).length,
+        fotosVehiculo: (x.fotos_vehiculo||[]).length,
+        fotosEntrega: (x.fotos_entrega||[]).length,
+        fotosRecepcion: (x.fotos_recepcion||[]).length
+      } : null;
+      const subs = t ? all.filter(x => x.parentId === t.id) : [];
       const subsDone = subs.filter(s => s.status === 'completed' || s.status === 'validated').length;
       res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
       res.end(JSON.stringify({
@@ -3786,12 +3799,10 @@ const server = http.createServer(async (req, res) => {
         },
         dataDir: DATA_DIR,
         totalTasks: all.length,
-        task: t ? {
-          id: t.id, status: t.status, updatedAt: t.updatedAt,
-          subtasks: subs.length, subtasksDone: subsDone,
-          itemsTotal: (t.items||[]).length,
-          itemsConfirmed: (t.items||[]).filter(i=>i.confirmado).length
-        } : null
+        task: describe(t),
+        subtaskCount: subs.length,
+        subtasksDone: subsDone,
+        subtasks: subs.map(describe)
       }));
       return;
     }
