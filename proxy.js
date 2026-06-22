@@ -3525,7 +3525,6 @@ const server = http.createServer(async (req, res) => {
 
   // ── Headers de seguridad ────────────────────────────────────────────────────
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'geolocation=(self), microphone=(), camera=()');
   res.setHeader('Content-Security-Policy',
@@ -3535,7 +3534,7 @@ const server = http.createServer(async (req, res) => {
     "img-src 'self' data: blob: https://*.tile.openstreetmap.org; " +
     "font-src 'self' data:; " +
     "connect-src 'self' https://altritempi.odoo.com https://docs.google.com https://sheets.googleapis.com https://*.tile.openstreetmap.org; " +
-    "frame-ancestors 'self'; " +
+    "frame-ancestors 'self' https://gjs6301-code.github.io; " +
     "base-uri 'self'; " +
     "form-action 'self'"
   );
