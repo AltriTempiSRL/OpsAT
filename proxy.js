@@ -94,6 +94,11 @@ function loadEnv(filename) {
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
+// contra esto y se recarga solo si difieren (auto-update independiente del SW).
+// SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
+const APP_BUILD = 'v18-version-gate';
+
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
 const WWP_SESSIONS_FILE = path.join(DATA_DIR, 'wwp-sessions.json');
@@ -3741,6 +3746,15 @@ const server = http.createServer(async (req, res) => {
   // ── /api/health — Railway health check (respuesta inmediata) ─────────────
   // Sin ?deep=true: responde en < 5 ms, no llama a Odoo ni Sheets.
   // Con ?deep=true: verifica Odoo + Sheets (usar manualmente, no como health check de plataforma).
+  // ── /api/app-version — build actual del servidor (sin auth, ultra-liviano) ──
+  // El cliente lo consulta periódicamente; si difiere de su APP_BUILD embebido,
+  // se recarga solo. No depende del Service Worker — no puede caer en deadlock.
+  if (reqPath === '/api/app-version' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+    res.end(JSON.stringify({ build: APP_BUILD }));
+    return;
+  }
+
   if (reqPath === '/api/health' && req.method === 'GET') {
     const deep = (url.parse(req.url, true).query.deep === 'true');
     if (!deep) {
