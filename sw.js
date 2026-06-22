@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v16-carl-fixes';
+const CACHE = 'wwp-v17-sw-force-reload';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -22,7 +22,14 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    )
+    .then(() => self.clients.claim())
+    .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+    .then(clients => Promise.all(
+      clients
+        .filter(c => /\/(historial\.html|$|\?)/.test(new URL(c.url).pathname))
+        .map(c => c.navigate(c.url).catch(() => c.postMessage({ type: 'SW_RELOAD' })))
+    ))
   );
 });
 
