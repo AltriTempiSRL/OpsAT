@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resumen del Día — Mockup v30</title>
+  <script src="lucide.min.js"></script>
+  <style>
+    :root {
+      --green-bg: #f0fdf4;
+      --green-text: #15803d;
+      --green-border: #bbf7d0;
+      --amber-bg: #fffbeb;
+      --amber-text: #92400e;
+      --amber-border: #fde68a;
+      --red-bg: #fef2f2;
+      --red-text: #991b1b;
+      --red-border: #fecaca;
+      --blue-bg: #eff6ff;
+      --blue-text: #1e40af;
+      --blue-border: #bfdbfe;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-700: #374151;
+      --gray-900: #111827;
+      --white: #ffffff;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-900);
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 1.875rem;
+      color: var(--gray-900);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3rem;
+      margin-bottom: 4rem;
+    }
+
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .panel-header {
+      padding: 1rem;
+      border-bottom: 2px solid var(--gray-200);
+      font-weight: 600;
+      font-size: 1.125rem;
+      background: var(--gray-100);
+    }
+
+    .panel-body {
+      padding: 1.5rem;
+      max-height: 800px;
+      overflow-y: auto;
+    }
+
+    .section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: var(--gray-100);
+      border-radius: 0.5rem;
+      border-left: 4px solid var(--blue-border);
+    }
+
+    .section-title {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+    }
+
+    .task-item {
+      padding: 0.75rem;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 0.375rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .task-name {
+      font-weight: 500;
+      color: var(--gray-900);
+      margin-bottom: 0.25rem;
+    }
+
+    .task-attr {
+      font-size: 0.85rem;
+      color: var(--gray-400);
+    }
+
+    .activity-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--gray-200);
+      font-size: 0.9rem;
+    }
+
+    .activity-stat:last-child {
+      border-bottom: none;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--blue-bg);
+      color: var(--blue-text);
+      border: 1px solid var(--blue-border);
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .chip-selected {
+      background: var(--green-bg);
+      color: var(--green-text);
+      border-color: var(--green-border);
+    }
+
+    .radio-group {
+      margin-bottom: 1rem;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: var(--white);
+      border: 2px solid var(--gray-200);
+      border-radius: 0.5rem;
+      cursor: pointer;
+    }
+
+    .radio-option input {
+      margin-right: 0.75rem;
+      cursor: pointer;
+    }
+
+    .radio-option label {
+      cursor: pointer;
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .radio-option:hover {
+      background: var(--gray-100);
+    }
+
+    .textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--gray-200);
+      border-radius: 0.375rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .button {
+      padding: 0.75rem 1.5rem;
+      background: var(--blue-text);
+      color: var(--white);
+      border: none;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.9rem;
+      margin-top: 1rem;
+      width: 100%;
+    }
+
+    .button:hover {
+      background: #1e3a8a;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--green-bg);
+      color: var(--green-text);
+      border: 1px solid var(--green-border);
+      border-radius: 0.25rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+
+    .badge-amber {
+      background: var(--amber-bg);
+      color: var(--amber-text);
+      border-color: var(--amber-border);
+    }
+
+    .badge-red {
+      background: var(--red-bg);
+      color: var(--red-text);
+      border-color: var(--red-border);
+    }
+
+    .manager-response {
+      background: var(--blue-bg);
+      border-left: 4px solid var(--blue-text);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .manager-response-title {
+      font-weight: 600;
+      color: var(--blue-text);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .manager-response-text {
+      color: var(--gray-900);
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .admin-table th {
+      background: var(--gray-100);
+      padding: 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid var(--gray-200);
+    }
+
+    .admin-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .admin-user-row {
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 0.5rem;
+    }
+
+    .admin-user-name {
+      font-weight: 600;
+      color: var(--gray-900);
+      margin-bottom: 0.5rem;
+    }
+
+    .admin-user-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    .admin-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem;
+      background: var(--gray-100);
+      border-radius: 0.25rem;
+    }
+
+    .pending-reasons {
+      background: var(--amber-bg);
+      border-left: 4px solid var(--amber-text);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .pending-reason-item {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--amber-border);
+    }
+
+    .pending-reason-item:last-child {
+      border-bottom: none;
+    }
+
+    .hidden-inputs {
+      display: none;
+    }
+
+    .comment-box {
+      background: var(--red-bg);
+      border-left: 4px solid var(--red-text);
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--red-text);
+    }
+
+    /* Miniaturas de fotos por tarea (igual que en la app: tira de thumbs + visor) */
+    .thumb-strip { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+    .thumb {
+      width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--gray-200);
+      display: flex; align-items: center; justify-content: center; font-size: 16px;
+      cursor: zoom-in; flex: 0 0 auto; position: relative;
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 50%, #93c5fd 100%);
+    }
+    .thumb.veh { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fcd34d 100%); }
+    .thumb.pkg { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 50%, #86efac 100%); }
+    .thumb-more { font-size: 11px; color: var(--gray-400); align-self: center; padding: 0 2px; }
+    .thumb-by { font-size: 9px; color: var(--gray-400); position: absolute; bottom: -13px; left: 0; white-space: nowrap; }
+
+    .veh-gate-banner {
+      background: var(--red-bg); border: 1.5px solid #dc2626; color: var(--red-text);
+      border-radius: 10px; padding: 12px 14px; margin: 0 0 14px;
+      font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 10px;
+    }
+    .veh-check-row {
+      display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--gray-200); font-size: 0.85rem;
+    }
+    .veh-yn { width: 30px; height: 30px; border-radius: 6px; border: 1.5px solid var(--gray-200);
+      display: inline-flex; align-items: center; justify-content: center; font-weight: 700; }
+    .veh-yn.si { background: var(--green-bg); color: var(--green-text); border-color: var(--green-border); }
+    .veh-yn.no { background: var(--white); color: var(--gray-400); }
+    .veh-photo-box {
+      width: 80px; height: 80px; border-radius: 8px; border: 2px dashed var(--gray-400);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--gray-400); gap: 3px; text-align: center;
+    }
+    .veh-photo-box.taken { border-style: solid; border-color: var(--green-border);
+      background: linear-gradient(135deg, #dcfce7, #86efac); color: var(--green-text); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗒️ Resumen del Día (v31) — Mockup Visual</h1>
+    <p style="text-align:center;color:var(--gray-700);margin:-1rem 0 2rem;font-size:0.95rem">Nuevo en v31: <b>fotos por tarea</b> en los 3 resúmenes + <b>inspección de vehículo diaria</b> como gate de acceso</p>
+
+    <div class="grid">
+      <!-- AUXILIAR VIEW -->
+      <div class="panel">
+        <div class="panel-header">👤 Vista Auxiliar — Albert (auxiliar)</div>
+        <div class="panel-body">
+          <!-- TU TRABAJO INDIVIDUAL -->
+          <div class="section">
+            <div class="section-title">▎ Tu trabajo individual</div>
+            <div class="task-item">
+              <div class="task-name">🔑 Picking: Preparar orden #5421</div>
+              <div class="task-attr">Status: completada · 15 ítems confirmados</div>
+              <div class="thumb-strip">
+                <div class="thumb pkg" title="Albert · ítem confirmado">📷</div>
+                <div class="thumb pkg" title="Albert · ítem confirmado">📷</div>
+                <div class="thumb pkg" title="Albert · caja sellada">📷</div>
+                <span class="thumb-more">+12</span>
+              </div>
+            </div>
+            <div class="task-item">
+              <div class="task-name">📸 Empaque: Fotos de daño (pqte AB-223)</div>
+              <div class="task-attr">Status: completada · 4 fotos de guía</div>
+              <div class="thumb-strip">
+                <div class="thumb" title="Albert · daño esquina">📷</div>
+                <div class="thumb" title="Albert · daño lateral">📷</div>
+                <div class="thumb" title="Albert · empaque final">📷</div>
+                <div class="thumb" title="Albert · etiqueta">📷</div>
+              </div>
+            </div>
+            <div style="padding: 0.75rem; background: var(--white); border-radius: 0.375rem; font-size: 0.85rem; color: var(--gray-700);">
+              <strong>Resumen de actividad:</strong>
+              <div class="activity-stat">
+                <span>Ítems confirmados:</span>
+                <strong>15</strong>
+              </div>
+              <div class="activity-stat">
+                <span>Fotos de guía:</span>
+                <strong>4</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRABAJO EN EQUIPO -->
+          <div class="section">
+            <div class="section-title">▎ Trabajo en equipo</div>
+            <div class="task-item">
+              <div class="task-name">🚚 Despacho: Preparar envío para tienda (Naco)</div>
+              <div class="task-attr">doc: Melvin · completada · 22 cajas</div>
+              <div class="thumb-strip">
+                <div class="thumb" title="Melvin · carga en camión">📷</div>
+                <div class="thumb" title="Melvin · cajas selladas">📷</div>
+                <span class="thumb-more">+6</span>
+              </div>
+            </div>
+            <div class="task-item">
+              <div class="task-name">🔍 QA: Inspección pre-empaque (lote C)</div>
+              <div class="task-attr">doc: José · completada · 8 unidades</div>
+              <div class="thumb-strip">
+                <div class="thumb" title="José · unidad inspeccionada">📷</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PENDIENTE -->
+          <div class="section">
+            <div class="section-title">▎ Pendiente — ¿por qué?</div>
+            <div class="task-item" style="margin-bottom: 0.75rem;">
+              <div class="task-name">📦 Picking: Orden #5425 (23 ítems)</div>
+              <div class="thumb-strip">
+                <div class="thumb pkg" title="Albert · avance parcial">📷</div>
+                <div class="thumb pkg" title="Albert · pendiente">📷</div>
+              </div>
+              <div style="margin-top: 0.5rem;">
+                <strong style="font-size: 0.85rem;">Motivo:</strong>
+                <div>
+                  <span class="chip chip-selected">fin_turno</span>
+                </div>
+              </div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--gray-600);">
+                <strong>Detalle:</strong> Terminé mi turno a las 17:30. Continúa mañana con prioritarios.
+              </div>
+            </div>
+
+            <div class="task-item">
+              <div class="task-name">🧹 Limpieza: Área de picking</div>
+              <div style="margin-top: 0.5rem;">
+                <strong style="font-size: 0.85rem;">Motivo:</strong>
+                <div>
+                  <span class="chip chip-selected">continua_extra</span>
+                </div>
+              </div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--gray-600);">
+                <strong>Detalle:</strong> Pendiente de horario extra, cargo al viernes.
+              </div>
+            </div>
+          </div>
+
+          <!-- VALIDACIÓN -->
+          <div class="section">
+            <div class="section-title">▎ ¿Tu resumen está correcto?</div>
+            <div class="radio-group">
+              <div class="radio-option">
+                <input type="radio" name="validation" id="correct" checked>
+                <label for="correct">✔️ Todo correcto</label>
+              </div>
+              <div class="radio-option">
+                <input type="radio" name="validation" id="discrepancy">
+                <label for="discrepancy">⚠️ Algo no cuadra</label>
+              </div>
+            </div>
+            <div style="padding: 0.75rem; background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 0.375rem; color: var(--green-text); font-size: 0.85rem; font-weight: 500;">
+              Estado: <strong>✓ Resumen validado</strong>
+            </div>
+          </div>
+
+          <button class="button">📤 Enviar resumen</button>
+        </div>
+      </div>
+
+      <!-- ENCARGADO VIEW -->
+      <div class="panel">
+        <div class="panel-header">🧑‍💼 Vista Encargado — Jefe (manager)</div>
+        <div class="panel-body">
+          <div style="margin-bottom: 1.5rem;">
+            <div style="font-weight: 600; color: var(--gray-900); margin-bottom: 1rem;">Reporte de Auxiliares Enviados</div>
+
+            <!-- Albert -->
+            <div class="admin-user-row">
+              <div class="admin-user-name">👤 Albert De La Cruz</div>
+              <div class="admin-user-stats">
+                <div class="admin-stat">
+                  <span>Individual:</span>
+                  <strong>2</strong>
+                </div>
+                <div class="admin-stat">
+                  <span>En equipo:</span>
+                  <strong>2</strong>
+                </div>
+                <div class="admin-stat">
+                  <span>Pendiente:</span>
+                  <strong>2</strong>
+                </div>
+                <div class="admin-stat">
+                  <span>Validado:</span>
+                  <strong style="color: var(--green-text);">✓</strong>
+                </div>
+              </div>
+
+              <div class="pending-reasons">
+                <strong style="display: block; margin-bottom: 0.5rem;">Motivos pendientes:</strong>
+                <div class="pending-reason-item">
+                  <span class="badge">fin_turno</span> Orden #5425 — Terminó turno 17:30
+                </div>
+                <div class="pending-reason-item">
+                  <span class="badge badge-amber">continua_extra</span> Limpieza — Espera horario extra
+                </div>
+              </div>
+
+              <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--gray-200);">
+                <button style="padding: 0.5rem 1rem; background: var(--blue-text); color: var(--white); border: none; border-radius: 0.375rem; font-weight: 500; cursor: pointer; width: 100%; font-size: 0.85rem;">
+                  ➕ Responder a Albert
+                </button>
+              </div>
+            </div>
+
+            <!-- José (sin enviar) -->
+            <div class="admin-user-row" style="opacity: 0.6; border: 2px dashed var(--gray-300);">
+              <div class="admin-user-name" style="color: var(--gray-600);">👤 José Martínez</div>
+              <div style="padding: 0.75rem; background: var(--amber-bg); border-left: 4px solid var(--amber-text); border-radius: 0.375rem; color: var(--amber-text); font-size: 0.85rem;">
+                ⏳ Aún no envió su resumen
+              </div>
+            </div>
+          </div>
+
+          <!-- RESPUESTA DEL ENCARGADO (ejemplo) -->
+          <div class="manager-response">
+            <div class="manager-response-title">🔔 Mi respuesta a Albert:</div>
+            <div class="manager-response-text">
+              "Se retiró 5pm por cita médica con el doc. Continúa mañana 8am con las prioritarias de picking. Orden #5425 está en backlog."
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN VIEW -->
+      <div class="panel">
+        <div class="panel-header">🛠️ Vista Admin — Resumen del Equipo</div>
+        <div class="panel-body">
+          <!-- CONTADORES CONSOLIDADOS -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
+            <div style="background: var(--green-bg); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+              <div style="font-size: 0.85rem; color: var(--gray-600);">Enviaron</div>
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--green-text);">2</div>
+            </div>
+            <div style="background: var(--amber-bg); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+              <div style="font-size: 0.85rem; color: var(--gray-600);">Sin enviar</div>
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--amber-text);">1</div>
+            </div>
+            <div style="background: var(--blue-bg); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+              <div style="font-size: 0.85rem; color: var(--gray-600);">En equipo</div>
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--blue-text);">6</div>
+            </div>
+            <div style="background: var(--red-bg); padding: 1rem; border-radius: 0.5rem; text-align: center;">
+              <div style="font-size: 0.85rem; color: var(--gray-600);">Pendiente</div>
+              <div style="font-size: 1.5rem; font-weight: 700; color: var(--red-text);">4</div>
+            </div>
+          </div>
+
+          <!-- TABLA POR PERSONA -->
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Auxiliar</th>
+                <th>Indiv.</th>
+                <th>Equipo</th>
+                <th>Pend.</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Albert De La Cruz</strong></td>
+                <td>2</td>
+                <td>2</td>
+                <td>2</td>
+                <td><span class="badge">✓ Enviado</span></td>
+              </tr>
+              <tr>
+                <td><strong>José Martínez</strong></td>
+                <td>1</td>
+                <td>1</td>
+                <td>1</td>
+                <td><span class="badge badge-amber">⏳ Pendiente</span></td>
+              </tr>
+              <tr>
+                <td><strong>Melvin Rodríguez</strong></td>
+                <td>3</td>
+                <td>2</td>
+                <td>0</td>
+                <td><span class="badge">✓ Enviado</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- DETALLE Albert (expandido) -->
+          <div style="background: var(--gray-100); padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+            <div style="font-weight: 600; color: var(--gray-900); margin-bottom: 0.75rem;">👤 Albert — Detalles</div>
+
+            <div style="margin-bottom: 0.75rem;">
+              <strong style="font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Motivos de pendientes:</strong>
+              <div style="background: var(--white); padding: 0.75rem; border-radius: 0.375rem; font-size: 0.85rem;">
+                <div style="margin-bottom: 0.5rem;">
+                  <span class="badge">fin_turno</span><br>
+                  <span style="color: var(--gray-600);">Orden #5425 — Terminó turno 17:30</span>
+                </div>
+                <div>
+                  <span class="badge badge-amber">continua_extra</span><br>
+                  <span style="color: var(--gray-600);">Limpieza — Espera horario extra viernes</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="manager-response">
+              <div class="manager-response-title">↩️ Respuesta del encargado:</div>
+              <div class="manager-response-text">
+                "Se retiró 5pm por cita médica. Continúa mañana 8am."
+              </div>
+            </div>
+
+            <!-- FOTOS DEL DÍA (agregadas de todas sus tareas) -->
+            <div style="margin-top: 0.75rem;">
+              <div style="font-size: 0.8rem; color: var(--gray-700); margin-bottom: 4px;">📷 Fotos del día (24)</div>
+              <div class="thumb-strip">
+                <div class="thumb pkg" title="Albert · orden #5421">📷</div>
+                <div class="thumb pkg" title="Albert · orden #5421">📷</div>
+                <div class="thumb" title="Albert · daño AB-223">📷</div>
+                <div class="thumb" title="Melvin · envío Naco">📷</div>
+                <div class="thumb" title="José · QA lote C">📷</div>
+                <div class="thumb pkg" title="Albert · pendiente #5425">📷</div>
+                <span class="thumb-more">+18</span>
+              </div>
+            </div>
+          </div>
+
+          <button class="button" style="margin-top: 1.5rem; background: var(--gray-700);">
+            📊 Ver completo
+          </button>
+        </div>
+      </div>
+
+      <!-- INSPECCIÓN DE VEHÍCULO — GATE DE ACCESO -->
+      <div class="panel" style="border: 2px solid #dc2626;">
+        <div class="panel-header" style="background: var(--red-bg); color: var(--red-text);">🚗 Gate de acceso — Inspección de vehículo (lo que ve el auxiliar designado al entrar)</div>
+        <div class="panel-body">
+          <div class="veh-gate-banner">
+            <span style="font-size: 22px;">🚗</span>
+            <span>No puedes ingresar a tus tareas hasta completar la <b>inspección de vehículo de hoy</b>. Llena el checklist, toma al menos una foto del vehículo y guarda.</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div><label style="font-size:0.8rem;color:var(--gray-700)">Vehículo</label><div style="padding:8px;background:var(--gray-100);border-radius:6px;font-size:0.85rem;font-weight:600">Camión 1 · A123456</div></div>
+            <div><label style="font-size:0.8rem;color:var(--gray-700)">Conductor</label><div style="padding:8px;background:var(--gray-100);border-radius:6px;font-size:0.85rem;font-weight:600">Albert De La Cruz</div></div>
+          </div>
+
+          <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px">Checklist de inspección</div>
+          <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:8px;padding:0 0.75rem;margin-bottom:1rem;">
+            <div class="veh-check-row"><span>Llantas en buen estado</span><span class="veh-yn si">✓</span><span class="veh-yn no">✗</span></div>
+            <div class="veh-check-row"><span>Nivel de aceite / fluidos</span><span class="veh-yn si">✓</span><span class="veh-yn no">✗</span></div>
+            <div class="veh-check-row"><span>Luces y señales</span><span class="veh-yn si">✓</span><span class="veh-yn no">✗</span></div>
+            <div class="veh-check-row"><span>Frenos</span><span class="veh-yn si">✓</span><span class="veh-yn no">✗</span></div>
+            <div class="veh-check-row" style="border-bottom:none"><span>Carrocería sin daños nuevos</span><span class="veh-yn si">✓</span><span class="veh-yn no">✗</span></div>
+          </div>
+
+          <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px">📸 Fotos del vehículo <span style="color:#dc2626">· obligatoria al menos 1</span></div>
+          <div style="display:flex;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap">
+            <div class="veh-photo-box taken">📷<span>Frente ✓</span></div>
+            <div class="veh-photo-box">📷<span>Trasera</span></div>
+            <div class="veh-photo-box">📷<span>Izquierda</span></div>
+            <div class="veh-photo-box">📷<span>Derecha</span></div>
+          </div>
+
+          <div style="display:flex;gap:0.75rem;align-items:center;margin-bottom:1rem">
+            <span style="font-size:0.85rem;font-weight:600">¿Vehículo apto?</span>
+            <span class="badge">✓ Sí, apto</span>
+            <span style="color:var(--gray-400);font-size:0.85rem">○ No apto</span>
+          </div>
+
+          <button class="button" style="background: var(--green-text);">✓ Guardar inspección y entrar a mis tareas</button>
+          <div style="text-align:center;font-size:0.8rem;color:var(--gray-400);margin-top:0.5rem">Al guardar (con foto), el acceso a Tareas se libera automáticamente.</div>
+        </div>
+      </div>
+
+      <!-- ADMIN: TOGGLE POR USUARIO -->
+      <div class="panel">
+        <div class="panel-header">🛠️ Admin · Usuarios — activar inspección y resumen por persona</div>
+        <div class="panel-body">
+          <p style="font-size:0.9rem;color:var(--gray-700);margin-bottom:1rem">En <b>Usuarios</b>, cada persona tiene dos interruptores. Tú decides a quién le aplica (piloto / por turno):</p>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;border:1px solid var(--gray-200);border-radius:8px;margin-bottom:0.5rem">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--blue-text)">AD</div>
+            <div style="flex:1"><div style="font-weight:600">Albert De La Cruz</div><div style="font-size:0.8rem;color:var(--gray-400)">adelacruz@altritempi.com.do</div></div>
+            <span class="badge" style="background:var(--green-bg);color:var(--green-text)">📋 Resumen: ON</span>
+            <span class="badge" style="background:var(--green-bg);color:var(--green-text)">🚗 Inspección: ON</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;border:1px solid var(--gray-200);border-radius:8px">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--blue-text)">JM</div>
+            <div style="flex:1"><div style="font-weight:600">José Martínez</div><div style="font-size:0.8rem;color:var(--gray-400)">jmartinez@altritempi.com.do</div></div>
+            <span class="badge" style="background:var(--gray-100);color:var(--gray-400)">📋 Resumen: OFF</span>
+            <span class="badge" style="background:var(--green-bg);color:var(--green-text)">🚗 Inspección: ON</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEYENDA -->
+    <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 0.75rem; padding: 1.5rem; margin-top: 2rem;">
+      <h2 style="margin-bottom: 1rem; font-size: 1.125rem;">📌 Leyenda</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem;">Auxiliar (tu vista)</h3>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 1.6;">
+            <li>✔️ <strong>Individual:</strong> Solo tú documentaste</li>
+            <li>👥 <strong>En equipo:</strong> Trabajaron contigo pero otro documentó</li>
+            <li>⏳ <strong>Pendiente:</strong> Tareas abiertas con motivo temporal</li>
+            <li>✓ <strong>Validar:</strong> Confirmas que todo está correcto</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem;">Encargado + Admin</h3>
+          <ul style="list-style: none; font-size: 0.9rem; line-height: 1.6;">
+            <li>🔔 <strong>Respuesta:</strong> Contexto (cita, ausencia, etc.)</li>
+            <li>📊 <strong>Consolidado:</strong> Todos los auxiliares de un vistazo</li>
+            <li>🏷️ <strong>Motivos:</strong> fin_turno, mañana, multi_día, continúa_extra, otro</li>
+            <li>⚠️ <strong>Discrepancias:</strong> Si auxiliar reporta "algo no cuadra"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="lucide.min.js"></script>
+  <script>
+    if (window.lucide) lucide.createIcons();
+  </script>
+</body>
+</html>

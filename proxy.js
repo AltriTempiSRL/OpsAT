@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v30';
+const APP_BUILD = 'v31';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -431,6 +431,20 @@ function loadDailyCloses() { return loadJson(DAILY_CLOSE_FILE, []); }
 function saveDailyCloses(d) { saveJson(DAILY_CLOSE_FILE, d); }
 function dcToday() { return new Date().toISOString().slice(0,10); }
 function dcCloseFor(closes, userId, date) { return closes.find(c => c.userId === userId && c.date === date) || null; }
+
+// ── Gate de inspección diaria de vehículo ──────────────────────────────────────
+// Bloquea a un usuario DESIGNADO (user.vehicleInspectionRequired) hasta que registre
+// la inspección de vehículo del día. Por defecto NADIE está designado → no bloquea a
+// nadie (mismo patrón "nace apagado" que el gate de formación). Lo activa el admin por
+// usuario desde la lista de Usuarios.
+function vehInspectionGate(user) {
+  if (!user || !user.vehicleInspectionRequired) return { required:false, completed:true, blocked:false };
+  const today = new Date().toISOString().slice(0,10);
+  const done = loadInspections().some(i =>
+    i.createdBy === user.id &&
+    (((i.fecha||'').slice(0,10) === today) || ((i.createdAt||'').slice(0,10) === today)));
+  return { required:true, completed:done, blocked:!done, date:today };
+}
 // ¿el usuario participa en la tarea? (encargado, co, asignado, auxiliar o ejecutor)
 function dcParticipates(t, userId, odooStr) {
   return t.managerId === userId ||
@@ -439,6 +453,17 @@ function dcParticipates(t, userId, odooStr) {
     (t.auxiliaryAssignees||[]).includes(userId) ||
     (odooStr && t.assignedTo === odooStr) ||
     (t.executors||[]).some(e => e === userId || e === odooStr);
+}
+// Recolecta TODAS las fotos de una tarea (evidencia general + por artículo + fotos de guía),
+// normalizadas a {url, by, at, caption} y deduplicadas por url. Para mostrarlas en el resumen.
+function dcCollectPhotos(t) {
+  const out = [];
+  const push = (url, by, at, caption) => { if (url) out.push({ url, by: by || '', at: at || '', caption: caption || '' }); };
+  (t.evidence || []).forEach(ev => push(ev.url, ev.by, ev.date || ev.at, ev.caption));
+  (t.items || []).forEach(it => (it.evidence_images || []).forEach(ev => push(ev.url, ev.uploaded_by || ev.by, ev.uploaded_at || ev.date, ev.caption)));
+  (t.fotos_guia || []).forEach(fg => (fg.evidencias || []).forEach(ev => push(ev.url, ev.by || ev.uploaded_by, ev.at || ev.uploaded_at, ev.caption)));
+  const seen = new Set();
+  return out.filter(p => { if (seen.has(p.url)) return false; seen.add(p.url); return true; });
 }
 // Resumen del día auto-generado: individual (lo que documentó él) · equipo (tarea suya
 // que documentó un compañero) · pendiente (sus tareas abiertas). Separa por quién documentó.
@@ -455,10 +480,10 @@ function dcComputeSummary(user, date) {
     ).pop();
     if (doneEntry) {
       const docName = (doneEntry.by||'').trim().toLowerCase();
-      const row = { id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, documentedBy: doneEntry.by||'—' };
+      const row = { id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, documentedBy: doneEntry.by||'—', photos: dcCollectPhotos(t) };
       if (docName && docName === myName) individual.push(row); else team.push(row);
     } else if (['assigned','in_progress'].includes(t.status)) {
-      pending.push({ id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, dueDate:t.dueDate||null });
+      pending.push({ id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, dueDate:t.dueDate||null, photos: dcCollectPhotos(t) });
     }
     (t.items||[]).forEach(it => {
       if (it.confirmado && (it.confirmado_at||'').slice(0,10)===date && (it.confirmado_by||'').trim().toLowerCase()===myName) itemsConfirmed++;
@@ -6329,7 +6354,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,sectionPerms:getRoleDefPerms(u.role)}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,vehicleInspectionRequired:!!u.vehicleInspectionRequired,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -6958,6 +6983,8 @@ const server = http.createServer(async (req, res) => {
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
       // Resumen del día — feature por usuario (piloto): on/off
       if (d.dailySummaryEnabled !== undefined) users[idx].dailySummaryEnabled = !!d.dailySummaryEnabled;
+      // Inspección de vehículo diaria obligatoria — gate por usuario: on/off
+      if (d.vehicleInspectionRequired !== undefined) users[idx].vehicleInspectionRequired = !!d.vehicleInspectionRequired;
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(users[idx].role)}}));
@@ -7337,6 +7364,13 @@ const server = http.createServer(async (req, res) => {
   if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+$/) && req.method === 'PATCH') {
     const jp = requireJwt(req, res); if (!jp) return;
     const id = reqPath.split('/')[4];
+    // Gate de inspección: un usuario designado no puede mover tareas hasta registrar su inspección diaria.
+    const _gateUser = loadAuthUsers().find(u => u.id === jp.userId);
+    if (vehInspectionGate(_gateUser).blocked) {
+      res.writeHead(423, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, inspectionBlocked:true, error:'Completa tu inspección de vehículo de hoy antes de trabajar en tareas.'}));
+      return;
+    }
     try {
       const d = await readBody(req);
       const tasks = loadWwpTasks();
@@ -9712,6 +9746,35 @@ const server = http.createServer(async (req, res) => {
   // ── Alias frontend: /api/vehiculos/* ─────────────────────────────────────
   // El formulario HTML llama a estas rutas; internamente usan wwp-inspecciones.json
 
+  // GET /api/wwp/inspection/gate — ¿el usuario debe completar su inspección diaria antes de trabajar?
+  if (reqPath === '/api/wwp/inspection/gate' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const me = loadAuthUsers().find(u => u.id === jp.userId);
+    const gate = vehInspectionGate(me);
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify(Object.assign({ ok:true }, gate)));
+    return;
+  }
+
+  // GET /api/wwp/inspection/admin — quién completó / quién falta hoy (admin|manager)
+  if (reqPath === '/api/wwp/inspection/admin' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    const today = (parsed.query?.date || '').trim() || new Date().toISOString().slice(0,10);
+    const required = loadAuthUsers().filter(u => u.active !== false && u.vehicleInspectionRequired);
+    const insps = loadInspections();
+    const rows = required.map(u => {
+      const rec = insps.find(i => i.createdBy === u.id &&
+        (((i.fecha||'').slice(0,10) === today) || ((i.createdAt||'').slice(0,10) === today)));
+      return { userId:u.id, name:u.name, role:u.role, completed:!!rec,
+        at: rec ? (rec.createdAt||null) : null, apto: rec ? (rec.apto||null) : null, vehiculo: rec ? (rec.vehiculo||'') : '' };
+    });
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, date:today, total:rows.length,
+      completaron: rows.filter(r=>r.completed).length, faltan: rows.filter(r=>!r.completed).length, rows }));
+    return;
+  }
+
   // GET /api/vehiculos/inspecciones — listar (filtro ?vehiculo=)
   if (reqPath === '/api/vehiculos/inspecciones' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
@@ -10365,6 +10428,27 @@ const server = http.createServer(async (req, res) => {
       if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // DELETE /api/sdv/:id — eliminar solicitud [SOLO ADMIN] — limpiar pruebas/errores
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'DELETE') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo un administrador puede eliminar solicitudes'})); return; }
+    const id = reqPath.split('/')[3];
+    try {
+      const list = loadSdv();
+      const idx = list.findIndex(s => s.id === id);
+      if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrada'})); return; }
+      const sol = list[idx];
+      const linkedTask = sol.wwpTaskId || null;
+      list.splice(idx, 1);
+      saveSdv(list);
+      try { appendAuditLog('sdv_deleted', { sdvId:id, folio:sol.folio, by:jp.userId, byName:jp.name, linkedTask }); } catch(e) { silentCatch(e,'auditSdvDeleted'); }
+      console.log('[SDV] Eliminada', sol.folio||id, 'por', jp.name||jp.userId, linkedTask?('(tarea ligada sin tocar: '+linkedTask+')'):'');
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, deleted:id, folio:sol.folio||null, linkedTask}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

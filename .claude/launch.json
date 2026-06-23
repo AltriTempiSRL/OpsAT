@@ -18,6 +18,18 @@
       "runtimeArgs": ["serve", "-l", "3001", "."],
       "port": 3001,
       "autoPort": false
+    },
+    {
+      "name": "v31-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["proxy.js"],
+      "port": 3995,
+      "autoPort": false,
+      "env": {
+        "DATA_DIR": "C:/Users/Gabriel Ramirez/AppData/Local/Temp/wwp-v31",
+        "PORT": "3995",
+        "ODOO_MODE": "off"
+      }
     }
   ]
 }

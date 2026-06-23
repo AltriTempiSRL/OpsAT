@@ -7329,7 +7329,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v30';
+var APP_BUILD = 'v31';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8995,6 +8995,7 @@ function enterApp() {
   loadTasks();
   loadAuthUsersForDropdown();
   dcUpdateBadge();   // badge de "Cerrar mi día" + visibilidad del panel de equipo
+  vehGateCheck();    // gate de inspección de vehículo: bloquea tareas si la inspección de hoy falta
   // Notifications
   loadNotificationsFromServer();
   connectSSE();
@@ -9386,6 +9387,27 @@ var _dcState = null;
 var _DC_TYPE = {dispatch_order:'Despacho',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',warehouse_move:'Almacén',general:'General',staffing:'Personal',free:'Libre'};
 var _DC_PEND = [{v:'fin_turno',l:'Fin de turno'},{v:'manana',l:'Continúa mañana'},{v:'multi_dia',l:'Proceso de varios días'},{v:'continua_extra',l:'Continúa (horas extra)'},{v:'otro',l:'Otro'}];
 
+// Tira de miniaturas de fotos de una tarea + visor a tamaño completo. Reusado en las 3 vistas.
+function dcThumbs(photos, max) {
+  if (!photos || !photos.length) return '';
+  max = max || 8;
+  var shown = photos.slice(0, max), extra = photos.length - shown.length;
+  var imgs = shown.map(function(p){
+    var who = (p.by||'').split(' ')[0];
+    var tip = who + (p.caption ? (' · ' + p.caption) : '');
+    return '<img src="'+esc(p.url)+'" onclick="dcLightbox(\''+esc(p.url)+'\')" title="'+esc(tip)+'" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:zoom-in;flex:0 0 auto">';
+  }).join('');
+  var more = extra > 0 ? '<span style="font-size:11px;color:var(--text-3);align-self:center;padding:0 2px">+'+extra+'</span>' : '';
+  return '<div style="display:flex;gap:4px;flex-wrap:wrap;margin:3px 0 4px 0">'+imgs+more+'</div>';
+}
+function dcLightbox(url) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;cursor:zoom-out';
+  ov.onclick = function(){ ov.remove(); };
+  ov.innerHTML = '<img src="'+esc(url)+'" style="max-width:96%;max-height:96%;border-radius:8px;box-shadow:0 10px 50px rgba(0,0,0,.6)">';
+  document.body.appendChild(ov);
+}
+
 // Muestra/oculta el botón "Mi resumen" según el toggle del usuario (piloto) + badge de pendientes.
 async function dcUpdateBadge() {
   try {
@@ -9440,7 +9462,10 @@ function dcRenderResumen() {
   var ind = s.individual||[], team = s.team||[], pend = s.pending||[];
   var act = s.activity||{itemsConfirmed:0,guidePhotos:0};
   var chip = function(t, color){ return '<span style="font-size:10px;font-weight:700;color:'+(color||'var(--text-3)')+';background:var(--surface-2);padding:2px 7px;border-radius:6px;white-space:nowrap">'+(_DC_TYPE[t.type]||t.type)+'</span>'; };
-  var rowLine = function(t, right){ return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(right||'')+'</div>'; };
+  var rowLine = function(t, right){
+    var head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(right||'')+'</div>';
+    return '<div style="border-bottom:1px solid var(--border)">'+head+dcThumbs(t.photos)+'</div>';
+  };
 
   // Bloque individual
   var indHtml = '<div style="font-size:12px;font-weight:800;color:var(--green-text);margin:4px 0 4px">▎ Tu trabajo individual</div>';
@@ -9467,6 +9492,7 @@ function dcRenderResumen() {
       }).join('');
       return '<div style="border:1.5px solid '+(pr.reason?'var(--border)':'var(--amber-dot)')+';border-radius:9px;padding:9px;margin-bottom:7px;background:var(--surface)">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(t.dueDate?'<span style="font-size:10px;color:'+(t.dueDate<_dcState.date?'var(--red-text)':'var(--text-3)')+'">'+t.dueDate+'</span>':'')+'</div>'
+        + dcThumbs(t.photos)
         + '<div style="display:flex;flex-wrap:wrap">'+chips+'</div>'
         + '<input id="dc-desc-'+t.id+'" value="'+esc(pr.description||'')+'" placeholder="Detalle corto (opcional)" style="width:100%;box-sizing:border-box;margin-top:5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text)">'
         + '</div>';
@@ -9540,10 +9566,14 @@ function dcRenderAdmin() {
     var comentario = (u.comment&&!u.validated) ? '<div style="font-size:11px;color:var(--amber-text);margin-left:6px;font-style:italic">⚠️ '+esc(u.comment)+'</div>' : '';
     var mResp = (u.managerResponses||[]).map(function(m){return '<div style="font-size:10px;color:var(--accent);margin-left:6px">↳ encargado: '+esc(m.response)+'</div>';}).join('');
     var respBtn = (canRespond && u.role==='assistant') ? '<button class="btn-sm" onclick="dcManagerRespond(\''+u.userId+'\',\''+esc((u.name||'').replace(/'/g,''))+'\')" style="font-size:11px;padding:3px 8px">Responder</button>' : '';
+    // Fotos del día: agrega evidencias de todas sus tareas (individual + equipo + pendiente), dedup por url.
+    var allPhotos = [], _seenU = {};
+    [].concat(u.individual||[], u.team||[], u.pending||[]).forEach(function(t){ (t.photos||[]).forEach(function(p){ if(!_seenU[p.url]){ _seenU[p.url]=1; allPhotos.push(p); } }); });
+    var fotosHtml = allPhotos.length ? '<div style="margin:4px 0 0 6px"><div style="font-size:10px;color:var(--text-3);margin-bottom:1px">📷 Fotos del día ('+allPhotos.length+')</div>'+dcThumbs(allPhotos, 12)+'</div>' : '';
     return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13px;font-weight:700;color:var(--text)">'+esc(u.name)+' <span style="font-size:10px;color:var(--text-3)">'+(_TR_ROLELBL[u.role]||u.role)+'</span></span>'+estado+respBtn+'</div>'
       + '<div style="font-size:11px;color:var(--text-3);margin:2px 0 0 6px">'+u.individual.length+' individual · '+u.team.length+' en equipo · '+u.pending.length+' pendiente(s)</div>'
-      + pendDet + comentario + mResp + '</div>';
+      + pendDet + comentario + mResp + fotosHtml + '</div>';
   }).join('');
   _trModal(
     '<div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:2px">📋 Resumen del día — '+d.date+'</div>'
@@ -9580,7 +9610,52 @@ async function dsToggleSummary(userId, current) {
   } catch(e) { toast('Error: '+e.message); }
 }
 
+// Toggle de Inspección de vehículo diaria obligatoria por usuario — desde la lista de Usuarios.
+async function dsToggleInspection(userId, current) {
+  try {
+    var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify({vehicleInspectionRequired: !current})});
+    var d = await r.json();
+    if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
+    toast('Inspección diaria: '+(!current?'activada (obligatoria)':'desactivada'));
+    if (typeof loadUsers==='function') loadUsers();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Gate de inspección de vehículo diaria ──────────────────────────────────────
+// Un usuario designado (admin lo activa en Usuarios) debe registrar su inspección del
+// día antes de trabajar. Si no, ve la pantalla de inspección por defecto con un mensaje
+// y no puede salir de ahí hasta completarla (con al menos una foto).
+var _vehGate = { required:false, blocked:false };
+async function vehGateCheck() {
+  try {
+    var r = await authFetch('/api/wwp/inspection/gate');
+    var d = await r.json();
+    _vehGate = { required: !!d.required, blocked: !!(d.ok && d.blocked) };
+  } catch(e) { _vehGate = { required:false, blocked:false }; }
+  if (_vehGate.blocked) vehShowGate(); else vehHideGate();
+  return _vehGate.blocked;
+}
+function vehShowGate() {
+  if (_currentTab !== 'vehiculos') switchTab('vehiculos');
+  var host = document.getElementById('tab-vehiculos');
+  var b = document.getElementById('veh-gate-banner');
+  if (!b && host) {
+    b = document.createElement('div');
+    b.id = 'veh-gate-banner';
+    b.style.cssText = 'background:var(--red-bg,#fef2f2);border:1.5px solid var(--red-dot,#dc2626);color:var(--red-text,#991b1b);border-radius:10px;padding:12px 14px;margin:0 0 14px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px';
+    b.innerHTML = '<span style="font-size:22px">🚗</span><span>No puedes ingresar a tus tareas hasta completar la <b>inspección de vehículo de hoy</b>. Llena el checklist, toma al menos una foto del vehículo y guarda.</span>';
+    host.insertBefore(b, host.firstChild);
+  }
+  if (b) b.style.display = '';
+}
+function vehHideGate() {
+  var b = document.getElementById('veh-gate-banner');
+  if (b) b.style.display = 'none';
+}
+
 function switchTab(tab) {
+  // Gate de inspección: si está bloqueado, no puede salir de Vehículos hasta completarla.
+  if (_vehGate.blocked && tab !== 'vehiculos') { toast('Completa tu inspección de vehículo primero'); tab = 'vehiculos'; }
   // RBAC: bloquear acceso a módulos no permitidos para el rol actual
   if (!guardTab(tab)) return;
   _currentTab = tab;
@@ -15833,6 +15908,7 @@ async function loadUsers() {
         ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text)">Inactivo</span>'}
         <div class="user-row-actions">
           <button class="btn-sm" onclick="dsToggleSummary('${u.id}',${u.dailySummaryEnabled?'true':'false'})" title="Resumen del día (piloto): ${u.dailySummaryEnabled?'activado':'desactivado'}" style="border-color:${u.dailySummaryEnabled?'var(--green-dot)':'var(--border)'};color:${u.dailySummaryEnabled?'var(--green-text)':'var(--text-3)'}"><i data-lucide="clipboard-list" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Resumen: ${u.dailySummaryEnabled?'ON':'OFF'}</button>
+          <button class="btn-sm" onclick="dsToggleInspection('${u.id}',${u.vehicleInspectionRequired?'true':'false'})" title="Inspección de vehículo diaria obligatoria: ${u.vehicleInspectionRequired?'activada':'desactivada'}" style="border-color:${u.vehicleInspectionRequired?'var(--green-dot)':'var(--border)'};color:${u.vehicleInspectionRequired?'var(--green-text)':'var(--text-3)'}"><i data-lucide="car" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Inspección: ${u.vehicleInspectionRequired?'ON':'OFF'}</button>
           <button class="btn-sm" onclick="trOpenRetake('${u.id}')" title="Mandar a retomar un examen"><i data-lucide="graduation-cap" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Examen</button>
           <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
         </div>
@@ -25150,6 +25226,11 @@ async function vehSubmit() {
   if (!vehiculo)  { await _iosAlert('Por favor selecciona un vehículo.'); return; }
   if (!conductor) { await _iosAlert('Por favor indica el conductor.'); return; }
   if (!fecha)     { await _iosAlert('Por favor indica la fecha.'); return; }
+  // Foto obligatoria cuando la inspección es el gate diario del usuario.
+  if (_vehGate.required) {
+    var _nFotos = Object.values(_vehFotos).filter(Boolean).length;
+    if (!_nFotos) { await _iosAlert('Debes tomar al menos una foto del vehículo para completar la inspección de hoy.'); return; }
+  }
 
   // Recolectar respuestas del checklist
   var items = {};
@@ -25192,6 +25273,8 @@ async function vehSubmit() {
     if (saved.error) throw new Error(saved.error);
     vehResetForm();
     if (btn) { btn.textContent = '✓ Guardado'; setTimeout(function(){ btn.textContent = 'Guardar Inspección'; btn.disabled = false; }, 2500); }
+    // Si esta inspección era el gate diario del usuario, re-chequear: al quedar registrada, libera el acceso.
+    if (_vehGate.required) { vehGateCheck().then(function(blocked){ if (!blocked) { toast('✓ Inspección completa. Ya puedes ingresar a tus tareas.'); switchTab('tasks'); } }); }
   })
   .catch(function(err) {
     _iosAlert('Error al guardar: ' + err.message);
@@ -27893,6 +27976,7 @@ async function sdvVerDetalle(id, ctx) {
         (s.wwpTaskId?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
         (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+t.titulo+'</dd></div>'; }).join('')+'</div>':'')+
         acciones+
+        ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
       '</div>';
     if (window.lucide) lucide.createIcons();
   } catch(e) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+e.message+'</div>'; }
@@ -28246,6 +28330,19 @@ function sdvIrATarea(taskId){
   if(!taskId) return;
   goToWWP();
   setTimeout(function(){ if(typeof openDrawer==='function') openDrawer(taskId); }, 350);
+}
+
+// ── Eliminar solicitud (solo admin) — limpiar pruebas/errores ─────────────
+async function sdvEliminar(id, folio){
+  if(!confirm('¿Eliminar definitivamente la solicitud '+(folio||id)+'?\n\nEsto NO se puede deshacer.')) return;
+  try {
+    var r = await authFetch('/api/sdv/'+id, {method:'DELETE'});
+    var d = await r.json();
+    if(!r.ok||!d.ok){ toast(d.error||'No se pudo eliminar'); return; }
+    toast('Solicitud '+(folio||id)+' eliminada'+(d.linkedTask?' · la tarea ligada '+d.linkedTask+' quedó (cancélala si aplica)':''));
+    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvBandejaCargar();
+  } catch(e){ toast('Error: '+e.message); }
 }
 
 // ── Convertir en tarea WWP ────────────────────────────────────────────────
