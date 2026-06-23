@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v25';
+const APP_BUILD = 'v26';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -251,6 +251,175 @@ function saveInspections(d) { saveJson(WWP_INSPECTIONS_FILE, d); }
 
 function loadWwpTasks() { return loadJson(WWP_TASKS_FILE, []); }
 function saveWwpTasks(list) { saveJson(WWP_TASKS_FILE, list); }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SALÓN DE ENTRENAMIENTOS — cursos, exámenes, certificaciones (LMS operativo)
+// Decisiones Gabriel 2026-06-22: examen bloqueante · MVP 3 cursos · cert. anual ·
+// autoría solo admin · re-examen por desempeño/KPI · botón "retomar examen".
+// Ver PROPUESTA-FORMACION-Y-HERRAMIENTAS.md
+// ══════════════════════════════════════════════════════════════════════════════
+const TRAINING_COURSES_FILE = path.join(DATA_DIR, 'wwp-training-courses.json');
+const TRAINING_RESULTS_FILE = path.join(DATA_DIR, 'wwp-training-results.json');
+function loadCourses() { return loadJson(TRAINING_COURSES_FILE, []); }
+function saveCourses(c) { saveJson(TRAINING_COURSES_FILE, c); }
+function loadTrainingResults() { return loadJson(TRAINING_RESULTS_FILE, []); }
+function saveTrainingResults(r) { saveJson(TRAINING_RESULTS_FILE, r); }
+
+// Mapa tipo de tarea → competencia que la gatea (vacío = no gatea ese tipo).
+const TRAINING_TASK_COMPETENCY = {
+  packaging: 'packing',
+  warehouse_move: 'packing',
+};
+function trCompetencyForTaskType(type) { return TRAINING_TASK_COMPETENCY[type] || null; }
+
+// Resultado vigente de un usuario en un curso (o null).
+function trResultFor(results, userId, courseId) {
+  return results.find(r => r.userId === userId && r.courseId === courseId) || null;
+}
+// Certificación vigente = passed y no vencida.
+function trIsCurrent(result) {
+  if (!result || result.status !== 'passed') return false;
+  if (!result.certExpiresAt) return true;
+  return new Date(result.certExpiresAt).getTime() > Date.now();
+}
+// ¿El usuario está certificado en una competencia? (todos los cursos activos que
+// la exigen para su rol, vigentes). Si no hay curso que la exija → true (no bloquea).
+function trIsCertified(userId, competency, role) {
+  if (!competency) return true;
+  const courses = loadCourses().filter(c => c.active !== false && c.competency === competency &&
+    (c.roles || []).includes(role));
+  if (!courses.length) return true; // sin curso que lo exija → no bloquea
+  const results = loadTrainingResults();
+  return courses.every(c => trIsCurrent(trResultFor(results, userId, c.id)));
+}
+// Razón de bloqueo de asignación (o null). Solo bloquea si hay un curso con
+// enforceGate=true para esa competencia y rol, y el usuario no está vigente.
+function trGateReason(userId, taskType, role) {
+  const competency = trCompetencyForTaskType(taskType);
+  if (!competency) return null;
+  const courses = loadCourses().filter(c => c.active !== false && c.enforceGate === true &&
+    c.competency === competency && (c.roles || []).includes(role));
+  if (!courses.length) return null; // gating apagado para esta competencia
+  const results = loadTrainingResults();
+  const faltan = courses.filter(c => !trIsCurrent(trResultFor(results, userId, c.id)));
+  if (!faltan.length) return null;
+  return `Certificación requerida pendiente: ${faltan.map(c => c.title).join(', ')}`;
+}
+// Calificar un examen. answers = {questionId: idxElegido}. Devuelve score 0-100,
+// passed, temas débiles (para re-examen dirigido) y revisión.
+function trGradeExam(course, answers) {
+  const qs = (course.exam && course.exam.questions) || [];
+  if (!qs.length) return { score: 0, passed: false, weakTopics: [], review: [] };
+  let correct = 0; const weak = new Set(); const review = [];
+  qs.forEach(q => {
+    const chosen = answers ? answers[q.id] : undefined;
+    const ok = Number(chosen) === Number(q.correctIdx);
+    if (ok) correct++; else if (q.topic) weak.add(q.topic);
+    review.push({ id: q.id, correct: ok, correctIdx: q.correctIdx, chosen: chosen ?? null, explanation: q.explanation || '' });
+  });
+  const score = Math.round(correct / qs.length * 100);
+  return { score, passed: score >= (course.passingScore || 80), weakTopics: [...weak], review };
+}
+// Disparar re-examen (manual por admin o automático por KPI). Marca el resultado
+// como pending, registra motivo, notifica al usuario y deja audit log.
+function trTriggerRetake(userId, courseId, reason, by) {
+  const courses = loadCourses();
+  const course = courses.find(c => c.id === courseId);
+  if (!course) return { ok: false, error: 'Curso no encontrado' };
+  const results = loadTrainingResults();
+  let r = trResultFor(results, userId, courseId);
+  const now = new Date().toISOString();
+  if (!r) {
+    r = { id: wwpId('tres'), userId, courseId, status: 'pending', score: null, attempts: 0,
+      startedAt: null, completedAt: null, certExpiresAt: null, history: [], weakTopics: [] };
+    results.push(r);
+  }
+  r.status = 'pending';
+  r.retakeReason = reason || 'Necesidad de conocimiento';
+  r.retakeBy = by || 'admin';
+  r.retakeAt = now;
+  saveTrainingResults(results);
+  try {
+    createNotification(userId, {
+      type: 'task_assigned',
+      title: '📚 Examen asignado',
+      message: `Debes retomar el curso "${course.title}". Motivo: ${r.retakeReason}`,
+      by: by || 'Administrador'
+    });
+  } catch (e) { console.warn('[training retake notif]', e.message); }
+  appendAuditLog('training_retake', { userId, courseId, courseTitle: course.title, reason: r.retakeReason, by });
+  return { ok: true, result: r };
+}
+
+// Seed de los 3 cursos MVP (solo si no hay cursos). Contenido real y editable por admin.
+function trSeedCourses() {
+  const now = new Date().toISOString();
+  const base = { passingScore: 80, maxAttempts: 3, validityDays: 365, version: 1, active: true,
+    enforceGate: false, createdAt: now, updatedAt: now, createdBy: 'system' };
+  return [
+    { ...base, id: 'course_wwp', title: 'WWP por rol — uso de la plataforma', category: 'Plataforma',
+      competency: 'wwp', roles: ['assistant','manager'],
+      description: 'Cómo usar Workforce Platform según tu rol: ver, iniciar, evidenciar y cerrar tareas.',
+      lessons: [
+        { id:'l1', order:1, type:'text', title:'Tu lista de tareas',
+          content:'Cada tarea tiene un estado: Pendiente → Asignada → En Progreso → Completada → Validada. Solo trabajas las que te asignaron. Toca una tarea para abrir su detalle. El color del borde indica urgencia (rojo = vencida).' },
+        { id:'l2', order:2, type:'text', title:'Iniciar y evidenciar',
+          content:'Para iniciar, abre la tarea y toca "Iniciar". Sube la foto de cada artículo (evidencia obligatoria), indica su condición (bueno/avería) y confírmalo. SIN foto + condición + confirmación NO se puede cerrar la tarea. La evidencia protege a todos.' },
+        { id:'l3', order:3, type:'text', title:'Terminé mi parte / Completar',
+          content:'Si eres auxiliar, al terminar pulsa "Terminé mi parte" para avisar al encargado. El encargado completa la tarea. Solo el admin VALIDA (cierre final). Nunca marques completado sin que todas las evidencias estén cargadas.' },
+      ],
+      exam: { questions: [
+        { id:'q1', topic:'estados', q:'¿Cuál es el orden correcto de estados de una tarea?', options:['Pendiente → En Progreso → Validada → Completada','Pendiente → Asignada → En Progreso → Completada → Validada','Asignada → Validada → Completada','En Progreso → Pendiente → Completada'], correctIdx:1, explanation:'El flujo es Pendiente → Asignada → En Progreso → Completada → Validada.' },
+        { id:'q2', topic:'evidencia', q:'¿Qué se necesita para poder cerrar una tarea con artículos?', options:['Solo la foto','Foto + condición + confirmación de cada artículo','Nada, se cierra directo','Solo confirmar'], correctIdx:1, explanation:'Cada artículo requiere foto, condición y confirmación.' },
+        { id:'q3', topic:'roles', q:'¿Quién puede VALIDAR (cierre final) una tarea?', options:['Cualquier auxiliar','El encargado','Solo el administrador','El chofer'], correctIdx:2, explanation:'Solo el admin valida.' },
+        { id:'q4', topic:'evidencia', q:'Si falta la foto de un artículo, ¿puedes completar la tarea?', options:['Sí, después la subo','No, la evidencia es obligatoria','Sí, si el encargado lo permite','Solo si es urgente'], correctIdx:1, explanation:'Sin evidencia completa la tarea no cierra.' },
+        { id:'q5', topic:'roles', q:'Como auxiliar, al terminar tu trabajo ¿qué haces?', options:['Validar la tarea','Pulsar "Terminé mi parte"','Borrar la tarea','Reasignarla'], correctIdx:1, explanation:'El auxiliar avisa con "Terminé mi parte"; el encargado completa.' },
+      ] } },
+    { ...base, id: 'course_safety', title: 'Seguridad y manejo de cargas', category: 'Seguridad',
+      competency: 'safety', roles: ['assistant','manager','admin'],
+      description: 'Levantamiento seguro, cuándo se necesitan dos personas o equipo, y PPE básico.',
+      lessons: [
+        { id:'l1', order:1, type:'text', title:'La regla de los 23 kg (NIOSH)',
+          content:'El límite seguro de levantamiento de UNA persona es ~23 kg en condiciones ideales. Por encima de eso: DOS personas mínimo o equipo de carga. En Altri Tempi muchas piezas pesan 200–700 kg (sofás, closets, mesas de mármol): esas NUNCA se levantan a mano, exigen cuadrilla + diablito/liftgate.' },
+        { id:'l2', order:2, type:'text', title:'Técnica de levantamiento',
+          content:'Dobla las rodillas, no la espalda. Mantén la carga pegada al cuerpo. No gires la cintura cargando: mueve los pies. Si dudas del peso, pide ayuda ANTES de levantar. Usa faja lumbar y guantes de agarre.' },
+        { id:'l3', order:3, type:'text', title:'Equipo de protección (PPE)',
+          content:'Calzado de seguridad, guantes (anticorte al desempacar, agarre al cargar), gafas al abrir flejes, chaleco reflectante en la vía. El camión lleva botiquín y extintor. Nivel H3–H5 (pesado/frágil) = plan de maniobra y líder.' },
+      ],
+      exam: { questions: [
+        { id:'q1', topic:'niosh', q:'¿Cuál es el límite seguro de levantamiento de una persona?', options:['50 kg','~23 kg','100 kg','Sin límite'], correctIdx:1, explanation:'La ecuación NIOSH fija ~23 kg ideales por persona.' },
+        { id:'q2', topic:'niosh', q:'Una pieza de 300 kg, ¿cómo se mueve?', options:['Una persona fuerte','Dos personas a mano','Cuadrilla + equipo de carga (diablito/liftgate)','Arrastrándola'], correctIdx:2, explanation:'200+ kg exige cuadrilla y equipo, nunca manual.' },
+        { id:'q3', topic:'tecnica', q:'Al levantar correctamente debes:', options:['Doblar la espalda','Doblar las rodillas y pegar la carga al cuerpo','Girar la cintura','Levantar rápido'], correctIdx:1, explanation:'Rodillas, no espalda; carga pegada; mover los pies, no girar.' },
+        { id:'q4', topic:'ppe', q:'¿Qué PPE usas al abrir flejes/empaques?', options:['Nada','Gafas y guantes anticorte','Solo gorra','Sandalias'], correctIdx:1, explanation:'Gafas y guantes anticorte protegen al desempacar.' },
+        { id:'q5', topic:'tecnica', q:'Si dudas del peso de una pieza, ¿qué haces?', options:['La levantas para probar','Pides ayuda antes de levantar','La empujas','La dejas'], correctIdx:1, explanation:'Pedir ayuda ANTES evita la lesión.' },
+      ] } },
+    { ...base, id: 'course_packing', title: 'Empaque premium', category: 'Empaque',
+      competency: 'packing', roles: ['assistant','manager'],
+      description: 'Secuencia de empaque y reglas por material para mueble de lujo, sin dañar acabados.',
+      lessons: [
+        { id:'l1', order:1, type:'text', title:'La secuencia: proteger → acolchar → contener → sellar → señalizar',
+          content:'Todo empaque sigue 5 pasos: (1) PROTEGER la superficie (papel/film); (2) ACOLCHAR esquinas y caras (foam/manta); (3) CONTENER (cartón/funda); (4) SELLAR; (5) SEÑALIZAR (frágil, este lado arriba). Saltarse un paso = riesgo de daño.' },
+        { id:'l2', order:2, type:'text', title:'Regla de oro: nunca cinta directa al acabado',
+          content:'La cinta NUNCA toca la madera, el cuero, la tela ni el acabado: arranca el revestimiento o deja marca. Primero una capa de protección, la cinta va sobre esa capa. Para vidrio y mármol: transporte VERTICAL (A-frame), protección de cantos, foto de cada cara.' },
+        { id:'l3', order:3, type:'text', title:'Por material',
+          content:'Cuero/tela: horizontal, sin peso encima, lejos de humedad, guantes limpios. Madera con aceite/cera: evitar calor y humedad, sin cinta directa. Vidrio/mármol/espejo: vertical, espuma de canto, manejo entre 2+. Las reglas exactas por familia están cargadas en la plataforma (estándar de empaque).' },
+      ],
+      exam: { questions: [
+        { id:'q1', topic:'secuencia', q:'¿Cuál es la secuencia correcta de empaque?', options:['Sellar → proteger → señalizar','Proteger → acolchar → contener → sellar → señalizar','Contener → sellar → proteger','Acolchar → sellar'], correctIdx:1, explanation:'Proteger → acolchar → contener → sellar → señalizar.' },
+        { id:'q2', topic:'cinta', q:'¿Dónde puede ir la cinta de embalaje?', options:['Directo sobre la madera','Directo sobre el cuero','Sobre una capa de protección, nunca sobre el acabado','En cualquier lado'], correctIdx:2, explanation:'Cinta directa al acabado lo daña; va sobre la protección.' },
+        { id:'q3', topic:'vidrio', q:'El vidrio y el mármol se transportan:', options:['Acostados','En vertical con protección de cantos','Apilados','Sin protección'], correctIdx:1, explanation:'Vertical (A-frame), cantos protegidos, foto de cada cara.' },
+        { id:'q4', topic:'material', q:'El cuero/tela se guarda:', options:['Con peso encima','Horizontal, sin peso, lejos de humedad','En el suelo húmedo','Doblado fuerte'], correctIdx:1, explanation:'Horizontal, sin presión, lejos de humedad, guantes limpios.' },
+        { id:'q5', topic:'secuencia', q:'¿Qué pasa si te saltas un paso de la secuencia?', options:['Nada','Aumenta el riesgo de daño a la pieza','Va más rápido y mejor','Se ahorra material'], correctIdx:1, explanation:'Cada paso previene un tipo de daño; saltarlo expone la pieza.' },
+      ] } },
+  ];
+}
+function ensureTrainingSeed() {
+  if (!fs.existsSync(TRAINING_COURSES_FILE)) {
+    saveCourses(trSeedCourses());
+    console.log('[training] cursos MVP sembrados (3)');
+  }
+}
+ensureTrainingSeed();
 
 // Construye items desde las LÍNEAS DE OPERACIÓN (stock.move.line) de los picks
 // 'assigned' (preparado) de una orden. Cada move.line = (bin real, cantidad reservada).
@@ -7315,6 +7484,30 @@ const server = http.createServer(async (req, res) => {
           });
         }
       }
+      // ── Gate de certificación (Salón de Entrenamientos) ──────────────────
+      // Bloquea asignar a quien no esté certificado en la competencia de la tarea.
+      // Seguro por defecto: trGateReason() devuelve null salvo que un curso tenga
+      // enforceGate=true; así, hasta que admin lo active, NO bloquea la operación.
+      if (d.managerId!==undefined || d.assignedTo!==undefined || d.assignees!==undefined ||
+          d.auxiliaryAssignees!==undefined || d.coManagerIds!==undefined) {
+        const _ttype = tasks[idx].type;
+        const _gusers = loadAuthUsers();
+        const _cand = new Set();
+        if (d.managerId) _cand.add(d.managerId);
+        (d.coManagerIds||[]).forEach(id => id && _cand.add(id));
+        (d.assignees||[]).forEach(id => id && _cand.add(id));
+        (d.auxiliaryAssignees||[]).forEach(id => id && _cand.add(id));
+        if (d.assignedTo) { const aid = odooStrToAuthId(d.assignedTo); if (aid) _cand.add(aid); }
+        for (const uid of _cand) {
+          const u = _gusers.find(x => x.id === uid); if (!u) continue;
+          const reason = trGateReason(uid, _ttype, u.role);
+          if (reason) {
+            res.writeHead(409, {'Content-Type':'application/json'});
+            res.end(JSON.stringify({ ok:false, error:`No se puede asignar a ${u.name}: ${reason}` }));
+            return;
+          }
+        }
+      }
       if (d.assignedTo!==undefined) tasks[idx].assignedTo=d.assignedTo;
       if (d.managerId!==undefined) tasks[idx].managerId=d.managerId;
       if (d.managerName!==undefined) tasks[idx].managerName=d.managerName;
@@ -7463,6 +7656,19 @@ const server = http.createServer(async (req, res) => {
           });
         }
       } catch(ne) { console.error('Notif PATCH error:', ne.message); }
+      // ── Re-examen automático por desempeño (Salón de Entrenamientos) ──────
+      // Señal: admin DEVUELVE una tarea trabajada a 'pending' (rechazo) = brecha
+      // de conocimiento → dispara re-examen del curso WWP a quien la trabajó.
+      // Auto-trigger gobernado por curso con autoRetake=true (apagado por defecto).
+      try {
+        if (d.status === 'pending' && ['in_progress','completed'].includes(oldTask?.status)) {
+          const wwpCourse = loadCourses().find(c => c.active!==false && c.competency==='wwp' && c.autoRetake===true);
+          if (wwpCourse) {
+            const workers = new Set([oldTask.managerId, ...(oldTask.assignees||[]), ...(oldTask.auxiliaryAssignees||[])].filter(Boolean));
+            workers.forEach(uid => { if (uid !== d.byUserId) trTriggerRetake(uid, wwpCourse.id, `Tarea "${tasks[idx].title}" devuelta a pendiente`, 'Sistema (KPI)'); });
+          }
+        }
+      } catch(re) { console.warn('[training auto-retake]', re.message); }
       // Devolver también la tarea padre actualizada si cambió
       const parentTask = parentId ? tasks.find(t=>t.id===parentId)||null : null;
       broadcastWwpTasks('task_updated', tasks[idx], { parentTask, changed: Object.keys(d||{}) });
@@ -7539,6 +7745,185 @@ const server = http.createServer(async (req, res) => {
   }
 
   // GET /api/wwp/lunch/breaks — reporte almuerzos [admin, con filtros ?date=&userId=]
+  // ══════════ SALÓN DE ENTRENAMIENTOS — endpoints ══════════
+  // Quita respuestas correctas/explicaciones del examen (para no-admin que va a rendir).
+  const trStripAnswers = (course) => {
+    if (!course) return course;
+    const c = JSON.parse(JSON.stringify(course));
+    if (c.exam && Array.isArray(c.exam.questions)) {
+      c.exam.questions = c.exam.questions.map(q => ({ id:q.id, q:q.q, options:q.options, topic:q.topic }));
+    }
+    return c;
+  };
+
+  // GET /api/wwp/training/courses — lista de cursos con mi estado embebido
+  if (reqPath === '/api/wwp/training/courses' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const isAdmin = jp.role === 'admin';
+    const courses = loadCourses();
+    const results = loadTrainingResults();
+    const visible = courses.filter(c => c.active !== false && (isAdmin ||
+      (c.roles || []).includes(jp.role) || trResultFor(results, jp.userId, c.id)));
+    const out = visible.map(c => {
+      const r = trResultFor(results, jp.userId, c.id);
+      const required = (c.roles || []).includes(jp.role);
+      const sani = trStripAnswers(c);
+      return { ...sani, required,
+        myResult: r ? { status:r.status, score:r.score, attempts:r.attempts||0,
+          certExpiresAt:r.certExpiresAt||null, retakeReason:r.retakeReason||null } : null,
+        questionCount: (c.exam && c.exam.questions || []).length };
+    });
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, courses: out }));
+    return;
+  }
+
+  // GET /api/wwp/training/matrix — matriz equipo × curso (admin)
+  if (reqPath === '/api/wwp/training/matrix' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    const courses = loadCourses().filter(c => c.active !== false);
+    const results = loadTrainingResults();
+    const users = loadAuthUsers().filter(u => u.active !== false);
+    const rows = users.map(u => ({
+      userId:u.id, name:u.name, role:u.role,
+      courses: courses.filter(c => (c.roles||[]).includes(u.role)).map(c => {
+        const r = trResultFor(results, u.id, c.id);
+        return { courseId:c.id, title:c.title,
+          status: r ? (trIsCurrent(r) ? 'passed' : (r.status==='passed' ? 'expired' : r.status)) : 'none',
+          score: r ? r.score : null, certExpiresAt: r ? r.certExpiresAt : null };
+      })
+    }));
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, courses: courses.map(c=>({id:c.id,title:c.title,roles:c.roles,competency:c.competency,enforceGate:!!c.enforceGate})), rows }));
+    return;
+  }
+
+  // POST /api/wwp/training/courses — crear curso (admin)
+  if (reqPath === '/api/wwp/training/courses' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const d = await readBody(req);
+      const now = new Date().toISOString();
+      const courses = loadCourses();
+      const course = {
+        id: wwpId('course'), title: (d.title||'Curso nuevo').trim(), category: d.category||'General',
+        competency: d.competency||'general', roles: Array.isArray(d.roles)?d.roles:['assistant'],
+        description: d.description||'', passingScore: d.passingScore||80, maxAttempts: d.maxAttempts||3,
+        validityDays: d.validityDays||365, enforceGate: !!d.enforceGate, version:1, active:true,
+        lessons: Array.isArray(d.lessons)?d.lessons:[], exam: d.exam||{questions:[]},
+        createdAt: now, updatedAt: now, createdBy: jp.userId };
+      courses.push(course);
+      saveCourses(courses);
+      appendAuditLog('training_course_create', { courseId:course.id, title:course.title, by:jp.userId });
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, course }));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // POST /api/wwp/training/retake — admin manda a un usuario a retomar examen
+  if (reqPath === '/api/wwp/training/retake' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const d = await readBody(req);
+      if (!d.userId || !d.courseId) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'userId y courseId requeridos'})); return; }
+      const r = trTriggerRetake(d.userId, d.courseId, d.reason, jp.name || 'Administrador');
+      res.writeHead(r.ok?200:404, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(r));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // POST /api/wwp/training/courses/:id/submit — rendir examen
+  {
+    const mSubmit = reqPath.match(/^\/api\/wwp\/training\/courses\/([a-z0-9_]+)\/submit$/);
+    if (mSubmit && req.method === 'POST') {
+      const jp = requireJwt(req, res); if (!jp) return;
+      try {
+        const d = await readBody(req);
+        const courses = loadCourses();
+        const course = courses.find(c => c.id === mSubmit[1]);
+        if (!course) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Curso no encontrado'})); return; }
+        const results = loadTrainingResults();
+        let r = trResultFor(results, jp.userId, course.id);
+        if (r && trIsCurrent(r) && r.status === 'passed') {
+          // ya certificado vigente; permitir re-rendir igual pero no exigirlo
+        }
+        if (r && (r.attempts||0) >= (course.maxAttempts||3) && r.status !== 'pending') {
+          res.writeHead(429,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false,error:`Alcanzaste el máximo de ${course.maxAttempts||3} intentos. Pide a un administrador habilitar un nuevo intento.`}));
+          return;
+        }
+        const graded = trGradeExam(course, d.answers || {});
+        const now = new Date().toISOString();
+        if (!r) { r = { id: wwpId('tres'), userId: jp.userId, courseId: course.id, attempts:0, history:[] }; results.push(r); }
+        r.attempts = (r.attempts||0) + 1;
+        r.score = graded.score;
+        r.weakTopics = graded.weakTopics;
+        r.completedAt = now;
+        r.status = graded.passed ? 'passed' : 'failed';
+        r.certExpiresAt = graded.passed
+          ? new Date(Date.now() + (course.validityDays||365)*86400000).toISOString() : null;
+        if (graded.passed) { r.retakeReason = null; r.retakeBy = null; }
+        (r.history = r.history || []).push({ at:now, score:graded.score, passed:graded.passed, attemptNo:r.attempts });
+        saveTrainingResults(results);
+        appendAuditLog('training_exam_submit', { userId:jp.userId, courseId:course.id, score:graded.score, passed:graded.passed, attempt:r.attempts });
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, score:graded.score, passed:graded.passed, passingScore:course.passingScore||80,
+          review:graded.review, weakTopics:graded.weakTopics, attempts:r.attempts, certExpiresAt:r.certExpiresAt }));
+      } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+      return;
+    }
+  }
+
+  // GET/PATCH/DELETE /api/wwp/training/courses/:id
+  {
+    const mCourse = reqPath.match(/^\/api\/wwp\/training\/courses\/([a-z0-9_]+)$/);
+    if (mCourse) {
+      const jp = requireJwt(req, res); if (!jp) return;
+      const courses = loadCourses();
+      const idx = courses.findIndex(c => c.id === mCourse[1]);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Curso no encontrado'})); return; }
+      if (req.method === 'GET') {
+        const results = loadTrainingResults();
+        const r = trResultFor(results, jp.userId, courses[idx].id);
+        const full = jp.role === 'admin' ? courses[idx] : trStripAnswers(courses[idx]);
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, course: full, myResult: r || null }));
+        return;
+      }
+      if (req.method === 'PATCH') {
+        if (!requireRole(jp, res, ['admin'])) return;
+        try {
+          const d = await readBody(req);
+          const c = courses[idx];
+          ['title','category','competency','description','passingScore','maxAttempts','validityDays','lessons','exam','roles'].forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
+          if (d.enforceGate !== undefined) c.enforceGate = !!d.enforceGate;
+          if (d.active !== undefined) c.active = !!d.active;
+          c.version = (c.version||1) + 1;
+          c.updatedAt = new Date().toISOString();
+          saveCourses(courses);
+          appendAuditLog('training_course_update', { courseId:c.id, by:jp.userId, changed:Object.keys(d) });
+          res.writeHead(200, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({ ok:true, course:c }));
+        } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+        return;
+      }
+      if (req.method === 'DELETE') {
+        if (!requireRole(jp, res, ['admin'])) return;
+        const removed = courses.splice(idx, 1);
+        saveCourses(courses);
+        appendAuditLog('training_course_delete', { courseId:removed[0].id, title:removed[0].title, by:jp.userId });
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true }));
+        return;
+      }
+    }
+  }
+
   if (reqPath === '/api/wwp/lunch/breaks' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ROLE_PERMISSIONS.dashboard)) return;

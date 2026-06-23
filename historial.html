@@ -6750,6 +6750,24 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </div>
     <!-- /tab-empaque -->
 
+    <!-- SALÓN DE ENTRENAMIENTOS TAB -->
+    <div id="tab-formacion" style="display:none">
+      <div class="emp-page-hdr">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0"><i data-lucide="graduation-cap" class="tab-h2-icon"></i>Salón de Entrenamientos</h2>
+          <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0">Cursos y certificaciones por rol. Aprueba el examen para certificarte; la certificación vence al año.</p>
+        </div>
+        <div id="tr-admin-actions" style="display:none;gap:8px">
+          <button class="btn-sm" onclick="trOpenMatrix()" style="padding:7px 14px"><i data-lucide="grid-3x3" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Matriz del equipo</button>
+          <button class="btn-primary" onclick="trOpenCourseEditor(null)" style="font-size:12px;padding:7px 14px">+ Nuevo curso</button>
+        </div>
+      </div>
+      <div id="tr-body">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">Cargando cursos…</div>
+      </div>
+    </div>
+    <!-- /tab-formacion -->
+
   </div>
 </div>
 
@@ -7282,7 +7300,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v25';
+var APP_BUILD = 'v26';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8901,6 +8919,16 @@ function enterApp() {
     vehTab.onclick = () => switchTab('vehiculos');
     nav.appendChild(vehTab);
   }
+  // Salón de Entrenamientos — todos los roles
+  let trainTab = nav.querySelector('[data-tab="formacion"]');
+  if (!trainTab) {
+    trainTab = document.createElement('button');
+    trainTab.className = 'nav-tab'; trainTab.dataset.tab = 'formacion';
+    trainTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="graduation-cap"></i></span> Formación<span id="formacion-badge" style="display:none;position:absolute;top:4px;right:4px;background:#d97706;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:20px;line-height:1.4;pointer-events:none"></span>';
+    trainTab.style.position = 'relative';
+    trainTab.onclick = () => switchTab('formacion');
+    nav.appendChild(trainTab);
+  }
   // Políticas + Impacto + Empaque tabs — solo admin
   if (_user.role === 'admin') {
     [{key:'politicas',icon:'shield-check',label:'Políticas'},{key:'impacto',icon:'zap',label:'Impacto'},{key:'empaque',icon:'package',label:'Empaque'}].forEach((t) => {
@@ -8978,12 +9006,355 @@ window.addEventListener('message', function(e) {
 // TABS
 // ═══════════════════════════════════════════════════════════════════════
 var _currentTab = 'tasks';
+// ═══════════════════════════════════════════════════════════════════════
+// SALÓN DE ENTRENAMIENTOS (LMS) — cursos, exámenes, certificaciones
+// ═══════════════════════════════════════════════════════════════════════
+var _trCourses = [];
+var _trEdit = null;
+var _TR_COMP = {wwp:'Plataforma WWP', safety:'Seguridad', packing:'Empaque', armado:'Armado', driving:'Choferes', transport:'Transporte', delivery:'Entrega', general:'General'};
+var _TR_ROLELBL = {admin:'Admin', manager:'Encargado', assistant:'Auxiliar'};
+
+function trStatusInfo(c) {
+  var r = c.myResult;
+  if (!r) return c.required ? {label:'Requerido', css:'b-pending', color:'var(--amber-text)'} : {label:'Disponible', css:'', color:'var(--text-3)'};
+  if (r.status === 'passed') {
+    var venc = r.certExpiresAt && new Date(r.certExpiresAt).getTime() < Date.now();
+    if (venc) return {label:'Vencido — recertifica', css:'b-cancelled', color:'var(--red-text)'};
+    return {label:'Completado ✓', css:'b-validated', color:'var(--green-text)'};
+  }
+  if (r.status === 'pending') return {label:'Re-examen requerido', css:'b-cancelled', color:'var(--red-text)'};
+  if (r.status === 'failed') return {label:'No aprobado — reintenta', css:'b-cancelled', color:'var(--red-text)'};
+  return {label:'En progreso', css:'b-inprogress', color:'var(--accent)'};
+}
+
+async function trLoad() {
+  var body = document.getElementById('tr-body');
+  var adminActions = document.getElementById('tr-admin-actions');
+  if (adminActions) adminActions.style.display = (_user && _user.role === 'admin') ? 'flex' : 'none';
+  if (body) body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">Cargando cursos…</div>';
+  try {
+    var r = await authFetch('/api/wwp/training/courses');
+    var d = await r.json();
+    _trCourses = (d && d.courses) || [];
+    trRenderGrid();
+    trUpdateBadge();
+  } catch(e) { if (body) body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red-text)">Error: '+esc(e.message)+'</div>'; }
+}
+
+function trUpdateBadge() {
+  var badge = document.getElementById('formacion-badge');
+  if (!badge) return;
+  var pend = _trCourses.filter(function(c){ var s=trStatusInfo(c); return /Requerido|Re-examen|Vencido|No aprobado/.test(s.label); }).length;
+  if (pend > 0) { badge.textContent = pend; badge.style.display = ''; } else { badge.style.display = 'none'; }
+}
+
+function trRenderGrid() {
+  var body = document.getElementById('tr-body');
+  if (!body) return;
+  if (!_trCourses.length) { body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">No hay cursos disponibles para tu rol.</div>'; return; }
+  var isAdmin = _user && _user.role === 'admin';
+  var cards = _trCourses.map(function(c) {
+    var s = trStatusInfo(c);
+    var lessons = (c.lessons||[]).length, qs = c.questionCount||0;
+    var score = c.myResult && c.myResult.score!=null ? (' · '+c.myResult.score+'%') : '';
+    return '<div class="user-row" style="flex-direction:column;align-items:stretch;gap:10px;cursor:pointer" onclick="trOpenCourse(\''+c.id+'\')">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px">'
+      +   '<div style="width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="book-open" style="width:20px;height:20px;stroke:var(--accent)"></i></div>'
+      +   '<div style="flex:1;min-width:0">'
+      +     '<div style="font-size:14px;font-weight:700;color:var(--text)">'+esc(c.title)+'</div>'
+      +     '<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+esc(_TR_COMP[c.competency]||c.competency)+' · '+lessons+' lección'+(lessons!==1?'es':'')+' · '+qs+' preguntas</div>'
+      +   '</div>'
+      +   '<span class="wwp-task-status '+s.css+'" style="color:'+s.color+'">'+esc(s.label)+score+'</span>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--text-2);line-height:1.4">'+esc(c.description||'')+'</div>'
+      + (c.myResult && c.myResult.certExpiresAt && c.myResult.status==='passed' ? '<div style="font-size:10px;color:var(--text-3)">Certificación vigente hasta '+new Date(c.myResult.certExpiresAt).toLocaleDateString()+'</div>' : '')
+      + (c.myResult && c.myResult.retakeReason ? '<div style="font-size:10px;color:var(--red-text)">Motivo de re-examen: '+esc(c.myResult.retakeReason)+'</div>' : '')
+      + (isAdmin ? '<div style="display:flex;gap:6px;justify-content:flex-end" onclick="event.stopPropagation()">'
+          + '<button class="btn-sm" onclick="trOpenCourseEditor(\''+c.id+'\')">Editar</button>'
+          + (c.enforceGate ? '<span class="badge b-validated" title="Bloquea asignación sin certificación">🔒 Gate ON</span>' : '<span class="badge" style="background:var(--surface-2);color:var(--text-3)">Gate off</span>')
+        + '</div>' : '')
+      + '</div>';
+  }).join('');
+  body.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">'+cards+'</div>';
+  if (window.lucide) lucide.createIcons();
+}
+
+async function trOpenCourse(courseId) {
+  try {
+    var r = await authFetch('/api/wwp/training/courses/'+courseId);
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    var c = d.course, res = d.myResult;
+    var lessons = (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);});
+    var lessonsHtml = lessons.map(function(l,i){
+      return '<details '+(i===0?'open':'')+' style="border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px;padding:0">'
+        + '<summary style="padding:10px 12px;font-weight:600;font-size:13px;cursor:pointer;color:var(--text)">'+(i+1)+'. '+esc(l.title)+'</summary>'
+        + '<div style="padding:0 12px 12px;font-size:13px;line-height:1.55;color:var(--text-2);white-space:pre-wrap">'+esc(l.content||'')+'</div>'
+        + '</details>';
+    }).join('');
+    var canRetake = !res || res.status!=='passed' || (res.certExpiresAt && new Date(res.certExpiresAt).getTime()<Date.now()) || res.status==='pending';
+    var examBtn = (c.exam && (c.exam.questions||[]).length)
+      ? '<button class="btn-primary" onclick="trStartExam(\''+c.id+'\')" style="margin-top:6px">'+(res&&res.status==='passed'&&!canRetake?'Repasar / volver a tomar':'Tomar examen')+'</button>'
+      : '<div style="font-size:12px;color:var(--text-3)">Este curso aún no tiene examen.</div>';
+    _trModal(
+      '<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px">'+esc(c.title)+'</div>'
+      + '<div style="font-size:11px;color:var(--text-3);margin-bottom:12px">'+esc(_TR_COMP[c.competency]||c.competency)+' · Aprobación: '+(c.passingScore||80)+'% · vence al año</div>'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Contenido</div>'
+      + lessonsHtml
+      + '<div id="tr-exam-zone" style="margin-top:14px">'+examBtn+'</div>'
+    );
+    if (window.lucide) lucide.createIcons();
+    _trModalData = c;
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+var _trModalData = null;
+function trStartExam(courseId) {
+  var c = _trModalData; if (!c || c.id!==courseId) return;
+  var qs = (c.exam && c.exam.questions) || [];
+  var html = '<div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Examen — '+qs.length+' preguntas (necesitas '+(c.passingScore||80)+'%)</div>';
+  html += qs.map(function(q,qi){
+    var opts = (q.options||[]).map(function(o,oi){
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px">'
+        + '<input type="radio" name="trq_'+q.id+'" value="'+oi+'" style="margin-top:2px;flex-shrink:0">'
+        + '<span>'+esc(o)+'</span></label>';
+    }).join('');
+    return '<div class="tr-q" data-qid="'+q.id+'" style="margin-bottom:14px"><div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">'+(qi+1)+'. '+esc(q.q)+'</div>'+opts+'</div>';
+  }).join('');
+  html += '<button class="btn-primary" onclick="trSubmitExam(\''+c.id+'\')" style="width:100%;margin-top:6px">Enviar respuestas</button>';
+  var zone = document.getElementById('tr-exam-zone');
+  if (zone) zone.innerHTML = html;
+}
+
+async function trSubmitExam(courseId) {
+  var answers = {};
+  document.querySelectorAll('#tr-exam-zone .tr-q').forEach(function(div){
+    var qid = div.getAttribute('data-qid');
+    var sel = div.querySelector('input[type=radio]:checked');
+    if (sel) answers[qid] = Number(sel.value);
+  });
+  var c = _trModalData;
+  var total = (c.exam.questions||[]).length;
+  if (Object.keys(answers).length < total) { if (!await _iosConfirm('Faltan preguntas por responder. ¿Enviar de todos modos?')) return; }
+  try {
+    var r = await authFetch('/api/wwp/training/courses/'+courseId+'/submit', {method:'POST', body:JSON.stringify({answers:answers})});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error al enviar'); return; }
+    var color = d.passed ? 'var(--green-text)' : 'var(--red-text)';
+    var icon = d.passed ? '🎉' : '✗';
+    var reviewByQ = {}; (d.review||[]).forEach(function(rv){ reviewByQ[rv.id]=rv; });
+    // marcar respuestas en el examen
+    (c.exam.questions||[]).forEach(function(q){
+      var rv = reviewByQ[q.id]; if (!rv) return;
+      var div = document.querySelector('#tr-exam-zone .tr-q[data-qid="'+q.id+'"]');
+      if (!div) return;
+      var labels = div.querySelectorAll('label');
+      labels.forEach(function(lb,oi){
+        if (oi===rv.correctIdx) lb.style.borderColor='var(--green-dot)';
+        if (oi===rv.chosen && !rv.correct) lb.style.borderColor='var(--red-dot)';
+      });
+      if (rv.explanation) { var ex=document.createElement('div'); ex.style.cssText='font-size:11px;color:var(--text-3);margin-top:2px'; ex.textContent='ℹ '+rv.explanation; div.appendChild(ex); }
+    });
+    var banner = document.createElement('div');
+    banner.style.cssText='position:sticky;top:0;background:var(--surface);padding:12px;border:2px solid '+color+';border-radius:10px;margin-bottom:12px;text-align:center';
+    banner.innerHTML='<div style="font-size:22px">'+icon+'</div><div style="font-size:16px;font-weight:800;color:'+color+'">'+d.score+'% — '+(d.passed?'¡Aprobado!':'No alcanzó el '+d.passingScore+'%')+'</div>'
+      +'<div style="font-size:11px;color:var(--text-3)">Intento '+d.attempts+(d.passed&&d.certExpiresAt?(' · Certificado hasta '+new Date(d.certExpiresAt).toLocaleDateString()):'')+'</div>';
+    var zone = document.getElementById('tr-exam-zone');
+    if (zone) { zone.insertBefore(banner, zone.firstChild); }
+    trLoad(); // refrescar grilla/badge en segundo plano
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Admin: matriz del equipo ──────────────────────────────────────────────
+async function trOpenMatrix() {
+  try {
+    var r = await authFetch('/api/wwp/training/matrix');
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    var head = '<th style="text-align:left;padding:6px 8px;position:sticky;left:0;background:var(--surface)">Usuario</th>'+d.courses.map(function(c){return '<th style="padding:6px 8px;font-size:10px">'+esc(c.title.split(' ')[0])+(c.enforceGate?' 🔒':'')+'</th>';}).join('');
+    var rows = d.rows.map(function(u){
+      var cells = d.courses.map(function(c){
+        var cr = (u.courses||[]).find(function(x){return x.courseId===c.id;});
+        if (!cr || cr.status==='none') return '<td style="text-align:center;color:var(--text-muted)">—</td>';
+        var m = {passed:['✓','var(--green-text)'], expired:['⏰','var(--amber-text)'], pending:['📚','var(--red-text)'], failed:['✗','var(--red-text)'], in_progress:['…','var(--accent)']}[cr.status]||['?','var(--text-3)'];
+        return '<td style="text-align:center;color:'+m[1]+'" title="'+cr.status+(cr.score!=null?(' '+cr.score+'%'):'')+'">'+m[0]+'</td>';
+      }).join('');
+      return '<tr><td style="padding:6px 8px;position:sticky;left:0;background:var(--surface)"><b>'+esc(u.name)+'</b><br><span style="font-size:10px;color:var(--text-3)">'+(_TR_ROLELBL[u.role]||u.role)+'</span></td>'+cells+'</tr>';
+    }).join('');
+    _trModal('<div style="font-size:16px;font-weight:800;margin-bottom:10px">Matriz de formación del equipo</div>'
+      + '<div style="overflow:auto;max-height:60vh"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody></table></div>'
+      + '<div style="font-size:10px;color:var(--text-3);margin-top:8px">✓ certificado · ⏰ vencido · 📚 re-examen requerido · ✗ no aprobado · — sin tomar · 🔒 curso bloquea asignación</div>', 720);
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Admin: crear/editar curso ──────────────────────────────────────────────
+async function trOpenCourseEditor(courseId) {
+  if (courseId) {
+    try {
+      var r = await authFetch('/api/wwp/training/courses/'+courseId);
+      var d = await r.json();
+      if (!d.ok) { toast(d.error||'Error'); return; }
+      _trEdit = JSON.parse(JSON.stringify(d.course));
+    } catch(e) { toast('Error: '+e.message); return; }
+  } else {
+    _trEdit = { id:null, title:'', category:'General', competency:'general', roles:['assistant'],
+      description:'', passingScore:80, validityDays:365, maxAttempts:3, enforceGate:false, autoRetake:false,
+      lessons:[], exam:{questions:[]} };
+  }
+  trRenderEditor();
+}
+
+function _trSyncEditorFromDom() {
+  if (!_trEdit) return;
+  var g = id => { var el=document.getElementById(id); return el?el.value:undefined; };
+  if (g('tre-title')!==undefined) _trEdit.title = g('tre-title');
+  if (g('tre-cat')!==undefined) _trEdit.category = g('tre-cat');
+  if (g('tre-comp')!==undefined) _trEdit.competency = g('tre-comp');
+  if (g('tre-desc')!==undefined) _trEdit.description = g('tre-desc');
+  if (g('tre-pass')!==undefined) _trEdit.passingScore = parseInt(g('tre-pass'),10)||80;
+  if (g('tre-valid')!==undefined) _trEdit.validityDays = parseInt(g('tre-valid'),10)||365;
+  var roles=[]; ['assistant','manager','admin'].forEach(function(rk){ var c=document.getElementById('tre-role-'+rk); if(c&&c.checked) roles.push(rk); });
+  if (document.getElementById('tre-role-assistant')) _trEdit.roles = roles;
+  var eg=document.getElementById('tre-gate'); if(eg) _trEdit.enforceGate=eg.checked;
+  var ar=document.getElementById('tre-auto'); if(ar) _trEdit.autoRetake=ar.checked;
+  (_trEdit.lessons||[]).forEach(function(l,i){ var t=document.getElementById('tre-l-t-'+i), c=document.getElementById('tre-l-c-'+i); if(t)l.title=t.value; if(c)l.content=c.value; });
+  (_trEdit.exam.questions||[]).forEach(function(q,i){
+    var qt=document.getElementById('tre-q-t-'+i); if(qt)q.q=qt.value;
+    var top=document.getElementById('tre-q-top-'+i); if(top)q.topic=top.value;
+    var ex=document.getElementById('tre-q-ex-'+i); if(ex)q.explanation=ex.value;
+    var ci=document.getElementById('tre-q-ci-'+i); if(ci)q.correctIdx=parseInt(ci.value,10)||0;
+    q.options = q.options||['','','',''];
+    for (var o=0;o<4;o++){ var oi=document.getElementById('tre-q-o-'+i+'-'+o); if(oi)q.options[o]=oi.value; }
+  });
+}
+
+function trRenderEditor() {
+  var e = _trEdit;
+  var roleChk = ['assistant','manager','admin'].map(function(rk){
+    return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-right:12px"><input type="checkbox" id="tre-role-'+rk+'" '+((e.roles||[]).includes(rk)?'checked':'')+'> '+_TR_ROLELBL[rk]+'</label>';
+  }).join('');
+  var compOpts = Object.keys(_TR_COMP).map(function(k){return '<option value="'+k+'" '+(e.competency===k?'selected':'')+'>'+_TR_COMP[k]+'</option>';}).join('');
+  var lessons = (e.lessons||[]).map(function(l,i){
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px">'
+      + '<div style="display:flex;gap:6px;margin-bottom:4px"><input id="tre-l-t-'+i+'" value="'+esc(l.title||'')+'" placeholder="Título de la lección" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px"><button class="btn-sm" onclick="trEditDelLesson('+i+')" style="color:var(--red-text)">✕</button></div>'
+      + '<textarea id="tre-l-c-'+i+'" placeholder="Contenido…" style="width:100%;box-sizing:border-box;min-height:60px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px">'+esc(l.content||'')+'</textarea></div>';
+  }).join('');
+  var questions = (e.exam.questions||[]).map(function(q,i){
+    var opts = [0,1,2,3].map(function(o){
+      return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><input type="radio" name="tre-ci-'+i+'" '+((q.correctIdx||0)===o?'checked':'')+' onclick="document.getElementById(\'tre-q-ci-'+i+'\').value='+o+'"><input id="tre-q-o-'+i+'-'+o+'" value="'+esc((q.options||[])[o]||'')+'" placeholder="Opción '+(o+1)+'" style="flex:1;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:12px"></div>';
+    }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:6px">'
+      + '<input type="hidden" id="tre-q-ci-'+i+'" value="'+(q.correctIdx||0)+'">'
+      + '<div style="display:flex;gap:6px;margin-bottom:4px"><input id="tre-q-t-'+i+'" value="'+esc(q.q||'')+'" placeholder="Pregunta" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px"><button class="btn-sm" onclick="trEditDelQuestion('+i+')" style="color:var(--red-text)">✕</button></div>'
+      + '<div style="font-size:10px;color:var(--text-3);margin-bottom:3px">Marca la opción correcta:</div>'+opts
+      + '<div style="display:flex;gap:6px;margin-top:4px"><input id="tre-q-top-'+i+'" value="'+esc(q.topic||'')+'" placeholder="Tema (para re-examen dirigido)" style="flex:1;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:11px"><input id="tre-q-ex-'+i+'" value="'+esc(q.explanation||'')+'" placeholder="Explicación" style="flex:2;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:11px"></div></div>';
+  }).join('');
+  var fld = 'padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;width:100%;box-sizing:border-box';
+  _trModal(
+    '<div style="font-size:16px;font-weight:800;margin-bottom:12px">'+(e.id?'Editar curso':'Nuevo curso')+'</div>'
+    + '<input id="tre-title" value="'+esc(e.title)+'" placeholder="Título del curso" style="'+fld+';margin-bottom:8px">'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px"><input id="tre-cat" value="'+esc(e.category)+'" placeholder="Categoría" style="'+fld+'"><select id="tre-comp" style="'+fld+'">'+compOpts+'</select></div>'
+    + '<textarea id="tre-desc" placeholder="Descripción" style="'+fld+';min-height:48px;margin-bottom:8px">'+esc(e.description||'')+'</textarea>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:4px">Requerido para:</div><div style="margin-bottom:8px">'+roleChk+'</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px"><label style="flex:1;font-size:11px;color:var(--text-3)">Aprobación %<input id="tre-pass" type="number" value="'+(e.passingScore||80)+'" style="'+fld+'"></label><label style="flex:1;font-size:11px;color:var(--text-3)">Vigencia (días)<input id="tre-valid" type="number" value="'+(e.validityDays||365)+'" style="'+fld+'"></label></div>'
+    + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px"><input type="checkbox" id="tre-gate" '+(e.enforceGate?'checked':'')+'> <b>Bloquear asignación</b> sin esta certificación (gate ON)</label>'
+    + '<label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:12px"><input type="checkbox" id="tre-auto" '+(e.autoRetake?'checked':'')+'> Re-examen <b>automático</b> si una tarea se devuelve a pendiente (KPI)</label>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:12px;font-weight:700;color:var(--text-secondary)">Lecciones</div><button class="btn-sm" onclick="trEditAddLesson()">+ Lección</button></div>'+lessons
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px"><div style="font-size:12px;font-weight:700;color:var(--text-secondary)">Examen</div><button class="btn-sm" onclick="trEditAddQuestion()">+ Pregunta</button></div>'+questions
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;border-top:1px solid var(--border);padding-top:12px">'
+    + (e.id?'<button class="btn-sm" onclick="trDeleteCourse(\''+e.id+'\')" style="color:var(--red-text);margin-right:auto">Eliminar curso</button>':'')
+    + '<button class="btn-sm" onclick="document.getElementById(\'tr-modal-ov\').remove()">Cancelar</button>'
+    + '<button class="btn-primary" onclick="trSaveCourse()">Guardar</button></div>'
+  , 600);
+}
+function trEditAddLesson() { _trSyncEditorFromDom(); _trEdit.lessons=_trEdit.lessons||[]; _trEdit.lessons.push({id:'l'+Date.now(),order:_trEdit.lessons.length+1,type:'text',title:'',content:''}); trRenderEditor(); }
+function trEditDelLesson(i) { _trSyncEditorFromDom(); _trEdit.lessons.splice(i,1); trRenderEditor(); }
+function trEditAddQuestion() { _trSyncEditorFromDom(); _trEdit.exam.questions=_trEdit.exam.questions||[]; _trEdit.exam.questions.push({id:'q'+Date.now(),q:'',options:['','','',''],correctIdx:0,topic:'',explanation:''}); trRenderEditor(); }
+function trEditDelQuestion(i) { _trSyncEditorFromDom(); _trEdit.exam.questions.splice(i,1); trRenderEditor(); }
+async function trSaveCourse() {
+  _trSyncEditorFromDom();
+  var e = _trEdit;
+  if (!e.title.trim()) { toast('Pon un título'); return; }
+  try {
+    var url = e.id ? '/api/wwp/training/courses/'+e.id : '/api/wwp/training/courses';
+    var method = e.id ? 'PATCH' : 'POST';
+    var r = await authFetch(url, {method:method, body:JSON.stringify(e)});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error al guardar'); return; }
+    toast('Curso guardado');
+    var ov=document.getElementById('tr-modal-ov'); if(ov) ov.remove();
+    trLoad();
+  } catch(err) { toast('Error: '+err.message); }
+}
+async function trDeleteCourse(id) {
+  if (!await _iosConfirm('¿Eliminar este curso y sus exámenes? Esta acción no se puede deshacer.')) return;
+  try {
+    var r = await authFetch('/api/wwp/training/courses/'+id, {method:'DELETE'});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    toast('Curso eliminado');
+    var ov=document.getElementById('tr-modal-ov'); if(ov) ov.remove();
+    trLoad();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Admin: mandar a un usuario a retomar examen (desde wwp/usuarios) ─────────
+async function trOpenRetake(userId) {
+  var u = (_authUsers||[]).find(function(x){return x.id===userId;});
+  if (!u) { toast('Usuario no encontrado'); return; }
+  // cargar cursos (lista general; filtra los del rol del usuario)
+  var courses = _trCourses;
+  if (!courses.length) { try { var rr=await authFetch('/api/wwp/training/courses'); var dd=await rr.json(); courses=(dd&&dd.courses)||[]; } catch(e){} }
+  var opts = courses.filter(function(c){return (c.roles||[]).includes(u.role)||true;})
+    .map(function(c){return '<option value="'+c.id+'">'+esc(c.title)+'</option>';}).join('');
+  _trModal(
+    '<div style="font-size:16px;font-weight:800;margin-bottom:4px">Mandar a retomar examen</div>'
+    + '<div style="font-size:12px;color:var(--text-2);margin-bottom:12px">'+esc(u.name)+' · '+(_TR_ROLELBL[u.role]||u.role)+'</div>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text-3)">Curso</label>'
+    + '<select id="tr-retake-course" class="form-select" style="width:100%;margin:4px 0 10px;padding:8px">'+opts+'</select>'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text-3)">Motivo</label>'
+    + '<select id="tr-retake-reason-pick" class="form-select" style="width:100%;margin:4px 0 6px;padding:8px" onchange="var o=document.getElementById(\'tr-retake-reason\');o.value=this.value===\'otro\'?\'\':this.value">'
+    +   '<option value="Necesidad de conocimiento">Necesidad de conocimiento</option>'
+    +   '<option value="Daño en una tarea">Daño en una tarea</option>'
+    +   '<option value="Actualización de SOP">Actualización de SOP</option>'
+    +   '<option value="Desempeño en campo">Desempeño en campo</option>'
+    +   '<option value="otro">Otro (escribir)…</option></select>'
+    + '<input id="tr-retake-reason" value="Necesidad de conocimiento" placeholder="Motivo" style="width:100%;box-sizing:border-box;padding:8px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:12px">'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn-sm" onclick="document.getElementById(\'tr-modal-ov\').remove()">Cancelar</button><button class="btn-primary" onclick="trDoRetake(\''+userId+'\')">Enviar</button></div>'
+  );
+}
+async function trDoRetake(userId) {
+  var courseId = document.getElementById('tr-retake-course').value;
+  var reason = document.getElementById('tr-retake-reason').value;
+  if (!courseId) { toast('Elige un curso'); return; }
+  try {
+    var r = await authFetch('/api/wwp/training/retake', {method:'POST', body:JSON.stringify({userId:userId, courseId:courseId, reason:reason})});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    toast('Examen asignado a retomar');
+    var ov=document.getElementById('tr-modal-ov'); if(ov) ov.remove();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Modal genérico del módulo ──────────────────────────────────────────────
+function _trModal(innerHtml, maxW) {
+  var old = document.getElementById('tr-modal-ov'); if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = 'tr-modal-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:19998;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto';
+  ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:20px;width:100%;max-width:'+(maxW||520)+'px;box-shadow:0 8px 32px rgba(0,0,0,.35);position:relative;margin:auto">'
+    + '<button onclick="document.getElementById(\'tr-modal-ov\').remove()" style="position:absolute;top:12px;right:12px;border:none;background:var(--surface-2);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;color:var(--text-2)">✕</button>'
+    + '<div style="margin-top:4px">'+innerHtml+'</div></div>';
+  ov.addEventListener('click', function(e){ if (e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
 function switchTab(tab) {
   // RBAC: bloquear acceso a módulos no permitidos para el rol actual
   if (!guardTab(tab)) return;
   _currentTab = tab;
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-  ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque'].forEach(function(id) {
+  ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion'].forEach(function(id) {
     uiSetVisible(document.getElementById('tab-' + id), tab === id, '', 'ui-view-enter');
   });
   if (tab==='dashboard')  loadDashboard();
@@ -8992,6 +9363,7 @@ function switchTab(tab) {
   else                    { polStopRefresh(); }
   if (tab==='impacto')    { impInit(); }
   if (tab==='empaque')    { empInit(); }
+  if (tab==='formacion')  { trLoad(); }
   closeProfileMenu();
 }
 
@@ -15226,6 +15598,7 @@ async function loadUsers() {
         <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
         ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text)">Inactivo</span>'}
         <div class="user-row-actions">
+          <button class="btn-sm" onclick="trOpenRetake('${u.id}')" title="Mandar a retomar un examen"><i data-lucide="graduation-cap" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Examen</button>
           <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
         </div>
       </div>`;
