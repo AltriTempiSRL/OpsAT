@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v34';
+const APP_BUILD = 'v35';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -9823,12 +9823,21 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({error:'Campo requerido: vehiculo o placa'}));
       return;
     }
+    // Fotos OBLIGATORIAS en TODAS las inspecciones
+    const fotosCount = Object.values(payload.fotos_condicion || {}).filter(Boolean).length;
+    if (fotosCount === 0) {
+      res.writeHead(422,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({error:'Las fotos son obligatorias. Debes subir al menos una foto del vehículo.'}));
+      return;
+    }
     const now = new Date().toISOString();
+    const creatorUser = loadAuthUsers().find(u=>u.id===jp.userId) || {};
     const insp = Object.assign({}, payload, {
       id:          'insp_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
       createdAt:   now,
       createdBy:   jp.userId,
-      createdByName: (loadAuthUsers().find(u=>u.id===jp.userId)||{}).name || jp.userId,
+      createdByName: creatorUser.name || jp.userId,
+      createdByOdooId: creatorUser.odooId || null,
     });
     const all = loadInspections();
     all.push(insp);

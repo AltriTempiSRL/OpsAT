@@ -7332,7 +7332,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v34';
+var APP_BUILD = 'v35';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -25277,11 +25277,9 @@ async function vehSubmit() {
   if (!vehiculo)  { await _iosAlert('Por favor selecciona un vehículo.'); return; }
   if (!conductor) { await _iosAlert('Por favor indica el conductor.'); return; }
   if (!fecha)     { await _iosAlert('Por favor indica la fecha.'); return; }
-  // Foto obligatoria cuando la inspección es el gate diario del usuario.
-  if (_vehGate.required) {
-    var _nFotos = Object.values(_vehFotos).filter(Boolean).length;
-    if (!_nFotos) { await _iosAlert('Debes tomar al menos una foto del vehículo para completar la inspección de hoy.'); return; }
-  }
+  // Fotos OBLIGATORIAS en TODAS las inspecciones de vehículos
+  var _nFotos = Object.values(_vehFotos).filter(Boolean).length;
+  if (!_nFotos) { await _iosAlert('Debes tomar al menos una foto del vehículo. Las fotos son obligatorias en todas las inspecciones.'); return; }
 
   // Recolectar respuestas del checklist
   var items = {};
