@@ -7322,6 +7322,7 @@ function _iosPrompt(msg, defaultVal) {
 // ═══════════════════════════════════════════════════════════════════════
 var _tasks = [], _allUsers = [], _editingTask = null, _editingUser = null;
 var _drawerTask = null, _modalItems = [], _resetToken = null, _drawerStockMap = {}, _workloadMap = {};
+var _lastDrawerFp = null;   // fingerprint del último render; evita re-builds cuando datos no cambiaron
 var _authUsers = []; // wwp auth users (for manager dropdown)
 var _roleDefs = [];
 var _notifications = [];     // notificaciones en memoria
@@ -11050,6 +11051,7 @@ function closeDrawer() {
   document.getElementById('wwp-drawer-overlay').classList.remove('open');
   document.getElementById('wwp-drawer').classList.remove('open');
   _drawerTask = null;
+  _lastDrawerFp = null;
   renderTasks();
 }
 // True si el usuario está escribiendo dentro del drawer (input/textarea con foco).
@@ -11081,7 +11083,40 @@ async function refreshDrawer(btn) {
 }
 
 
+function _drawerFpOf(t) {
+  // Firma de lo que el drawer MUESTRA y que cambia por acciones reales.
+  // ⚠️ NO incluir t.updatedAt ni el objeto t.escalation completo: el servidor los
+  // reescribe en cada GET /api/wwp/tasks (recalcula overdue/escalation) aunque nada
+  // visible cambie → la firma diferiría en cada poll/WS y el drawer se reconstruiría
+  // sin parar (era la causa del parpadeo de la sección de materiales de empaque).
+  var sm = (typeof _drawerStockMap !== 'undefined' && _drawerStockMap) ? _drawerStockMap : {};
+  var ps = (typeof _drawerPickStatus !== 'undefined' && _drawerPickStatus) ? _drawerPickStatus : null;
+  var guiaEv = (t.fotos_guia||[]).reduce(function(n,fg){ return n + (fg.evidencias||[]).length; }, 0);
+  return JSON.stringify({
+    s: t.status,
+    m: t.managerId || '',
+    co: (t.coManagerIds||[]).slice().sort(),
+    ax: (t.auxiliaryAssignees||[]).slice().sort(),
+    ex: (t.executors||[]).slice().sort(),
+    due: t.dueDate || '',
+    od: t.overdueDays || 0,
+    esc: (t.escalation||{}).message || '',                 // solo el texto mostrado, no el objeto
+    it: (t.items||[]).map(function(i){ return [i.item_id, i.condition||'', i.selected?1:0, i.confirmado?1:0, (i.empaque_confirmacion||{}).status||'', (i.evidence_images||[]).length, i.selected_location_name||'']; }),
+    fg: (t.fotos_guia||[]).length,                         // antes "guia_fotos" (campo inexistente → siempre 0)
+    fgev: guiaEv,                                          // evidencias dentro de fotos de guía
+    sub: (_tasks||[]).filter(function(s){ return s.parentId===t.id; }).map(function(s){ return s.id+':'+s.status; }).sort().join(','),
+    sm: Object.keys(sm).length,                            // huella del stock de Odoo (re-render al llegar las ubicaciones)
+    ps: ps ? ((ps.state||'') + ':' + (ps.allDone?1:0)) : ''
+  });
+}
+
 function renderDrawer(t) {
+  // Si los datos no cambiaron respecto al último render, no reconstruir el drawer.
+  // Elimina el flash de "Cargando materiales…" en re-renders por polling/WS sin cambios.
+  var _fp = _drawerFpOf(t);
+  if (_fp === _lastDrawerFp) return;
+  _lastDrawerFp = _fp;
+
   const subs = _tasks.filter(s=>s.parentId===t.id);
   const statusOrder = ['pending','assigned','in_progress','completed','validated'];
   const curIdx = statusOrder.indexOf(t.status);
