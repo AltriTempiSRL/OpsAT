@@ -3940,10 +3940,10 @@ body{font-family:var(--font);min-height:100dvh}
 
   /* — Users list — */
   .user-row{flex-wrap:wrap;gap:8px;padding:12px}
-  .user-row-actions{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:6px}
-  .user-row-actions .btn-sm:not(:last-child){flex:0 1 auto;padding:6px 8px;min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;line-height:0;color:transparent}
-  .user-row-actions .btn-sm:not(:last-child) i{margin-right:0}
-  .user-row-actions .btn-sm:last-child{font-size:12px;padding:6px 12px}
+  .user-row-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+  .user-row-actions .btn-sm{min-height:44px;padding:8px 10px;font-size:11px;color:var(--text);display:flex;align-items:center;justify-content:center;gap:4px;white-space:normal;text-align:center}
+  .user-row-actions .btn-sm i{width:14px;height:14px;flex-shrink:0}
+  .user-row-actions .btn-sm:last-child{grid-column:1/-1;background:var(--brand-primary);color:white;border-color:var(--brand-primary);font-size:12px;font-weight:600}
 
   /* — Status progress scroll — */
   .status-progress{-webkit-overflow-scrolling:touch;padding-bottom:8px}
