@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v23';
+const APP_BUILD = 'v24';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -2364,6 +2364,7 @@ function taskResponsibleIds(t) {
   const ids = new Set();
   if (!t) return ids;
   if (t.managerId) ids.add(t.managerId);
+  (t.coManagerIds || []).forEach(id => { if (id) ids.add(id); });
   const assignedId = odooStrToAuthId(t.assignedTo);
   if (assignedId) ids.add(assignedId);
   (t.assignees || []).forEach(id => { if (id) ids.add(id); });
@@ -6828,6 +6829,7 @@ const server = http.createServer(async (req, res) => {
       const uid = jp.userId;
       const isParticipant = (t) =>
         t.managerId   === uid ||
+        (t.coManagerIds||[]).includes(uid) ||
         t.createdBy   === uid ||
         odooStrToAuthId(t.assignedTo) === uid ||
         (t.executors||[]).some(e => e === uid || odooStrToAuthId(e) === uid) ||
@@ -7106,6 +7108,7 @@ const server = http.createServer(async (req, res) => {
         const myAuthId = jp.userId;
         const myOdooStr = 'oe_' + jp.odooId;
         const isParticipant = task.managerId === myAuthId ||
+                              (task.coManagerIds||[]).includes(myAuthId) ||
                               task.assignedTo === myOdooStr ||
                               (task.executors||[]).some(e => e === myOdooStr || e === myAuthId) ||
                               (task.assignees||[]).includes(myAuthId);
@@ -7315,6 +7318,7 @@ const server = http.createServer(async (req, res) => {
       if (d.assignedTo!==undefined) tasks[idx].assignedTo=d.assignedTo;
       if (d.managerId!==undefined) tasks[idx].managerId=d.managerId;
       if (d.managerName!==undefined) tasks[idx].managerName=d.managerName;
+      if (d.coManagerIds!==undefined) tasks[idx].coManagerIds=Array.isArray(d.coManagerIds)?d.coManagerIds:[];
       // Auto-transición a 'assigned' si se asigna encargado y la tarea sigue pendiente
       // (sin que el cliente haya enviado un status explícito). Mantiene consistencia con POST.
       if (!d.status && tasks[idx].status==='pending' && !tasks[idx].parentId &&
@@ -7401,6 +7405,17 @@ const server = http.createServer(async (req, res) => {
             type:'task_assigned', title:'📋 Tarea asignada',
             message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
             relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+          });
+        }
+        // Co-managers nuevos → notificar a cada uno
+        if (d.coManagerIds !== undefined) {
+          const prevCo = oldTask?.coManagerIds||[];
+          (d.coManagerIds||[]).filter(id => id && !prevCo.includes(id)).forEach(id => {
+            createNotification(id, {
+              type:'task_assigned', title:'📋 Tarea asignada (co-responsable)',
+              message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
+              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+            });
           });
         }
         // Cambio de assignedTo → notificar nuevo asignado
