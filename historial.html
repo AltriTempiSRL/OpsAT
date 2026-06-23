@@ -7329,7 +7329,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v32';
+var APP_BUILD = 'v33';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9627,6 +9627,39 @@ async function dsToggleInspection(userId, current) {
     var d = await r.json();
     if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
     toast('Inspección diaria: '+(newState?'activada para mañana':'desactivada'));
+    if (typeof loadUsers==='function') loadUsers();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// Abre modal para asignar encargado a un auxiliar
+async function dsOpenAssignManager(userId, userName) {
+  try {
+    var managers = (_authUsers||[]).filter(u => ['admin','manager'].includes(u.role) && u.active !== false);
+    var current = _authUsers.find(u => u.id === userId);
+    var currentMgrId = current ? current.assignedManager : null;
+    var currentMgrName = currentMgrId ? (managers.find(m => m.id === currentMgrId) || {}).name : null;
+
+    var html = '<div style="max-height:400px;overflow-y:auto">';
+    html += '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px">Asignar encargado responsable para: <strong>'+esc(userName)+'</strong></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:6px">';
+    html += '<button onclick="dsAssignManagerSave(\''+userId+'\',null)" style="padding:10px;text-align:left;border:1.5px solid '+(currentMgrId?'var(--border)':'var(--green-dot)')+';border-radius:7px;background:'+(currentMgrId?'var(--surface)':'var(--green-dot)')+';color:'+(currentMgrId?'var(--text-2)':'#fff')+';font-size:13px;cursor:pointer;font-weight:'+(currentMgrId?'400':'700')+'">❌ Sin encargado</button>';
+    managers.forEach(m => {
+      var isSelected = m.id === currentMgrId;
+      html += '<button onclick="dsAssignManagerSave(\''+userId+'\',\''+m.id+'\')" style="padding:10px;text-align:left;border:1.5px solid '+(isSelected?'var(--green-dot)':'var(--border)')+';border-radius:7px;background:'+(isSelected?'var(--green-dot)':'var(--surface)')+';color:'+(isSelected?'#fff':'var(--text-2)')+';font-size:13px;cursor:pointer;font-weight:'+(isSelected?'700':'400')+'">'+(isSelected?'✓ ':'')+''+esc(m.name)+'</button>';
+    });
+    html += '</div></div>';
+    _trModal(html, 400);
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+async function dsAssignManagerSave(userId, managerId) {
+  try {
+    var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify({assignedManager: managerId})});
+    var d = await r.json();
+    if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
+    var mgrName = managerId ? ((_authUsers||[]).find(u => u.id === managerId) || {}).name : 'sin encargado';
+    toast('Encargado actualizado: '+mgrName);
+    document.getElementById('tr-modal-ov').remove();
     if (typeof loadUsers==='function') loadUsers();
   } catch(e) { toast('Error: '+e.message); }
 }
@@ -15919,6 +15952,7 @@ async function loadUsers() {
         <div class="user-row-actions">
           <button class="btn-sm" onclick="dsToggleSummary('${u.id}',${u.dailySummaryEnabled?'true':'false'})" title="Resumen del día (piloto): ${u.dailySummaryEnabled?'activado':'desactivado'}" style="border-color:${u.dailySummaryEnabled?'var(--green-dot)':'var(--border)'};color:${u.dailySummaryEnabled?'var(--green-text)':'var(--text-3)'}"><i data-lucide="clipboard-list" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Resumen: ${u.dailySummaryEnabled?'ON':'OFF'}</button>
           <button class="btn-sm" onclick="dsToggleInspection('${u.id}',${u.vehicleInspectionRequired?'true':'false'})" title="Inspección de vehículo diaria obligatoria: ${u.vehicleInspectionRequired?'activada':'desactivada'}" style="border-color:${u.vehicleInspectionRequired?'var(--green-dot)':'var(--border)'};color:${u.vehicleInspectionRequired?'var(--green-text)':'var(--text-3)'}"><i data-lucide="car" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Inspección: ${u.vehicleInspectionRequired?'ON':'OFF'}</button>
+          <button class="btn-sm" onclick="dsOpenAssignManager('${u.id}','${esc(u.name)}')" title="Asignar encargado responsable" style="border-color:var(--border);color:var(--text-2)"><i data-lucide="user-check" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Encargado</button>
           <button class="btn-sm" onclick="trOpenRetake('${u.id}')" title="Mandar a retomar un examen"><i data-lucide="graduation-cap" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Examen</button>
           <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
         </div>

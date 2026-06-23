@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v32';
+const APP_BUILD = 'v33';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -6361,7 +6361,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,vehicleInspectionRequired:!!u.vehicleInspectionRequired,sectionPerms:getRoleDefPerms(u.role)}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,vehicleInspectionRequired:!!u.vehicleInspectionRequired,assignedManager:u.assignedManager||null,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -7000,6 +7000,8 @@ const server = http.createServer(async (req, res) => {
         }
       }
       if (d.vehicleInspectionRequiredStartDate !== undefined) users[idx].vehicleInspectionRequiredStartDate = d.vehicleInspectionRequiredStartDate;
+      // Encargado asignado al auxiliar (relación fija)
+      if (d.assignedManager !== undefined) users[idx].assignedManager = d.assignedManager || null;
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(users[idx].role)}}));
