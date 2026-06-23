@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v26';
+const APP_BUILD = 'v27';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -2954,6 +2954,14 @@ function notifyOpsNewSdv(sdvId, cliente, articulos) {
     message: `Cliente: ${cliente} · Orden: ${sdvId} · ${articulos} artículos. Revisar.`,
     relatedTaskId: sdvId
   });
+}
+
+// Notifica a la VENDEDORA (creadora de la solicitud) sobre el avance de SU SDV.
+// Aditivo: solo dispara si la solicitud tiene creadoPor. No toca las notificaciones a Ops.
+function notifySeller(sol, { type, title, message }) {
+  if (!sol || !sol.creadoPor) return;
+  try { createNotification(sol.creadoPor, { type, title, message, relatedTaskId: sol.id }); }
+  catch (e) { silentCatch(e, 'notifySeller'); }
 }
 
 function notifyOpsPickIncomplete(pickId, sdvId, razon = 'falta ubicación') {
@@ -7231,6 +7239,21 @@ const server = http.createServer(async (req, res) => {
         }
       }
       saveWwpTasks(tasks);
+      // ── Vínculo SDV→WWP: enlazar la solicitud origen con la tarea recién creada ──
+      // Aditivo: solo corre si la tarea trae sdvId (las tareas normales tienen sdvId=null).
+      if (task.sdvId) {
+        try {
+          const _sdvL = loadSdv();
+          const _si = _sdvL.findIndex(s => s.id === task.sdvId);
+          if (_si >= 0) {
+            if (!_sdvL[_si].wwpTaskId) _sdvL[_si].wwpTaskId = task.id; // primer enlace = puntero principal
+            _sdvL[_si].wwpTareas = _sdvL[_si].wwpTareas || [];
+            _sdvL[_si].wwpTareas.push({ taskId: task.id, titulo: task.title, creadoAt: now });
+            saveSdv(_sdvL);
+            console.log('[WWP→SDV] Tarea', task.id, 'enlazada a solicitud', task.sdvId);
+          }
+        } catch (e) { console.error('[WWP→SDV] Error enlazando tarea a SDV:', e.message); }
+      }
       // ── Notificaciones al crear tarea ────────────────────────────────
       try {
         const byName = d.by || 'Sistema';
@@ -7463,6 +7486,7 @@ const server = http.createServer(async (req, res) => {
               sdvList[sdvIdx] = sdv;
               saveSdv(sdvList);
               console.log('[WWP→SDV] Solicitud marcada como despachada:', sdv.id, 'desde tarea:', tasks[idx].id);
+              try { notifySeller(sdv, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sdv.folio||sdv.id} fue despachada.` }); } catch(e){ silentCatch(e,'notifySeller'); }
             }
           } catch (e) {
             console.error('[WWP→SDV] Error actualizando SDV:', e.message);
@@ -10152,24 +10176,40 @@ const server = http.createServer(async (req, res) => {
       const isOps = jp.role==='admin'||jp.role==='manager';
       if (!isOps && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
       
-      // Bloquear edición si no es ops y estado != pendiente_revision
-      if (!isOps && sol.estado!=='pendiente_revision') { 
-        res.writeHead(400,{'Content-Type':'application/json'}); 
-        res.end(JSON.stringify({ok:false,error:'Ya fue procesada'})); 
-        return; 
+      // Bloquear edición si no es ops y el estado no es editable por la vendedora.
+      // pendiente_revision = aún en revisión; rechazada = puede corregir y reenviar.
+      if (!isOps && sol.estado!=='pendiente_revision' && sol.estado!=='rechazada') {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Ya fue procesada'}));
+        return;
       }
+      // Si la vendedora corrige una solicitud RECHAZADA, al guardar vuelve a la bandeja como pendiente.
+      const _wasRechazada = (!isOps && sol.estado==='rechazada');
       
       const now = new Date().toISOString();
       const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
         'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada'];
       EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
       if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
+
+      // Reenvío tras rechazo: regresa a pendiente_revision y re-notifica a Ops.
+      if (_wasRechazada) {
+        sol.estado = 'pendiente_revision';
+        sol.statusHistory.push({estado:'pendiente_revision',por:jp.userId,nombre:jp.name,at:now,nota:'Corregida y reenviada tras rechazo'});
+        try { notifyOpsNewSdv(sol.id, sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e){ silentCatch(e,'notifyOpsNewSdv'); }
+      }
       
       // Ops-only: estado, fechaEntrega, wwpTareas
       if (isOps) {
         if (d.estado && d.estado!==sol.estado) {
           sol.estado = d.estado;
-          sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||''});
+          sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||d.razon||''});
+          // Mantener informada a la vendedora del avance de SU solicitud
+          try {
+            if (d.estado === 'en_proceso')      notifySeller(sol, { type:'status_changed', title:'✅ Solicitud aprobada', message:`Tu solicitud ${sol.folio||sol.id} fue aprobada y está en preparación.` });
+            else if (d.estado === 'rechazada')  notifySeller(sol, { type:'task_rejected',  title:'⛔ Solicitud rechazada', message:`Tu solicitud ${sol.folio||sol.id} fue rechazada${d.razon?': '+d.razon:''}. Puedes corregirla y reenviarla.` });
+            else if (d.estado === 'despachada') notifySeller(sol, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sol.folio||sol.id} fue despachada.` });
+          } catch(e){ silentCatch(e,'notifySeller'); }
         }
         if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
         if (d.wwpTarea) sol.wwpTareas.push({taskId:d.wwpTarea.taskId,titulo:d.wwpTarea.titulo,creadoAt:now});
@@ -11191,6 +11231,8 @@ const server = http.createServer(async (req, res) => {
         estado_previo: estado,
         cancelada_por: jp.name
       });
+      // Avisar a la vendedora (si no fue ella quien canceló)
+      try { if (jp.userId !== sdv.creadoPor) notifySeller(sdv, { type:'task_cancelled', title:'🚫 Solicitud cancelada', message:`Tu solicitud ${sdv.folio||sdv.id} fue cancelada${d.motivo?': '+d.motivo:''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
 
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, sdv, auditoriaId:audId}));
