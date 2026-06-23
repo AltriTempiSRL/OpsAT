@@ -4295,6 +4295,15 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-lookup-info{font-size:var(--fs-sm);color:var(--text-2);margin-bottom:14px;min-height:20px}
 .sdv-lookup-info.ok{color:var(--green-text)}
 .sdv-lookup-info.err{color:var(--red-text)}
+/* Ayuda contextual por campo (corregir en Odoo + refrescar) — touch-friendly */
+.sdv-help{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;cursor:pointer;padding:2px;margin-left:5px;color:var(--text-muted);vertical-align:-3px}
+.sdv-help:hover{color:var(--brand-primary)}
+.sdv-help i{width:15px;height:15px}
+#sdv-help-pop{position:fixed;z-index:9999;max-width:300px;padding:13px 15px;background:var(--surface);border:1px solid var(--border-light);border-radius:12px;box-shadow:var(--shadow-lg,0 10px 34px rgba(0,0,0,.20));color:var(--text-2);font-size:var(--fs-sm);line-height:1.5;display:none}
+#sdv-help-pop.open{display:block}
+#sdv-help-pop .sdv-help-route{color:var(--amber-text);font-weight:600}
+#sdv-help-pop .sdv-help-close{display:block;margin-top:11px;text-align:right;color:var(--brand-primary);font-weight:700;cursor:pointer}
+@media(max-width:640px){#sdv-help-pop{left:0!important;right:0!important;bottom:0!important;top:auto!important;max-width:none;border-radius:16px 16px 0 0;padding:18px 16px 22px}}
 /* Items confirmados */
 .sdv-items-box{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);margin-bottom:16px}
 .sdv-items-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-2);font-weight:600}
@@ -5693,15 +5702,26 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 
           <!-- 2. Búsqueda Odoo -->
           <div class="sdv-detail-section" id="sdv-lookup-section" style="display:none">
+            <div id="sdv-onboard-banner" style="display:none;background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-2);line-height:1.5">
+              <div style="display:flex;gap:10px;align-items:flex-start">
+                <i data-lucide="info" style="width:18px;height:18px;flex-shrink:0;color:var(--brand-primary);margin-top:1px"></i>
+                <div>Esto no cambia cómo trabajas: sigues vendiendo en Odoo igual que siempre. Esta pantalla solo toma tu orden de Odoo y la conecta con el despacho, para que no tengas que escribir todo de nuevo.
+                  <a href="javascript:void(0)" onclick="sdvOnboardDismiss()" style="display:inline-block;margin-top:6px;color:var(--brand-primary);font-weight:700">Entendido</a>
+                </div>
+              </div>
+            </div>
             <h4 id="sdv-lookup-label">No. Orden de Venta <span class="req" style="color:var(--red-text)">*</span></h4>
             <div class="sdv-lookup-row">
               <input class="sdv-input" id="sdv-ref-input" placeholder="Ej: S09500" autocomplete="off"
                 onkeydown="if(event.key==='Enter')sdvBuscar()">
               <button class="btn btn-primary sdv-lookup-btn" onclick="sdvBuscar()" id="sdv-buscar-btn">
-                <i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar
+                <i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar / Actualizar
               </button>
             </div>
             <div class="sdv-lookup-info" id="sdv-lookup-info"></div>
+            <div class="sdv-lookup-hint" style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:4px;line-height:1.45">
+              Escribe el N° de orden y toca <strong>Buscar / Actualizar</strong>. Traemos cliente, dirección y artículos directo de Odoo — tú solo confirmas quién recibe. Si corregiste algo en Odoo, vuelve a tocarlo para refrescar.
+            </div>
           </div>
 
           <!-- Traslado interno: campo de artículo adicional -->
@@ -5719,7 +5739,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <div id="sdv-items-section" style="display:none;margin-bottom:16px">
             <div class="sdv-items-box">
               <div class="sdv-items-header">
-                <span id="sdv-items-title">Artículos</span>
+                <span id="sdv-items-title">Artículos</span><button class="sdv-help" type="button" data-help="items" aria-label="Cómo corregir los artículos"><i data-lucide="info"></i></button>
                 <span id="sdv-items-count" style="font-weight:400;color:var(--text-2)"></span>
               </div>
               <div id="sdv-items-list"></div>
@@ -5730,27 +5750,27 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <div id="sdv-entrega-section" style="display:none">
             <div class="sdv-form-grid">
               <div class="sdv-field">
-                <label>Cliente / Empresa <span class="req" style="color:var(--red-text)">*</span></label>
+                <label>Cliente / Empresa <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="cliente" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-cliente" placeholder="Nombre del cliente">
               </div>
               <div class="sdv-field">
-                <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span></label>
+                <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="ciudad" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo">
               </div>
             </div>
             <div class="sdv-form-grid cols1">
               <div class="sdv-field">
-                <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span></label>
+                <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="direccion" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa">
               </div>
             </div>
             <div class="sdv-form-grid">
               <div class="sdv-field">
-                <label>Nombre de Quien Recibe <span class="req" style="color:var(--red-text)">*</span></label>
+                <label>Nombre de Quien Recibe <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorNombre" aria-label="Más información"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-receptor-nombre" placeholder="Nombre completo">
               </div>
               <div class="sdv-field">
-                <label>Contacto (tel / WhatsApp) <span class="req" style="color:var(--red-text)">*</span></label>
+                <label>Contacto (tel / WhatsApp) <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorContacto" aria-label="Más información"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-receptor-contacto" placeholder="+1 809 000 0000">
               </div>
             </div>
@@ -7301,7 +7321,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v27';
+var APP_BUILD = 'v28';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27224,10 +27244,45 @@ async function sdvBuscar() {
   } catch(e) {
     sdvInfo('Error: '+e.message, 'err');
   } finally {
-    btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar';
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Buscar / Actualizar';
     if (window.lucide) lucide.createIcons();
   }
 }
+
+// ── Ayuda contextual por campo: dónde corregir en Odoo + refrescar ────────
+// Tono (gestión del cambio): beneficio para ellos, continuidad no ruptura, acción exacta sin jerga.
+var SDV_HELP = {
+  cliente: 'Este dato viene de Odoo. Si el cliente está mal, corrígelo en Odoo: «Ventas › Pedidos › tu pedido › campo Cliente». Solo se puede cambiar si el pedido aún es Cotización; si ya está confirmado, pídelo a tu supervisor. Luego vuelve aquí y toca «Buscar / Actualizar».',
+  direccion: 'La dirección viene de Odoo. Para cambiarla: «Ventas › Pedidos › tu pedido › pestaña Otra información › Dirección de entrega». Se puede cambiar aunque el pedido esté confirmado. Luego toca «Buscar / Actualizar».',
+  ciudad: '⚠️ La ciudad NO está en el pedido, está en el Contacto del cliente: «Contactos › abre el cliente › campo Ciudad». Guarda y vuelve a tocar «Buscar / Actualizar».',
+  items: 'Los artículos y cantidades vienen de la orden en Odoo: «Ventas › Pedidos › tu pedido › Líneas del pedido». Puedes editar producto y cantidad mientras el pedido no esté Bloqueado. Si una línea ya se facturó o despachó, no se puede bajar la cantidad: avisa a tu supervisor. Luego toca «Buscar / Actualizar».',
+  receptorNombre: 'Lo llenamos con el cliente para ahorrarte tiempo. Cámbialo aquí mismo si quien recibe en el sitio es otra persona.',
+  receptorContacto: 'Pre-llenado del cliente. Si quien recibe usa otro número, escríbelo aquí — esto es solo para esta entrega.'
+};
+function sdvHelpFmt(t){ return esc(t).replace(/«([^»]+)»/g,'<span class="sdv-help-route">$1</span>'); }
+function sdvHelpShow(key, anchor){
+  var pop = document.getElementById('sdv-help-pop');
+  if(!pop){ pop=document.createElement('div'); pop.id='sdv-help-pop'; document.body.appendChild(pop); }
+  pop.innerHTML = '<div>'+sdvHelpFmt(SDV_HELP[key]||'')+'</div><div class="sdv-help-close" onclick="sdvHelpHide()">Entendido</div>';
+  pop.classList.add('open');
+  if(window.innerWidth>640 && anchor){
+    var r=anchor.getBoundingClientRect();
+    pop.style.top=Math.min(r.bottom+8, window.innerHeight-40)+'px';
+    pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-312))+'px';
+    pop.style.bottom='auto'; pop.style.right='auto';
+  } else { pop.style.top=''; pop.style.left=''; pop.style.bottom=''; pop.style.right=''; }
+}
+function sdvHelpHide(){ var p=document.getElementById('sdv-help-pop'); if(p) p.classList.remove('open'); }
+document.addEventListener('click', function(e){
+  var btn = e.target.closest ? e.target.closest('.sdv-help') : null;
+  if(btn){ e.preventDefault(); e.stopPropagation(); sdvHelpShow(btn.getAttribute('data-help'), btn); return; }
+  if(!(e.target.closest && e.target.closest('#sdv-help-pop'))) sdvHelpHide();
+});
+
+// ── Banner de primera vez (continuidad, no ruptura) — una sola vez por usuario ──
+function sdvOnboardDismiss(){ try{localStorage.setItem('sdv_onboard_seen','1');}catch(e){} var b=document.getElementById('sdv-onboard-banner'); if(b)b.style.display='none'; }
+function sdvOnboardMaybeShow(){ var seen=false; try{ seen=!!localStorage.getItem('sdv_onboard_seen'); }catch(e){} var b=document.getElementById('sdv-onboard-banner'); if(b&&!seen){ b.style.display=''; if(window.lucide)lucide.createIcons(); } }
+if(document.readyState!=='loading') sdvOnboardMaybeShow(); else document.addEventListener('DOMContentLoaded', sdvOnboardMaybeShow);
 
 // ── Buscar artículo individual (traslado interno) ─────────────────────────
 async function sdvBuscarArticulo() {
@@ -27592,7 +27647,7 @@ async function sdvVerDetalle(id, ctx) {
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada') {
       acciones = '<div style="margin-top:16px">'+
-        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Rechazada por Operaciones. Corrige los datos y reenvíala.</div>'+
+        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px;line-height:1.5"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Si el motivo es un dato de la orden (cliente, dirección, artículos), corrígelo en Odoo y vuelve a tocar «Buscar / Actualizar». Si es de quien recibe, edítalo aquí.</div>'+
         '<button class="btn btn-primary" onclick="sdvOpenEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Corregir y reenviar</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='cancelada') {

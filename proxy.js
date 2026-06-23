@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v27';
+const APP_BUILD = 'v28';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7443,11 +7443,22 @@ const server = http.createServer(async (req, res) => {
               [[['origin','=',realName]]],
               {fields:['id','name','state','date_done'],limit:50});
             const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name));
+            // Regla (Pit, 2026-06-23, confirmada con datos reales de Ron):
+            //  - Sin ningún PICK → almacén de despacho directo (Outlet/STI/Nave): NO bloquear.
+            //  - 'cancel' = pick anulado → se ignora (ni listo ni pendiente).
+            //  - Bar para iniciar = 'done' (pick físicamente cerrado). 'assigned'/'confirmed'/'waiting'/'draft' = NO listo.
+            //  - Hubo PICK pero TODOS están 'cancel' → excepción: bloquear para revisión humana (no auto-despachar).
             if (pickList.length > 0) {
-              const allDone = pickList.every(p => p.state === 'done' || p.state === 'cancel');
+              const activos = pickList.filter(p => p.state !== 'cancel');
+              if (activos.length === 0) {
+                res.writeHead(422, {'Content-Type': 'application/json'});
+                res.end(JSON.stringify({ok: false, error: 'Picking anulado (todos los picks cancelados) — revisar con un administrador antes de despachar'}));
+                return;
+              }
+              const allDone = activos.every(p => p.state === 'done');
               if (!allDone) {
                 res.writeHead(422, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa en Odoo antes de iniciar despacho'}));
+                res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa el pick en Odoo antes de iniciar despacho'}));
                 return;
               }
             }
@@ -9881,6 +9892,7 @@ const server = http.createServer(async (req, res) => {
         
         // Fetch desde Odoo
         let odooItems = [];
+        let odooFields = null;   // cabecera fresca (cliente/vendedor/dirección/ciudad/teléfono)
         const ref = sol.odooOrderRef;
         const tipo = sol.tipoSolicitud;
         
@@ -9911,9 +9923,23 @@ const server = http.createServer(async (req, res) => {
             }
           }
         } else {
-          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name'],limit:1});
+          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','partner_shipping_id','user_id'],limit:1});
           if (sos && sos.length) {
             const so = sos[0];
+            // Cabecera fresca desde Odoo (misma lógica que el lookup del formulario)
+            let deliveryAddress='', city='', phone='';
+            try {
+              const shipId=(so.partner_shipping_id&&so.partner_shipping_id[0])||(so.partner_id&&so.partner_id[0]);
+              if(shipId){
+                const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
+                if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
+              }
+            } catch {}
+            odooFields = {
+              clienteNombre: so.partner_id?so.partner_id[1]:'',
+              salesperson: so.user_id?so.user_id[1]:'',
+              direccionEntrega: deliveryAddress, ciudadEntrega: city, receptorContacto: phone
+            };
             const pickRes = await buildItemsFromPicks(so.name, ['assigned']);
             (pickRes.items||[]).forEach(item=>{
               odooItems.push({sku:item.sku,quantity:item.quantity});
@@ -9939,11 +9965,19 @@ const server = http.createServer(async (req, res) => {
           }
         });
         
+        // Diff de cabecera: qué campos cambiaron en Odoo respecto a lo guardado en la solicitud
+        const fieldChanges = odooFields
+          ? ['clienteNombre','direccionEntrega','ciudadEntrega','receptorContacto']
+              .filter(k => odooFields[k] && odooFields[k] !== (sol[k]||''))
+              .map(k => ({ campo:k, actual:sol[k]||'', odoo:odooFields[k] }))
+          : [];
         const response = {
           ok: true,
           timestamp: new Date().toISOString(),
           changes: {added,removed,modified,current:odooItems},
-          summary: {totalCurrent:currentItems.length,totalOdoo:odooItems.length,addedCount:added.length,removedCount:removed.length,modifiedCount:modified.length}
+          odooFields,
+          fieldChanges,
+          summary: {totalCurrent:currentItems.length,totalOdoo:odooItems.length,addedCount:added.length,removedCount:removed.length,modifiedCount:modified.length,fieldChangedCount:fieldChanges.length}
         };
         
         res.writeHead(200,{'Content-Type':'application/json'});
@@ -10206,7 +10240,7 @@ const server = http.createServer(async (req, res) => {
           sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||d.razon||''});
           // Mantener informada a la vendedora del avance de SU solicitud
           try {
-            if (d.estado === 'en_proceso')      notifySeller(sol, { type:'status_changed', title:'✅ Solicitud aprobada', message:`Tu solicitud ${sol.folio||sol.id} fue aprobada y está en preparación.` });
+            if (d.estado === 'en_proceso')      notifySeller(sol, { type:'status_changed', title:'✅ Solicitud aprobada', message:`Tu solicitud ${sol.folio||sol.id} fue recibida por Operaciones y está en preparación. Te avisamos cuando se despache; no tienes que hacer nada más por ahora.` });
             else if (d.estado === 'rechazada')  notifySeller(sol, { type:'task_rejected',  title:'⛔ Solicitud rechazada', message:`Tu solicitud ${sol.folio||sol.id} fue rechazada${d.razon?': '+d.razon:''}. Puedes corregirla y reenviarla.` });
             else if (d.estado === 'despachada') notifySeller(sol, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sol.folio||sol.id} fue despachada.` });
           } catch(e){ silentCatch(e,'notifySeller'); }
