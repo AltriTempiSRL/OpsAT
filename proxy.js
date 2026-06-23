@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v33';
+const APP_BUILD = 'v34';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -479,7 +479,7 @@ function dcComputeSummary(user, date) {
   const myName = (user.name || '').trim().toLowerCase();
   const tasks = loadWwpTasks();
   const individual = [], team = [], pending = [];
-  let itemsConfirmed = 0, guidePhotos = 0;
+  let itemsConfirmed = 0, guidePhotos = 0, vehicleInspectionPhotos = 0;
   tasks.forEach(t => {
     if (!dcParticipates(t, user.id, odooStr)) return;
     const doneEntry = (t.statusHistory||[]).filter(h =>
@@ -499,7 +499,16 @@ function dcComputeSummary(user, date) {
       if ((f.creado_at||'').slice(0,10)===date && (f.creado_by||'').trim().toLowerCase()===myName) guidePhotos++;
     });
   });
-  return { individual, team, pending, activity: { itemsConfirmed, guidePhotos } };
+  // Contar fotos de inspecciones de vehículos completadas por el usuario hoy
+  const inspections = loadInspections();
+  if (inspections && inspections.length) {
+    inspections.forEach(insp => {
+      if ((insp.createdAt||'').slice(0,10)===date && (insp.createdByName||'').trim().toLowerCase()===myName) {
+        vehicleInspectionPhotos += (insp.fotos||[]).length;
+      }
+    });
+  }
+  return { individual, team, pending, activity: { itemsConfirmed, guidePhotos, vehicleInspectionPhotos } };
 }
 
 // Construye items desde las LÍNEAS DE OPERACIÓN (stock.move.line) de los picks

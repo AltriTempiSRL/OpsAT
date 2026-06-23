@@ -3940,7 +3940,10 @@ body{font-family:var(--font);min-height:100dvh}
 
   /* — Users list — */
   .user-row{flex-wrap:wrap;gap:8px;padding:12px}
-  .user-row-actions{width:100%;justify-content:flex-end}
+  .user-row-actions{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:6px}
+  .user-row-actions .btn-sm:not(:last-child){flex:0 1 auto;padding:6px 8px;min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;line-height:0;color:transparent}
+  .user-row-actions .btn-sm:not(:last-child) i{margin-right:0}
+  .user-row-actions .btn-sm:last-child{font-size:12px;padding:6px 12px}
 
   /* — Status progress scroll — */
   .status-progress{-webkit-overflow-scrolling:touch;padding-bottom:8px}
@@ -7329,7 +7332,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v33';
+var APP_BUILD = 'v34';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9460,7 +9463,7 @@ function dcSetAllOk(v) { _dcSyncFromDom(); _dcState.allOk = v; dcRenderResumen()
 function dcRenderResumen() {
   var s = _dcState.summary;
   var ind = s.individual||[], team = s.team||[], pend = s.pending||[];
-  var act = s.activity||{itemsConfirmed:0,guidePhotos:0};
+  var act = s.activity||{itemsConfirmed:0,guidePhotos:0,vehicleInspectionPhotos:0};
   var chip = function(t, color){ return '<span style="font-size:10px;font-weight:700;color:'+(color||'var(--text-3)')+';background:var(--surface-2);padding:2px 7px;border-radius:6px;white-space:nowrap">'+(_DC_TYPE[t.type]||t.type)+'</span>'; };
   var rowLine = function(t, right){
     var head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(right||'')+'</div>';
@@ -9469,9 +9472,13 @@ function dcRenderResumen() {
 
   // Bloque individual
   var indHtml = '<div style="font-size:12px;font-weight:800;color:var(--green-text);margin:4px 0 4px">▎ Tu trabajo individual</div>';
-  if (ind.length || act.itemsConfirmed || act.guidePhotos) {
+  if (ind.length || act.itemsConfirmed || act.guidePhotos || act.vehicleInspectionPhotos) {
     indHtml += ind.map(function(t){ return rowLine(t,'<span style="font-size:11px;color:var(--green-text)">✓ tú</span>'); }).join('');
-    if (act.itemsConfirmed || act.guidePhotos) indHtml += '<div style="font-size:11px;color:var(--text-3);padding:5px 0">Además: '+act.itemsConfirmed+' ítem(s) confirmados · '+act.guidePhotos+' foto(s) de guía subidas por ti.</div>';
+    var actParts = [];
+    if (act.itemsConfirmed) actParts.push(act.itemsConfirmed+' ítem(s) confirmados');
+    if (act.guidePhotos) actParts.push(act.guidePhotos+' foto(s) de guía');
+    if (act.vehicleInspectionPhotos) actParts.push(act.vehicleInspectionPhotos+' foto(s) inspección vehículo');
+    if (actParts.length) indHtml += '<div style="font-size:11px;color:var(--text-3);padding:5px 0">Además: '+actParts.join(' · ')+' subida(s) por ti.</div>';
   } else { indHtml += '<div style="font-size:12px;color:var(--text-3);padding:5px 0">Hoy no documentaste tareas individualmente.</div>'; }
 
   // Bloque equipo
@@ -25348,7 +25355,11 @@ function vehLoadList() {
     tbody.innerHTML = list.map((i) => {
       var aptoClass = i.apto === 'si' ? 'veh-apto-si' : i.apto === 'no' ? 'veh-apto-no' : 'veh-apto-nd';
       var aptoLabel = i.apto === 'si' ? '✓ Apto' : i.apto === 'no' ? '✗ No apto' : '— Sin registrar';
-      var accionCell = '<td><button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">✕</button></td>';
+      var fotoCount = (i.fotos || []).length;
+      var accionCell = '<td style="display:flex;gap:6px">' +
+        '<button onclick="vehShowPhotos(\''+escH(i.id)+'\','+fotoCount+')" class="btn-sm" style="border-color:var(--border);color:var(--text-2);flex:1" title="Ver '+(fotoCount)+' foto(s)"><i data-lucide="image" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:2px"></i>'+(fotoCount?fotoCount:'Sin fotos')+'</button>' +
+        '<button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">✕</button>' +
+        '</td>';
       return '<tr>'
         + '<td><strong>' + escH(i.fecha) + '</strong>'
         + (i.hora ? '<br><span style="font-size:11px;color:var(--text-muted)">'+escH(i.hora)+'</span>' : '') + '</td>'
@@ -25365,6 +25376,39 @@ function vehLoadList() {
   .catch(function() {
     tbody.innerHTML = '<tr><td colspan="7" class="veh-empty">Error al cargar inspecciones.</td></tr>';
   });
+}
+
+function vehShowPhotos(id, count) {
+  if (count === 0) { toast('Esta inspección no tiene fotos registradas.'); return; }
+  // Buscar en el listado actual la inspección (simplificado: fetch de nuevo)
+  fetch('/api/vehiculos/inspecciones', { headers: { 'Authorization': 'Bearer ' + (_token||'') } })
+  .then(function(r){ return r.json(); })
+  .then(function(list) {
+    var insp = list.find(i => i.id === id);
+    if (!insp || !insp.fotos || !insp.fotos.length) {
+      toast('No se encontraron fotos para esta inspección.');
+      return;
+    }
+    var html = '<div style="text-align:center">';
+    html += '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px">'+count+' foto(s) de la inspección</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;max-height:60vh;overflow-y:auto">';
+    insp.fotos.forEach(function(fotoUrl) {
+      html += '<div onclick="vehViewPhotoFull(\''+escH(fotoUrl)+'\')" style="cursor:pointer;border-radius:6px;overflow:hidden;background:var(--surface-2);aspect-ratio:1;display:flex;align-items:center;justify-content:center">' +
+        '<img src="'+esc(fotoUrl)+'" alt="foto" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.color=\'var(--text-muted)\';this.style.display=\'none\';this.parentElement.innerHTML=\'<span style=\\\"font-size:24px\\\">🖼️</span>\'" />' +
+        '</div>';
+    });
+    html += '</div></div>';
+    _trModal(html, 500);
+  })
+  .catch(function(){ toast('Error al cargar las fotos.'); });
+}
+
+function vehViewPhotoFull(url) {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;cursor:zoom-out';
+  ov.onclick = function(){ ov.remove(); };
+  ov.innerHTML = '<img src="'+esc(url)+'" style="max-width:96%;max-height:96%;border-radius:8px;box-shadow:0 10px 50px rgba(0,0,0,.6)" />';
+  document.body.appendChild(ov);
 }
 
 async function vehDelete(id) {
