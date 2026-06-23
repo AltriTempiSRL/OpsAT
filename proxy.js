@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v28';
+const APP_BUILD = 'v30';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -420,6 +420,55 @@ function ensureTrainingSeed() {
   }
 }
 ensureTrainingSeed();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CIERRE DE DÍA — parte por persona de tareas abiertas (cerrada/bloqueada/continúa)
+// Convierte "hice lo que pude, mañana sigo" en un compromiso explícito y trazable.
+// Ver DIAGNOSTICO-CIERRE-Y-RESPONSABILIDAD-WWP.md §9
+// ══════════════════════════════════════════════════════════════════════════════
+const DAILY_CLOSE_FILE = path.join(DATA_DIR, 'wwp-daily-close.json');
+function loadDailyCloses() { return loadJson(DAILY_CLOSE_FILE, []); }
+function saveDailyCloses(d) { saveJson(DAILY_CLOSE_FILE, d); }
+function dcToday() { return new Date().toISOString().slice(0,10); }
+function dcCloseFor(closes, userId, date) { return closes.find(c => c.userId === userId && c.date === date) || null; }
+// ¿el usuario participa en la tarea? (encargado, co, asignado, auxiliar o ejecutor)
+function dcParticipates(t, userId, odooStr) {
+  return t.managerId === userId ||
+    (t.coManagerIds||[]).includes(userId) ||
+    (t.assignees||[]).includes(userId) ||
+    (t.auxiliaryAssignees||[]).includes(userId) ||
+    (odooStr && t.assignedTo === odooStr) ||
+    (t.executors||[]).some(e => e === userId || e === odooStr);
+}
+// Resumen del día auto-generado: individual (lo que documentó él) · equipo (tarea suya
+// que documentó un compañero) · pendiente (sus tareas abiertas). Separa por quién documentó.
+function dcComputeSummary(user, date) {
+  const odooStr = user.odooId != null ? ('oe_' + user.odooId) : null;
+  const myName = (user.name || '').trim().toLowerCase();
+  const tasks = loadWwpTasks();
+  const individual = [], team = [], pending = [];
+  let itemsConfirmed = 0, guidePhotos = 0;
+  tasks.forEach(t => {
+    if (!dcParticipates(t, user.id, odooStr)) return;
+    const doneEntry = (t.statusHistory||[]).filter(h =>
+      ['completed','validated'].includes(h.status) && (h.date||'').slice(0,10) === date
+    ).pop();
+    if (doneEntry) {
+      const docName = (doneEntry.by||'').trim().toLowerCase();
+      const row = { id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, documentedBy: doneEntry.by||'—' };
+      if (docName && docName === myName) individual.push(row); else team.push(row);
+    } else if (['assigned','in_progress'].includes(t.status)) {
+      pending.push({ id:t.id, seq:t.seq||null, title:t.title, type:t.type, status:t.status, dueDate:t.dueDate||null });
+    }
+    (t.items||[]).forEach(it => {
+      if (it.confirmado && (it.confirmado_at||'').slice(0,10)===date && (it.confirmado_by||'').trim().toLowerCase()===myName) itemsConfirmed++;
+    });
+    (t.fotos_guia||[]).forEach(f => {
+      if ((f.creado_at||'').slice(0,10)===date && (f.creado_by||'').trim().toLowerCase()===myName) guidePhotos++;
+    });
+  });
+  return { individual, team, pending, activity: { itemsConfirmed, guidePhotos } };
+}
 
 // Construye items desde las LÍNEAS DE OPERACIÓN (stock.move.line) de los picks
 // 'assigned' (preparado) de una orden. Cada move.line = (bin real, cantidad reservada).
@@ -6280,7 +6329,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,sectionPerms:getRoleDefPerms(u.role)}));
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -6907,6 +6956,8 @@ const server = http.createServer(async (req, res) => {
       if (d.password) users[idx].passwordHash = hashPassword(d.password);
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
+      // Resumen del día — feature por usuario (piloto): on/off
+      if (d.dailySummaryEnabled !== undefined) users[idx].dailySummaryEnabled = !!d.dailySummaryEnabled;
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(users[idx].role)}}));
@@ -7518,6 +7569,19 @@ const server = http.createServer(async (req, res) => {
             }
           });
         }
+        // Validar en cascada: al validar la madre, sus subtareas ya 'completed' pasan a
+        // 'validated' (espejo de la cascada de cancelación). Evita subtareas atrapadas en
+        // 'completed' cuando la orden ya cerró. (Fix dato-higiene 2026-06-23.)
+        if (d.status==='validated' && !tasks[idx].parentId) {
+          tasks.forEach(s => {
+            if (s.parentId===tasks[idx].id && s.status==='completed') {
+              s.status='validated';
+              s.statusHistory = s.statusHistory||[];
+              s.statusHistory.push({ status:'validated', date:now, by:d.by||'', note:'Validada con la tarea madre' });
+              s.updatedAt=now;
+            }
+          });
+        }
       }
       // ── Gate de certificación (Salón de Entrenamientos) ──────────────────
       // Bloquea asignar a quien no esté certificado en la competencia de la tarea.
@@ -7957,6 +8021,116 @@ const server = http.createServer(async (req, res) => {
         return;
       }
     }
+  }
+
+  // ══════════ RESUMEN DEL DÍA — endpoints ══════════
+  // GET /api/wwp/daily-close/my-summary — mi resumen auto-generado (individual/equipo/pendiente)
+  if (reqPath === '/api/wwp/daily-close/my-summary' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const date = (parsed.query?.date || '').trim() || dcToday();
+    const me = loadAuthUsers().find(u => u.id === jp.userId);
+    const enabled = !!(me && me.dailySummaryEnabled);
+    const summary = dcComputeSummary({ id: jp.userId, name: jp.name, odooId: jp.odooId, role: jp.role }, date);
+    const already = dcCloseFor(loadDailyCloses(), jp.userId, date);
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, enabled, date, summary, already: already || null }));
+    return;
+  }
+
+  // POST /api/wwp/daily-close — validar/registrar mi resumen del día
+  // (Q1: el usuario valida + comenta si algo no cuadra; NO edita aquí — cambios van en la tarea.)
+  if (reqPath === '/api/wwp/daily-close' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const d = await readBody(req);
+      const date = (d.date || '').trim() || dcToday();
+      const now = new Date().toISOString();
+      const summary = dcComputeSummary({ id: jp.userId, name: jp.name, odooId: jp.odooId, role: jp.role }, date);
+      const PEND_REASONS = ['fin_turno','manana','multi_dia','continua_extra','otro'];
+      const pending = (Array.isArray(d.pending)?d.pending:[]).filter(p => p && p.taskId).map(p => ({
+        taskId: p.taskId, taskTitle: p.taskTitle || '',
+        reason: PEND_REASONS.includes(p.reason) ? p.reason : 'otro',
+        description: (p.description || '').trim()
+      }));
+      const closes = loadDailyCloses();
+      const existing = closes.findIndex(c => c.userId === jp.userId && c.date === date);
+      const record = {
+        id: existing >= 0 ? closes[existing].id : wwpId('dc'),
+        userId: jp.userId, userName: jp.name || jp.userId, role: jp.role, date, submittedAt: now,
+        validated: d.validated !== false,
+        comment: (d.comment || '').trim(),
+        pending,
+        snapshot: { individual: summary.individual.length, team: summary.team.length, pending: summary.pending.length, activity: summary.activity },
+        managerResponses: existing >= 0 ? (closes[existing].managerResponses || []) : []
+      };
+      if (existing >= 0) closes[existing] = record; else closes.push(record);
+      saveDailyCloses(closes);
+      appendAuditLog('daily_summary', { userId: jp.userId, date, snapshot: record.snapshot, pending: pending.length, validated: record.validated });
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, record }));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // POST /api/wwp/daily-close/manager-response — encargado responde/justifica por un auxiliar (opcional)
+  // (Q3: informar excusa, horas extra que continúa, o justificar lo que el auxiliar no hizo.)
+  if (reqPath === '/api/wwp/daily-close/manager-response' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    try {
+      const d = await readBody(req);
+      const date = (d.date || '').trim() || dcToday();
+      if (!d.auxUserId) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'auxUserId requerido'})); return; }
+      const closes = loadDailyCloses();
+      let ci = closes.findIndex(c => c.userId === jp.userId && c.date === date);
+      if (ci < 0) {
+        closes.push({ id: wwpId('dc'), userId: jp.userId, userName: jp.name, role: jp.role, date,
+          submittedAt: new Date().toISOString(), validated: false, comment: '', pending: [], snapshot: null, managerResponses: [] });
+        ci = closes.length - 1;
+      }
+      const mr = closes[ci].managerResponses || [];
+      const ri = mr.findIndex(x => x.auxUserId === d.auxUserId);
+      const entry = { auxUserId: d.auxUserId, auxName: d.auxName || '', response: (d.response || '').trim(), at: new Date().toISOString() };
+      if (ri >= 0) mr[ri] = entry; else mr.push(entry);
+      closes[ci].managerResponses = mr;
+      saveDailyCloses(closes);
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true }));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/wwp/daily-close/admin — reporte del día (dos niveles), solo usuarios habilitados
+  if (reqPath === '/api/wwp/daily-close/admin' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    const date = (parsed.query?.date || '').trim() || dcToday();
+    const closes = loadDailyCloses();
+    const users = loadAuthUsers().filter(u => u.active !== false && u.dailySummaryEnabled);
+    const PEND_LBL = { fin_turno:'Fin de turno', manana:'Continúa mañana', multi_dia:'Proceso de varios días', continua_extra:'Continúa (horas extra)', otro:'Otro' };
+    const rows = users.map(u => {
+      const rec = dcCloseFor(closes, u.id, date);
+      const s = dcComputeSummary({ id:u.id, name:u.name, odooId:u.odooId, role:u.role }, date);
+      return {
+        userId: u.id, name: u.name, role: u.role,
+        submitted: !!rec, submittedAt: rec ? rec.submittedAt : null, validated: rec ? rec.validated : false,
+        comment: rec ? rec.comment : '',
+        individual: s.individual, team: s.team, pending: s.pending, activity: s.activity,
+        pendingReasons: rec ? rec.pending : [],
+        managerResponses: rec ? rec.managerResponses : []
+      };
+    });
+    const consolidated = {
+      habilitados: rows.length,
+      enviaron: rows.filter(r => r.submitted).length,
+      pendientesDeEnviar: rows.filter(r => !r.submitted && (r.individual.length + r.team.length + r.pending.length) > 0).length,
+      totalIndividual: rows.reduce((a,r)=> a + r.individual.length, 0),
+      totalEquipo: rows.reduce((a,r)=> a + r.team.length, 0),
+      totalPendiente: rows.reduce((a,r)=> a + r.pending.length, 0),
+    };
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, date, rows, consolidated, pendLabels: PEND_LBL }));
+    return;
   }
 
   if (reqPath === '/api/wwp/lunch/breaks' && req.method === 'GET') {

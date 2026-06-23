@@ -6275,6 +6275,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <input id="task-search" type="text" placeholder="Buscar tarea, orden…" oninput="filterTasks()" autocomplete="off" autocorrect="off">
         </div>
         <button class="btn-new" id="btn-new-task" onclick="openNewTaskModal()" style="display:none">+ Nueva Tarea</button>
+        <button class="filters-toggle" id="btn-cierre-dia" type="button" onclick="dcOpenCierre()" title="Valida tu resumen del día y explica lo pendiente" style="position:relative;display:none">
+          <i data-lucide="clipboard-list" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
+          Mi resumen<span id="dc-open-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:#d97706;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:20px;line-height:1.4"></span>
+        </button>
+        <button class="filters-toggle" id="btn-cierre-admin" type="button" onclick="dcOpenAdmin()" title="Reporte del día del equipo" style="display:none">
+          <i data-lucide="clipboard-check" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
+          Resumen del equipo
+        </button>
         <button class="filters-toggle" id="filters-toggle" type="button" onclick="toggleFilters()" aria-expanded="false">
           <i data-lucide="sliders-horizontal" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
           Filtros<span class="filters-count" id="filters-count" style="display:none">0</span>
@@ -7321,7 +7329,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v28';
+var APP_BUILD = 'v30';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8986,6 +8994,7 @@ function enterApp() {
   if (backBtn) backBtn.style.display = isHistorialUser(_user) ? '' : 'none';
   loadTasks();
   loadAuthUsersForDropdown();
+  dcUpdateBadge();   // badge de "Cerrar mi día" + visibilidad del panel de equipo
   // Notifications
   loadNotificationsFromServer();
   connectSSE();
@@ -9368,6 +9377,207 @@ function _trModal(innerHtml, maxW) {
     + '<div style="margin-top:4px">'+innerHtml+'</div></div>';
   ov.addEventListener('click', function(e){ if (e.target===ov) ov.remove(); });
   document.body.appendChild(ov);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RESUMEN DEL DÍA — valida lo que hiciste (individual/equipo) + explica pendientes
+// ═══════════════════════════════════════════════════════════════════════
+var _dcState = null;
+var _DC_TYPE = {dispatch_order:'Despacho',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',warehouse_move:'Almacén',general:'General',staffing:'Personal',free:'Libre'};
+var _DC_PEND = [{v:'fin_turno',l:'Fin de turno'},{v:'manana',l:'Continúa mañana'},{v:'multi_dia',l:'Proceso de varios días'},{v:'continua_extra',l:'Continúa (horas extra)'},{v:'otro',l:'Otro'}];
+
+// Muestra/oculta el botón "Mi resumen" según el toggle del usuario (piloto) + badge de pendientes.
+async function dcUpdateBadge() {
+  try {
+    var r = await authFetch('/api/wwp/daily-close/my-summary');
+    var d = await r.json();
+    var btn = document.getElementById('btn-cierre-dia');
+    if (btn) btn.style.display = d.enabled ? '' : 'none';
+    var b = document.getElementById('dc-open-badge');
+    var n = d.summary ? (d.summary.pending||[]).length : 0;
+    if (b) { if (d.enabled && n>0 && !d.already) { b.textContent = n; b.style.display=''; } else { b.style.display='none'; } }
+    var adminBtn = document.getElementById('btn-cierre-admin');
+    if (adminBtn) adminBtn.style.display = (_user && (_user.role==='admin'||_user.role==='manager')) ? '' : 'none';
+  } catch(e) {}
+}
+
+async function dcOpenCierre() {
+  try {
+    var r = await authFetch('/api/wwp/daily-close/my-summary');
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    if (!d.enabled) { toast('La función de resumen del día no está activada para tu usuario'); return; }
+    _dcState = { date: d.date, summary: d.summary, pendReasons: {}, comment: '', allOk: true, already: d.already };
+    // precargar si ya envió hoy
+    if (d.already) {
+      _dcState.comment = d.already.comment || '';
+      _dcState.allOk = d.already.validated !== false;
+      (d.already.pending||[]).forEach(function(p){ _dcState.pendReasons[p.taskId] = {reason:p.reason||'', description:p.description||''}; });
+    }
+    dcRenderResumen();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+function _dcSyncFromDom() {
+  if (!_dcState) return;
+  (_dcState.summary.pending||[]).forEach(function(t){
+    var desc = document.getElementById('dc-desc-'+t.id);
+    if (desc) { _dcState.pendReasons[t.id] = _dcState.pendReasons[t.id]||{}; _dcState.pendReasons[t.id].description = desc.value; }
+  });
+  var cm = document.getElementById('dc-comment'); if (cm) _dcState.comment = cm.value;
+}
+
+function dcSetPendReason(taskId, reason) {
+  _dcSyncFromDom();
+  _dcState.pendReasons[taskId] = _dcState.pendReasons[taskId] || {};
+  _dcState.pendReasons[taskId].reason = reason;
+  dcRenderResumen();
+}
+function dcSetAllOk(v) { _dcSyncFromDom(); _dcState.allOk = v; dcRenderResumen(); }
+
+function dcRenderResumen() {
+  var s = _dcState.summary;
+  var ind = s.individual||[], team = s.team||[], pend = s.pending||[];
+  var act = s.activity||{itemsConfirmed:0,guidePhotos:0};
+  var chip = function(t, color){ return '<span style="font-size:10px;font-weight:700;color:'+(color||'var(--text-3)')+';background:var(--surface-2);padding:2px 7px;border-radius:6px;white-space:nowrap">'+(_DC_TYPE[t.type]||t.type)+'</span>'; };
+  var rowLine = function(t, right){ return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(right||'')+'</div>'; };
+
+  // Bloque individual
+  var indHtml = '<div style="font-size:12px;font-weight:800;color:var(--green-text);margin:4px 0 4px">▎ Tu trabajo individual</div>';
+  if (ind.length || act.itemsConfirmed || act.guidePhotos) {
+    indHtml += ind.map(function(t){ return rowLine(t,'<span style="font-size:11px;color:var(--green-text)">✓ tú</span>'); }).join('');
+    if (act.itemsConfirmed || act.guidePhotos) indHtml += '<div style="font-size:11px;color:var(--text-3);padding:5px 0">Además: '+act.itemsConfirmed+' ítem(s) confirmados · '+act.guidePhotos+' foto(s) de guía subidas por ti.</div>';
+  } else { indHtml += '<div style="font-size:12px;color:var(--text-3);padding:5px 0">Hoy no documentaste tareas individualmente.</div>'; }
+
+  // Bloque equipo
+  var teamHtml = '<div style="font-size:12px;font-weight:800;color:var(--accent);margin:12px 0 4px">▎ Trabajo en equipo</div>';
+  if (team.length) {
+    teamHtml += '<div style="font-size:11px;color:var(--text-3);margin-bottom:2px">Tareas tuyas que se completaron en grupo (las documentó un compañero — es trabajo tuyo también):</div>';
+    teamHtml += team.map(function(t){ return rowLine(t,'<span style="font-size:11px;color:var(--text-3)">doc: '+esc((t.documentedBy||'—').split(' ')[0])+'</span>'); }).join('');
+  } else { teamHtml += '<div style="font-size:12px;color:var(--text-3);padding:5px 0">Sin tareas completadas en equipo hoy.</div>'; }
+
+  // Bloque pendiente con motivos
+  var pendHtml = '<div style="font-size:12px;font-weight:800;color:var(--amber-text);margin:12px 0 4px">▎ Pendiente — ¿por qué?</div>';
+  if (pend.length) {
+    pendHtml += pend.map(function(t){
+      var pr = _dcState.pendReasons[t.id] || {};
+      var chips = _DC_PEND.map(function(o){
+        var on = pr.reason===o.v;
+        return '<button onclick="dcSetPendReason(\''+t.id+'\',\''+o.v+'\')" style="padding:4px 9px;border:1.5px solid '+(on?'var(--amber-dot)':'var(--border)')+';border-radius:14px;background:'+(on?'var(--amber-dot)':'var(--surface)')+';color:'+(on?'#fff':'var(--text-2)')+';font-size:11px;font-weight:600;cursor:pointer;margin:0 4px 4px 0">'+o.l+'</button>';
+      }).join('');
+      return '<div style="border:1.5px solid '+(pr.reason?'var(--border)':'var(--amber-dot)')+';border-radius:9px;padding:9px;margin-bottom:7px;background:var(--surface)">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+chip(t)+'<span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t.title||'')+'</span>'+(t.dueDate?'<span style="font-size:10px;color:'+(t.dueDate<_dcState.date?'var(--red-text)':'var(--text-3)')+'">'+t.dueDate+'</span>':'')+'</div>'
+        + '<div style="display:flex;flex-wrap:wrap">'+chips+'</div>'
+        + '<input id="dc-desc-'+t.id+'" value="'+esc(pr.description||'')+'" placeholder="Detalle corto (opcional)" style="width:100%;box-sizing:border-box;margin-top:5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--surface);color:var(--text)">'
+        + '</div>';
+    }).join('');
+  } else { pendHtml += '<div style="font-size:12px;color:var(--green-text);padding:5px 0">🎉 No tienes nada pendiente.</div>'; }
+
+  // Validación (Q1: validar; si algo no cuadra, comentar — NO editar aquí)
+  var valHtml = '<div style="border-top:1.5px solid var(--border);margin-top:14px;padding-top:12px">'
+    + '<div style="font-size:12px;font-weight:800;color:var(--text-secondary);margin-bottom:8px">¿Tu resumen está correcto?</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px">'
+    +   '<button onclick="dcSetAllOk(true)" style="flex:1;padding:9px;border:1.5px solid '+(_dcState.allOk?'var(--green-dot)':'var(--border)')+';border-radius:8px;background:'+(_dcState.allOk?'var(--green-dot)':'var(--surface)')+';color:'+(_dcState.allOk?'#fff':'var(--text-2)')+';font-size:13px;font-weight:700;cursor:pointer">✔️ Todo correcto</button>'
+    +   '<button onclick="dcSetAllOk(false)" style="flex:1;padding:9px;border:1.5px solid '+(!_dcState.allOk?'var(--amber-dot)':'var(--border)')+';border-radius:8px;background:'+(!_dcState.allOk?'var(--amber-dot)':'var(--surface)')+';color:'+(!_dcState.allOk?'#fff':'var(--text-2)')+';font-size:13px;font-weight:700;cursor:pointer">⚠️ Algo no cuadra</button>'
+    + '</div>'
+    + (!_dcState.allOk ? '<textarea id="dc-comment" placeholder="¿Qué no cuadra? Descríbelo. (Para corregir el dato, hazlo en la tarea — aquí solo informas.)" style="width:100%;box-sizing:border-box;min-height:60px;padding:8px;border:1.5px solid var(--amber-dot);border-radius:7px;font-size:13px;background:var(--surface);color:var(--text)">'+esc(_dcState.comment||'')+'</textarea>' : '')
+    + '</div>';
+
+  _trModal(
+    '<div style="font-size:17px;font-weight:800;color:var(--text)">🗒️ Mi resumen del día</div>'
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px">'+_dcState.date+' · Revisa lo que hiciste y valida. Lo pendiente, explica por qué.</div>'
+    + indHtml + teamHtml + pendHtml + valHtml
+    + '<button class="btn-primary" onclick="dcSubmitResumen()" style="width:100%;margin-top:12px">Enviar mi resumen</button>'
+    , 540);
+}
+
+async function dcSubmitResumen() {
+  _dcSyncFromDom();
+  var pend = _dcState.summary.pending||[];
+  // motivo requerido por cada pendiente
+  var faltan = pend.filter(function(t){ var pr=_dcState.pendReasons[t.id]; return !pr || !pr.reason; });
+  if (faltan.length) { toast('Indica el motivo de '+faltan.length+' tarea(s) pendiente(s)'); return; }
+  if (!_dcState.allOk && !(_dcState.comment||'').trim()) { toast('Describe qué no cuadra, o marca "Todo correcto"'); return; }
+  var pending = pend.map(function(t){ var pr=_dcState.pendReasons[t.id]||{}; return {taskId:t.id, taskTitle:t.title||'', reason:pr.reason, description:pr.description||''}; });
+  try {
+    var r = await authFetch('/api/wwp/daily-close', {method:'POST', body:JSON.stringify({date:_dcState.date, validated:_dcState.allOk, comment:_dcState.comment||'', pending:pending})});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    var sn = d.record.snapshot;
+    _trModal('<div style="text-align:center;padding:14px">'
+      + '<div style="font-size:42px">🗒️</div>'
+      + '<div style="font-size:17px;font-weight:800;margin:6px 0;color:var(--text)">Resumen enviado</div>'
+      + '<div style="font-size:14px;color:var(--text-2);margin-bottom:8px">'+sn.individual+' individual · '+sn.team+' en equipo · '+sn.pending+' pendiente(s)</div>'
+      + '<div style="font-size:13px;color:var(--green-text);font-weight:600">Gracias. Tu encargado y la administración verán tu día.</div>'
+      + '<button class="btn-primary" onclick="document.getElementById(\'tr-modal-ov\').remove()" style="margin-top:16px;width:100%">Listo</button></div>', 400);
+    dcUpdateBadge();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Admin/encargado: reporte del día (dos niveles) + respuesta del encargado ──
+var _dcAdminData = null;
+async function dcOpenAdmin() {
+  try {
+    var r = await authFetch('/api/wwp/daily-close/admin');
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    _dcAdminData = d;
+    dcRenderAdmin();
+  } catch(e) { toast('Error: '+e.message); }
+}
+function dcRenderAdmin() {
+  var d = _dcAdminData, c = d.consolidated, PL = d.pendLabels||{};
+  var canRespond = _user && (_user.role==='admin'||_user.role==='manager');
+  var rows = d.rows.filter(function(u){ return u.individual.length||u.team.length||u.pending.length||u.submitted; });
+  var list = rows.map(function(u){
+    var estado = u.submitted ? (u.validated?'<span style="color:var(--green-text);font-weight:700">✓ Validó</span>':'<span style="color:var(--amber-text);font-weight:700">⚠️ Reportó algo</span>')
+               : '<span style="color:var(--red-text);font-weight:700">⏳ Sin enviar</span>';
+    var pendDet = (u.pending||[]).map(function(p){
+      var pr = (u.pendingReasons||[]).find(function(x){return x.taskId===p.id;});
+      var motivo = pr ? (PL[pr.reason]||pr.reason)+(pr.description?(' — '+esc(pr.description)):'') : 'sin motivo';
+      return '<div style="font-size:11px;color:var(--amber-text);margin-left:6px">⏳ '+esc((p.title||'').slice(0,30))+' · '+esc(motivo)+'</div>';
+    }).join('');
+    var comentario = (u.comment&&!u.validated) ? '<div style="font-size:11px;color:var(--amber-text);margin-left:6px;font-style:italic">⚠️ '+esc(u.comment)+'</div>' : '';
+    var mResp = (u.managerResponses||[]).map(function(m){return '<div style="font-size:10px;color:var(--accent);margin-left:6px">↳ encargado: '+esc(m.response)+'</div>';}).join('');
+    var respBtn = (canRespond && u.role==='assistant') ? '<button class="btn-sm" onclick="dcManagerRespond(\''+u.userId+'\',\''+esc((u.name||'').replace(/'/g,''))+'\')" style="font-size:11px;padding:3px 8px">Responder</button>' : '';
+    return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13px;font-weight:700;color:var(--text)">'+esc(u.name)+' <span style="font-size:10px;color:var(--text-3)">'+(_TR_ROLELBL[u.role]||u.role)+'</span></span>'+estado+respBtn+'</div>'
+      + '<div style="font-size:11px;color:var(--text-3);margin:2px 0 0 6px">'+u.individual.length+' individual · '+u.team.length+' en equipo · '+u.pending.length+' pendiente(s)</div>'
+      + pendDet + comentario + mResp + '</div>';
+  }).join('');
+  _trModal(
+    '<div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:2px">📋 Resumen del día — '+d.date+'</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Solo usuarios con la función activada</div>'
+    + '<div style="display:flex;gap:8px;margin:6px 0 4px;flex-wrap:wrap">'
+    +   '<div style="flex:1;min-width:80px;background:var(--surface-2);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--green-text)">'+c.enviaron+'</div><div style="font-size:10px;color:var(--text-3)">enviaron</div></div>'
+    +   '<div style="flex:1;min-width:80px;background:var(--surface-2);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--red-text)">'+c.pendientesDeEnviar+'</div><div style="font-size:10px;color:var(--text-3)">sin enviar</div></div>'
+    +   '<div style="flex:1;min-width:80px;background:var(--surface-2);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--accent)">'+c.totalEquipo+'</div><div style="font-size:10px;color:var(--text-3)">en equipo</div></div>'
+    +   '<div style="flex:1;min-width:80px;background:var(--surface-2);border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:var(--amber-text)">'+c.totalPendiente+'</div><div style="font-size:10px;color:var(--text-3)">pendiente</div></div>'
+    + '</div>'
+    + (c.habilitados ? (list || '<div style="text-align:center;color:var(--text-3);padding:20px;font-size:13px">Sin actividad hoy.</div>') : '<div style="text-align:center;color:var(--text-3);padding:20px;font-size:13px">Aún no hay usuarios con la función activada. Actívala en Usuarios.</div>')
+    , 580);
+}
+async function dcManagerRespond(auxUserId, auxName) {
+  var resp = await _iosPrompt('Respuesta/justificación sobre '+auxName+' (ej: se retiró temprano, continúa en horas extra, justifica lo pendiente):', '');
+  if (resp === null) return;
+  try {
+    var r = await authFetch('/api/wwp/daily-close/manager-response', {method:'POST', body:JSON.stringify({date:_dcAdminData.date, auxUserId:auxUserId, auxName:auxName, response:resp})});
+    var d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    toast('Respuesta guardada');
+    dcOpenAdmin();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// Toggle del Resumen del día por usuario (piloto) — desde la lista de Usuarios.
+async function dsToggleSummary(userId, current) {
+  try {
+    var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify({dailySummaryEnabled: !current})});
+    var d = await r.json();
+    if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
+    toast('Resumen del día: '+(!current?'activado':'desactivado'));
+    if (typeof loadUsers==='function') loadUsers();
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 function switchTab(tab) {
@@ -15622,6 +15832,7 @@ async function loadUsers() {
         <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
         ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text)">Inactivo</span>'}
         <div class="user-row-actions">
+          <button class="btn-sm" onclick="dsToggleSummary('${u.id}',${u.dailySummaryEnabled?'true':'false'})" title="Resumen del día (piloto): ${u.dailySummaryEnabled?'activado':'desactivado'}" style="border-color:${u.dailySummaryEnabled?'var(--green-dot)':'var(--border)'};color:${u.dailySummaryEnabled?'var(--green-text)':'var(--text-3)'}"><i data-lucide="clipboard-list" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Resumen: ${u.dailySummaryEnabled?'ON':'OFF'}</button>
           <button class="btn-sm" onclick="trOpenRetake('${u.id}')" title="Mandar a retomar un examen"><i data-lucide="graduation-cap" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Examen</button>
           <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
         </div>
