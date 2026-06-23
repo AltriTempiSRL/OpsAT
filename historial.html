@@ -11059,14 +11059,18 @@ function _isTypingInDrawer() {
   var el = document.activeElement;
   if (el) {
     var tag = el.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable) {
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
       var drawer = document.getElementById('wwp-drawer');
       if (drawer && drawer.contains(el)) return true;
     }
   }
   // Panel de asignación abierto — no colapsar mientras el usuario elige
   var assignBody = document.getElementById('dr-assign-body');
-  return !!(assignBody && assignBody.style.display !== 'none');
+  if (assignBody && assignBody.style.display !== 'none') return true;
+  // Panel de justificación de empaque abierto
+  var drawerEl = document.getElementById('wwp-drawer');
+  if (drawerEl && drawerEl.querySelector('.task-emp-just-wrap.open')) return true;
+  return false;
 }
 // Recarga la tarea abierta desde el servidor sin refrescar el browser
 async function refreshDrawer(btn) {
@@ -11862,7 +11866,9 @@ function renderDrawer(t) {
     </div>
     ${overdueReassignButtonHtml(t, {primary:true})}
   </div>` : '';
-  document.getElementById('drawer-body').innerHTML = isDispatch ? `
+  var _drawerBodyEl = document.getElementById('drawer-body');
+  var _savedDrawerScroll = _drawerBodyEl ? _drawerBodyEl.scrollTop : 0;
+  _drawerBodyEl.innerHTML = isDispatch ? `
     <div class="status-progress">${stepHtml}</div>
     ${overdueBannerHtml}
     <div class="info-grid">
@@ -11949,6 +11955,8 @@ function renderDrawer(t) {
   `;
   // Procesar íconos Lucide en el drawer
   if(window.lucide) lucide.createIcons();
+  // Restaurar scroll para que el re-render por polling no salte al tope
+  if (_savedDrawerScroll > 0 && _drawerBodyEl) _drawerBodyEl.scrollTop = _savedDrawerScroll;
   // Fotos de Odoo en responsable / auxiliares del drawer (chat se hidrata aparte)
   hydrateOdooAvatars(document.getElementById('drawer-body'));
   // Cargar mensajes de forma asíncrona para no bloquear render
@@ -26578,9 +26586,11 @@ var _empCategorias = [];      // árbol Odoo (cacheado)
 var _empMatEditorId = null;   // null = nuevo
 var _empRegEditorId = null;   // (legacy, no usado)
 var _empRegSortList = [];     // (legacy, no usado)
+var _empResolveCache = {};    // categ_id → materiales[]; evita el flash "Cargando..." en re-renders
 
 // ── Carga inicial ─────────────────────────────────────────────────────────
 function empInit() {
+  _empResolveCache = {};  // invalidar cache al entrar al tab (reglas pueden haber cambiado)
   // Primero categorías + reglas en paralelo, luego renderizar árbol
   Promise.all([empLoadMateriales(), empLoadReglas(), empLoadCategorias()]).then(function() {
     empRenderCategTree();
@@ -27067,17 +27077,36 @@ function empCloseLightbox() {
 
 // Enriquece los items de una tarea con datos de empaque y renderiza
 function empEnrichTaskItems(task, containerSelector) {
-  var items = (task.items || []).filter((it) => { return it.selected && it.odoo_categ_id; });
+  var items = (task.items || []).filter(function(it) { return it.selected && it.odoo_categ_id; });
   if (!items.length) return;
-  var categIds = [...new Set(items.map((it) => { return it.odoo_categ_id; }))].join(',');
-  apiFetch('/api/empaque/resolve?categ_ids=' + categIds).then(function(r) {
+
+  // Render inmediato desde caché — elimina el flash "Cargando..." en re-renders por polling
+  var uncachedSet = {};
+  items.forEach(function(item) {
+    var cached = _empResolveCache[item.odoo_categ_id];
+    if (cached) {
+      var existing = document.getElementById('emp-item-' + item.item_id);
+      if (existing) empRenderItemSection(existing, item, cached);
+    } else {
+      uncachedSet[item.odoo_categ_id] = true;
+    }
+  });
+
+  var fetchIds = Object.keys(uncachedSet);
+  if (!fetchIds.length) return;
+
+  apiFetch('/api/empaque/resolve?categ_ids=' + fetchIds.join(',')).then(function(r) {
     if (!r.ok) return;
     var resolvedMap = r.result || {};
-    items.forEach((item) => {
+    Object.keys(resolvedMap).forEach(function(categId) {
+      var d = resolvedMap[categId];
+      if (d && d.materiales && d.materiales.length) _empResolveCache[categId] = d.materiales;
+    });
+    items.forEach(function(item) {
+      if (!uncachedSet[item.odoo_categ_id]) return;
       var empData = resolvedMap[item.odoo_categ_id] || null;
       if (!empData || !empData.materiales.length) return;
-      var sectionId = 'emp-item-' + item.item_id;
-      var existing  = document.getElementById(sectionId);
+      var existing = document.getElementById('emp-item-' + item.item_id);
       if (!existing) return;
       empRenderItemSection(existing, item, empData.materiales);
     });
