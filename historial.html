@@ -7329,7 +7329,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v31';
+var APP_BUILD = 'v32';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9613,10 +9613,20 @@ async function dsToggleSummary(userId, current) {
 // Toggle de Inspección de vehículo diaria obligatoria por usuario — desde la lista de Usuarios.
 async function dsToggleInspection(userId, current) {
   try {
-    var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify({vehicleInspectionRequired: !current})});
+    var newState = !current;
+    var patch = { vehicleInspectionRequired: newState };
+
+    // Si lo activa ahora, que comience mañana (así no bloquea hoy al personal en vivo)
+    if (newState) {
+      var tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      patch.vehicleInspectionRequiredStartDate = tomorrow.toISOString().slice(0,10);
+    }
+
+    var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify(patch)});
     var d = await r.json();
     if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
-    toast('Inspección diaria: '+(!current?'activada (obligatoria)':'desactivada'));
+    toast('Inspección diaria: '+(newState?'activada para mañana':'desactivada'));
     if (typeof loadUsers==='function') loadUsers();
   } catch(e) { toast('Error: '+e.message); }
 }

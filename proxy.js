@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v31';
+const APP_BUILD = 'v32';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -436,10 +436,17 @@ function dcCloseFor(closes, userId, date) { return closes.find(c => c.userId ===
 // Bloquea a un usuario DESIGNADO (user.vehicleInspectionRequired) hasta que registre
 // la inspección de vehículo del día. Por defecto NADIE está designado → no bloquea a
 // nadie (mismo patrón "nace apagado" que el gate de formación). Lo activa el admin por
-// usuario desde la lista de Usuarios.
+// usuario desde la lista de Usuarios. Si tiene vehicleInspectionRequiredStartDate, no
+// requiere hasta esa fecha (permite activarlo hoy, efectivo mañana).
 function vehInspectionGate(user) {
   if (!user || !user.vehicleInspectionRequired) return { required:false, completed:true, blocked:false };
   const today = new Date().toISOString().slice(0,10);
+
+  // Si tiene fecha de inicio y aún no llegó, no bloquea
+  if (user.vehicleInspectionRequiredStartDate && today < user.vehicleInspectionRequiredStartDate) {
+    return { required:false, completed:true, blocked:false, pendingFrom: user.vehicleInspectionRequiredStartDate };
+  }
+
   const done = loadInspections().some(i =>
     i.createdBy === user.id &&
     (((i.fecha||'').slice(0,10) === today) || ((i.createdAt||'').slice(0,10) === today)));
@@ -6984,7 +6991,15 @@ const server = http.createServer(async (req, res) => {
       // Resumen del día — feature por usuario (piloto): on/off
       if (d.dailySummaryEnabled !== undefined) users[idx].dailySummaryEnabled = !!d.dailySummaryEnabled;
       // Inspección de vehículo diaria obligatoria — gate por usuario: on/off
-      if (d.vehicleInspectionRequired !== undefined) users[idx].vehicleInspectionRequired = !!d.vehicleInspectionRequired;
+      if (d.vehicleInspectionRequired !== undefined) {
+        users[idx].vehicleInspectionRequired = !!d.vehicleInspectionRequired;
+        if (!d.vehicleInspectionRequired) {
+          delete users[idx].vehicleInspectionRequiredStartDate;
+        } else if (d.vehicleInspectionRequiredStartDate) {
+          users[idx].vehicleInspectionRequiredStartDate = d.vehicleInspectionRequiredStartDate;
+        }
+      }
+      if (d.vehicleInspectionRequiredStartDate !== undefined) users[idx].vehicleInspectionRequiredStartDate = d.vehicleInspectionRequiredStartDate;
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role,active:users[idx].active,lunchTimeAllowed:users[idx].lunchTimeAllowed||60,sectionPerms:getRoleDefPerms(users[idx].role)}}));
