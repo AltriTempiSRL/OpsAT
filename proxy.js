@@ -7497,7 +7497,7 @@ const server = http.createServer(async (req, res) => {
         }
         // Validar items/fotos al iniciar tareas que requieren evidencia (packaging, warehouse_move)
         if (d.status==='in_progress' && ['packaging','warehouse_move'].includes(tasks[idx].type)) {
-          const selItems=(tasks[idx].items||[]).filter(it=>it.selected && !it.isKit);
+          const selItems=(tasks[idx].items||[]).filter(it=>it.selected);
           if (selItems.length===0) {
             res.writeHead(422,{'Content-Type':'application/json'});
             res.end(JSON.stringify({ok:false,error:'No hay artículos asignados a esta tarea. Carga los items antes de iniciar.'}));
