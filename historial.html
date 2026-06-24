@@ -9969,6 +9969,7 @@ function taskParticipantIds(t) {
   const ids = new Set();
   if (!t) return ids;
   [t.managerId, t.createdBy].filter(Boolean).forEach(id => ids.add(id));
+  (t.coManagerIds||[]).filter(Boolean).forEach(id => ids.add(id));
   (t.assignees||[]).filter(Boolean).forEach(id => ids.add(id));
   (t.auxiliaryAssignees||[]).filter(Boolean).forEach(id => ids.add(id));
   if (t.assignedTo) {
