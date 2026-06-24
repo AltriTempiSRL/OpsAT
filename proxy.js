@@ -2973,10 +2973,21 @@ const NOTIF_LABELS = {
   system_sync_error   : '🔴 Error de sincronización',
 };
 
+// Tipos rutinarios que el supervisor ya recibe como participante directo o vía opsIds/adminIds.
+// NO se propagan como copia supervisora para evitar duplicados y ruido.
+const SUPERVISOR_SKIP_TYPES = new Set([
+  'task_assigned','subtask_assigned','status_changed',
+  'task_completed','task_validated','task_cancelled','task_rejected',
+  'task_chat','comment_new','lunch_ended','agent_routine'
+]);
+
 function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null}) {
   if (!userId) return null;
-  // Enviar a userId original + todos los supervisores (actualizados en cada login)
-  const recipientIds = [userId, ...supervisorUserIds.filter(uid => uid !== userId)];
+  // Copiar a supervisores solo para alertas operacionales (no para cambios rutinarios de estado)
+  const forwardToSupervisors = !SUPERVISOR_SKIP_TYPES.has(type);
+  const recipientIds = forwardToSupervisors
+    ? [userId, ...supervisorUserIds.filter(uid => uid !== userId)]
+    : [userId];
   let primaryNotif = null;
 
   recipientIds.forEach(uid => {

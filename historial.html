@@ -13220,7 +13220,7 @@ function renderModalItems() {
         </div>
       </div>`;
     }
-    return `<div class="item-row-modal ${it.selected?'sel':''} ${it._inCart?'':''}${it._inCart?'opacity:.6':''}">
+    return `<div class="item-row-modal ${it.selected?'sel':''}" style="${it._inCart?'opacity:.6':''}">
       <div onclick="toggleItem(${i})" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer">
         ${it.image?`<img class="item-thumb-sm" src="${it.image}" onerror="this.style.display='none'">`:`<div class="item-ph-sm"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>`}
         <div class="item-info-sm" style="flex:1;min-width:0">
@@ -13244,6 +13244,7 @@ function selectItemLocation(itemIdx, locIdx) {
 
 function toggleItem(i) {
   if (_modalSearch[i] && _modalSearch[i]._claimed) { toast('Ese artículo ya está asignado a otra tarea activa'); return; }
+  if (_modalSearch[i] && _modalSearch[i]._inCart) { toast('Este artículo ya está en la tarea'); return; }
   _modalSearch[i].selected = !_modalSearch[i].selected;
   if (_modalSearch[i].selected && (_modalSearch[i].locations||[]).length === 1) {
     _modalSearch[i].selected_location = 0;
