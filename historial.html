@@ -11190,11 +11190,12 @@ function renderDrawer(t) {
   const feVehiculo  = (t.fotos_vehiculo||[]).length  > 0; // foto vehículo cargado
   const feEntrega   = (t.fotos_entrega||[]).length   > 0; // documentos firmados
   const dispatchChecklistOk = feRecepcion && feVehiculo && feEntrega;
+  const retiradoPorCliente = isDispatch && !!t.retirado_por_cliente;
   // Artículos de entrega: hereda config de kit del empaque (kit armado = 1 unidad; desarmado = componentes).
   // Incluye tarjetas-kit armadas (isKit && selected) y excluye componentes ocultos (selected:false).
   const _dispSel = (t.items||[]).filter(i=>i.selected);
   const dispatchItemsPending = isDispatch ? _dispSel.filter(i =>
-    !i.deliveryStatus || (i.deliveryStatus!=='not_delivered' && (i.evidence_images||[]).length===0)
+    !i.deliveryStatus || (!retiradoPorCliente && i.deliveryStatus!=='not_delivered' && (i.evidence_images||[]).length===0)
   ) : [];
   const dispatchItemsOk = isDispatch && _dispSel.length>0 && dispatchItemsPending.length===0;
 
@@ -11834,7 +11835,7 @@ function renderDrawer(t) {
         const ds = it.deliveryStatus||'';
         const isDmg = ds==='damaged';
         const isND  = ds==='not_delivered';
-        const needPhoto = ds && ds!=='not_delivered' && !evs.length;
+        const needPhoto = !retiradoPorCliente && ds && ds!=='not_delivered' && !evs.length;
         const bord = !ds?'var(--amber-dot)':isND?'var(--red-dot)':isDmg?'var(--amber-dot)':'var(--green-dot)';
         const isKitCard = !!it.isKit;
         const kitImg = it.kitImage || it.image;
@@ -11847,7 +11848,7 @@ function renderDrawer(t) {
               <div class="item-name">${esc(dispName)}${(!isKitCard&&it.unit_total>1)?`<span style="font-size:10px;font-weight:700;color:var(--accent);margin-left:6px">Unidad ${it.unit_index}/${it.unit_total}</span>`:''}</div>
               <div class="item-sku">${isKitCard?'Kit completo (ensamblado)':'SKU: '+esc(it.sku||'')}</div>
             </div>
-            <span class="${evs.length?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):'Sin fotos'}</span>
+            <span class="${evs.length?'item-badge-ok':(retiradoPorCliente?'item-badge-ok':'item-badge-pend')}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):(retiradoPorCliente?'Empacado ✓':'Sin fotos')}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
             <span style="font-size:11px;color:var(--text-3);font-weight:600">Entrega:</span>
@@ -11864,12 +11865,21 @@ function renderDrawer(t) {
           ${evs.length?`<div class="ev-grid">${evs.map(e=>`<div class="ev-wrap"><img class="ev-img" src="${mediaUrl(e.url)}" onclick="openLightbox('${mediaUrl(e.url)}')" style="cursor:zoom-in" onerror="this.src='data:image/svg+xml,<svg/>'">
             ${canDispUpload?`<button class="ev-del" onclick="deleteItemEvidence('${t.id}','${it.item_id}','${e.id}')">✕</button>`:''}
           </div>`).join('')}</div>`:''}
-          ${(canDispUpload && !isND)?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Foto del artículo entregado</button>`:''}
+          ${(canDispUpload && !isND && !retiradoPorCliente)?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Foto del artículo entregado</button>`:''}
         </div>`;
       }).join('');
       dispatchItemsHtml = `<div class="sec-header">ARTÍCULOS A ENTREGAR
         <span style="float:right;font-size:10px;color:${dispatchItemsOk?'var(--green-text)':'var(--amber-text)'}">${_dispSel.length-dispatchItemsPending.length}/${_dispSel.length} registrados</span>
-      </div>${cards}`;
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${retiradoPorCliente?'rgba(16,163,74,.06)':'var(--surface-2)'};border:1.5px solid ${retiradoPorCliente?'var(--green-dot)':'var(--border)'};border-radius:8px;margin-bottom:8px;cursor:${canDispUpload?'pointer':'default'}" onclick="event.stopPropagation()">
+        <input type="checkbox" ${retiradoPorCliente?'checked':''} ${canDispUpload?'':'disabled'} onchange="setRetiradoPorCliente('${t.id}',this.checked)" style="width:16px;height:16px;flex-shrink:0;cursor:inherit;accent-color:var(--green-dot)">
+        <span style="flex:1;min-width:0">
+          <span style="font-size:12px;font-weight:700;color:var(--text)">Retirado por cliente</span>
+          <span style="display:block;font-size:10px;color:var(--text-3);line-height:1.3">Solo se requiere foto de vehículo cargado — artículos se entregan empacados</span>
+        </span>
+        ${retiradoPorCliente?'<span style="font-size:9px;font-weight:700;color:var(--green-text);background:rgba(16,163,74,.12);padding:2px 6px;border-radius:4px;white-space:nowrap;flex-shrink:0">ACTIVO</span>':''}
+      </label>
+      ${cards}`;
     } else {
       dispatchItemsHtml = `<div class="sec-header">ARTÍCULOS A ENTREGAR</div>
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px 16px;background:rgba(217,119,6,.06);border:1.5px solid var(--amber-dot);border-radius:10px;text-align:center">
@@ -12750,6 +12760,16 @@ async function deleteFotoDespacho(taskId, cat, fotoId) {
   } catch(e){ toast(e.message); }
 }
 // Entrega por artículo
+async function setRetiradoPorCliente(taskId, val) {
+  try {
+    const r = await authFetch('/api/wwp/tasks/'+taskId, {method:'PATCH',
+      body:JSON.stringify({retirado_por_cliente:val, by:_user?.name||''})});
+    const d = await r.json();
+    if (!d.ok) { toast(d.error||'Error'); return; }
+    toast(val?'Retirado por cliente activado':'Desactivado');
+    openDrawer(taskId);
+  } catch(e){ toast(e.message); }
+}
 async function setItemDelivery(taskId, itemId, status) {
   try {
     const delivered = status && status !== 'not_delivered';

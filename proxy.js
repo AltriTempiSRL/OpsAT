@@ -7737,6 +7737,7 @@ const server = http.createServer(async (req, res) => {
       if (d.location!==undefined) tasks[idx].location=d.location;
       if (d.dueDate!==undefined) tasks[idx].dueDate=d.dueDate;
       if (d.actionNote!==undefined) tasks[idx].actionNote=d.actionNote;
+      if (d.retirado_por_cliente!==undefined) tasks[idx].retirado_por_cliente=!!d.retirado_por_cliente;
       tasks[idx].updatedAt=now;
       // Si un encargado/admin editó campos de contenido (no solo status) → marca de modificación
       // para reactivar la tarea en la lista de auxiliares que ya marcaron terminado.
