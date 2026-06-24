@@ -11682,6 +11682,8 @@ function renderDrawer(t) {
       const ctxLocationLabel = ctxIsWarehouse ? 'Ubicación destino' : (ctxIsPackaging ? 'Área de empaque' : 'Recoger en');
       const ctxWorkerLabel = ctxIsWarehouse ? 'Responsable de almacén' : (ctxIsPackaging ? 'Empacó' : 'Empacó');
       const ctxStatusLabel = ctxIsWarehouse ? 'Estado de almacenamiento' : 'Estado del empaque';
+      const pGuiaFotos = parent.fotos_guia || [];
+      const pGuiaSection = pGuiaFotos.length ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">GUÍA VISUAL</div>${pGuiaFotos.map(f=>{const evs=f.evidencias||[];return `<div style="display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--surface-3);border-radius:8px;border:1.5px solid ${f.confirmado?'var(--green-dot)':'var(--border)'};margin-bottom:6px"><img src="${mediaUrl(f.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0" onclick="openLightbox('${mediaUrl(f.url)}')" onerror="this.style.display='none'"><div style="flex:1;min-width:0">${f.instruccion?`<div style="font-size:11px;color:var(--text);margin-bottom:5px;padding:4px 7px;background:rgba(37,99,235,.06);border-radius:6px;border-left:2px solid var(--accent)">${esc(f.instruccion)}</div>`:''} ${evs.length?`<div style="display:flex;flex-wrap:wrap;gap:4px">${evs.map(e=>`<img src="${mediaUrl(e.url)}" style="width:44px;height:44px;object-fit:cover;border-radius:5px;cursor:zoom-in" onclick="openLightbox('${mediaUrl(e.url)}')" onerror="this.style.display='none'">`).join('')}</div>`:''} ${f.confirmado?`<span style="font-size:10px;color:var(--green-text);font-weight:700">✓ Confirmado</span>`:''}</div></div>`;}).join('')}</div>` : '';
       parentCtxHtml = `<div style="background:rgba(37,99,235,.05);border:1.5px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
           <i data-lucide="package" style="width:14px;height:14px;stroke:var(--accent)"></i>
@@ -11716,6 +11718,7 @@ function renderDrawer(t) {
             </div>`;
           }).join('')}
         </div>`:''}
+        ${pGuiaSection}
       </div>`;
     }
   }
