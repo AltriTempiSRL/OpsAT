@@ -9624,17 +9624,10 @@ async function dsToggleInspection(userId, current) {
     var newState = !current;
     var patch = { vehicleInspectionRequired: newState };
 
-    // Si lo activa ahora, que comience mañana (así no bloquea hoy al personal en vivo)
-    if (newState) {
-      var tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      patch.vehicleInspectionRequiredStartDate = tomorrow.toISOString().slice(0,10);
-    }
-
     var r = await authFetch('/api/wwp/auth/users/'+userId, {method:'PATCH', body:JSON.stringify(patch)});
     var d = await r.json();
     if (!d.ok && !d.user) { toast(d.error||'Error'); return; }
-    toast('Inspección diaria: '+(newState?'activada para mañana':'desactivada'));
+    toast('Inspección diaria: '+(newState?'activada':'desactivada'));
     if (typeof loadUsers==='function') loadUsers();
   } catch(e) { toast('Error: '+e.message); }
 }
