@@ -9951,7 +9951,7 @@ function renderGroupedByType(visible, rowRenderer) {
     var othersInner = tasks.filter(function(t){return !known.has(t.type);}).sort(byDue);
     if (othersInner.length) inner += groupHdr({label:'Otras',icon:'list',color:'#6b7280'}, othersInner.length) + othersInner.map(rowRenderer).join('');
     return '<details class="task-archive-section"'+(open?' open':'')
-      +' ontoggle="(function(el){try{var s=JSON.parse(localStorage.getItem(\'wwp_archive_open\')||\'{}}\');s[\''+key+'\']=el.open;localStorage.setItem(\'wwp_archive_open\',JSON.stringify(s));}catch(e){}})(this)">'
+      +' ontoggle="(function(el){try{var s=JSON.parse(localStorage.getItem(\'wwp_archive_open\')||\'{}\'  );s[\''+key+'\']=el.open;localStorage.setItem(\'wwp_archive_open\',JSON.stringify(s));}catch(e){}})(this)">'
       +'<summary class="task-archive-summary">'
       +'<span class="task-archive-icon" style="background:'+color+'1a"><i data-lucide="'+icon+'" style="width:14px;height:14px;stroke:'+color+'"></i></span>'
       +'<span class="task-archive-label" style="color:'+color+'">'+label+'</span>'
