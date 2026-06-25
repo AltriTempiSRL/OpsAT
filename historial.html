@@ -4376,6 +4376,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-gps-row{display:flex;gap:8px;align-items:center}
 .sdv-gps-row .sdv-input{flex:1}
 .sdv-gps-btn{flex-shrink:0;white-space:nowrap;padding:9px 12px}
+/* Buscador dentro del modal de mapa */
+.sdv-map-search-row{display:flex;gap:8px;margin-bottom:8px}
+.sdv-map-search-row .sdv-input{flex:1;font-size:var(--fs-sm)}
 /* Mapa modal SDV */
 .sdv-map-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
 .sdv-map-modal{background:var(--bg);border-radius:var(--radius);width:100%;max-width:600px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.3)}
@@ -5787,10 +5790,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <div class="sdv-field">
                 <label>Ubicación GPS <span style="color:var(--text-3);font-weight:400">(opcional — para validar en mapa)</span></label>
                 <div class="sdv-gps-row">
-                  <input class="sdv-input" id="sdv-gps" placeholder="Lat, Lng — haz clic en Ver mapa" readonly>
+                  <input class="sdv-input" id="sdv-gps" placeholder="Escribe torre, calle o referencia…">
                   <button type="button" class="btn btn-secondary sdv-gps-btn" onclick="sdvOpenMapModal()">
-                    <i data-lucide="map-pin" style="width:15px;height:15px;vertical-align:-2px"></i> Ver mapa
+                    <i data-lucide="map-pin" style="width:15px;height:15px;vertical-align:-2px"></i> Verificar en mapa
                   </button>
+                </div>
+                <input type="hidden" id="sdv-gps-coords">
+                <div id="sdv-gps-confirmed" style="display:none;font-size:11px;color:var(--green-text);margin-top:4px">
+                  <i data-lucide="check-circle" style="width:12px;height:12px;vertical-align:-2px"></i> Ubicación confirmada en mapa
                 </div>
               </div>
             </div>
@@ -5907,9 +5914,16 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <button class="modal-close" onclick="sdvCloseMapModal()">✕</button>
             </div>
             <div class="sdv-map-modal-body">
-              <p style="font-size:var(--fs-sm);color:var(--text-2);margin:0 0 10px">Arrastra el marcador para ajustar la ubicación exacta. Se carga desde la dirección ingresada.</p>
+              <div class="sdv-map-search-row">
+                <input class="sdv-input" id="sdv-map-search-input" placeholder="Torre, calle, referencia…" onkeydown="if(event.key==='Enter'){event.preventDefault();sdvMapSearch();}">
+                <button type="button" class="btn btn-secondary" onclick="sdvMapSearch()" style="white-space:nowrap;padding:9px 14px">
+                  <i data-lucide="search" style="width:14px;height:14px;vertical-align:-2px"></i> Buscar
+                </button>
+              </div>
+              <div id="sdv-map-search-result" style="display:none;font-size:11px;margin-bottom:8px;padding:5px 8px;border-radius:6px;line-height:1.4"></div>
               <div id="sdv-map-container" class="sdv-map-container"></div>
-              <div id="sdv-map-coords" class="sdv-map-coords-label"></div>
+              <div id="sdv-map-coords" class="sdv-map-coords-label" style="margin-top:6px;font-size:11px;color:var(--text-3)"></div>
+              <p style="font-size:11px;color:var(--text-3);margin:6px 0 0">Si el pin no cae exacto, arrástralo para ajustar.</p>
             </div>
             <div class="sdv-map-modal-footer">
               <button class="btn btn-secondary" onclick="sdvCloseMapModal()">Cancelar</button>
@@ -7341,7 +7355,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v37';
+var APP_BUILD = 'v38';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27906,7 +27920,7 @@ async function sdvEnviar() {
         receptorContacto: _sdv$('sdv-receptor-contacto').value.trim(),
         transporteIncluido: _sdv$('sdv-transporte').checked,
         observaciones: _sdv$('sdv-observaciones').value.trim(),
-        gpsCoords: (_sdv$('sdv-gps').value||'').trim() || null,
+        gpsCoords: ((document.getElementById('sdv-gps-coords').value)||'').trim() || null,
         fechaSolicitudDeseada: sdvGetFecha('sdv-fecha'),
       });
     } else {
@@ -27977,37 +27991,60 @@ async function sdvOpenMapModal() {
     });
   }
   setTimeout(function(){ if(_sdvMapInstance) _sdvMapInstance.invalidateSize(); }, 200);
-  // Si ya hay coords guardadas, posicionar ahí sin geocodificar
-  var saved = (_sdv$('sdv-gps').value||'').trim();
-  if (saved) {
-    var parts = saved.split(',');
-    if (parts.length===2) {
+
+  // Pre-llenar el buscador: primero lo que escribió el usuario, luego la dirección Odoo
+  var gpsText = (_sdv$('sdv-gps').value||'').trim();
+  var dir = (_sdv$('sdv-direccion').value||'').trim();
+  var ciudad = (_sdv$('sdv-ciudad').value||'').trim();
+  var searchInput = document.getElementById('sdv-map-search-input');
+
+  // Si hay coords guardadas en el campo oculto, mostrarlas y posicionar sin re-geocodificar
+  var savedCoords = (document.getElementById('sdv-gps-coords').value||'').trim();
+  if (savedCoords) {
+    var parts = savedCoords.split(',');
+    if (parts.length === 2) {
       var slat = parseFloat(parts[0]), slng = parseFloat(parts[1]);
       if (!isNaN(slat) && !isNaN(slng)) {
-        _sdvMapInstance.setView([slat, slng], 16);
+        _sdvMapInstance.setView([slat, slng], 17);
         _sdvMapMarker.setLatLng([slat, slng]);
         var coordsEl = document.getElementById('sdv-map-coords');
         if (coordsEl) coordsEl.textContent = 'Lat: '+slat.toFixed(6)+', Lng: '+slng.toFixed(6);
+        if (searchInput && !searchInput.value) searchInput.value = gpsText || [dir, ciudad].filter(Boolean).join(', ');
+        if(searchInput) setTimeout(function(){ searchInput.focus(); searchInput.select(); }, 300);
+        return;
       }
     }
-    return;
   }
-  // Intentar geocodificar la dirección actual (solo si no hay coords manuales)
-  var dir = (_sdv$('sdv-direccion').value||'').trim();
-  var ciudad = (_sdv$('sdv-ciudad').value||'').trim();
-  if (dir || ciudad) {
-    var q = encodeURIComponent([(dir||''), (ciudad||''), 'República Dominicana'].filter(Boolean).join(' '));
-    fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&limit=1')
-      .then(function(r){ return r.json(); })
-      .then(function(data) {
-        if (data && data[0]) {
-          var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-          _sdvMapInstance.setView([lat, lng], 16);
-          _sdvMapMarker.setLatLng([lat, lng]);
-          var coordsEl = document.getElementById('sdv-map-coords');
-          if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6)+' (basado en dirección)';
-        }
-      }).catch(function(){});
+
+  // Pre-llenar buscador y auto-buscar al abrir
+  var q = gpsText || [dir, ciudad].filter(Boolean).join(', ');
+  if (searchInput) searchInput.value = q;
+  if (q) setTimeout(function(){ sdvMapSearch(); }, 400);
+  else if (searchInput) setTimeout(function(){ searchInput.focus(); }, 300);
+}
+
+async function sdvMapSearch() {
+  var searchInput = document.getElementById('sdv-map-search-input');
+  var resultEl = document.getElementById('sdv-map-search-result');
+  var q = ((searchInput && searchInput.value)||'').trim();
+  if (!q) { if(searchInput) searchInput.focus(); return; }
+  if (resultEl) { resultEl.style.display=''; resultEl.style.color='var(--text-2)'; resultEl.style.background='var(--surface-2)'; resultEl.textContent='Buscando…'; }
+  try {
+    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=es&q='+encodeURIComponent(q+' República Dominicana');
+    var r = await fetch(url);
+    var data = await r.json();
+    if (data && data[0]) {
+      var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+      _sdvMapInstance.setView([lat, lng], 17);
+      _sdvMapMarker.setLatLng([lat, lng]);
+      var coordsEl = document.getElementById('sdv-map-coords');
+      if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6);
+      if (resultEl) { resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+data[0].display_name; }
+    } else {
+      if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='No se encontró esa dirección — intenta con más detalles o arrastra el pin manualmente.'; }
+    }
+  } catch(e) {
+    if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='Error al buscar. Verifica tu conexión.'; }
   }
 }
 
@@ -28020,7 +28057,10 @@ function sdvConfirmMapLocation() {
   if (!_sdvMapMarker) return;
   var ll = _sdvMapMarker.getLatLng();
   var coords = ll.lat.toFixed(6)+', '+ll.lng.toFixed(6);
-  _sdv$('sdv-gps').value = coords;
+  // Guardar coords en campo oculto; el campo visible conserva el texto de referencia del usuario
+  document.getElementById('sdv-gps-coords').value = coords;
+  var confirmed = document.getElementById('sdv-gps-confirmed');
+  if (confirmed) { confirmed.style.display=''; if(window.lucide) lucide.createIcons(); }
   sdvCloseMapModal();
 }
 
