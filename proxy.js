@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v46';
+const APP_BUILD = 'v47';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -4055,6 +4055,8 @@ const server = http.createServer(async (req, res) => {
     const deep = (url.parse(req.url, true).query.deep === 'true');
     if (!deep) {
       const tasksOnDisk = loadWwpTasks();
+      let tasksRaw = '';
+      try { tasksRaw = fs.readFileSync(WWP_TASKS_FILE, 'utf-8').slice(0, 200); } catch(e) { tasksRaw = '[error:' + e.message + ']'; }
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({
         timestamp: new Date().toISOString(),
@@ -4065,6 +4067,8 @@ const server = http.createServer(async (req, res) => {
         tasksFile: WWP_TASKS_FILE,
         tasksCount: tasksOnDisk.length,
         tasksFileExists: fs.existsSync(WWP_TASKS_FILE),
+        tasksFileSize: fs.existsSync(WWP_TASKS_FILE) ? fs.statSync(WWP_TASKS_FILE).size : 0,
+        tasksRawPreview: tasksRaw,
         odoo: { ok: !!odooUid, uid: odooUid || null },
         note: 'shallow check — use ?deep=true for full Odoo+Sheets verification'
       }));
