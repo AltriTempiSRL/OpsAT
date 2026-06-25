@@ -50,3 +50,7 @@ proxy.js.tmp.*
 
 # ── Cerebro de agentes: vive en C:\Users\Gabriel Ramirez\Agentes-Estandar (fuera del proyecto) ──
 agentes-estandar/
+
+# Recuperacion incidente 25-jun (datos sensibles: hashes, audit log) — NO commitear
+_RECOVERY_2026-06-25/
+_bltest/

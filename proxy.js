@@ -99,6 +99,71 @@ function loadEnv(filename) {
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+// ── Blindaje de datos (v49) — guarda anti-vacío + backups rotativos ─────────────
+// Tras el incidente del 25-jun-2026 (truncado de wwp-tasks.json y reescritura con []),
+// los arrays críticos se guardan con: (1) guarda que RECHAZA vaciar un archivo que ya
+// tenía datos, (2) respaldo rotativo con fecha antes de cada sobreescritura, (3)
+// snapshot horario de todos los .json de DATA_DIR. Ninguna lanza (fail-safe, no crashea).
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+try { if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true }); } catch (e) {}
+const _lastRotBackup = new Map();
+
+function _rotateBackups(prefix, keep) {
+  try {
+    const files = fs.readdirSync(BACKUPS_DIR).filter(f => f.startsWith(prefix + '.')).sort();
+    while (files.length > keep) { try { fs.unlinkSync(path.join(BACKUPS_DIR, files.shift())); } catch (e) {} }
+  } catch (e) {}
+}
+
+// Guardado protegido para arrays críticos. Devuelve false (sin lanzar) si la guarda
+// anti-vacío bloqueó la escritura — preservando el archivo bueno en disco.
+function saveCriticalArray(file, data) {
+  const base = path.basename(file).replace(/\.json$/, '');
+  const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
+  // (1) Guarda anti-vacío: nunca vaciar un archivo que tenía >=5 items (caso del incidente)
+  if (Array.isArray(data) && data.length === 0 && fs.existsSync(file)) {
+    let prev = null;
+    try { prev = JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (e) { prev = null; }
+    if (Array.isArray(prev) && prev.length >= 5) {
+      try { fs.writeFileSync(path.join(BACKUPS_DIR, base + '.REJECTED-' + stamp() + '.json'), JSON.stringify(data)); } catch (e) {}
+      console.error('[BLINDAJE] Guardado de ' + base + ' BLOQUEADO: intento de vaciar ' + prev.length + ' items -> 0. Archivo preservado.');
+      return false;
+    }
+  }
+  // (2) Respaldo rotativo del estado actual antes de sobreescribir (throttle 5 min)
+  try {
+    if (fs.existsSync(file)) {
+      const last = _lastRotBackup.get(base) || 0;
+      if (Date.now() - last > 5 * 60 * 1000) {
+        fs.copyFileSync(file, path.join(BACKUPS_DIR, base + '.' + stamp() + '.json'));
+        _lastRotBackup.set(base, Date.now());
+        _rotateBackups(base, 40);
+      }
+    }
+  } catch (e) {}
+  // (3) Escritura atómica (tmp -> rename, vía saveJson)
+  saveJson(file, data);
+  return true;
+}
+
+// Snapshot horario de TODOS los .json de DATA_DIR (24h de historia por archivo).
+function snapshotAllCritical() {
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 13); // granularidad por hora
+    for (const f of fs.readdirSync(DATA_DIR)) {
+      if (!f.endsWith('.json')) continue;
+      try {
+        const src = path.join(DATA_DIR, f);
+        if (!fs.statSync(src).isFile()) continue;
+        const base = f.replace(/\.json$/, '');
+        fs.copyFileSync(src, path.join(BACKUPS_DIR, 'snap_' + base + '.' + stamp + '.json'));
+        _rotateBackups('snap_' + base, 24);
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritical, 60 * 60 * 1000); } catch (e) {}
+
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
@@ -254,7 +319,7 @@ function loadInspections() { return loadJson(WWP_INSPECTIONS_FILE, []); }
 function saveInspections(d) { saveJson(WWP_INSPECTIONS_FILE, d); }
 
 function loadWwpTasks() { return loadJson(WWP_TASKS_FILE, []); }
-function saveWwpTasks(list) { saveJson(WWP_TASKS_FILE, list); }
+function saveWwpTasks(list) { saveCriticalArray(WWP_TASKS_FILE, list); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SALÓN DE ENTRENAMIENTOS — cursos, exámenes, certificaciones (LMS operativo)
