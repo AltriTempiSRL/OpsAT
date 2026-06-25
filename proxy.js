@@ -8378,7 +8378,7 @@ const server = http.createServer(async (req, res) => {
         userId: u.id, name: u.name, role: u.role,
         submitted: !!rec, submittedAt: rec ? rec.submittedAt : null, validated: rec ? rec.validated : false,
         comment: rec ? rec.comment : '',
-        individual: s.individual, team: s.team, pending: s.pending, activity: s.activity,
+        individual: s.individual, team: s.team, pending: s.pending, activity: s.activity, inspections: s.inspections||[],
         pendingReasons: rec ? rec.pending : [],
         managerResponses: rec ? rec.managerResponses : []
       };

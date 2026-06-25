@@ -9696,7 +9696,7 @@ async function dcOpenAdmin() {
 function dcRenderAdmin() {
   var d = _dcAdminData, c = d.consolidated, PL = d.pendLabels||{};
   var canRespond = _user && (_user.role==='admin'||_user.role==='manager');
-  var rows = d.rows.filter(function(u){ return u.individual.length||u.team.length||u.pending.length||u.submitted; });
+  var rows = d.rows.filter(function(u){ return u.individual.length||u.team.length||u.pending.length||u.submitted||(u.inspections||[]).length; });
   var list = rows.map(function(u){
     var estado = u.submitted ? (u.validated?'<span style="color:var(--green-text);font-weight:700">✓ Validó</span>':'<span style="color:var(--amber-text);font-weight:700">⚠️ Reportó algo</span>')
                : '<span style="color:var(--red-text);font-weight:700">⏳ Sin enviar</span>';
@@ -9712,10 +9712,16 @@ function dcRenderAdmin() {
     var allPhotos = [], _seenU = {};
     [].concat(u.individual||[], u.team||[], u.pending||[]).forEach(function(t){ (t.photos||[]).forEach(function(p){ if(!_seenU[p.url]){ _seenU[p.url]=1; allPhotos.push(p); } }); });
     var fotosHtml = allPhotos.length ? '<div style="margin:4px 0 0 6px"><div style="font-size:10px;color:var(--text-3);margin-bottom:1px">📷 Fotos del día ('+allPhotos.length+')</div>'+dcThumbs(allPhotos, 12)+'</div>' : '';
+    var inspList = u.inspections||[];
+    var inspAdminHtml = inspList.length ? inspList.map(function(i){
+      var aptoBadge = i.apto ? '<span style="color:var(--green-text);font-weight:700">✓ Apto</span>' : '<span style="color:var(--red-text);font-weight:700">✗ No apto</span>';
+      var thumbs = (i.fotos||[]).slice(0,4).map(function(url){ return '<img src="'+url+'" style="width:36px;height:36px;object-fit:cover;border-radius:4px;cursor:pointer" onclick="openLightbox(\''+url+'\')">'; }).join('');
+      return '<div style="font-size:11px;color:var(--blue-text);margin:4px 0 0 6px">🚗 Inspección: '+esc(i.vehiculo||'')+(i.placa?' ('+esc(i.placa)+')':'')+' '+aptoBadge+(i.hora?' · '+esc(i.hora):'')+' · '+(i.fotos||[]).length+' fotos'+(thumbs?'<div style="display:flex;gap:3px;margin-top:3px">'+thumbs+'</div>':'')+'</div>';
+    }).join('') : '';
     return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">'
       + '<div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-size:13px;font-weight:700;color:var(--text)">'+esc(u.name)+' <span style="font-size:10px;color:var(--text-3)">'+(_TR_ROLELBL[u.role]||u.role)+'</span></span>'+estado+respBtn+'</div>'
       + '<div style="font-size:11px;color:var(--text-3);margin:2px 0 0 6px">'+u.individual.length+' individual · '+u.team.length+' en equipo · '+u.pending.length+' pendiente(s)</div>'
-      + pendDet + comentario + mResp + fotosHtml + '</div>';
+      + pendDet + comentario + mResp + inspAdminHtml + fotosHtml + '</div>';
   }).join('');
   _trModal(
     '<div style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:2px">📋 Resumen del día — '+d.date+'</div>'
