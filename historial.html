@@ -5513,6 +5513,13 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <button class="av-filter-btn"        onclick="doSetFilter('anulado')"   id="dof-anulado">Anulado</button>
             </div>
           </div>
+          <div style="padding:8px 12px;border-bottom:1px solid var(--border)">
+            <div style="position:relative">
+              <i data-lucide="search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-3);pointer-events:none"></i>
+              <input id="do-list-search" type="text" placeholder="Buscar artículo por nombre o referencia…" oninput="doListSearchChange(this.value)" style="width:100%;box-sizing:border-box;padding:7px 28px 7px 28px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font-size:13px">
+              <button id="do-list-search-clear" onclick="doListSearchClear()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-3);padding:2px"><i data-lucide="x" style="width:14px;height:14px"></i></button>
+            </div>
+          </div>
           <div id="do-list-body"></div>
         </div>
       </div>
@@ -22794,6 +22801,7 @@ function avAddFotosToItem(id){
    ═══════════════════════════════════════════════════════════════════════════ */
 var _doList = [];
 var _doFilter = '';
+var _doListSearch = '';
 var _doActive = null;          // despacho abierto en el workspace
 var _doCurrentProduct = null;  // artículo del lookup actual
 var _doPendingFotos = [];      // [{data,ext,caption}] de la línea en captura
@@ -22828,11 +22836,34 @@ function doSetFilter(f){
   doRenderList();
 }
 
+function doListSearchChange(val){
+  _doListSearch = (val||'').trim();
+  var clr = document.getElementById('do-list-search-clear');
+  if(clr) clr.style.display = _doListSearch ? '' : 'none';
+  doRenderList();
+}
+function doListSearchClear(){
+  _doListSearch = '';
+  var inp = document.getElementById('do-list-search');
+  if(inp) inp.value = '';
+  var clr = document.getElementById('do-list-search-clear');
+  if(clr) clr.style.display = 'none';
+  doRenderList();
+}
 function doRenderList(){
   var body = document.getElementById('do-list-body');
   if(!body) return;
   var list = _doFilter ? _doList.filter(function(x){return x.estado===_doFilter;}) : _doList;
-  if(!list.length){ body.innerHTML='<div class="do-empty">No hay conduces'+(_doFilter?' en este estado':' todavía')+'.</div>'; return; }
+  var qNorm = _doNormalizeSearch(_doListSearch);
+  var matchMap = {};
+  if(qNorm) {
+    list = list.filter(function(d){
+      var hits = (d.lineas||[]).filter(function(l){ return _doLineMatches(l, qNorm); });
+      if(hits.length){ matchMap[d.id] = hits; return true; }
+      return false;
+    });
+  }
+  if(!list.length){ body.innerHTML='<div class="do-empty">No hay conduces'+(qNorm?' con ese artículo':_doFilter?' en este estado':' todavía')+'.</div>'; return; }
   body.innerHTML = list.map(function(d){
     var units = (d.lineas||[]).reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
     var nLines = (d.lineas||[]).length;
@@ -22844,12 +22875,21 @@ function doRenderList(){
     if(d.estado==='entregado') actions += '<button class="do-act-btn" onclick="doImprimirConduce(\''+d.id+'\')"><i data-lucide="printer"></i>Imprimir</button>';
     if(d.estado==='borrador')  actions += '<button class="do-act-btn" onclick="doAnular(\''+d.id+'\')"><i data-lucide="ban"></i>Anular</button>';
     if(canDel) actions += '<button class="do-line-del" title="Eliminar" onclick="doDeleteDespacho(\''+d.id+'\')"><i data-lucide="trash-2"></i></button>';
+    var hitsHtml = '';
+    if(matchMap[d.id]){
+      hitsHtml = '<div style="margin:4px 0 2px 0;display:flex;flex-wrap:wrap;gap:4px">'
+        + matchMap[d.id].map(function(l){
+            return '<span style="font-size:10px;background:var(--amber-bg);color:var(--amber-text);padding:1px 6px;border-radius:10px">'+esc(l.ref||l.barcode||'')+(l.name?' · '+esc(l.name.slice(0,40)):'')+'</span>';
+          }).join('')
+        + '</div>';
+    }
     return '<div class="do-list-row">'
       + '<div class="do-list-row-top">'
         + '<div class="do-list-estado-col"><span class="do-badge '+esc(d.estado)+'">'+esc(d.estado)+'</span></div>'
         + '<div class="do-list-title" style="min-width:0"><span class="do-line-name">'+esc(d.folio)+' · '+esc(rec)+'</span></div>'
       + '</div>'
       + '<div class="do-list-row-sub"><span>'+nLines+' artículo'+(nLines!==1?'s':'')+'</span><span>'+units+' und</span><span>'+fechaStr+'</span></div>'
+      + hitsHtml
       + '<div class="do-list-row-actions">'+actions+'</div>'
     + '</div>';
   }).join('');
