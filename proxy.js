@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v41';
+const APP_BUILD = 'v42';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -2380,7 +2380,7 @@ const IP_RATE_RULES = {
   '/api/transfer/search':   { max: 30, windowMs: 60_000 },
   '/api/averias/search':    { max: 30, windowMs: 60_000 },
   '/api/analysis':          { max: 20, windowMs: 60_000 },
-  '/api/wwp/tasks':         { max: 60, windowMs: 60_000 },
+  // /api/wwp/tasks excluido: endpoint barato, ya protegido por JWT, polling legítimo de equipo
 };
 function checkIpRateLimit(reqPath, ip) {
   const rule = Object.keys(IP_RATE_RULES).find(p => reqPath.startsWith(p));

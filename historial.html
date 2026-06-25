@@ -7357,7 +7357,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v41';
+var APP_BUILD = 'v42';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8718,9 +8718,9 @@ function connectWwpRealtime() {
     _doFetch();
   });
 
-  // Capa 3: polling cada 25s — red de seguridad cuando WS y eventos fallan
+  // Capa 3: polling cada 60s — red de seguridad cuando WS y eventos fallan
   // Solo hace fetch si el tab es visible y hay sesión activa (no genera carga extra)
-  setInterval(_doFetch, 25000);
+  setInterval(_doFetch, 60000);
 
   // Chequeo de versión inmediato al cargar (sin esperar al primer poll) +
   // cada 60s aunque no haya sesión — garantiza que un dispositivo viejo migre solo.
