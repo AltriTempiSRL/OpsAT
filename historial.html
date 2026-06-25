@@ -4387,9 +4387,13 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-map-modal-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .sdv-map-modal-header h3{margin:0;font-size:var(--fs-base);font-weight:700}
 .sdv-map-modal-body{padding:14px 18px;flex:1;overflow-y:auto}
-.sdv-map-container{height:320px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);margin-bottom:10px}
+.sdv-map-container{height:300px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);margin-bottom:10px}
 .sdv-map-coords-label{font-size:var(--fs-sm);color:var(--text-2);margin-top:6px}
 .sdv-map-modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.sdv-street-view-wrap{margin-top:10px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.sdv-street-view-wrap .sv-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface-2);font-size:11px;color:var(--text-2);cursor:pointer;user-select:none}
+.sdv-street-view-container{height:160px}
+.sdv-sv-unavailable{height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-3);background:var(--surface-2)}
 /* Responsive SDV */
 @media(max-width:767px){
   .sdv-tipo-grid{grid-template-columns:1fr}
@@ -5798,8 +5802,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
                   </button>
                 </div>
                 <input type="hidden" id="sdv-gps-coords">
-                <div id="sdv-gps-confirmed" style="display:none;font-size:11px;color:var(--green-text);margin-top:4px">
-                  <i data-lucide="check-circle" style="width:12px;height:12px;vertical-align:-2px"></i> Ubicación confirmada en mapa
+                <div id="sdv-gps-confirmed" style="display:none;font-size:11px;color:var(--green-text);margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span><i data-lucide="check-circle" style="width:12px;height:12px;vertical-align:-2px"></i> Ubicación confirmada en mapa</span>
+                  <span id="sdv-gps-distance" style="color:var(--text-2);background:var(--surface-2);padding:1px 7px;border-radius:20px;font-size:10px"></span>
                 </div>
               </div>
             </div>
@@ -5926,6 +5931,12 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <div id="sdv-map-container" class="sdv-map-container"></div>
               <div id="sdv-map-coords" class="sdv-map-coords-label" style="margin-top:6px;font-size:11px;color:var(--text-3)"></div>
               <p style="font-size:11px;color:var(--text-3);margin:6px 0 0">Si el pin no cae exacto, arrástralo para ajustar.</p>
+              <div id="sdv-street-view-wrap" class="sdv-street-view-wrap" style="display:none">
+                <div class="sv-header" onclick="_sdvToggleStreetView()">
+                  <span>🏙 Vista de calle</span><span id="sdv-sv-toggle-icon">▼</span>
+                </div>
+                <div id="sdv-street-view-container" class="sdv-street-view-container"></div>
+              </div>
             </div>
             <div class="sdv-map-modal-footer">
               <button class="btn btn-secondary" onclick="sdvCloseMapModal()">Cancelar</button>
@@ -7357,7 +7368,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v42';
+var APP_BUILD = 'v43';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16492,6 +16503,7 @@ function _initUsersGMap(cb){
       mapTypeControl:false, fullscreenControl:false, streetViewControl:false
     });
     _usersGInfoWindow=new google.maps.InfoWindow();
+    new google.maps.TrafficLayer().setMap(_usersGMap);
   }
   if(cb) cb();
 }
@@ -28002,7 +28014,51 @@ function sdvReset(skipConfirm) {
 }
 
 // ── Mapa GPS (modal SDV) ──────────────────────────────────────────────────
-var _sdvGMap = null, _sdvGMarker = null, _sdvGAutocomplete = null;
+var _sdvGMap = null, _sdvGMarker = null, _sdvGAutocomplete = null, _sdvStreetView = null, _sdvSvOpen = true;
+// Coordenadas del almacén — actualizar si cambia de ubicación
+var SDV_WAREHOUSE = {lat: 18.4750, lng: -69.9250};
+
+function _sdvUpdateStreetView(pos) {
+  var wrap = document.getElementById('sdv-street-view-wrap');
+  var container = document.getElementById('sdv-street-view-container');
+  if (!wrap || !container) return;
+  var svService = new google.maps.StreetViewService();
+  svService.getPanorama({location: pos, radius: 80}, function(data, status) {
+    if (status === google.maps.StreetViewStatus.OK) {
+      wrap.style.display = '';
+      if (!_sdvStreetView) {
+        _sdvStreetView = new google.maps.StreetViewPanorama(container, {
+          position: pos, pov: {heading: 0, pitch: 0},
+          addressControl: false, fullscreenControl: false,
+          motionTracking: false, motionTrackingControl: false,
+          showRoadLabels: false, linksControl: false
+        });
+      } else {
+        _sdvStreetView.setPosition(pos);
+      }
+      container.innerHTML = '';
+      _sdvStreetView = new google.maps.StreetViewPanorama(container, {
+        position: data.location.latLng, pov: {heading: 0, pitch: 0},
+        addressControl: false, fullscreenControl: false,
+        motionTracking: false, motionTrackingControl: false,
+        showRoadLabels: false, linksControl: false
+      });
+    } else {
+      wrap.style.display = '';
+      container.innerHTML = '<div class="sdv-sv-unavailable">Sin vista de calle disponible en esta ubicación</div>';
+    }
+  });
+}
+
+function _sdvToggleStreetView() {
+  var container = document.getElementById('sdv-street-view-container');
+  var icon = document.getElementById('sdv-sv-toggle-icon');
+  if (!container) return;
+  _sdvSvOpen = !_sdvSvOpen;
+  container.style.display = _sdvSvOpen ? '' : 'none';
+  if (icon) icon.textContent = _sdvSvOpen ? '▼' : '▶';
+  if (_sdvSvOpen && _sdvStreetView) google.maps.event.trigger(_sdvStreetView, 'resize');
+}
 
 async function sdvOpenMapModal() {
   var overlay = document.getElementById('sdv-map-overlay');
@@ -28020,6 +28076,7 @@ async function sdvOpenMapModal() {
       var pos = _sdvGMarker.getPosition();
       var coordsEl = document.getElementById('sdv-map-coords');
       if (coordsEl) coordsEl.textContent = 'Lat: '+pos.lat().toFixed(6)+', Lng: '+pos.lng().toFixed(6);
+      _sdvUpdateStreetView(pos);
     });
     if (searchInput) {
       _sdvGAutocomplete = new google.maps.places.Autocomplete(searchInput, {
@@ -28032,6 +28089,7 @@ async function sdvOpenMapModal() {
           _sdvGMarker.setPosition(place.geometry.location);
           var coordsEl = document.getElementById('sdv-map-coords');
           if (coordsEl) coordsEl.textContent = 'Lat: '+place.geometry.location.lat().toFixed(6)+', Lng: '+place.geometry.location.lng().toFixed(6);
+          _sdvUpdateStreetView(place.geometry.location);
           var resultEl = document.getElementById('sdv-map-search-result');
           if (resultEl) { resultEl.style.display=''; resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+(place.formatted_address||place.name||''); }
         }
@@ -28077,6 +28135,7 @@ function sdvMapSearch() {
       var coordsEl = document.getElementById('sdv-map-coords');
       if (coordsEl) coordsEl.textContent = 'Lat: '+loc.lat().toFixed(6)+', Lng: '+loc.lng().toFixed(6);
       if (resultEl) { resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+results[0].formatted_address; }
+      _sdvUpdateStreetView(loc);
     } else {
       if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='No se encontró — intenta con más detalles o arrastra el pin.'; }
     }
@@ -28094,8 +28153,27 @@ function sdvConfirmMapLocation() {
   var coords = pos.lat().toFixed(6)+', '+pos.lng().toFixed(6);
   document.getElementById('sdv-gps-coords').value = coords;
   var confirmed = document.getElementById('sdv-gps-confirmed');
-  if (confirmed) { confirmed.style.display=''; if(window.lucide) lucide.createIcons(); }
+  if (confirmed) { confirmed.style.display='flex'; if(window.lucide) lucide.createIcons(); }
   sdvCloseMapModal();
+  // Calcular distancia y tiempo desde el almacén
+  var distEl = document.getElementById('sdv-gps-distance');
+  if (distEl && window.google && google.maps.DistanceMatrixService) {
+    distEl.textContent = '⏱ calculando…';
+    new google.maps.DistanceMatrixService().getDistanceMatrix({
+      origins: [SDV_WAREHOUSE],
+      destinations: [pos],
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: {departureTime: new Date(), trafficModel: 'bestguess'}
+    }, function(resp, status) {
+      if (status === 'OK') {
+        var el = resp.rows[0].elements[0];
+        if (el.status === 'OK') {
+          var dur = el.duration_in_traffic ? el.duration_in_traffic.text : el.duration.text;
+          distEl.textContent = '📍 ' + el.distance.text + ' · ' + dur + ' (tráfico)';
+        } else { distEl.textContent = ''; }
+      } else { distEl.textContent = ''; }
+    });
+  }
 }
 
 // ── Mis Solicitudes ───────────────────────────────────────────────────────
