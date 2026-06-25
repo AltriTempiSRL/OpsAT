@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v48';
+const APP_BUILD = 'v50';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1274,6 +1274,75 @@ function appendAuditLog(event, data) {
     if (logs.length > 10000) logs.splice(0, logs.length - 10000);
     fs.writeFileSync(WWP_AUDIT_FILE, JSON.stringify(logs, null, 2), 'utf-8');
   } catch(e) { console.warn('[audit]', e.message); }
+}
+
+// ── Archivo de Evidencias ────────────────────────────────────────────────────
+// Índice de TODAS las fotos en /wwp-fotos, agrupadas por tarea y enriquecidas con
+// orden/título (de las tareas actuales o, si la tarea ya no existe, del audit log).
+// Solo lectura sobre el directorio de fotos. Permite consultar evidencia histórica
+// aunque la tarea esté cerrada o sus ítems se hayan perdido.
+function buildPhotoArchiveIndex() {
+  let files = [];
+  try { files = fs.readdirSync(WWP_FOTOS_DIR); } catch(e) { files = []; }
+  files = files.filter(f => /^wt_[a-z0-9]+_/.test(f));
+  const tasks = loadWwpTasks();
+  const meta = {};
+  tasks.forEach(t => { meta[t.id] = {
+    ref: t.odooRef || '', title: t.title || '', client: t.client || '',
+    manager: t.managerName || '', status: t.status || '', exists: true, items: t.items || []
+  }; });
+  // Títulos de tareas que ya no existen, recuperados del audit log (último conocido)
+  let audit = [];
+  try { audit = JSON.parse(fs.readFileSync(WWP_AUDIT_FILE, 'utf-8')); } catch(e) { audit = []; }
+  const auditTitle = {};
+  audit.forEach(e => { if (e && e.taskId && e.taskTitle) auditTitle[e.taskId] = e.taskTitle; });
+  const parseRef = s => { const m = String(s||'').match(/(S\d{4,6}|PTN\/[A-Z]+\/\d+)/); return m ? m[1] : ''; };
+  const parseType = rest => {
+    if (rest.indexOf('oi_') === 0) return 'articulo';
+    const p = rest.split('_')[0];
+    if (p === 'chat') return 'chat';
+    if (p === 'ent') return 'entrega';
+    if (p === 'rec') return 'recepcion';
+    if (p === 'veh') return 'vehiculo';
+    if (p === 'fg') return 'guia';
+    if (p === 'kit') return 'kit';
+    return 'otro';
+  };
+  const groups = {};
+  files.forEach(f => {
+    const m = f.match(/^(wt_[a-z0-9]+)_/);
+    if (!m) return;
+    (groups[m[1]] = groups[m[1]] || []).push(f);
+  });
+  const out = [];
+  Object.keys(groups).forEach(taskId => {
+    const mt = meta[taskId] || { ref:'', title: auditTitle[taskId] || '', client:'', manager:'', status:'', exists:false, items:[] };
+    const ref = mt.ref || parseRef(mt.title);
+    const pidName = {};
+    (mt.items || []).forEach(it => { const p = String(it.odoo_product_id||''); if (p && it.product_name) pidName[p] = it.product_name; });
+    let lastDate = 0;
+    const fotos = groups[taskId].map(f => {
+      const rest = f.slice(taskId.length + 1);
+      const type = parseType(rest);
+      let productId = '';
+      if (type === 'articulo') { const pm = rest.match(/^oi_(\d+)/); if (pm) productId = pm[1]; }
+      const tm = f.match(/_(\d{13})_\d+\.[A-Za-z]+$/) || f.match(/_(\d{13})\b/);
+      const ts = tm ? Number(tm[1]) : 0;
+      if (ts > lastDate) lastDate = ts;
+      return { file:f, url:'/wwp-fotos/' + f, type, productId,
+        productName: productId ? (pidName[productId] || '') : '',
+        date: ts ? new Date(ts).toISOString() : null };
+    });
+    fotos.sort((a,b) => String(b.date||'').localeCompare(String(a.date||'')));
+    const tipos = {};
+    fotos.forEach(x => { tipos[x.type] = (tipos[x.type]||0) + 1; });
+    out.push({ taskId, ref, title: mt.title || '(tarea sin título)', client: mt.client,
+      manager: mt.manager, status: mt.status, exists: mt.exists,
+      count: fotos.length, tipos,
+      lastDate: lastDate ? new Date(lastDate).toISOString() : null, fotos });
+  });
+  out.sort((a,b) => String(b.lastDate||'').localeCompare(String(a.lastDate||'')));
+  return { ok:true, totalGrupos: out.length, totalFotos: files.length, grupos: out };
 }
 
 const PROCESS_AUDITOR_FILE = path.join(DATA_DIR, 'wwp-process-auditor.json');
@@ -10954,6 +11023,21 @@ const server = http.createServer(async (req, res) => {
         summary:{ executed:g_executed, moved:g_moved, added:g_new, current:g_current },
         merged }));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/wwp/photo-archive — Archivo de Evidencias (todas las fotos por tarea) [admin|manager]
+  if (reqPath === '/api/wwp/photo-archive' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    try {
+      const idx = buildPhotoArchiveIndex();
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(idx));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
     return;
   }
 

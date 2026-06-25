@@ -6829,6 +6829,45 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </div>
     <!-- /tab-empaque -->
 
+    <!-- ARCHIVO DE EVIDENCIAS TAB -->
+    <style>
+    #tab-archivo .arch-group{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px}
+    #tab-archivo .arch-group-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    #tab-archivo .arch-group-title{font-size:14px;font-weight:700;color:var(--text)}
+    #tab-archivo .arch-group-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+    #tab-archivo .arch-group-count{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;flex-shrink:0}
+    #tab-archivo .arch-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}
+    #tab-archivo .arch-thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid var(--border);background:var(--surface-2)}
+    #tab-archivo .arch-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .15s}
+    #tab-archivo .arch-thumb:hover img{transform:scale(1.06)}
+    #tab-archivo .arch-thumb-tag{position:absolute;left:0;right:0;bottom:0;font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);padding:2px 5px;text-align:center}
+    #tab-archivo .arch-group-flash{outline:2px solid var(--accent);outline-offset:2px}
+    #photo-lightbox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+    #photo-lightbox .plb-inner{max-width:92vw;max-height:92vh;display:flex;flex-direction:column;align-items:center;gap:8px}
+    #photo-lightbox img{max-width:92vw;max-height:80vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+    #photo-lightbox .plb-cap{color:#fff;font-size:13px;text-align:center;max-width:80vw}
+    #photo-lightbox .plb-open{color:#fff;font-size:12px;text-decoration:underline;opacity:.85}
+    .evidence-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--surface-2);color:var(--accent);border:1px solid var(--accent);cursor:pointer;white-space:nowrap}
+    .evidence-badge:hover{background:var(--accent);color:#fff}
+    </style>
+    <div id="tab-archivo" style="display:none">
+      <div class="emp-page-hdr">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0"><i data-lucide="image" class="tab-h2-icon"></i>Archivo de Evidencias</h2>
+          <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0">Todas las fotos de evidencia por orden/tarea — incluso de tareas cerradas o cuyos artículos se perdieron.</p>
+        </div>
+        <div id="arch-stats" style="font-size:12px;color:var(--text-muted);white-space:nowrap"></div>
+      </div>
+      <div style="padding:0 4px 12px">
+        <div class="search-box" style="max-width:440px">
+          <span class="search-icon"><i data-lucide="search"></i></span>
+          <input id="arch-search" type="text" placeholder="Buscar por orden, cliente o título…" oninput="renderPhotoArchive()" autocomplete="off" autocorrect="off">
+        </div>
+      </div>
+      <div id="arch-list" style="padding:4px"></div>
+    </div>
+    <!-- /tab-archivo -->
+
     <!-- SALÓN DE ENTRENAMIENTOS TAB -->
     <div id="tab-formacion" style="display:none">
       <div class="emp-page-hdr">
@@ -7382,7 +7421,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v48';
+var APP_BUILD = 'v50';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -7547,6 +7586,7 @@ function guardTab(tab) {
   if (tab === 'politicas'  && _user?.role !== 'admin') { switchTab('tasks'); return false; }
   if (tab === 'impacto'    && _user?.role !== 'admin') { switchTab('tasks'); return false; }
   if (tab === 'empaque'    && !can('dashboard')) { switchTab('tasks'); return false; }
+  if (tab === 'archivo'    && !(_user && (_user.role==='admin'||_user.role==='manager'))) { switchTab('tasks'); return false; }
   return true;
 }
 
@@ -9014,6 +9054,21 @@ function enterApp() {
     trainTab.onclick = () => switchTab('formacion');
     nav.appendChild(trainTab);
   }
+  // Archivo de Evidencias — admin + manager
+  let archTab = nav.querySelector('[data-tab="archivo"]');
+  if (_user.role === 'admin' || _user.role === 'manager') {
+    if (!archTab) {
+      archTab = document.createElement('button');
+      archTab.className = 'nav-tab'; archTab.dataset.tab = 'archivo';
+      archTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="image"></i></span> Evidencias';
+      archTab.onclick = () => switchTab('archivo');
+      nav.appendChild(archTab);
+    }
+    loadPhotoArchiveData();  // precarga el índice → badges en las tareas
+  } else {
+    if (archTab) archTab.remove();
+    if (_currentTab === 'archivo') switchTab('tasks');
+  }
   // Políticas + Impacto + Empaque tabs — solo admin
   if (_user.role === 'admin') {
     [{key:'politicas',icon:'shield-check',label:'Políticas'},{key:'impacto',icon:'zap',label:'Impacto'},{key:'empaque',icon:'package',label:'Empaque'}].forEach((t) => {
@@ -9756,9 +9811,10 @@ function switchTab(tab) {
   if (!guardTab(tab)) return;
   _currentTab = tab;
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
-  ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion'].forEach(function(id) {
+  ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion','archivo'].forEach(function(id) {
     uiSetVisible(document.getElementById('tab-' + id), tab === id, '', 'ui-view-enter');
   });
+  if (tab==='archivo')    loadPhotoArchive();
   if (tab==='dashboard')  loadDashboard();
   if (tab==='users')      loadUsers();
   if (tab==='politicas')  { polLoadAll(); }
@@ -9767,6 +9823,94 @@ function switchTab(tab) {
   if (tab==='empaque')    { empInit(); }
   if (tab==='formacion')  { trLoad(); }
   closeProfileMenu();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ARCHIVO DE EVIDENCIAS (fotos por tarea/orden) — admin + manager
+// ═══════════════════════════════════════════════════════════════════════
+var _photoArchive = null;      // datos completos del endpoint
+var _photoArchiveMap = null;   // {taskId: count} para los badges en las tareas
+var ARCH_TYPE_LABEL = {articulo:'Artículo',entrega:'Entrega',recepcion:'Recepción',vehiculo:'Vehículo',guia:'Guía',chat:'Chat',kit:'Kit',otro:'Otro'};
+
+async function loadPhotoArchiveData(force) {
+  if (!_user || (_user.role!=='admin' && _user.role!=='manager')) return;
+  if (_photoArchive && !force) return;
+  try {
+    const data = await authGetJson('/api/wwp/photo-archive', 20000);
+    _photoArchive = (data && data.ok) ? data : { grupos:[], totalFotos:0, totalGrupos:0 };
+    _photoArchiveMap = {};
+    (_photoArchive.grupos||[]).forEach(g => { if (g.exists) _photoArchiveMap[g.taskId] = g.count; });
+    // refrescar badges si ya hay tareas pintadas
+    if (Array.isArray(_tasks) && _tasks.length && document.getElementById('tasks-list')) {
+      try { filterTasks(); } catch(e){}
+    }
+  } catch(e) { /* el archivo es secundario: no romper la app si falla */ }
+}
+
+function loadPhotoArchive() {
+  const host = document.getElementById('arch-list');
+  if (host) host.innerHTML = '<div class="loading"><div class="spinner"></div><br>Cargando evidencias…</div>';
+  loadPhotoArchiveData(true).then(renderPhotoArchive);
+}
+
+function renderPhotoArchive() {
+  const host = document.getElementById('arch-list');
+  if (!host) return;
+  const data = _photoArchive || {grupos:[]};
+  const sb = document.getElementById('arch-search');
+  const q = (sb ? sb.value : '').trim().toLowerCase();
+  let grupos = data.grupos || [];
+  if (q) grupos = grupos.filter(g => ((g.ref||'')+' '+(g.title||'')+' '+(g.client||'')).toLowerCase().indexOf(q) >= 0);
+  const stats = document.getElementById('arch-stats');
+  if (stats) stats.textContent = (data.totalFotos||0)+' fotos · '+(data.totalGrupos||0)+' tareas';
+  if (!grupos.length) { host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Sin resultados</div>'; return; }
+  const fmtD = s => { try { return new Date(s).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}); } catch(e){ return ''; } };
+  host.innerHTML = grupos.map(g => {
+    const head = (g.ref ? '<b>'+esc(g.ref)+'</b> · ' : '') + esc(g.title||'(sin título)');
+    const sub = [g.client?esc(g.client):'', g.exists?('Estado: '+esc(g.status||'—')):'⚠ tarea ya no existe', (g.lastDate?fmtD(g.lastDate):'')].filter(Boolean).join(' &middot; ');
+    const thumbs = (g.fotos||[]).map(f => {
+      const cap = (g.ref||g.title||'') + ' — ' + (ARCH_TYPE_LABEL[f.type]||f.type) + (f.productName?(' · '+f.productName):'');
+      const tag = ARCH_TYPE_LABEL[f.type]||f.type;
+      return '<div class="arch-thumb" onclick="openPhotoLightbox(this)" data-url="'+f.url+'" data-cap="'+esc(cap)+'" title="'+esc(cap)+'"><img loading="lazy" src="'+f.url+'" alt=""><span class="arch-thumb-tag">'+esc(tag)+'</span></div>';
+    }).join('');
+    return '<div class="arch-group" id="arch-g-'+g.taskId+'">'
+      + '<div class="arch-group-hdr"><div style="min-width:0"><div class="arch-group-title">'+head+'</div>'
+      + '<div class="arch-group-sub">'+sub+'</div></div>'
+      + '<span class="arch-group-count">'+g.count+' foto'+(g.count>1?'s':'')+'</span></div>'
+      + '<div class="arch-thumbs">'+thumbs+'</div></div>';
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function openPhotoArchive(taskId) {
+  switchTab('archivo');
+  setTimeout(function(){
+    if (!taskId) return;
+    const el = document.getElementById('arch-g-'+taskId);
+    if (el) { el.scrollIntoView({behavior:'smooth',block:'start'}); el.classList.add('arch-group-flash'); setTimeout(()=>el.classList.remove('arch-group-flash'),1600); }
+  }, 400);
+}
+
+function openPhotoLightbox(el) {
+  const url = el.dataset.url, cap = el.dataset.cap || '';
+  let ov = document.getElementById('photo-lightbox');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'photo-lightbox';
+    ov.onclick = function(){ ov.style.display='none'; };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = '<div class="plb-inner"><img src="'+url+'" alt=""><div class="plb-cap"></div><a class="plb-open" target="_blank" rel="noopener">Abrir original ↗</a></div>';
+  ov.querySelector('.plb-cap').textContent = cap;
+  const a = ov.querySelector('.plb-open'); a.href = url; a.onclick = function(e){ e.stopPropagation(); };
+  ov.style.display = 'flex';
+}
+
+function photoArchiveBadgeHtml(t) {
+  if (!_photoArchiveMap) return '';
+  const n = _photoArchiveMap[t.id];
+  if (!n) return '';
+  return '<span class="evidence-badge" onclick="event.stopPropagation();openPhotoArchive(\''+t.id+'\')" title="Ver '+n+' foto'+(n>1?'s':'')+' de evidencia en el archivo"><i data-lucide="camera" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> '+n+'</span>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -10737,6 +10881,7 @@ function renderListRow(t) {
     <div class="task-list-badges">
       ${overdueBadgeHtml(t)}
       ${(()=>{const b=overdueReassignButtonHtml(t);return b?`<span class="row-reassign">${b}</span>`:'';})()}
+      ${photoArchiveBadgeHtml(t)}
       <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
       <i data-lucide="${typeEmoji}" style="width:13px;height:13px;stroke:var(--text-muted);display:inline-block;vertical-align:-2px;flex-shrink:0"></i>
     </div>
@@ -10887,6 +11032,7 @@ function renderTaskCard(t) {
         ${cardSubMeta.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:var(--fs-xs)">${cardSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>` : ''}
       </div>
       ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
+      ${photoArchiveBadgeHtml(t)}
     </div>
     ${subs.length ? `<div class="tc-progress"><div class="tc-progress-bar" style="width:${progPct}%"></div></div>` : ''}
     <div class="tc-grid">
