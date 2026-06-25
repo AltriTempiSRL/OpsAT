@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v35';
+const APP_BUILD = 'v36';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -988,6 +988,16 @@ function loadRoleDefs() {
         changed = true;
       }
     });
+    // Migración: manager debe tener las secciones de auto-grant guardadas como true
+    // para que el nuevo override de sectionPerms funcione correctamente
+    const managerDef = defs.find(d => d.id === 'manager');
+    if (managerDef) {
+      const sp = managerDef.sectionPerms || {};
+      ['nuevos-despachos','sdv-portal','sdv-bandeja'].forEach(k => {
+        if (!Object.prototype.hasOwnProperty.call(sp, k)) { sp[k] = true; changed = true; }
+      });
+      managerDef.sectionPerms = sp;
+    }
     if (changed) saveRoleDefs(defs); // persiste la migración
   }
   return defs;

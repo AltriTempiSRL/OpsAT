@@ -5759,6 +5759,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <div class="sdv-field">
                 <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="ciudad" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo">
+                <div id="sdv-ciudad-warn" style="display:none;font-size:11px;color:var(--red-text);margin-top:4px;line-height:1.4;padding:6px 8px;background:rgba(220,38,38,.06);border-radius:6px;border:1px solid rgba(220,38,38,.2)">
+                  ⚠️ <b>Ciudad no encontrada en Odoo.</b> Ve a <span style="color:var(--amber-text);font-weight:700">Contactos › abre el cliente › campo Ciudad</span>, guarda, y toca «Buscar / Actualizar». También puedes escribirla aquí directamente.
+                </div>
               </div>
             </div>
             <div class="sdv-form-grid cols1">
@@ -7173,6 +7176,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-portal"> Sol. Despacho (Ventas)</label>
+          <label class="perm-check"><input type="checkbox" data-perm="nuevos-despachos"> Nuevos despachos</label>
+          <label class="perm-check"><input type="checkbox" data-perm="sdv-bandeja"> Bandeja Solicitudes</label>
         </div>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
         <div class="perm-grid">
@@ -7333,7 +7338,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v35';
+var APP_BUILD = 'v36';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -7417,9 +7422,12 @@ function can(perm) {
 function canSection(key) {
   if (!_user) return false;
   if (_user.role === 'admin') return true;
-  // Manager: acceso automático a bandeja ops, portal (para crear en nombre de vendedora) y nuevos despachos (procesar órdenes)
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos')) return true;
-  return !!(_user.sectionPerms||{})[key];
+  // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
+  var sp = _user.sectionPerms || {};
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos')) {
+    return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
+  }
+  return !!sp[key];
 }
 
 function isAgentOwnerUser() {
@@ -16166,8 +16174,14 @@ async function saveRole() {
   errEl.classList.remove('show');
   if (!_editingRole && !name) { showErr(errEl, 'El nombre del rol es requerido'); return; }
   const sectionPerms = {};
+  const _MANAGER_AUTO_GRANT = ['nuevos-despachos','sdv-portal','sdv-bandeja'];
   document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
-    if (cb.checked) sectionPerms[cb.dataset.perm] = true;
+    if (cb.checked) {
+      sectionPerms[cb.dataset.perm] = true;
+    } else if (_MANAGER_AUTO_GRANT.includes(cb.dataset.perm)) {
+      // Guardar false explícito para poder anular el auto-grant de manager
+      sectionPerms[cb.dataset.perm] = false;
+    }
   });
   try {
     let r;
@@ -27671,17 +27685,17 @@ async function sdvBuscar() {
     var d = await r.json();
     if (!r.ok || !d.ok) { sdvInfo(d.error||'No encontrado en Odoo', 'err'); return; }
     // Validar campos Odoo obligatorios (solo para despacho_cliente y devolucion)
+    var _ciudadOk = true;
     if (_sdvTipo !== 'traslado_interno') {
       var clienteOk = !!(d.client && (d.client+'').trim());
       var direccionOk = !!(d.deliveryAddress && (d.deliveryAddress+'').trim());
-      var ciudadOk = !!(d.city && (d.city+'').trim());
-      if (!clienteOk || !direccionOk || !ciudadOk) {
+      _ciudadOk = !!(d.city && (d.city+'').trim());
+      // Cliente y Dirección son bloqueantes — sin ellos no se puede continuar
+      if (!clienteOk || !direccionOk) {
         var faltantes = [];
         if (!clienteOk) faltantes.push('Cliente');
         if (!direccionOk) faltantes.push('Dirección');
-        if (!ciudadOk) faltantes.push('Ciudad');
-        var msg = 'Orden incompleta en Odoo. Completa estos campos en Odoo: '+faltantes.join(', ')+'. Luego busca la orden nuevamente.';
-        sdvInfo(msg, 'err');
+        sdvInfo('Orden incompleta en Odoo. Completa estos campos en Odoo: '+faltantes.join(', ')+'. Luego busca la orden nuevamente.', 'err');
         return;
       }
     }
@@ -27693,6 +27707,15 @@ async function sdvBuscar() {
     if (d.deliveryAddress) _sdv$('sdv-direccion').value = d.deliveryAddress;
     if (d.city) _sdv$('sdv-ciudad').value = d.city;
     if (d.phone) _sdv$('sdv-receptor-contacto').value = d.phone;
+    // Ciudad faltante: marcar campo en rojo + mostrar instrucciones inline
+    var _ciudadEl = _sdv$('sdv-ciudad'), _ciudadWarnEl = document.getElementById('sdv-ciudad-warn');
+    if (!_ciudadOk && _sdvTipo !== 'traslado_interno') {
+      if (_ciudadEl && _ciudadEl.style) { _ciudadEl.style.borderColor='var(--red-text)'; _ciudadEl.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)'; }
+      if (_ciudadWarnEl) _ciudadWarnEl.style.display='';
+    } else {
+      if (_ciudadEl && _ciudadEl.style) { _ciudadEl.style.borderColor=''; _ciudadEl.style.boxShadow=''; }
+      if (_ciudadWarnEl) _ciudadWarnEl.style.display='none';
+    }
     // Info de resultado
     var infoMsg = _sdvOrderRef ? ('Orden: '+_sdvOrderRef) : '';
     if (d.tipo==='devolucion') infoMsg = 'RET: '+d.retRef+' ('+d.retState+') · Orden: '+d.orderRef;
@@ -27735,6 +27758,13 @@ function sdvHelpShow(key, anchor){
   } else { pop.style.top=''; pop.style.left=''; pop.style.bottom=''; pop.style.right=''; }
 }
 function sdvHelpHide(){ var p=document.getElementById('sdv-help-pop'); if(p) p.classList.remove('open'); }
+// Limpiar error de ciudad al escribir manualmente
+document.addEventListener('input', function(e){
+  if (e.target && e.target.id === 'sdv-ciudad' && (e.target.value||'').trim()) {
+    e.target.style.borderColor=''; e.target.style.boxShadow='';
+    var w=document.getElementById('sdv-ciudad-warn'); if(w) w.style.display='none';
+  }
+});
 document.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('.sdv-help') : null;
   if(btn){ e.preventDefault(); e.stopPropagation(); sdvHelpShow(btn.getAttribute('data-help'), btn); return; }
@@ -27844,7 +27874,13 @@ async function sdvEnviar() {
     if (!dir) faltantesOdoo.push('Dirección');
     if (!ciudad) faltantesOdoo.push('Ciudad');
     if (faltantesOdoo.length) {
-      toast('Debes completar en Odoo: '+faltantesOdoo.join(', ')+'. Busca nuevamente la orden después de editar en Odoo.');
+      // Si solo falta ciudad, también resaltar el campo inline
+      if (!ciudad) {
+        var _ce=_sdv$('sdv-ciudad'),_cw=document.getElementById('sdv-ciudad-warn');
+        if(_ce&&_ce.style){_ce.style.borderColor='var(--red-text)';_ce.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)';_ce.focus();}
+        if(_cw) _cw.style.display='';
+      }
+      toast('Completa el campo Ciudad antes de enviar — escríbela aquí o corrígela en Odoo y actualiza.');
       return;
     }
     if (!recNom||!recCont||!fecha) { toast('Completa: Nombre de quien recibe, contacto y fecha deseada'); return; }

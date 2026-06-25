@@ -419,7 +419,7 @@ function parseCSV(text){
 function buildData(headers, rows, statusFilter) {
   if (!statusFilter) statusFilter = STATUS_FILTER;
   const ci = name => headers.findIndex(h => h.trim().toLowerCase() === name.toLowerCase());
-  const iOrden=ci('No. Orden'), iTipo=ci('Tipo de Movimiento'), iCliente=ci('Nombre Cliente'),
+  const iOrden=(()=>{const i=ci('No. Orden');return i>=0?i:0;})(), iTipo=ci('Tipo de Movimiento'), iCliente=ci('Nombre Cliente'),
         iCiudad=ci('Ciudades'), iLugar=ci('Lugar de Entrega'), iFechaSol=ci('Fecha Solicitada'),
         iFechaEnt=ci('Fecha de Entrega'), iVendedor=ci('VENDEDOR'), iDiasRest=ci('Dias Restantes'),
         iLugarDes=ci('LUGAR DE DESPACHO'), iPrior=ci('Prioridad'), iCantArt=ci('Cantidad de Articulos'),
