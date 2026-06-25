@@ -7357,7 +7357,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v39';
+var APP_BUILD = 'v40';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16427,16 +16427,16 @@ function _ensureGoogleMaps(){
   if(window.google&&window.google.maps) return Promise.resolve();
   if(_gmapsLoading) return _gmapsLoading;
   _gmapsLoading=fetch('/api/maps-key').then(function(r){return r.json();}).then(function(d){
-    if(!d.key) throw new Error('Google Maps key no configurado');
+    if(!d.key) throw new Error('GOOGLE_MAPS_API_KEY no configurado en servidor');
     return new Promise(function(resolve,reject){
-      window._gmapsInitCb=resolve;
+      var cbName='_gmcb'+Date.now();
+      window[cbName]=function(){ try{delete window[cbName];}catch(e){} resolve(); };
       var s=document.createElement('script');
-      s.src='https://maps.googleapis.com/maps/api/js?key='+d.key+'&libraries=places,geometry&language=es&callback=_gmapsInitCb';
-      s.async=true; s.defer=true;
-      s.onerror=function(){ reject(new Error('No se pudo cargar Google Maps')); };
+      s.src='https://maps.googleapis.com/maps/api/js?key='+d.key+'&libraries=places&language=es&callback='+cbName;
+      s.onerror=function(){ _gmapsLoading=null; reject(new Error('Script de Google Maps no cargó — verifica que Maps JavaScript API y Places API estén habilitadas en Google Cloud y que haya facturación activa')); };
       document.head.appendChild(s);
     });
-  });
+  }).catch(function(e){ _gmapsLoading=null; return Promise.reject(e); });
   return _gmapsLoading;
 }
 function _wac2(n){return _wac(n||'?');}
@@ -16489,8 +16489,7 @@ function _initUsersGMap(cb){
   if(!_usersGMap){
     _usersGMap=new google.maps.Map(document.getElementById('users-map'),{
       center:{lat:18.4861,lng:-69.9312}, zoom:13,
-      mapTypeControl:false, fullscreenControl:false, streetViewControl:false,
-      mapId:'users-map-id'
+      mapTypeControl:false, fullscreenControl:false, streetViewControl:false
     });
     _usersGInfoWindow=new google.maps.InfoWindow();
   }
