@@ -4327,6 +4327,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-field label .req{color:var(--red-text)}
 .sdv-input,.sdv-sel,.sdv-ta{border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;font-size:var(--fs-base);background:var(--bg);color:var(--text-1);width:100%;box-sizing:border-box;font-family:inherit}
 .sdv-input:focus,.sdv-sel:focus,.sdv-ta:focus{outline:none;border-color:var(--brand-primary)}
+/* Campos de solo-lectura (fuente: Odoo) */
+.sdv-input[readonly]{background:var(--surface-2);color:var(--text-2);cursor:default}
+.sdv-input[readonly]:focus{border-color:var(--border);box-shadow:none}
 .sdv-ta{resize:vertical;min-height:72px}
 .sdv-check-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);cursor:pointer}
 .sdv-check-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--brand-primary);flex-shrink:0}
@@ -5754,20 +5757,20 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
             <div class="sdv-form-grid">
               <div class="sdv-field">
                 <label>Cliente / Empresa <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="cliente" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
-                <input class="sdv-input" id="sdv-cliente" placeholder="Nombre del cliente">
+                <input class="sdv-input" id="sdv-cliente" placeholder="Nombre del cliente" readonly>
               </div>
               <div class="sdv-field">
                 <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="ciudad" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
-                <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo">
+                <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo" readonly>
                 <div id="sdv-ciudad-warn" style="display:none;font-size:11px;color:var(--red-text);margin-top:4px;line-height:1.4;padding:6px 8px;background:rgba(220,38,38,.06);border-radius:6px;border:1px solid rgba(220,38,38,.2)">
-                  ⚠️ <b>Ciudad no encontrada en Odoo.</b> Ve a <span style="color:var(--amber-text);font-weight:700">Contactos › abre el cliente › campo Ciudad</span>, guarda, y toca «Buscar / Actualizar». También puedes escribirla aquí directamente.
+                  ⚠️ <b>Ciudad no encontrada en Odoo.</b> Ve a <span style="color:var(--amber-text);font-weight:700">Contactos › abre el cliente › campo Ciudad</span>, guarda y toca «Buscar / Actualizar».
                 </div>
               </div>
             </div>
             <div class="sdv-form-grid cols1">
               <div class="sdv-field">
                 <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="direccion" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
-                <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa">
+                <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa" readonly>
               </div>
             </div>
             <div class="sdv-form-grid">
@@ -7338,7 +7341,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v36';
+var APP_BUILD = 'v37';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27758,13 +27761,7 @@ function sdvHelpShow(key, anchor){
   } else { pop.style.top=''; pop.style.left=''; pop.style.bottom=''; pop.style.right=''; }
 }
 function sdvHelpHide(){ var p=document.getElementById('sdv-help-pop'); if(p) p.classList.remove('open'); }
-// Limpiar error de ciudad al escribir manualmente
-document.addEventListener('input', function(e){
-  if (e.target && e.target.id === 'sdv-ciudad' && (e.target.value||'').trim()) {
-    e.target.style.borderColor=''; e.target.style.boxShadow='';
-    var w=document.getElementById('sdv-ciudad-warn'); if(w) w.style.display='none';
-  }
-});
+
 document.addEventListener('click', function(e){
   var btn = e.target.closest ? e.target.closest('.sdv-help') : null;
   if(btn){ e.preventDefault(); e.stopPropagation(); sdvHelpShow(btn.getAttribute('data-help'), btn); return; }
@@ -27880,7 +27877,7 @@ async function sdvEnviar() {
         if(_ce&&_ce.style){_ce.style.borderColor='var(--red-text)';_ce.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)';_ce.focus();}
         if(_cw) _cw.style.display='';
       }
-      toast('Completa el campo Ciudad antes de enviar — escríbela aquí o corrígela en Odoo y actualiza.');
+      toast('Ciudad falta en Odoo. Ve a Contactos › cliente › campo Ciudad, guarda y toca Buscar / Actualizar.');
       return;
     }
     if (!recNom||!recCont||!fecha) { toast('Completa: Nombre de quien recibe, contacto y fecha deseada'); return; }
