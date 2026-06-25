@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v40';
+const APP_BUILD = 'v41';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -3831,11 +3831,11 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Permissions-Policy', 'geolocation=(self), microphone=(), camera=()');
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline'; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: blob: https://*.tile.openstreetmap.org; " +
-    "font-src 'self' data:; " +
-    "connect-src 'self' https://altritempi.odoo.com https://docs.google.com https://sheets.googleapis.com https://*.tile.openstreetmap.org; " +
+    "script-src 'self' 'unsafe-inline' https://maps.googleapis.com https://maps.gstatic.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://maps.gstatic.com https://maps.googleapis.com https://*.ggpht.com; " +
+    "font-src 'self' data: https://fonts.gstatic.com; " +
+    "connect-src 'self' https://altritempi.odoo.com https://docs.google.com https://sheets.googleapis.com https://*.tile.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com; " +
     "frame-ancestors 'self' https://gjs6301-code.github.io; " +
     "base-uri 'self'; " +
     "form-action 'self'"
