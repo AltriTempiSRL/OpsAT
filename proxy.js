@@ -33,7 +33,11 @@ function loadJson(file, fallback) {
   catch { return fallback !== undefined ? fallback : []; }
 }
 function saveJson(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data), 'utf-8');
+  // Escritura atómica: tmp → rename. Si el proceso es killed a mitad de writeFileSync,
+  // el archivo original queda intacto (el kernel solo intercambia el inodo en rename).
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8');
+  fs.renameSync(tmp, file);
   try {
     const st = fs.statSync(file);
     _jsonFileCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, data });
@@ -98,7 +102,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v47';
+const APP_BUILD = 'v48';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
