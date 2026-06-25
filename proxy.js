@@ -98,7 +98,7 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v38';
+const APP_BUILD = 'v39';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -4042,6 +4042,12 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/app-version' && req.method === 'GET') {
     res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
     res.end(JSON.stringify({ build: APP_BUILD }));
+    return;
+  }
+  // ── /api/maps-key — Google Maps API key (sin auth; restringido por dominio en GCP) ──
+  if (reqPath === '/api/maps-key' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600'});
+    res.end(JSON.stringify({ key: process.env.GOOGLE_MAPS_API_KEY || '' }));
     return;
   }
 

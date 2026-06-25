@@ -4379,6 +4379,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 /* Buscador dentro del modal de mapa */
 .sdv-map-search-row{display:flex;gap:8px;margin-bottom:8px}
 .sdv-map-search-row .sdv-input{flex:1;font-size:var(--fs-sm)}
+/* Google Places autocomplete dropdown — encima de modales */
+.pac-container{z-index:10001!important;font-family:inherit;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15)}
 /* Mapa modal SDV */
 .sdv-map-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
 .sdv-map-modal{background:var(--bg);border-radius:var(--radius);width:100%;max-width:600px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.3)}
@@ -7355,7 +7357,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v38';
+var APP_BUILD = 'v39';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16418,21 +16420,24 @@ function dismissWelcome(){
 }
 
 // ── Mapa de ubicaciones (Leaflet, solo admin) ──────────────────────────
-var _leafletLoaded=false, _usersMap=null, _usersMapLayer=null;
+var _usersGMap=null, _usersGMarkers=[], _usersGInfoWindow=null, _usersGPolylines=[];
 var _usersMapState={users:[],selectedUser:null,selectedName:'',routePoints:[]};
-function _ensureLeaflet(){
-  return new Promise(function(resolve,reject){
-    if(_leafletLoaded && window.L){ resolve(); return; }
-    // CSS
-    if(!document.getElementById('leaflet-css')){
-      const l=document.createElement('link'); l.id='leaflet-css'; l.rel='stylesheet'; l.href='/leaflet.css'; document.head.appendChild(l);
-    }
-    if(window.L){ _leafletLoaded=true; resolve(); return; }
-    const s=document.createElement('script'); s.src='/leaflet.js';
-    s.onload=function(){ _leafletLoaded=true; resolve(); };
-    s.onerror=function(){ reject(new Error('No se pudo cargar el mapa')); };
-    document.head.appendChild(s);
+var _gmapsLoading=null;
+function _ensureGoogleMaps(){
+  if(window.google&&window.google.maps) return Promise.resolve();
+  if(_gmapsLoading) return _gmapsLoading;
+  _gmapsLoading=fetch('/api/maps-key').then(function(r){return r.json();}).then(function(d){
+    if(!d.key) throw new Error('Google Maps key no configurado');
+    return new Promise(function(resolve,reject){
+      window._gmapsInitCb=resolve;
+      var s=document.createElement('script');
+      s.src='https://maps.googleapis.com/maps/api/js?key='+d.key+'&libraries=places,geometry&language=es&callback=_gmapsInitCb';
+      s.async=true; s.defer=true;
+      s.onerror=function(){ reject(new Error('No se pudo cargar Google Maps')); };
+      document.head.appendChild(s);
+    });
   });
+  return _gmapsLoading;
 }
 function _wac2(n){return _wac(n||'?');}
 function _localDateStr(d){
@@ -16477,40 +16482,54 @@ function renderUsersMapList(){
   }).join('');
   if(window.lucide)lucide.createIcons();
 }
-function _initUsersMap(cb){
-  if(_usersMap){ _usersMap.remove(); _usersMap=null; _usersMapLayer=null; }
-  setTimeout(function(){
-    _usersMap=L.map('users-map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap'}).addTo(_usersMap);
-    if(cb) cb();
-    setTimeout(function(){ if(_usersMap) _usersMap.invalidateSize(); },300);
-  },250);
+function _initUsersGMap(cb){
+  _usersGMarkers.forEach(function(m){m.setMap(null);}); _usersGMarkers=[];
+  _usersGPolylines.forEach(function(p){p.setMap(null);}); _usersGPolylines=[];
+  if(_usersGInfoWindow){ _usersGInfoWindow.close(); }
+  if(!_usersGMap){
+    _usersGMap=new google.maps.Map(document.getElementById('users-map'),{
+      center:{lat:18.4861,lng:-69.9312}, zoom:13,
+      mapTypeControl:false, fullscreenControl:false, streetViewControl:false,
+      mapId:'users-map-id'
+    });
+    _usersGInfoWindow=new google.maps.InfoWindow();
+  }
+  if(cb) cb();
 }
-function _userMarkerIcon(u){
-  const initials=_wai(u.name), color=_wac(u.name);
-  return L.divIcon({className:'', html:'<div style="background:'+color+';color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);border:2px solid #fff"><span style="transform:rotate(45deg);font-size:10px;font-weight:700">'+initials+'</span></div>', iconSize:[30,30], iconAnchor:[15,30]});
+function _userGMarkerIcon(u){
+  const color=_wac(u.name), initials=_wai(u.name);
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">'
+    +'<path d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 26 18 26s18-12.5 18-26C36 8.06 27.94 0 18 0z" fill="'+color+'" stroke="white" stroke-width="2"/>'
+    +'<text x="18" y="23" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="700" fill="white">'+initials+'</text>'
+    +'</svg>';
+  return {url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg), scaledSize:new google.maps.Size(36,44), anchor:new google.maps.Point(18,44)};
 }
 function drawUsersMapMarkers(){
-  if(!_usersMap || !window.L) return;
-  if(_usersMapLayer){ _usersMap.removeLayer(_usersMapLayer); _usersMapLayer=null; }
-  _usersMapLayer=L.layerGroup().addTo(_usersMap);
-  const users=_mapFilteredUsers(), bounds=[];
+  if(!_usersGMap||!window.google) return;
+  _usersGMarkers.forEach(function(m){m.setMap(null);}); _usersGMarkers=[];
+  _usersGPolylines.forEach(function(p){p.setMap(null);}); _usersGPolylines=[];
+  const users=_mapFilteredUsers();
+  const bounds=new google.maps.LatLngBounds();
   users.forEach(function(u){
     const ll=u.lastLocation, a=_mapAgeInfo(ll), ago=ll.at?timeSince(ll.at):'';
-    const m=L.marker([ll.lat,ll.lng],{icon:_userMarkerIcon(u)}).addTo(_usersMapLayer);
-    const nameArg=encodeURIComponent(u.name||'Auxiliar');
-    m.bindPopup('<div style="font-size:13px"><b>'+esc(u.name)+'</b><br><span style="color:#666;font-size:11px">'+a.label+(ago?' · '+ago:'')+(ll.context?' · '+esc(ll.context):'')+'</span><br><a href="#" onclick="showUserRoute(\''+esc(u.id)+'\',decodeURIComponent(\''+nameArg+'\'));return false;" style="font-size:12px;color:#2563eb">Ver recorrido</a></div>');
-    bounds.push([ll.lat,ll.lng]);
+    const marker=new google.maps.Marker({map:_usersGMap,position:{lat:ll.lat,lng:ll.lng},icon:_userGMarkerIcon(u),title:u.name||'Auxiliar'});
+    const content='<div style="font-size:13px;min-width:160px"><b>'+esc(u.name)+'</b><br>'
+      +'<span style="color:#666;font-size:11px">'+a.label+(ago?' · '+ago:'')+(ll.context?(' · '+esc(ll.context)):'')+'</span><br>'
+      +'<a href="#" onclick="showUserRoute(\''+esc(u.id)+'\',\''+esc(u.name||'Auxiliar')+'\');return false;" style="font-size:12px;color:#2563eb">Ver recorrido</a></div>';
+    marker.addListener('click',function(){ _usersGInfoWindow.setContent(content); _usersGInfoWindow.open(_usersGMap,marker); });
+    _usersGMarkers.push(marker);
+    bounds.extend({lat:ll.lat,lng:ll.lng});
   });
   renderUsersMapList();
-  if(bounds.length===1) _usersMap.setView(bounds[0],15);
-  else if(bounds.length>1) _usersMap.fitBounds(bounds,{padding:[40,40]});
+  if(users.length===1) _usersGMap.setCenter({lat:users[0].lastLocation.lat,lng:users[0].lastLocation.lng});
+  else if(users.length>1) _usersGMap.fitBounds(bounds,{padding:40});
 }
 function focusUserOnMap(userId){
   const u=(_usersMapState.users||[]).find(x=>x.id===userId); if(!u||!u.lastLocation) return;
   _usersMapState.selectedUser=userId; _usersMapState.selectedName=u.name||'Auxiliar';
   renderUsersMapList();
-  if(_usersMap) _usersMap.setView([u.lastLocation.lat,u.lastLocation.lng],16);
+  if(_usersGMap) _usersGMap.setCenter({lat:u.lastLocation.lat,lng:u.lastLocation.lng});
+  if(_usersGMap) _usersGMap.setZoom(16);
   showUserRoute(userId,u.name||'Auxiliar');
 }
 async function openUsersMap(){
@@ -16525,7 +16544,7 @@ async function openUsersMap(){
   document.getElementById('users-map-title').textContent='Mapa de auxiliares';
   document.getElementById('users-map-bar').innerHTML='<span>Cargando ubicaciones…</span>';
   try{
-    await _ensureLeaflet();
+    await _ensureGoogleMaps();
     const r=await authFetch('/api/wwp/auth/locations');
     const d=await r.json();
     const users=(d.users||[]).filter(u=>u.lastLocation&&isFinite(u.lastLocation.lat)&&isFinite(u.lastLocation.lng));
@@ -16543,7 +16562,7 @@ async function openUsersMap(){
     document.getElementById('users-map-bar').innerHTML=`<i data-lucide="users" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${users.length} usuario(s) con ubicación · ${fresh} reciente(s) · ${stale} viejo(s) · historial 7 días`;
     if(window.lucide)lucide.createIcons();
     renderUsersMapList();
-    _initUsersMap(drawUsersMapMarkers);
+    _initUsersGMap(drawUsersMapMarkers);
   }catch(e){ toast('Error: '+e.message); document.getElementById('users-map-bar').innerHTML='Error al cargar el mapa'; }
 }
 function closeUsersMap(){ document.getElementById('modal-users-map').classList.remove('open'); }
@@ -16563,20 +16582,33 @@ async function showUserRoute(userId, userName){
     const first=pts[0]&&pts[0].at?fmtDate(pts[0].at):'', last=pts[pts.length-1]&&pts[pts.length-1].at?fmtDate(pts[pts.length-1].at):'';
     document.getElementById('users-map-bar').innerHTML=`<i data-lucide="route" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${pts.length} punto(s)${date?' · '+date:''}${first?' · '+first+' → '+last:''} · <a href="#" onclick="openUsersMap();return false;" style="color:var(--accent)">Ver todos</a>`;
     if(window.lucide)lucide.createIcons();
-    _initUsersMap(function(){
+    await _ensureGoogleMaps();
+    _initUsersGMap(function(){
       const cs=getComputedStyle(document.documentElement);
       const routeColor=cs.getPropertyValue('--accent').trim()||'#2563eb';
       const green=cs.getPropertyValue('--green-dot').trim()||'#16a34a';
       const red=cs.getPropertyValue('--red-dot').trim()||'#dc2626';
-      const latlngs=pts.map(p=>[p.lat,p.lng]);
-      L.polyline(latlngs,{color:routeColor,weight:3,opacity:.75}).addTo(_usersMap);
-      pts.forEach((p,i)=>{
-        const isLast=i===pts.length-1, isFirst=i===0;
+      // Polyline de ruta
+      const path=pts.map(p=>({lat:p.lat,lng:p.lng}));
+      const poly=new google.maps.Polyline({path:path,geodesic:true,strokeColor:routeColor,strokeOpacity:.8,strokeWeight:3,map:_usersGMap});
+      _usersGPolylines.push(poly);
+      // Marcadores de puntos
+      const bounds=new google.maps.LatLngBounds();
+      pts.forEach(function(p,i){
+        const isFirst=i===0, isLast=i===pts.length-1;
+        if(!isFirst&&!isLast&&pts.length>30&&i%3!==0) return; // decimar puntos intermedios
         const col=isLast?green:isFirst?red:routeColor;
-        const m=L.circleMarker([p.lat,p.lng],{radius:isLast||isFirst?7:5,color:'#fff',weight:2,fillColor:col,fillOpacity:1}).addTo(_usersMap);
-        m.bindPopup(`<div style="font-size:12px"><b>${isFirst?'Inicio':isLast?'Última':'Punto '+(i+1)}</b><br>${p.at?fmtDate(p.at):''}${p.context?('<br>'+esc(p.context)):''}</div>`);
+        const sz=isFirst||isLast?10:7;
+        const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+sz*2+'" height="'+sz*2+'"><circle cx="'+sz+'" cy="'+sz+'" r="'+(sz-1)+'" fill="'+col+'" stroke="white" stroke-width="1.5"/></svg>';
+        const icon={url:'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg),scaledSize:new google.maps.Size(sz*2,sz*2),anchor:new google.maps.Point(sz,sz)};
+        const m=new google.maps.Marker({map:_usersGMap,position:{lat:p.lat,lng:p.lng},icon:icon,zIndex:isFirst||isLast?10:1});
+        const label=isFirst?'Inicio':isLast?'Última ubicación':'Punto '+(i+1);
+        const content='<div style="font-size:12px"><b>'+label+'</b><br>'+(p.at?fmtDate(p.at):'')+(p.context?('<br>'+esc(p.context)):'')+'</div>';
+        m.addListener('click',function(){ _usersGInfoWindow.setContent(content); _usersGInfoWindow.open(_usersGMap,m); });
+        _usersGMarkers.push(m);
+        bounds.extend({lat:p.lat,lng:p.lng});
       });
-      _usersMap.fitBounds(latlngs,{padding:[40,40]});
+      _usersGMap.fitBounds(bounds,{padding:40});
     });
   }catch(e){ toast('Error: '+e.message); }
 }
@@ -27971,81 +28003,85 @@ function sdvReset(skipConfirm) {
 }
 
 // ── Mapa GPS (modal SDV) ──────────────────────────────────────────────────
-var _sdvMapInstance = null, _sdvMapMarker = null;
+var _sdvGMap = null, _sdvGMarker = null, _sdvGAutocomplete = null;
 
 async function sdvOpenMapModal() {
   var overlay = document.getElementById('sdv-map-overlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
-  await _ensureLeaflet();
-  if (!_sdvMapInstance) {
-    _sdvMapInstance = L.map('sdv-map-container').setView([18.4861, -69.9312], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
-    }).addTo(_sdvMapInstance);
-    _sdvMapMarker = L.marker([18.4861, -69.9312], {draggable: true}).addTo(_sdvMapInstance);
-    _sdvMapMarker.on('dragend', function() {
-      var ll = _sdvMapMarker.getLatLng();
-      var coordsEl = document.getElementById('sdv-map-coords');
-      if (coordsEl) coordsEl.textContent = 'Lat: '+ll.lat.toFixed(6)+', Lng: '+ll.lng.toFixed(6);
+  await _ensureGoogleMaps();
+  var searchInput = document.getElementById('sdv-map-search-input');
+  if (!_sdvGMap) {
+    _sdvGMap = new google.maps.Map(document.getElementById('sdv-map-container'), {
+      center: {lat: 18.4861, lng: -69.9312}, zoom: 13,
+      mapTypeControl: false, fullscreenControl: false, streetViewControl: false
     });
+    _sdvGMarker = new google.maps.Marker({map: _sdvGMap, draggable: true, position: {lat: 18.4861, lng: -69.9312}});
+    _sdvGMarker.addListener('dragend', function() {
+      var pos = _sdvGMarker.getPosition();
+      var coordsEl = document.getElementById('sdv-map-coords');
+      if (coordsEl) coordsEl.textContent = 'Lat: '+pos.lat().toFixed(6)+', Lng: '+pos.lng().toFixed(6);
+    });
+    if (searchInput) {
+      _sdvGAutocomplete = new google.maps.places.Autocomplete(searchInput, {
+        componentRestrictions: {country: 'do'}, fields: ['geometry','name','formatted_address']
+      });
+      _sdvGAutocomplete.addListener('place_changed', function() {
+        var place = _sdvGAutocomplete.getPlace();
+        if (place.geometry && place.geometry.location) {
+          _sdvGMap.setCenter(place.geometry.location); _sdvGMap.setZoom(17);
+          _sdvGMarker.setPosition(place.geometry.location);
+          var coordsEl = document.getElementById('sdv-map-coords');
+          if (coordsEl) coordsEl.textContent = 'Lat: '+place.geometry.location.lat().toFixed(6)+', Lng: '+place.geometry.location.lng().toFixed(6);
+          var resultEl = document.getElementById('sdv-map-search-result');
+          if (resultEl) { resultEl.style.display=''; resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+(place.formatted_address||place.name||''); }
+        }
+      });
+    }
   }
-  setTimeout(function(){ if(_sdvMapInstance) _sdvMapInstance.invalidateSize(); }, 200);
-
-  // Pre-llenar el buscador: primero lo que escribió el usuario, luego la dirección Odoo
+  setTimeout(function(){ if(_sdvGMap) google.maps.event.trigger(_sdvGMap,'resize'); }, 200);
   var gpsText = (_sdv$('sdv-gps').value||'').trim();
   var dir = (_sdv$('sdv-direccion').value||'').trim();
   var ciudad = (_sdv$('sdv-ciudad').value||'').trim();
-  var searchInput = document.getElementById('sdv-map-search-input');
-
-  // Si hay coords guardadas en el campo oculto, mostrarlas y posicionar sin re-geocodificar
   var savedCoords = (document.getElementById('sdv-gps-coords').value||'').trim();
   if (savedCoords) {
     var parts = savedCoords.split(',');
     if (parts.length === 2) {
       var slat = parseFloat(parts[0]), slng = parseFloat(parts[1]);
       if (!isNaN(slat) && !isNaN(slng)) {
-        _sdvMapInstance.setView([slat, slng], 17);
-        _sdvMapMarker.setLatLng([slat, slng]);
+        var spos = {lat: slat, lng: slng};
+        _sdvGMap.setCenter(spos); _sdvGMap.setZoom(17); _sdvGMarker.setPosition(spos);
         var coordsEl = document.getElementById('sdv-map-coords');
         if (coordsEl) coordsEl.textContent = 'Lat: '+slat.toFixed(6)+', Lng: '+slng.toFixed(6);
         if (searchInput && !searchInput.value) searchInput.value = gpsText || [dir, ciudad].filter(Boolean).join(', ');
-        if(searchInput) setTimeout(function(){ searchInput.focus(); searchInput.select(); }, 300);
         return;
       }
     }
   }
-
-  // Pre-llenar buscador y auto-buscar al abrir
   var q = gpsText || [dir, ciudad].filter(Boolean).join(', ');
   if (searchInput) searchInput.value = q;
-  if (q) setTimeout(function(){ sdvMapSearch(); }, 400);
+  if (q) setTimeout(function(){ sdvMapSearch(); }, 450);
   else if (searchInput) setTimeout(function(){ searchInput.focus(); }, 300);
 }
 
-async function sdvMapSearch() {
+function sdvMapSearch() {
   var searchInput = document.getElementById('sdv-map-search-input');
   var resultEl = document.getElementById('sdv-map-search-result');
   var q = ((searchInput && searchInput.value)||'').trim();
-  if (!q) { if(searchInput) searchInput.focus(); return; }
+  if (!q) { if (searchInput) searchInput.focus(); return; }
   if (resultEl) { resultEl.style.display=''; resultEl.style.color='var(--text-2)'; resultEl.style.background='var(--surface-2)'; resultEl.textContent='Buscando…'; }
-  try {
-    var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=es&q='+encodeURIComponent(q+' República Dominicana');
-    var r = await fetch(url);
-    var data = await r.json();
-    if (data && data[0]) {
-      var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-      _sdvMapInstance.setView([lat, lng], 17);
-      _sdvMapMarker.setLatLng([lat, lng]);
+  var geocoder = new google.maps.Geocoder();
+  geocoder.geocode({address: q+', República Dominicana', region: 'DO'}, function(results, status) {
+    if (status === 'OK' && results[0]) {
+      var loc = results[0].geometry.location;
+      _sdvGMap.setCenter(loc); _sdvGMap.setZoom(17); _sdvGMarker.setPosition(loc);
       var coordsEl = document.getElementById('sdv-map-coords');
-      if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6);
-      if (resultEl) { resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+data[0].display_name; }
+      if (coordsEl) coordsEl.textContent = 'Lat: '+loc.lat().toFixed(6)+', Lng: '+loc.lng().toFixed(6);
+      if (resultEl) { resultEl.style.color='var(--green-text)'; resultEl.style.background='rgba(22,163,74,.06)'; resultEl.textContent='✓ '+results[0].formatted_address; }
     } else {
-      if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='No se encontró esa dirección — intenta con más detalles o arrastra el pin manualmente.'; }
+      if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='No se encontró — intenta con más detalles o arrastra el pin.'; }
     }
-  } catch(e) {
-    if (resultEl) { resultEl.style.color='var(--red-text)'; resultEl.style.background='rgba(220,38,38,.06)'; resultEl.textContent='Error al buscar. Verifica tu conexión.'; }
-  }
+  });
 }
 
 function sdvCloseMapModal() {
@@ -28054,10 +28090,9 @@ function sdvCloseMapModal() {
 }
 
 function sdvConfirmMapLocation() {
-  if (!_sdvMapMarker) return;
-  var ll = _sdvMapMarker.getLatLng();
-  var coords = ll.lat.toFixed(6)+', '+ll.lng.toFixed(6);
-  // Guardar coords en campo oculto; el campo visible conserva el texto de referencia del usuario
+  if (!_sdvGMarker) return;
+  var pos = _sdvGMarker.getPosition();
+  var coords = pos.lat().toFixed(6)+', '+pos.lng().toFixed(6);
   document.getElementById('sdv-gps-coords').value = coords;
   var confirmed = document.getElementById('sdv-gps-confirmed');
   if (confirmed) { confirmed.style.display=''; if(window.lucide) lucide.createIcons(); }
@@ -28474,31 +28509,33 @@ function sdvLoadDraft(id) {
   return stored ? JSON.parse(stored) : null;
 }
 
-var _sdvEditMapInstance = null, _sdvEditMapMarker = null;
+var _sdvEditGMap = null, _sdvEditGMarker = null;
 async function sdvEditOpenMapModal() {
   var overlay = document.getElementById('sdv-edit-map-overlay');
   if (!overlay) return;
   overlay.style.display = 'flex';
-  await _ensureLeaflet();
-  if (!_sdvEditMapInstance) {
-    _sdvEditMapInstance = L.map('sdv-edit-map-container').setView([18.4861, -69.9312], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap contributors', maxZoom: 19}).addTo(_sdvEditMapInstance);
-    _sdvEditMapMarker = L.marker([18.4861, -69.9312], {draggable: true}).addTo(_sdvEditMapInstance);
-    _sdvEditMapMarker.on('dragend', function() {
-      var ll = _sdvEditMapMarker.getLatLng();
+  await _ensureGoogleMaps();
+  if (!_sdvEditGMap) {
+    _sdvEditGMap = new google.maps.Map(document.getElementById('sdv-edit-map-container'), {
+      center: {lat: 18.4861, lng: -69.9312}, zoom: 13,
+      mapTypeControl: false, fullscreenControl: false, streetViewControl: false
+    });
+    _sdvEditGMarker = new google.maps.Marker({map: _sdvEditGMap, draggable: true, position: {lat: 18.4861, lng: -69.9312}});
+    _sdvEditGMarker.addListener('dragend', function() {
+      var pos = _sdvEditGMarker.getPosition();
       var coordsEl = document.getElementById('sdv-edit-map-coords');
-      if (coordsEl) coordsEl.textContent = 'Lat: '+ll.lat.toFixed(6)+', Lng: '+ll.lng.toFixed(6);
+      if (coordsEl) coordsEl.textContent = 'Lat: '+pos.lat().toFixed(6)+', Lng: '+pos.lng().toFixed(6);
     });
   }
-  setTimeout(function(){ if(_sdvEditMapInstance) _sdvEditMapInstance.invalidateSize(); }, 200);
+  setTimeout(function(){ if(_sdvEditGMap) google.maps.event.trigger(_sdvEditGMap,'resize'); }, 200);
   var saved = (document.getElementById('sdv-edit-gps').value||'').trim();
   if (saved) {
     var parts = saved.split(',');
     if (parts.length===2) {
       var slat = parseFloat(parts[0]), slng = parseFloat(parts[1]);
       if (!isNaN(slat) && !isNaN(slng)) {
-        _sdvEditMapInstance.setView([slat, slng], 16);
-        _sdvEditMapMarker.setLatLng([slat, slng]);
+        var spos = {lat: slat, lng: slng};
+        _sdvEditGMap.setCenter(spos); _sdvEditGMap.setZoom(16); _sdvEditGMarker.setPosition(spos);
         var coordsEl = document.getElementById('sdv-edit-map-coords');
         if (coordsEl) coordsEl.textContent = 'Lat: '+slat.toFixed(6)+', Lng: '+slng.toFixed(6);
       }
@@ -28508,18 +28545,15 @@ async function sdvEditOpenMapModal() {
   var dir = (document.getElementById('sdv-edit-direccion').value||'').trim();
   var ciudad = (document.getElementById('sdv-edit-ciudad').value||'').trim();
   if (dir || ciudad) {
-    var q = encodeURIComponent([(dir||''), (ciudad||''), 'República Dominicana'].filter(Boolean).join(' '));
-    fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&limit=1')
-      .then(function(r){ return r.json(); })
-      .then(function(data) {
-        if (data && data[0]) {
-          var lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-          _sdvEditMapInstance.setView([lat, lng], 16);
-          _sdvEditMapMarker.setLatLng([lat, lng]);
-          var coordsEl = document.getElementById('sdv-edit-map-coords');
-          if (coordsEl) coordsEl.textContent = 'Lat: '+lat.toFixed(6)+', Lng: '+lng.toFixed(6)+' (basado en dirección)';
-        }
-      }).catch(function(){});
+    var geocoder = new google.maps.Geocoder();
+    geocoder.geocode({address: [dir,ciudad,'República Dominicana'].filter(Boolean).join(', '), region:'DO'}, function(results, status) {
+      if (status==='OK' && results[0]) {
+        var loc = results[0].geometry.location;
+        _sdvEditGMap.setCenter(loc); _sdvEditGMap.setZoom(16); _sdvEditGMarker.setPosition(loc);
+        var coordsEl = document.getElementById('sdv-edit-map-coords');
+        if (coordsEl) coordsEl.textContent = 'Lat: '+loc.lat().toFixed(6)+', Lng: '+loc.lng().toFixed(6);
+      }
+    });
   }
 }
 
@@ -28529,9 +28563,9 @@ function sdvEditCloseMapModal() {
 }
 
 function sdvEditConfirmMapLocation() {
-  if (!_sdvEditMapMarker) return;
-  var ll = _sdvEditMapMarker.getLatLng();
-  var coords = ll.lat.toFixed(6)+', '+ll.lng.toFixed(6);
+  if (!_sdvEditGMarker) return;
+  var pos = _sdvEditGMarker.getPosition();
+  var coords = pos.lat().toFixed(6)+', '+pos.lng().toFixed(6);
   document.getElementById('sdv-edit-gps').value = coords;
   sdvEditCloseMapModal();
 }
