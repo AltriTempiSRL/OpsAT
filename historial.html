@@ -6419,12 +6419,6 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 
     <!-- DASHBOARD TAB -->
     <div id="tab-dashboard" style="display:none">
-      <!-- Mesa unica de agentes -->
-      <div class="sec-header" id="ops-agent-header" style="margin-bottom:12px"><i data-lucide="radar" class="sec-hdr-icon"></i>MESA DE AGENTES</div>
-      <div class="ops-agent-wrap" id="ops-agent-panel">
-        <div class="loading"><div class="spinner"></div><br>Analizando tareas en vivo...</div>
-      </div>
-
       <!-- KPIs de tareas -->
       <div class="sec-header" style="margin-bottom:12px"><i data-lucide="bar-chart-2" class="sec-hdr-icon"></i>RESUMEN DE TAREAS</div>
       <div class="kpi-grid" id="kpi-grid"><div class="loading"><div class="spinner"></div><br>Cargando…</div></div>
@@ -7421,7 +7415,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v50';
+var APP_BUILD = 'v51';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9596,6 +9590,39 @@ function dcRenderResumen() {
     teamHtml += team.map(function(t){ return rowLine(t,'<span style="font-size:11px;color:var(--text-3)">doc: '+esc((t.documentedBy||'—').split(' ')[0])+'</span>'); }).join('');
   } else { teamHtml += '<div style="font-size:12px;color:var(--text-3);padding:5px 0">Sin tareas completadas en equipo hoy.</div>'; }
 
+  // Bloque inspecciones de vehículo
+  var inspList = s.inspections || [];
+  var inspHtml = '';
+  if (inspList.length) {
+    inspHtml = '<div style="font-size:12px;font-weight:800;color:var(--blue-text);margin:12px 0 4px">▎ Inspección de vehículo</div>';
+    inspHtml += inspList.map(function(i) {
+      var aptoColor = i.apto==='si' ? 'var(--green-text)' : i.apto==='no' ? 'var(--red-text)' : 'var(--text-3)';
+      var aptoLabel = i.apto==='si' ? '✓ Apto' : i.apto==='no' ? '✗ No apto' : '';
+      var thumbs = '';
+      if (i.fotos && i.fotos.length) {
+        thumbs = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px">';
+        i.fotos.slice(0,4).forEach(function(src) {
+          thumbs += '<div onclick="vehViewPhotoFull(\''+escH(src)+'\')" style="cursor:pointer;width:58px;height:58px;border-radius:7px;overflow:hidden;background:var(--surface-2);flex-shrink:0">'
+            + '<img src="'+src+'" alt="foto" style="width:100%;height:100%;object-fit:cover" /></div>';
+        });
+        if (i.fotos.length > 4) thumbs += '<div style="width:58px;height:58px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--text-muted);flex-shrink:0">+'+( i.fotos.length-4)+'</div>';
+        thumbs += '</div>';
+      }
+      return '<div style="border:1.5px solid var(--border);border-radius:9px;padding:9px;margin-bottom:7px;background:var(--surface)">'
+        + '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">'
+        + '<i data-lucide="car" style="width:14px;height:14px;stroke:var(--blue-dot);flex-shrink:0"></i>'
+        + '<span style="font-size:13px;font-weight:700;color:var(--text)">'+esc(i.vehiculo||'')+'</span>'
+        + (i.placa ? '<span style="font-size:11px;color:var(--text-muted)">'+esc(i.placa)+'</span>' : '')
+        + (i.hora  ? '<span style="font-size:11px;color:var(--text-3)">'+esc(i.hora)+'</span>' : '')
+        + (aptoLabel ? '<span style="font-size:11px;font-weight:700;color:'+aptoColor+'">'+aptoLabel+'</span>' : '')
+        + '<span style="font-size:11px;color:var(--text-muted);margin-left:auto">'+i.fotos.length+' foto(s)</span>'
+        + '</div>'
+        + thumbs
+        + '</div>';
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+
   // Bloque pendiente con motivos
   var pendHtml = '<div style="font-size:12px;font-weight:800;color:var(--amber-text);margin:12px 0 4px">▎ Pendiente — ¿por qué?</div>';
   if (pend.length) {
@@ -9627,7 +9654,7 @@ function dcRenderResumen() {
   _trModal(
     '<div style="font-size:17px;font-weight:800;color:var(--text)">🗒️ Mi resumen del día</div>'
     + '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px">'+_dcState.date+' · Revisa lo que hiciste y valida. Lo pendiente, explica por qué.</div>'
-    + indHtml + teamHtml + pendHtml + valHtml
+    + indHtml + teamHtml + inspHtml + pendHtml + valHtml
     + '<button class="btn-primary" onclick="dcSubmitResumen()" style="width:100%;margin-top:12px">Enviar mi resumen</button>'
     , 540);
 }
@@ -10204,7 +10231,7 @@ function isTaskParticipant(t) {
 function auxFinishedAndStale(t, userId) {
   if (!t) return false;
   // Mientras la tarea no esté cerrada por el encargado, el aux siempre la ve
-  if (!['completed','validated'].includes(t.status)) return false;
+  if (!['completed','validated','cancelled'].includes(t.status)) return false;
   // Tarea cerrada: ocultar si el aux participó (ya no tiene nada que hacer)
   if (!taskParticipantIds(t).has(userId)) return false;
   // ¿El encargado modificó artículos después del cierre? → reaparece (devolver implícito)
@@ -10817,7 +10844,6 @@ async function reassignTaskToUser(taskId, userId) {
     toast('Reasignada a ' + u.name.split(' ')[0]);
     await loadTasks();
     if (_drawerTask && _drawerTask.id === taskId) openDrawer(taskId);
-    if (_currentTab === 'dashboard') loadOpsAgent();
   } catch(e) {
     toast('Error: ' + e.message);
   }
@@ -15177,7 +15203,6 @@ async function _wizSave(){
 // DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════
 async function loadDashboard() {
-  loadOpsAgent();
   document.getElementById('kpi-grid').innerHTML='<div class="loading"><div class="spinner"></div><br>Cargando…</div>';
   try {
     const r = await authFetch('/api/wwp/dashboard');
@@ -15406,7 +15431,6 @@ async function opsSendFollowUp(taskId, mode) {
     if (!d.ok) { toast(d.error || 'No se pudo enviar seguimiento'); return; }
     toast('Seguimiento enviado al chat');
     if (_drawerTask && _drawerTask.id === taskId) await loadChatMessages(taskId);
-    loadOpsAgent();
   } catch(e) {
     toast('Error al enviar seguimiento');
   }
@@ -15429,7 +15453,6 @@ async function opsSendBulkFollowUp() {
     if (!d.ok) { toast(d.error || 'No se pudo enviar seguimiento'); return; }
     toast(`Seguimiento enviado a ${d.sent ? d.sent.length : taskIds.length} tarea(s)`);
     if (_drawerTask && taskIds.includes(_drawerTask.id)) await loadChatMessages(_drawerTask.id);
-    loadOpsAgent();
   } catch(e) {
     toast('Error al enviar seguimiento');
   }
@@ -25668,7 +25691,7 @@ function vehLoadList() {
     tbody.innerHTML = list.map((i) => {
       var aptoClass = i.apto === 'si' ? 'veh-apto-si' : i.apto === 'no' ? 'veh-apto-no' : 'veh-apto-nd';
       var aptoLabel = i.apto === 'si' ? '✓ Apto' : i.apto === 'no' ? '✗ No apto' : '— Sin registrar';
-      var fotoCount = (i.fotos || []).length;
+      var fotoCount = Object.values(i.fotos_condicion || {}).filter(Boolean).length;
       var accionCell = '<td style="display:flex;gap:6px">' +
         '<button onclick="vehShowPhotos(\''+escH(i.id)+'\','+fotoCount+')" class="btn-sm" style="border-color:var(--border);color:var(--text-2);flex:1" title="Ver '+(fotoCount)+' foto(s)"><i data-lucide="image" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:2px"></i>'+(fotoCount?fotoCount:'Sin fotos')+'</button>' +
         '<button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">✕</button>' +
@@ -25698,14 +25721,15 @@ function vehShowPhotos(id, count) {
   .then(function(r){ return r.json(); })
   .then(function(list) {
     var insp = list.find(i => i.id === id);
-    if (!insp || !insp.fotos || !insp.fotos.length) {
+    var fotosArr = insp ? Object.values(insp.fotos_condicion || {}).filter(Boolean) : [];
+    if (!fotosArr.length) {
       toast('No se encontraron fotos para esta inspección.');
       return;
     }
     var html = '<div style="text-align:center">';
-    html += '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px">'+count+' foto(s) de la inspección</div>';
+    html += '<div style="font-size:13px;color:var(--text-2);margin-bottom:12px">'+fotosArr.length+' foto(s) de la inspección</div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;max-height:60vh;overflow-y:auto">';
-    insp.fotos.forEach(function(fotoUrl) {
+    fotosArr.forEach(function(fotoUrl) {
       html += '<div onclick="vehViewPhotoFull(\''+escH(fotoUrl)+'\')" style="cursor:pointer;border-radius:6px;overflow:hidden;background:var(--surface-2);aspect-ratio:1;display:flex;align-items:center;justify-content:center">' +
         '<img src="'+esc(fotoUrl)+'" alt="foto" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.color=\'var(--text-muted)\';this.style.display=\'none\';this.parentElement.innerHTML=\'<span style=\\\"font-size:24px\\\">🖼️</span>\'" />' +
         '</div>';

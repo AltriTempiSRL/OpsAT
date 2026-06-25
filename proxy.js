@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v50';
+const APP_BUILD = 'v51';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -568,16 +568,24 @@ function dcComputeSummary(user, date) {
       if ((f.creado_at||'').slice(0,10)===date && (f.creado_by||'').trim().toLowerCase()===myName) guidePhotos++;
     });
   });
-  // Contar fotos de inspecciones de vehículos completadas por el usuario hoy
+  // Inspecciones de vehículo completadas por el usuario hoy
   const inspections = loadInspections();
+  const myInspections = [];
   if (inspections && inspections.length) {
     inspections.forEach(insp => {
-      if ((insp.createdAt||'').slice(0,10)===date && (insp.createdByName||'').trim().toLowerCase()===myName) {
-        vehicleInspectionPhotos += (insp.fotos||[]).length;
+      const isMe = insp.createdBy === user.id || (insp.createdByName||'').trim().toLowerCase() === myName;
+      if ((insp.createdAt||'').slice(0,10) === date && isMe) {
+        const fotosArr = Object.values(insp.fotos_condicion||{}).filter(Boolean);
+        vehicleInspectionPhotos += fotosArr.length;
+        myInspections.push({
+          id: insp.id, vehiculo: insp.vehiculo, placa: insp.placa,
+          fecha: insp.fecha, hora: insp.hora, apto: insp.apto,
+          fotos: fotosArr
+        });
       }
     });
   }
-  return { individual, team, pending, activity: { itemsConfirmed, guidePhotos, vehicleInspectionPhotos } };
+  return { individual, team, pending, activity: { itemsConfirmed, guidePhotos, vehicleInspectionPhotos }, inspections: myInspections };
 }
 
 // Construye items desde las LÍNEAS DE OPERACIÓN (stock.move.line) de los picks
@@ -7392,6 +7400,8 @@ const server = http.createServer(async (req, res) => {
     tasks[idx].messages.push(msg);
     tasks[idx].updatedAt = msg.createdAt;
     saveWwpTasks(tasks);
+    // Audit: capturar mensaje para recuperación ante pérdida de wwp-tasks.json
+    try { appendAuditLog('task_chat', { taskId, taskTitle: tasks[idx].title||'', odooRef: tasks[idx].odooRef||'', msgId: msg.id, fromId: msg.fromId, fromName: msg.fromName, text: msg.text||'', hasImage: !!_imgUrl, hasVideo: !!_videoUrl, imageUrl: _imgUrl||null, createdAt: msg.createdAt }); } catch(e) { console.warn('[audit task_chat]', e.message); }
     // Notificar a todos los participantes de la tarea (excepto quien envió)
     const task = tasks[idx];
     const recipients = new Set();
@@ -7508,6 +7518,14 @@ const server = http.createServer(async (req, res) => {
         task.statusHistory.push({ status:'assigned', date:now, by:d.createdBy||'', note:d.note||'' });
       }
       tasks.push(task);
+      // Audit: registrar participantes al crear (permite reconstruir asignaciones si se pierde wwp-tasks.json)
+      try {
+        const _auditUsers = loadAuthUsers();
+        const _mgrName = (task.managerId && _auditUsers.find(u=>u.id===task.managerId)?.name) || task.managerName || '';
+        const _auxIds = Array.isArray(task.auxiliaryAssignees) ? task.auxiliaryAssignees : (Array.isArray(task.assignees) ? task.assignees : []);
+        const _auxNames = _auxIds.map(uid => _auditUsers.find(u=>u.id===uid)?.name || uid);
+        appendAuditLog('task_created', { taskId:task.id, taskTitle:task.title||'', odooRef:task.odooRef||'', managerId:task.managerId||null, managerName:_mgrName, auxiliaryIds:_auxIds, auxiliaryNames:_auxNames, by:d.createdBy||'' });
+      } catch(e) { console.warn('[audit task_created]', e.message); }
       // Si es subtarea, marcar tarea padre como in_progress si estaba assigned
       if (isSubtask && d.parentId) {
         const pIdx = tasks.findIndex(t=>t.id===d.parentId);
@@ -7886,6 +7904,15 @@ const server = http.createServer(async (req, res) => {
         } catch(_s3Err) { console.error('S3 staffing notify error:', _s3Err.message); }
         tasks[idx].assignees=_aux;
         tasks[idx].auxiliaryAssignees=_aux;
+        // Audit: registrar cambio de auxiliares (permite reconstruir asignaciones si se pierde wwp-tasks.json)
+        try {
+          const _auditU = loadAuthUsers();
+          const _prevIds = Array.isArray(oldTask?.auxiliaryAssignees) ? oldTask.auxiliaryAssignees : (Array.isArray(oldTask?.assignees) ? oldTask.assignees : []);
+          const _added   = _aux.filter(id => !_prevIds.includes(id));
+          const _removed = _prevIds.filter(id => !_aux.includes(id));
+          const _nm = id => _auditU.find(u=>u.id===id)?.name || id;
+          appendAuditLog('task_aux_changed', { taskId:tasks[idx].id, taskTitle:tasks[idx].title||'', odooRef:tasks[idx].odooRef||'', auxiliaryIds:_aux, auxiliaryNames:_aux.map(_nm), added:_added.map(_nm), removed:_removed.map(_nm), by:jp.userId });
+        } catch(e) { console.warn('[audit task_aux_changed]', e.message); }
       }
       else if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
       const _validTypes = ['dispatch_order','packaging','item_pickup','truck_loading','warehouse_move','general','staffing','free'];
