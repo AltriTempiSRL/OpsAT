@@ -3455,15 +3455,27 @@ body{font-family:var(--font);min-height:100dvh}
 .agent-routine-controls input,.agent-routine-controls select{border:1px solid var(--border);border-radius:7px;background:var(--surface-2);color:var(--text);font-size:11px;padding:6px 8px;min-height:32px}
 
 /* ── USERS PANEL (admin) ─────────────────────────────────────────── */
-.user-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
-.user-row-info{flex:1;min-width:0}
-.user-row-name{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.user-row-email{font-size:12px;color:var(--text-3)}
-.user-row-categoria{font-size:11px;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.user-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+.user-row-identity{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.user-row-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.user-row-meta{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.user-row-tags{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
+.user-row-categoria{font-size:10px;font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;white-space:nowrap}
 .user-avatar-slot{display:inline-flex;line-height:0}
-.user-row-actions{display:flex;gap:8px}
-.btn-sm{padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.user-row-controls{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.ur-toggles{display:flex;flex-direction:column;gap:5px}
+.ur-toggle-item{display:flex;align-items:center;gap:6px;cursor:pointer}
+.ur-toggle-label{font-size:10px;font-weight:600;color:var(--text-3);white-space:nowrap;min-width:62px;text-align:right}
+.ur-toggle-btn{position:relative;width:34px;height:18px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;padding:0;transition:background .18s,border-color .18s;flex-shrink:0}
+.ur-toggle-btn::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:transform .18s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.ur-toggle-btn.on{background:var(--green-dot);border-color:var(--green-dot)}
+.ur-toggle-btn.on::after{transform:translateX(16px)}
+.ur-divider{width:1px;height:40px;background:var(--border);flex-shrink:0}
+.user-row-actions{display:flex;flex-direction:column;gap:5px}
+.btn-sm{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
 .btn-sm:hover{background:var(--surface-2)}
+.btn-sm.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-sm.primary:hover{opacity:.88}
 
 /* ── AVATAR PREVIEW (modal) ──────────────────────────────────────── */
 .avatar-preview-area{
@@ -3939,11 +3951,13 @@ body{font-family:var(--font);min-height:100dvh}
   }
 
   /* — Users list — */
-  .user-row{flex-wrap:wrap;gap:8px;padding:12px}
-  .user-row-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
-  .user-row-actions .btn-sm{min-height:44px;padding:8px 10px;font-size:11px;color:var(--text);display:flex;align-items:center;justify-content:center;gap:4px;white-space:normal;text-align:center}
-  .user-row-actions .btn-sm i{width:14px;height:14px;flex-shrink:0}
-  .user-row-actions .btn-sm:last-child{grid-column:1/-1;background:var(--brand-primary);color:white;border-color:var(--brand-primary);font-size:12px;font-weight:600}
+  .user-row{flex-wrap:wrap;gap:10px;padding:12px}
+  .user-row-controls{width:100%;justify-content:flex-start;flex-wrap:wrap;gap:10px}
+  .ur-toggles{flex-direction:row;gap:12px}
+  .ur-toggle-label{min-width:auto}
+  .ur-divider{width:100%;height:1px;flex-shrink:0}
+  .user-row-actions{flex-direction:row;gap:6px;flex-wrap:wrap}
+  .user-row-actions .btn-sm{min-height:40px;font-size:12px;padding:7px 12px}
 
   /* — Status progress scroll — */
   .status-progress{-webkit-overflow-scrolling:touch;padding-bottom:8px}
@@ -7368,7 +7382,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v43';
+var APP_BUILD = 'v44';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16045,22 +16059,39 @@ async function loadUsers() {
       }
       return `<div class="user-row">
         ${avatarWrapped}
-        <div class="user-row-info">
-          <div class="user-row-name">${esc(u.name)}</div>
-          <div class="user-row-email">${esc(u.email)}</div>
+        <div class="user-row-identity">
+          <div class="user-row-name">
+            ${esc(u.name)}
+            ${getRoleBadgeHtml(u.role)}
+            ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text);font-size:10px">Inactivo</span>'}
+          </div>
+          <div class="user-row-meta">
+            <span>${esc(u.email)}</span>
+            ${locHtml}
+            <span title="Tiempo de almuerzo permitido"><i data-lucide="clock" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i> ${lunchLabel}</span>
+          </div>
+          <div class="user-row-tags">
+            <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
+            ${u.categoria?`<span class="user-row-categoria">${esc(u.categoria)}</span>`:''}
+          </div>
         </div>
-        ${getRoleBadgeHtml(u.role)}
-        ${u.categoria?`<span class="user-row-categoria" title="Categoría">${esc(u.categoria)}</span>`:''}
-        <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
-        ${locHtml}
-        <span style="font-size:11px;color:var(--text-2);white-space:nowrap">${lunchLabel}</span>
-        ${u.active?'':'<span class="badge" style="background:var(--red-bg);color:var(--red-text)">Inactivo</span>'}
-        <div class="user-row-actions">
-          <button class="btn-sm" onclick="dsToggleSummary('${u.id}',${u.dailySummaryEnabled?'true':'false'})" title="Resumen del día (piloto): ${u.dailySummaryEnabled?'activado':'desactivado'}" style="border-color:${u.dailySummaryEnabled?'var(--green-dot)':'var(--border)'};color:${u.dailySummaryEnabled?'var(--green-text)':'var(--text-3)'}"><i data-lucide="clipboard-list" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Resumen: ${u.dailySummaryEnabled?'ON':'OFF'}</button>
-          <button class="btn-sm" onclick="dsToggleInspection('${u.id}',${u.vehicleInspectionRequired?'true':'false'})" title="Inspección de vehículo diaria obligatoria: ${u.vehicleInspectionRequired?'activada':'desactivada'}" style="border-color:${u.vehicleInspectionRequired?'var(--green-dot)':'var(--border)'};color:${u.vehicleInspectionRequired?'var(--green-text)':'var(--text-3)'}"><i data-lucide="car" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Inspección: ${u.vehicleInspectionRequired?'ON':'OFF'}</button>
-          <button class="btn-sm" onclick="dsOpenAssignManager('${u.id}','${esc(u.name)}')" title="Asignar encargado responsable" style="border-color:var(--border);color:var(--text-2)"><i data-lucide="user-check" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Encargado</button>
-          <button class="btn-sm" onclick="trOpenRetake('${u.id}')" title="Mandar a retomar un examen"><i data-lucide="graduation-cap" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Examen</button>
-          <button class="btn-sm" onclick="openEditUserModal('${u.id}')">Editar</button>
+        <div class="user-row-controls">
+          <div class="ur-toggles">
+            <div class="ur-toggle-item" title="Resumen del día — ${u.dailySummaryEnabled?'activado':'desactivado'}">
+              <span class="ur-toggle-label">Resumen</span>
+              <button class="ur-toggle-btn ${u.dailySummaryEnabled?'on':''}" onclick="dsToggleSummary('${u.id}',${u.dailySummaryEnabled?'true':'false'})"></button>
+            </div>
+            <div class="ur-toggle-item" title="Inspección de vehículo — ${u.vehicleInspectionRequired?'activada':'desactivada'}">
+              <span class="ur-toggle-label">Inspección</span>
+              <button class="ur-toggle-btn ${u.vehicleInspectionRequired?'on':''}" onclick="dsToggleInspection('${u.id}',${u.vehicleInspectionRequired?'true':'false'})"></button>
+            </div>
+          </div>
+          <div class="ur-divider"></div>
+          <div class="user-row-actions">
+            <button class="btn-sm" onclick="dsOpenAssignManager('${u.id}','${esc(u.name)}')"><i data-lucide="user-check" style="width:11px;height:11px;stroke:currentColor"></i> Encargado</button>
+            <button class="btn-sm" onclick="trOpenRetake('${u.id}')"><i data-lucide="graduation-cap" style="width:11px;height:11px;stroke:currentColor"></i> Examen</button>
+            <button class="btn-sm primary" onclick="openEditUserModal('${u.id}')"><i data-lucide="pencil" style="width:11px;height:11px;stroke:currentColor"></i> Editar</button>
+          </div>
         </div>
       </div>`;
     }).join('');
@@ -16573,7 +16604,10 @@ async function openUsersMap(){
     document.getElementById('users-map-bar').innerHTML=`<i data-lucide="users" style="width:13px;height:13px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> ${users.length} usuario(s) con ubicación · ${fresh} reciente(s) · ${stale} viejo(s) · historial 7 días`;
     if(window.lucide)lucide.createIcons();
     renderUsersMapList();
-    _initUsersGMap(drawUsersMapMarkers);
+    setTimeout(function(){
+      _initUsersGMap(drawUsersMapMarkers);
+      setTimeout(function(){ if(_usersGMap) google.maps.event.trigger(_usersGMap,'resize'); }, 250);
+    }, 80);
   }catch(e){ toast('Error: '+e.message); document.getElementById('users-map-bar').innerHTML='Error al cargar el mapa'; }
 }
 function closeUsersMap(){ document.getElementById('modal-users-map').classList.remove('open'); }
