@@ -7228,13 +7228,18 @@ const server = http.createServer(async (req, res) => {
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
       if (d.workSchedule !== undefined) {
-        const ws = d.workSchedule || {};
         const validDays = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
-        users[idx].workSchedule = {
-          days:      Array.isArray(ws.days) ? ws.days.filter(x => validDays.includes(x)) : ['lunes','martes','miercoles','jueves','viernes'],
-          startTime: typeof ws.startTime === 'string' ? ws.startTime.slice(0,5) : '08:00',
-          endTime:   typeof ws.endTime   === 'string' ? ws.endTime.slice(0,5)   : '17:00'
-        };
+        const ws = d.workSchedule || {};
+        const saved = {};
+        validDays.forEach(day => {
+          const cfg = ws[day] || {};
+          saved[day] = {
+            active:    !!cfg.active,
+            startTime: typeof cfg.startTime === 'string' ? cfg.startTime.slice(0,5) : '08:00',
+            endTime:   typeof cfg.endTime   === 'string' ? cfg.endTime.slice(0,5)   : '17:00'
+          };
+        });
+        users[idx].workSchedule = saved;
       }
       // Resumen del día — feature por usuario (piloto): on/off
       if (d.dailySummaryEnabled !== undefined) users[idx].dailySummaryEnabled = !!d.dailySummaryEnabled;

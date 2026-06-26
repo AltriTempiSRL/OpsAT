@@ -3470,11 +3470,18 @@ body{font-family:var(--font);min-height:100dvh}
 .ur-toggle-btn::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:transform .18s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .ur-toggle-btn.on{background:var(--green-dot);border-color:var(--green-dot)}
 .ur-toggle-btn.on::after{transform:translateX(16px)}
-/* Días laborables — pills de selección en el modal de usuario */
-.uf-day-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.uf-day-pill{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-size:12px;font-weight:700;cursor:pointer;user-select:none;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-muted);transition:background .15s,border-color .15s,color .15s}
-.uf-day-pill input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
-.uf-day-pill.active{background:var(--brand-primary,#2563eb);border-color:var(--brand-primary,#2563eb);color:#fff}
+/* Horario semanal por día — grid en el modal de usuario */
+.uf-sched-grid{display:flex;flex-direction:column;gap:5px;margin-top:6px}
+.uf-sched-row{display:grid;grid-template-columns:28px 72px 1fr 10px 1fr;align-items:center;gap:6px;padding:4px 6px;border-radius:7px;background:var(--surface-2);border:1px solid transparent;transition:opacity .15s}
+.uf-sched-row.off{opacity:.55}
+.uf-sched-row.off .uf-sched-t{background:var(--surface-2);color:var(--text-muted)}
+.uf-sched-tog{position:relative;width:26px;height:14px;border-radius:7px;background:var(--surface-3,var(--border));border:1px solid var(--border);cursor:pointer;padding:0;flex-shrink:0;transition:background .15s}
+.uf-sched-tog::after{content:'';position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;top:1px;left:1px;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.uf-sched-tog.on{background:var(--green-dot);border-color:var(--green-dot)}
+.uf-sched-tog.on::after{transform:translateX(12px)}
+.uf-sched-dname{font-size:12px;font-weight:600;color:var(--text)}
+.uf-sched-sep{font-size:11px;color:var(--text-muted);text-align:center}
+.uf-sched-t{font-size:12px;padding:3px 6px;height:30px;min-width:0}
 .ur-divider{width:1px;height:40px;background:var(--border);flex-shrink:0}
 .user-row-actions{display:flex;flex-direction:column;gap:5px}
 .btn-sm{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
@@ -7192,39 +7199,69 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <label class="form-label">Contraseña</label>
         <div class="pw-wrap"><input id="uf-password" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('uf-password',this)" type="button"><i data-lucide="eye"></i></button></div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">⏱ Tiempo de almuerzo permitido</label>
-          <select id="uf-lunch-allowed" class="form-select">
-            <option value="30">30 min</option>
-            <option value="45">45 min</option>
-            <option value="60" selected>1:00 hora</option>
-            <option value="75">1:15 hrs</option>
-            <option value="90">1:30 hrs</option>
-            <option value="105">1:45 hrs</option>
-            <option value="120">2:00 hrs</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de entrada</label>
-          <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
-        </div>
+      <div class="form-group">
+        <label class="form-label">⏱ Tiempo de almuerzo permitido</label>
+        <select id="uf-lunch-allowed" class="form-select">
+          <option value="30">30 min</option>
+          <option value="45">45 min</option>
+          <option value="60" selected>1:00 hora</option>
+          <option value="75">1:15 hrs</option>
+          <option value="90">1:30 hrs</option>
+          <option value="105">1:45 hrs</option>
+          <option value="120">2:00 hrs</option>
+        </select>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de salida</label>
-          <input type="time" id="uf-schedule-end" class="form-input" value="17:00">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Días laborables</label>
-          <div class="uf-day-pills">
-            <label class="uf-day-pill active" title="Lunes"><input type="checkbox" name="uf-days" value="lunes" checked> L</label>
-            <label class="uf-day-pill active" title="Martes"><input type="checkbox" name="uf-days" value="martes" checked> M</label>
-            <label class="uf-day-pill active" title="Miércoles"><input type="checkbox" name="uf-days" value="miercoles" checked> X</label>
-            <label class="uf-day-pill active" title="Jueves"><input type="checkbox" name="uf-days" value="jueves" checked> J</label>
-            <label class="uf-day-pill active" title="Viernes"><input type="checkbox" name="uf-days" value="viernes" checked> V</label>
-            <label class="uf-day-pill" title="Sábado"><input type="checkbox" name="uf-days" value="sabado"> S</label>
-            <label class="uf-day-pill" title="Domingo"><input type="checkbox" name="uf-days" value="domingo"> D</label>
+      <div class="form-group">
+        <label class="form-label"><i data-lucide="calendar-clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Horario semanal</label>
+        <div class="uf-sched-grid" id="uf-sched-grid">
+          <div class="uf-sched-row" data-day="lunes">
+            <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Lunes</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+          </div>
+          <div class="uf-sched-row" data-day="martes">
+            <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Martes</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+          </div>
+          <div class="uf-sched-row" data-day="miercoles">
+            <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Miércoles</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+          </div>
+          <div class="uf-sched-row" data-day="jueves">
+            <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Jueves</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+          </div>
+          <div class="uf-sched-row" data-day="viernes">
+            <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Viernes</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+          </div>
+          <div class="uf-sched-row off" data-day="sabado">
+            <button type="button" class="uf-sched-tog" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Sábado</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00" disabled>
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="13:00" disabled>
+          </div>
+          <div class="uf-sched-row off" data-day="domingo">
+            <button type="button" class="uf-sched-tog" onclick="ufToggleSchedDay(this)"></button>
+            <span class="uf-sched-dname">Domingo</span>
+            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00" disabled>
+            <span class="uf-sched-sep">–</span>
+            <input type="time" class="uf-sched-t form-input" data-role="end" value="13:00" disabled>
           </div>
         </div>
       </div>
@@ -16258,8 +16295,8 @@ async function loadUsers() {
         : `${lunchAllowed} min`;
       const _wsDayNames = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
       const _todayName  = _wsDayNames[new Date().getDay()];
-      const _wsDays     = (u.workSchedule && u.workSchedule.days) || null;
-      const _libreHoy   = u.active !== false && _wsDays && !_wsDays.includes(_todayName);
+      const _wsDayCfg   = u.workSchedule && u.workSchedule[_todayName];
+      const _libreHoy   = u.active !== false && _wsDayCfg && !_wsDayCfg.active;
       const libreHoyHtml = _libreHoy ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot);white-space:nowrap">Libre hoy</span>` : '';
       // Wrap avatar con dot de presencia. El avatar va en un slot identificable para
       // poder sustituir las iniciales por la foto de Odoo tras el render (sin tocar el dot).
@@ -16489,24 +16526,40 @@ async function deleteRole(roleId) {
 }
 
 var _WS_DAYS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
-var _WS_DAY_DEFAULT = ['lunes','martes','miercoles','jueves','viernes'];
-function _ufSetDays(days) {
-  document.querySelectorAll('[name="uf-days"]').forEach(function(cb) {
-    var on = days.includes(cb.value);
-    cb.checked = on;
-    cb.closest('.uf-day-pill').classList.toggle('active', on);
-  });
+var _WS_DAY_LABELS = {lunes:'Lunes',martes:'Martes',miercoles:'Miércoles',jueves:'Jueves',viernes:'Viernes',sabado:'Sábado',domingo:'Domingo'};
+var _WS_DEFAULT = {
+  lunes:    {active:true, startTime:'08:00',endTime:'17:00'},
+  martes:   {active:true, startTime:'08:00',endTime:'17:00'},
+  miercoles:{active:true, startTime:'08:00',endTime:'17:00'},
+  jueves:   {active:true, startTime:'08:00',endTime:'17:00'},
+  viernes:  {active:true, startTime:'08:00',endTime:'17:00'},
+  sabado:   {active:false,startTime:'08:00',endTime:'13:00'},
+  domingo:  {active:false,startTime:'08:00',endTime:'13:00'}
+};
+
+function ufToggleSchedDay(btn) {
+  var row = btn.closest('.uf-sched-row');
+  var on = !btn.classList.contains('on');
+  btn.classList.toggle('on', on);
+  row.classList.toggle('off', !on);
+  row.querySelectorAll('.uf-sched-t').forEach(function(inp){ inp.disabled = !on; });
 }
-// Wiring: clicks en las pills togglean estado visual
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.uf-day-pill').forEach(function(pill) {
-    pill.addEventListener('click', function() {
-      var cb = pill.querySelector('input[type=checkbox]');
-      cb.checked = !cb.checked;
-      pill.classList.toggle('active', cb.checked);
+
+function _ufSetSchedule(ws) {
+  _WS_DAYS.forEach(function(day) {
+    var row = document.querySelector('.uf-sched-row[data-day="'+day+'"]');
+    if (!row) return;
+    var cfg = (ws && ws[day]) ? ws[day] : _WS_DEFAULT[day];
+    var on = !!cfg.active;
+    var tog = row.querySelector('.uf-sched-tog');
+    tog.classList.toggle('on', on);
+    row.classList.toggle('off', !on);
+    row.querySelectorAll('.uf-sched-t').forEach(function(inp){
+      inp.disabled = !on;
+      inp.value = inp.dataset.role === 'start' ? (cfg.startTime||'08:00') : (cfg.endTime||(day==='sabado'||day==='domingo'?'13:00':'17:00'));
     });
   });
-});
+}
 
 function openNewUserModal() {
   _editingUser=null;
@@ -16518,9 +16571,7 @@ function openNewUserModal() {
   document.getElementById('uf-password').value='';
   document.getElementById('uf-pw-wrap').style.display='';
   document.getElementById('uf-lunch-allowed').value='60';
-  document.getElementById('uf-schedule-start').value='08:00';
-  document.getElementById('uf-schedule-end').value='17:00';
-  _ufSetDays(_WS_DAY_DEFAULT);
+  _ufSetSchedule(null);
   const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value='';
   const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value='';
   document.getElementById('user-modal-error').classList.remove('show');
@@ -16542,10 +16593,7 @@ function openEditUserModal(uid) {
   const la = u.lunchTimeAllowed || 60;
   const sel = document.getElementById('uf-lunch-allowed');
   sel.value = la;
-  var _ws = u.workSchedule || {};
-  document.getElementById('uf-schedule-start').value = _ws.startTime || u.scheduleStart || '08:00';
-  document.getElementById('uf-schedule-end').value   = _ws.endTime   || '17:00';
-  _ufSetDays(_ws.days && _ws.days.length ? _ws.days : _WS_DAY_DEFAULT);
+  _ufSetSchedule(u.workSchedule || null);
   const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value = u.categoria || '';
   const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value = (u.odooId != null ? u.odooId : '');
   document.getElementById('user-modal-error').classList.remove('show');
@@ -16567,13 +16615,17 @@ async function saveUser() {
   errEl.classList.remove('show');
   if (!name||!email) { showErr(errEl,'Nombre y correo son requeridos'); return; }
   const lunchTimeAllowed = parseInt(document.getElementById('uf-lunch-allowed').value) || 60;
-  const scheduleStart    = document.getElementById('uf-schedule-start').value || '08:00';
-  const scheduleEnd      = document.getElementById('uf-schedule-end').value   || '17:00';
-  const wsDays           = [...document.querySelectorAll('[name="uf-days"]:checked')].map(function(cb){ return cb.value; });
-  const workSchedule     = { startTime: scheduleStart, endTime: scheduleEnd, days: wsDays };
-  const categoria        = (document.getElementById('uf-categoria')?.value || '').trim() || null;
-  const odooIdRaw        = (document.getElementById('uf-odooId')?.value || '').trim();
-  const odooId           = odooIdRaw === '' ? null : (parseInt(odooIdRaw, 10) || null);
+  const workSchedule = {};
+  document.querySelectorAll('#uf-sched-grid .uf-sched-row').forEach(function(row) {
+    const day = row.dataset.day;
+    const on  = row.querySelector('.uf-sched-tog').classList.contains('on');
+    const inputs = row.querySelectorAll('.uf-sched-t');
+    workSchedule[day] = { active: on, startTime: inputs[0].value || '08:00', endTime: inputs[1].value || '17:00' };
+  });
+  const scheduleStart = (workSchedule.lunes && workSchedule.lunes.startTime) || '08:00';
+  const categoria     = (document.getElementById('uf-categoria')?.value || '').trim() || null;
+  const odooIdRaw     = (document.getElementById('uf-odooId')?.value || '').trim();
+  const odooId        = odooIdRaw === '' ? null : (parseInt(odooIdRaw, 10) || null);
   const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,workSchedule,categoria,odooId};
   if (password) body.password=password;
   try {
