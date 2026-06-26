@@ -7217,51 +7217,51 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <div class="uf-sched-row" data-day="lunes">
             <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Lunes</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <select class="uf-sched-t form-input" data-role="start"></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+            <select class="uf-sched-t form-input" data-role="end"></select>
           </div>
           <div class="uf-sched-row" data-day="martes">
             <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Martes</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <select class="uf-sched-t form-input" data-role="start"></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+            <select class="uf-sched-t form-input" data-role="end"></select>
           </div>
           <div class="uf-sched-row" data-day="miercoles">
             <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Miércoles</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <select class="uf-sched-t form-input" data-role="start"></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+            <select class="uf-sched-t form-input" data-role="end"></select>
           </div>
           <div class="uf-sched-row" data-day="jueves">
             <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Jueves</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <select class="uf-sched-t form-input" data-role="start"></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+            <select class="uf-sched-t form-input" data-role="end"></select>
           </div>
           <div class="uf-sched-row" data-day="viernes">
             <button type="button" class="uf-sched-tog on" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Viernes</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00">
+            <select class="uf-sched-t form-input" data-role="start"></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="17:00">
+            <select class="uf-sched-t form-input" data-role="end"></select>
           </div>
           <div class="uf-sched-row off" data-day="sabado">
             <button type="button" class="uf-sched-tog" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Sábado</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00" disabled>
+            <select class="uf-sched-t form-input" data-role="start" disabled></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="13:00" disabled>
+            <select class="uf-sched-t form-input" data-role="end" disabled></select>
           </div>
           <div class="uf-sched-row off" data-day="domingo">
             <button type="button" class="uf-sched-tog" onclick="ufToggleSchedDay(this)"></button>
             <span class="uf-sched-dname">Domingo</span>
-            <input type="time" class="uf-sched-t form-input" data-role="start" value="08:00" disabled>
+            <select class="uf-sched-t form-input" data-role="start" disabled></select>
             <span class="uf-sched-sep">–</span>
-            <input type="time" class="uf-sched-t form-input" data-role="end" value="13:00" disabled>
+            <select class="uf-sched-t form-input" data-role="end" disabled></select>
           </div>
         </div>
       </div>
@@ -16537,12 +16537,32 @@ var _WS_DEFAULT = {
   domingo:  {active:false,startTime:'08:00',endTime:'13:00'}
 };
 
+var _UF_SCHED_TIMES = (function(){
+  var opts = [];
+  for (var h = 5; h <= 23; h++) {
+    for (var m = 0; m < 60; m += 30) {
+      var val = (h < 10 ? '0' : '') + h + ':' + (m === 0 ? '00' : '30');
+      var period = h < 12 ? 'AM' : 'PM';
+      var h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      opts.push({ val: val, label: h12 + ':' + (m === 0 ? '00' : '30') + ' ' + period });
+    }
+  }
+  return opts;
+})();
+
+function _ufPopTimeSel(sel, selectedVal) {
+  sel.innerHTML = _UF_SCHED_TIMES.map(function(o){
+    return '<option value="'+o.val+'"'+(o.val===selectedVal?' selected':'')+'>'+o.label+'</option>';
+  }).join('');
+  sel.value = selectedVal;
+}
+
 function ufToggleSchedDay(btn) {
   var row = btn.closest('.uf-sched-row');
   var on = !btn.classList.contains('on');
   btn.classList.toggle('on', on);
   row.classList.toggle('off', !on);
-  row.querySelectorAll('.uf-sched-t').forEach(function(inp){ inp.disabled = !on; });
+  row.querySelectorAll('.uf-sched-t').forEach(function(sel){ sel.disabled = !on; });
 }
 
 function _ufSetSchedule(ws) {
@@ -16554,10 +16574,11 @@ function _ufSetSchedule(ws) {
     var tog = row.querySelector('.uf-sched-tog');
     tog.classList.toggle('on', on);
     row.classList.toggle('off', !on);
-    row.querySelectorAll('.uf-sched-t').forEach(function(inp){
-      inp.disabled = !on;
-      inp.value = inp.dataset.role === 'start' ? (cfg.startTime||'08:00') : (cfg.endTime||(day==='sabado'||day==='domingo'?'13:00':'17:00'));
-    });
+    var sels = row.querySelectorAll('.uf-sched-t');
+    var defEnd = (day==='sabado'||day==='domingo') ? '13:00' : '17:00';
+    _ufPopTimeSel(sels[0], cfg.startTime || '08:00');
+    _ufPopTimeSel(sels[1], cfg.endTime   || defEnd);
+    sels.forEach(function(s){ s.disabled = !on; });
   });
 }
 
