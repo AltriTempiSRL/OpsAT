@@ -6613,45 +6613,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <div class="veh-form-card">
           <h3><i data-lucide="fuel" class="tab-h3-icon"></i>Nivel de Combustible</h3>
           <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin:12px 0">
-            <svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))">
-              <!-- Fondo del medidor -->
-              <circle cx="120" cy="120" r="110" fill="var(--surface-2)" stroke="var(--border)" stroke-width="2"/>
-              <!-- Escala de números (E=Empty, F=Full) -->
-              <text x="35" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">E</text>
-              <text x="205" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">F</text>
-              <!-- Marcas de escala -->
-              <g stroke="var(--border)" stroke-width="2">
-                <line x1="50" y1="120" x2="70" y2="120"/><!-- E -->
-                <line x1="85" y1="55" x2="100" y2="70"/><!-- 1/4 -->
-                <line x1="120" y1="25" x2="120" y2="45"/><!-- 1/2 -->
-                <line x1="155" y1="55" x2="140" y2="70"/><!-- 3/4 -->
-                <line x1="190" y1="120" x2="170" y2="120"/><!-- F -->
-              </g>
-              <!-- Escala de colores (arco de fondo) -->
-              <path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="var(--surface)" stroke-width="12" opacity="0.3"/>
-              <!-- Arco rojo (bajo) -->
-              <path d="M 70 120 A 50 50 0 0 1 100 70" fill="none" stroke="#ef4444" stroke-width="10" opacity="0.6"/>
-              <!-- Arco verde (suficiente) -->
-              <path d="M 100 70 A 50 50 0 0 1 170 120" fill="none" stroke="#22c55e" stroke-width="10" opacity="0.6"/>
-              <!-- Centro del medidor -->
-              <circle cx="120" cy="120" r="8" fill="var(--text-secondary)"/>
-              <!-- Aguja (se rota según el nivel) -->
-              <g id="veh-fuel-needle" transform="rotate(-90 120 120)">
-                <line x1="120" y1="120" x2="120" y2="45" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
-                <circle cx="120" cy="120" r="5" fill="var(--text)"/>
-              </g>
-            </svg>
-            <!-- Botones para seleccionar nivel -->
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%;max-width:350px">
-              <button type="button" class="veh-fuel-btn-mini" data-level="0" onclick="vehSetFuelLevel(0)"><span class="fuel-label">Vacío</span><span class="fuel-icon">∅</span></button>
-              <button type="button" class="veh-fuel-btn-mini" data-level="25" onclick="vehSetFuelLevel(25)"><span class="fuel-label">1/4</span><span class="fuel-icon">▁</span></button>
-              <button type="button" class="veh-fuel-btn-mini" data-level="50" onclick="vehSetFuelLevel(50)"><span class="fuel-label">1/2</span><span class="fuel-icon">▃</span></button>
-              <button type="button" class="veh-fuel-btn-mini" data-level="75" onclick="vehSetFuelLevel(75)"><span class="fuel-label">3/4</span><span class="fuel-icon">▄</span></button>
-              <button type="button" class="veh-fuel-btn-mini" data-level="100" onclick="vehSetFuelLevel(100)"><span class="fuel-label">Lleno</span><span class="fuel-icon">█</span></button>
-            </div>
+            <div id="veh-gauge-container"></div>
+            <div id="veh-fuel-buttons-container" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%;max-width:350px"></div>
           </div>
           <input type="hidden" id="vf-combustible" value="">
-          <p id="veh-fuel-status" style="text-align:center;font-size:13px;color:var(--text-muted);margin-top:8px">Selecciona el nivel actual</p>
+          <p id="veh-fuel-status" style="text-align:center;font-size:13px;color:var(--text-muted);margin-top:8px">Selecciona un vehículo primero</p>
         </div>
 
         <!-- Condición del vehículo — 4 fotos por zona -->
@@ -7541,7 +7507,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v65';
+var APP_BUILD = 'v66';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -25717,6 +25683,34 @@ var VEH_PLACAS = {
   'Pick-up Toyota':    'D-901234'
 };
 
+// Configuración de medidores de combustible por vehículo
+var VEH_FUEL_CONFIG = {
+  'Camión Hyundai': {
+    name: 'Hyundai H350',
+    levels: [0, 25, 50, 75, 100],
+    labels: ['Vacío', '1/4', '1/2', '3/4', 'Lleno'],
+    svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><circle cx="120" cy="120" r="110" fill="var(--surface-2)" stroke="var(--border)" stroke-width="2"/><text x="35" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">E</text><text x="205" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">F</text><g stroke="var(--border)" stroke-width="2"><line x1="50" y1="120" x2="70" y2="120"/><line x1="85" y1="55" x2="100" y2="70"/><line x1="120" y1="25" x2="120" y2="45"/><line x1="155" y1="55" x2="140" y2="70"/><line x1="190" y1="120" x2="170" y2="120"/></g><path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="var(--surface)" stroke-width="12" opacity="0.3"/><path d="M 70 120 A 50 50 0 0 1 100 70" fill="none" stroke="#ef4444" stroke-width="10" opacity="0.6"/><path d="M 100 70 A 50 50 0 0 1 170 120" fill="none" stroke="#22c55e" stroke-width="10" opacity="0.6"/><circle cx="120" cy="120" r="8" fill="var(--text-secondary)"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="45" stroke="#dc2626" stroke-width="3.5" stroke-linecap="round"/><circle cx="120" cy="120" r="5" fill="#dc2626"/></g></svg>'
+  },
+  'Furgoneta Citroën': {
+    name: 'Citroën Berlingo',
+    levels: [0, 25, 50, 75, 100],
+    labels: ['E', '1/4', '1/2', '3/4', 'F'],
+    svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><defs><linearGradient id="bg-berlingo" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f5f5f5;stop-opacity:1" /><stop offset="100%" style="stop-color:#e8e8e8;stop-opacity:1" /></linearGradient></defs><circle cx="120" cy="120" r="110" fill="url(#bg-berlingo)" stroke="#999" stroke-width="2"/><circle cx="120" cy="120" r="105" fill="none" stroke="#ddd" stroke-width="1"/><text x="40" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">E</text><text x="200" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">F</text><g stroke="#999" stroke-width="1.5"><line x1="55" y1="120" x2="70" y2="120"/><line x1="80" y1="60" x2="93" y2="73"/><line x1="120" y1="30" x2="120" y2="48"/><line x1="160" y1="60" x2="147" y2="73"/><line x1="185" y1="120" x2="170" y2="120"/></g><path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="#e5e5e5" stroke-width="12" opacity="0.5"/><path d="M 70 120 A 50 50 0 0 1 95 65" fill="none" stroke="#ff6b35" stroke-width="9" opacity="0.5"/><path d="M 95 65 A 50 50 0 0 1 170 120" fill="none" stroke="#2ecc71" stroke-width="9" opacity="0.5"/><circle cx="120" cy="120" r="6" fill="#333"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="48" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><polygon points="120,120 115,127 125,127" fill="#000"/></g></svg>'
+  },
+  'Camión Grande': {
+    name: 'Mercedes Actros',
+    levels: [0, 20, 40, 60, 80, 100],
+    labels: ['E', '20%', '40%', '60%', '80%', 'F'],
+    svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><defs><linearGradient id="bg-actros" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:1" /><stop offset="100%" style="stop-color:#000;stop-opacity:1" /></linearGradient></defs><rect x="20" y="20" width="200" height="200" rx="15" fill="url(#bg-actros)" stroke="#444" stroke-width="2"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="50" stroke="#ff6b35" stroke-width="3" stroke-linecap="round"/><circle cx="120" cy="120" r="5" fill="#ff6b35"/></g><text x="120" y="185" text-anchor="middle" font-size="16" font-weight="bold" fill="#666" id="fuel-pct-display">0%</text><circle cx="120" cy="90" r="18" fill="none" stroke="#ff6b35" stroke-width="1" opacity="0.3"/><path d="M 120 72 L 130 85 L 120 95 L 110 85 Z" fill="#ff6b35" opacity="0.5" id="fuel-icon-display"/></svg>'
+  },
+  'Pick-up Toyota': {
+    name: 'Toyota Hilux',
+    levels: [0, 25, 50, 75, 100],
+    labels: ['E', '1/4', '1/2', '3/4', 'F'],
+    svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><circle cx="120" cy="120" r="110" fill="#fafafa" stroke="#333" stroke-width="2.5"/><circle cx="120" cy="120" r="100" fill="none" stroke="#e0e0e0" stroke-width="1"/><text x="45" y="138" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">E</text><text x="195" y="138" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">F</text><g stroke="#333" stroke-width="2"><line x1="60" y1="120" x2="75" y2="120"/><line x1="90" y1="62" x2="100" y2="75"/><line x1="120" y1="32" x2="120" y2="50"/><line x1="150" y1="62" x2="140" y2="75"/><line x1="180" y1="120" x2="165" y2="120"/></g><g stroke="#999" stroke-width="1" opacity="0.5"><circle cx="120" cy="120" r="75"/><circle cx="120" cy="120" r="50"/></g><path d="M 75 120 A 45 45 0 0 1 165 120" fill="none" stroke="#e5e5e5" stroke-width="10" opacity="0.4"/><path d="M 75 120 A 45 45 0 0 1 100 67" fill="none" stroke="#ff4444" stroke-width="9" opacity="0.5"/><path d="M 100 67 A 45 45 0 0 1 165 120" fill="none" stroke="#44ff44" stroke-width="9" opacity="0.5"/><circle cx="120" cy="120" r="7" fill="#333"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="50" stroke="#fff" stroke-width="2.5" stroke-linecap="round" style="filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5))"/><circle cx="120" cy="120" r="4" fill="#333"/></g></svg>'
+  }
+};
+
 // Definición de secciones y preguntas del formulario
 var VEH_SECTIONS = [
   {
@@ -25819,6 +25813,35 @@ function vehUpdatePlaca() {
   var p = document.getElementById('vf-placa');
   if (p && VEH_PLACAS[v]) p.value = VEH_PLACAS[v];
   else if (p) p.value = '';
+  // Actualizar medidor de combustible
+  vehUpdateFuelGauge();
+}
+
+function vehUpdateFuelGauge() {
+  var v = document.getElementById('vf-vehiculo').value;
+  var cfg = VEH_FUEL_CONFIG[v];
+  if (!cfg) {
+    document.getElementById('veh-fuel-status').textContent = 'Selecciona un vehículo';
+    return;
+  }
+
+  // Reemplazar SVG
+  var gaugeContainer = document.getElementById('veh-gauge-container');
+  gaugeContainer.innerHTML = cfg.svg;
+
+  // Actualizar botones según los niveles del vehículo
+  var buttonsContainer = document.getElementById('veh-fuel-buttons-container');
+  var colsClass = 'grid-template-columns:repeat(' + cfg.levels.length + ',1fr)';
+  buttonsContainer.style.gridTemplateColumns = 'repeat(' + cfg.levels.length + ',1fr)';
+  var btnHTML = '';
+  cfg.levels.forEach((lvl, idx) => {
+    btnHTML += '<button type="button" class="veh-fuel-btn-mini" data-level="' + lvl + '" onclick="vehSetFuelLevel(' + lvl + ')"><span class="fuel-label">' + escH(cfg.labels[idx]) + '</span><span class="fuel-icon">▓</span></button>';
+  });
+  buttonsContainer.innerHTML = btnHTML;
+
+  // Resetear valor actual
+  document.getElementById('vf-combustible').value = '';
+  document.getElementById('veh-fuel-status').textContent = 'Selecciona el nivel actual';
 }
 
 function vehToggleYN(btn, val) {
@@ -25839,18 +25862,26 @@ function vehSetApto(val) {
 
 // ── Medidor de combustible ──
 function vehSetFuelLevel(level) {
+  const v = document.getElementById('vf-vehiculo').value;
+  const cfg = VEH_FUEL_CONFIG[v];
+  if (!cfg) return;
+
   const field = document.getElementById('vf-combustible');
   const needle = document.getElementById('veh-fuel-needle');
   const status = document.getElementById('veh-fuel-status');
-  const labels = { 0: 'Vacío', 25: '1/4 tanque', 50: 'Medio', 75: '3/4 tanque', 100: 'Lleno' };
 
   field.value = level;
 
-  // Rotación de la aguja: 0 = -90°, 100 = 90° (rango 180°)
-  const rotation = -90 + (level / 100) * 180;
-  needle.setAttribute('transform', `rotate(${rotation} 120 120)`);
+  // Encontrar el índice del nivel y calcular rotación
+  const idx = cfg.levels.indexOf(level);
+  const numLevels = cfg.levels.length;
+  const rotation = -90 + (idx / (numLevels - 1)) * 180;
 
-  // Actualizar botones (selecta por data-level)
+  if (needle) {
+    needle.setAttribute('transform', `rotate(${rotation} 120 120)`);
+  }
+
+  // Actualizar botones
   document.querySelectorAll('[data-level]').forEach((btn) => {
     btn.classList.remove('active', 'active-low');
     if (btn.dataset.level == level) {
@@ -25858,10 +25889,10 @@ function vehSetFuelLevel(level) {
     }
   });
 
-  // Mensaje de estado
-  const msg = labels[level];
+  // Mensaje de estado (usar label del vehículo)
+  const label = cfg.labels[idx] || level + '%';
   const icon = level <= 25 ? '⚠️' : level <= 50 ? '📊' : '✓';
-  status.textContent = `${icon} ${msg}`;
+  status.textContent = `${icon} ${label}`;
 }
 
 // ── Fotos de condición del vehículo ──────────────────────────────────────────
