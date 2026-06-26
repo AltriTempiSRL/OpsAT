@@ -145,7 +145,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <div class="leg-item"><div class="leg-dot" style="background:#ffcc80"></div>50–80% lleno</div>
         <div class="leg-item"><div class="leg-dot" style="background:#ef9a9a"></div>&gt; 80% lleno</div>
         <div class="leg-item"><div class="leg-dot" style="background:#90caf9"></div>Sin medidas</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#ce93d8"></div>PFRONTAL</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#c88ce6"></div>Frontal (frente de pasillos)</div>
+        <div class="leg-item"><div class="leg-dot" style="background:#96a0af"></div>Obsoleto</div>
         <div class="leg-item"><div class="leg-dot" style="background:#ffe082;border-color:#f9a825"></div>Pasillo (aisle)</div>
       </div>
     </div>
@@ -221,23 +222,48 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 // ═══════════════════════════════════════════════════════════════════
 // WAREHOUSE LAYOUT — physical positions with real aisles
 // ═══════════════════════════════════════════════════════════════════
-const ROWS = ['A','B','C','D','E','F','G','H','I'];
-const COLS = ['A','B','C','D','E','F','G'];
-const TALL_ROWS = new Set(['C','D']);
-const BIN_PAT = /^([A-I])([A-G])([1-7])$/;
+// Layout DATA-DRIVEN: filas, columnas y niveles se derivan de las ubicaciones reales
+// de Odoo (buildLayout). Así se incluyen TODAS las filas/pasillos automáticamente
+// (A–Q hoy, y cualquier fila nueva en el futuro) sin tocar el código.
+let ROWS = [];                          // filas de rack presentes (ordenadas)
+let COLS = ['A','B','C','D','E','F','G']; // máximo global de columnas (para ejes)
+let COLS_BY_ROW = {};                   // fila → columnas presentes
+let LVLS_BY_ROW = {};                   // fila → # de niveles
+const BIN_PAT = /^([A-Q])([A-G])([1-7])$/;
 const DIM_RX  = /(\d+(?:[.,]\d+)?)\s*[xX×\*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×\*]\s*[HhDdCc]?\.?\s*(\d+(?:[.,]\d+)?))?/;
+// Zonas especiales (no-rack). Nombres exactos en Odoo bajo …/A-CDP/Obsoleto.
+const FRONTAL_LOC = 'Frontal';
+const OBSOLETO_LOC = 'Obsoleto';
+// Zonas que se dibujan como franjas al FRENTE de los pasillos (ry negativo = frente).
+// Frontal = todo el frente de los racks; Obsoleto = banda más al frente.
+const FRONT_ZONES = [
+  { code: FRONTAL_LOC,  label: 'FRONTAL',  ry0: -1.7, ry1: -0.7, col: [200,140,230] },
+  { code: OBSOLETO_LOC, label: 'OBSOLETO', ry0: -3.1, ry1: -2.1, col: [150,160,175] }
+];
 
-// Physical row positions (with 2-unit aisles between pairs)
-const AISLE_W = 2.0;   // aisle width in grid units
-const AISLE_GROUPS = [['A','B'],['C','D'],['E','F'],['G','H'],['I']];
-const ROW_POS = {};    // rowLetter → physical Y position
-let _rp = 0;
-AISLE_GROUPS.forEach((grp,gi) => {
-  grp.forEach(r => { ROW_POS[r] = _rp; _rp += 1; });
-  if (gi < AISLE_GROUPS.length-1) _rp += AISLE_W;
-});
-// A=0, B=1, (2 units aisle), C=3, D=4, (2 units aisle), E=6, F=7, ...
-const MAX_RY = _rp; // total depth including last row
+// Physical row positions (with 2-unit aisles between back-to-back pairs)
+const AISLE_W = 2.0;       // aisle width in grid units
+let AISLE_GROUPS = [];     // pares de filas espalda-con-espalda; pasillo entre grupos
+let ROW_POS = {};          // rowLetter → physical Y position
+let MAX_RY = 0;            // total depth
+
+function colsOf(row){ return COLS_BY_ROW[row] || COLS; }
+function lvlsOf(row){ return LVLS_BY_ROW[row] || 5; }
+
+// Construye la geometría a partir de las filas presentes. Agrupa de a 2 (rack doble)
+// con un pasillo entre cada grupo. Si el almacén real tiene otra distribución física,
+// se ajusta aquí (es lo único que define el arreglo de pasillos).
+function buildLayout(rowsPresent){
+  ROWS = (rowsPresent || []).slice().sort();
+  AISLE_GROUPS = [];
+  for (let i = 0; i < ROWS.length; i += 2) AISLE_GROUPS.push(ROWS.slice(i, i+2));
+  ROW_POS = {}; let rp = 0;
+  AISLE_GROUPS.forEach((grp, gi) => {
+    grp.forEach(r => { ROW_POS[r] = rp; rp += 1; });
+    if (gi < AISLE_GROUPS.length-1) rp += AISLE_W;
+  });
+  MAX_RY = rp;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // DATA STATE
@@ -303,7 +329,7 @@ function rgb(c,f=1,a=1){
   return`rgb(${~~(c[0]*f)},${~~(c[1]*f)},${~~(c[2]*f)})`;
 }
 function getC(code){
-  if(!code||code==='PFRONTAL') return C.special;
+  if(!code||code===FRONTAL_LOC||code===OBSOLETO_LOC) return C.special;
   const u=calcUtil(code);
   if(u.cnt===0) return C.empty;
   if(!u.ok)     return C.nodata;
@@ -315,7 +341,7 @@ function getC(code){
 // ═══════════════════════════════════════════════════════════════════
 // UTILIZATION
 // ═══════════════════════════════════════════════════════════════════
-function getDim(code){const m=BIN_PAT.exec(code);return m&&TALL_ROWS.has(m[1])?_dimB:_dimA;}
+function getDim(code){const m=BIN_PAT.exec(code);return m&&lvlsOf(m[1])>=7?_dimB:_dimA;}
 function calcUtil(code){
   const bin=_binMap[code];
   if(!bin||!bin.items.length) return{cnt:0,ok:true,pct:0,volUsed:0,vol:getDim(code).w*getDim(code).d*getDim(code).h};
@@ -458,7 +484,7 @@ function render3D(){
   const floorItems=[];
   ROWS.forEach(row=>{
     const ry=ROW_POS[row];
-    COLS.forEach((_,ci)=>floorItems.push({c:ci,ry,isAisle:false,depth:sortDepth(ci+0.5,ry+0.5,0)}));
+    colsOf(row).forEach((_,ci)=>floorItems.push({c:ci,ry,isAisle:false,depth:sortDepth(ci+0.5,ry+0.5,0)}));
   });
   // Aisles between groups
   AISLE_GROUPS.forEach((grp,gi)=>{
@@ -480,10 +506,10 @@ function render3D(){
   ROWS.forEach(row=>{
     if(filterRow&&row!==filterRow) return;
     const ry=ROW_POS[row];
-    const maxLv=TALL_ROWS.has(row)?7:5;
-    COLS.forEach((_,ci)=>{
+    const maxLv=lvlsOf(row);
+    colsOf(row).forEach((colL,ci)=>{
       for(let lv=0;lv<maxLv;lv++){
-        const code=row+COLS[ci]+(lv+1);
+        const code=row+colL+(lv+1);
         boxes.push({c:ci,row,ry,lv,code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5)});
       }
     });
@@ -496,16 +522,18 @@ function render3D(){
     drawBox(ctx,c,row,lv,code,isSel);
   });
 
-  // PFRONTAL as flat diamond in front
+  // Zonas frontales (Frontal = todo el frente de los pasillos; Obsoleto = banda al frente)
   if(!filterRow){
-    const pfRy=-1.5;
-    const pfCnt=(_binMap['PFRONTAL']?.items||[]).length;
-    const pts=COLS.map((_,ci)=>[proj(ci,pfRy,0),proj(ci+1,pfRy,0),proj(ci+1,pfRy+0.9,0),proj(ci,pfRy+0.9,0)]);
-    pts.forEach(p=>fillPoly(ctx,p,rgb(C.special,1,0.75),'rgba(130,60,180,0.5)',1));
-    const mid=proj(COLS.length/2,-1.1,0);
-    ctx.font='bold 9px Inter,system-ui,sans-serif';
-    ctx.fillStyle='rgba(100,0,160,0.8)';ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(`PFRONTAL · ${pfCnt} art.`,mid.x,mid.y-6);
+    FRONT_ZONES.forEach(z=>{
+      const cnt=(_binMap[z.code]?.items||[]).length;
+      const isSel=_selectedBin===z.code;
+      const quad=[proj(0,z.ry0,0),proj(COLS.length,z.ry0,0),proj(COLS.length,z.ry1,0),proj(0,z.ry1,0)];
+      fillPoly(ctx,quad,rgb(z.col,1,0.82),isSel?rgb(C.sel):'rgba(70,55,100,0.55)',isSel?2.5:1);
+      const mid=proj(COLS.length/2,(z.ry0+z.ry1)/2,0);
+      ctx.font='bold 9px Inter,system-ui,sans-serif';
+      ctx.fillStyle='rgba(35,25,60,0.92)';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(`${z.label} · ${cnt} art.`,mid.x,mid.y);
+    });
   }
 
   ctx.restore(); // end translate+scale
@@ -544,13 +572,23 @@ function hitTest(cssX,cssY){
   const filterRow=document.getElementById('filter-row').value;
   const candidates=[];
 
+  // Zonas frontales primero (están al frente de los racks)
+  if(!filterRow){
+    for(const z of FRONT_ZONES){
+      const quad=[proj(0,z.ry0,0),proj(COLS.length,z.ry0,0),proj(COLS.length,z.ry1,0),proj(0,z.ry1,0)];
+      if(ptInPoly(wx,wy,quad)) return z.code;
+    }
+  }
+
+  const filterLv=+document.getElementById('filter-level').value||0;
   ROWS.forEach(row=>{
     if(filterRow&&row!==filterRow) return;
     const ry=ROW_POS[row];
-    const maxLv=TALL_ROWS.has(row)?7:5;
-    COLS.forEach((_,ci)=>{
+    const maxLv=lvlsOf(row);
+    colsOf(row).forEach((colL,ci)=>{
       for(let lv=maxLv-1;lv>=0;lv--){
-        const code=row+COLS[ci]+(lv+1);
+        if(filterLv && lv+1!==filterLv) continue;
+        const code=row+colL+(lv+1);
         // Test top face of this bin
         const topPts=[proj(ci,ry,lv+1),proj(ci+1,ry,lv+1),proj(ci+1,ry+1,lv+1),proj(ci,ry+1,lv+1)];
         if(ptInPoly(wx,wy,topPts)){
@@ -681,7 +719,7 @@ function render2DPlant(){
   const totalW=LBL+COLS.length*(CW+G)+14;
   let totalH=LBH;
   shown.forEach(p=>totalH+=p.length*(CH+G)+AIS);
-  totalH+=CH+16;
+  totalH+=FRONT_ZONES.length*(CH+G+4)+24;
   let svg=`<svg class="warehouse-svg" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">`;
   COLS.forEach((col,ci)=>{
     svg+=`<text x="${LBL+ci*(CW+G)+CW/2}" y="${LBH-4}" text-anchor="middle" font-size="9" fill="#888" font-weight="700">${col}</text>`;
@@ -690,8 +728,8 @@ function render2DPlant(){
   shown.forEach((grp,gi)=>{
     grp.forEach(row=>{
       svg+=`<text x="${LBL-3}" y="${y+CH/2+4}" text-anchor="end" font-size="9" fill="#888" font-weight="700">${row}</text>`;
-      COLS.forEach((col,ci)=>{
-        const bc=row+col;const lvls=TALL_ROWS.has(row)?7:5;
+      colsOf(row).forEach((col,ci)=>{
+        const bc=row+col;const lvls=lvlsOf(row);
         let u;
         if(fLv){ u=calcUtil(bc+fLv); }
         else{
@@ -717,11 +755,17 @@ function render2DPlant(){
       y+=AIS;
     }
   });
-  const pfC=calcUtil('PFRONTAL');
-  svg+=`<g class="rack-cell${_selectedBin==='PFRONTAL'?' selected':''}" onclick="selectBin('PFRONTAL')">
-    <rect x="${LBL}" y="${y+4}" width="${COLS.length*(CW+G)-G}" height="${CH}" rx="3" fill="#e1bee7" stroke="#7b1fa2" stroke-width="${_selectedBin==='PFRONTAL'?2.5:1}"/>
-    <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+4+CH/2+3}" text-anchor="middle" font-size="8" fill="#4a148c" font-weight="700">PFRONTAL · ${(_binMap['PFRONTAL']?.items||[]).length} artículos</text>
-  </g>`;
+  // Zonas frontales (Frontal = todo el frente de los pasillos; Obsoleto)
+  FRONT_ZONES.forEach((z,zi)=>{
+    const cnt=(_binMap[z.code]?.items||[]).length;
+    const isSel=_selectedBin===z.code;
+    const fill=zi===0?'#e1bee7':'#cfd8dc', stroke=zi===0?'#7b1fa2':'#607d8b', tcol=zi===0?'#4a148c':'#37474f';
+    svg+=`<g class="rack-cell${isSel?' selected':''}" onclick="selectBin('${z.code}')">
+      <rect x="${LBL}" y="${y+4}" width="${COLS.length*(CW+G)-G}" height="${CH}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="${isSel?2.5:1}"/>
+      <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+4+CH/2+3}" text-anchor="middle" font-size="8" fill="${tcol}" font-weight="700">${z.label} · ${cnt} artículos</text>
+    </g>`;
+    y+=CH+G+4;
+  });
   svg+='</svg>';
   wrap.innerHTML=svg;
 }
@@ -740,16 +784,16 @@ function render2DRack(){
   const wrap=document.getElementById('canvas-2d-wrap');
   const fRow=document.getElementById('filter-row').value;
   const rc=(_selectedBin&&_selectedBin.length>=2?_selectedBin.slice(0,2):(fRow?fRow+'A':'AA'));
-  const row=rc[0],lvls=TALL_ROWS.has(row)?7:5;
+  const row=rc[0],lvls=lvlsOf(row);
   const SW=104,SH=55,GAP=3;
   let html=`<div style="padding:6px">
     <div style="font-size:15px;font-weight:800;color:var(--accent);margin-bottom:4px">Rack ${rc} — Vista Frontal</div>
-    <div style="font-size:10px;color:var(--text-3);margin-bottom:10px">${COLS.map(c=>rc[0]+c).join(' · ')} · ${lvls} niveles</div>
+    <div style="font-size:10px;color:var(--text-3);margin-bottom:10px">${colsOf(rc[0]).map(c=>rc[0]+c).join(' · ')} · ${lvls} niveles</div>
     <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-bottom:8px">
     <div style="display:flex;flex-direction:column-reverse;gap:${GAP}px;margin-right:6px;padding-bottom:18px">`;
   for(let l=1;l<=lvls;l++) html+=`<div style="height:${SH}px;display:flex;align-items:center;font-size:10px;color:var(--text-3);font-weight:600;white-space:nowrap;padding-right:4px">N${l}</div>`;
   html+='</div>';
-  COLS.forEach(col=>{
+  colsOf(rc[0]).forEach(col=>{
     const bc=rc[0]+col;
     html+=`<div style="display:flex;flex-direction:column">
       <div style="display:flex;flex-direction:column-reverse;gap:${GAP}px">`;
@@ -800,7 +844,7 @@ function renderMap(){
 // ═══════════════════════════════════════════════════════════════════
 function selectRack(rc){
   _selectedBin=rc; renderMap();
-  const row=rc[0],lvls=TALL_ROWS.has(row)?7:5;
+  const row=rc[0],lvls=lvlsOf(row);
   let tot=0,vU=0,bV=0,hd=false,all=[];
   for(let l=1;l<=lvls;l++){
     const bin=_binMap[rc+l];if(!bin)continue;
@@ -880,16 +924,16 @@ async function initMap(){
     _locs=await odoo('stock.location','search_read',
       [[['complete_name','ilike','A-CDP'],['usage','=','internal'],
         ['complete_name','not ilike','devoluci'],['active','=',true]]],
-      {fields:['id','name','complete_name'],limit:500});
+      {fields:['id','name','complete_name'],limit:2000});
     setLoading('Cargando stock…','stock.quant');
     _quants=await odoo('stock.quant','search_read',
       [[['location_id.complete_name','ilike','A-CDP'],
         ['location_id.complete_name','not ilike','devoluci'],['quantity','>',0]]],
-      {fields:['product_id','location_id','quantity'],limit:5000});
+      {fields:['product_id','location_id','quantity'],limit:12000});
     const ids=[...new Set(_quants.map(q=>q.product_id[0]))];
     setLoading('Cargando productos…',ids.length+' referencias');
     const prods=await odoo('product.product','search_read',[[['id','in',ids]]],
-      {fields:['id','default_code','name','barcode','description_purchase','image_128'],limit:3000});
+      {fields:['id','default_code','name','barcode','description_purchase','image_128'],limit:6000});
     let wd=0,nd=0,ne=0;
     prods.forEach(p=>{
       const desc=(p.description_purchase||'').trim();
@@ -911,8 +955,22 @@ async function initMap(){
       const seg=q.location_id[1].split('/').pop();
       if(_binMap[seg]) _binMap[seg].items.push({prodId:q.product_id[0],prodName:q.product_id[1],qty:q.quantity});
     });
-    // Stats
-    const bins=Object.keys(_binMap).filter(k=>k!=='A-CDP');
+    // ── Derivar layout REAL desde las ubicaciones (todas las filas/cols/niveles) ──
+    const rowSet=new Set(); COLS_BY_ROW={}; LVLS_BY_ROW={};
+    Object.keys(_binMap).forEach(code=>{
+      const m=BIN_PAT.exec(code); if(!m) return;
+      const r=m[1], c=m[2], lv=+m[3];
+      rowSet.add(r);
+      (COLS_BY_ROW[r]=COLS_BY_ROW[r]||new Set()).add(c);
+      LVLS_BY_ROW[r]=Math.max(LVLS_BY_ROW[r]||0,lv);
+    });
+    const allCols=new Set();
+    Object.keys(COLS_BY_ROW).forEach(r=>{COLS_BY_ROW[r]=[...COLS_BY_ROW[r]].sort();COLS_BY_ROW[r].forEach(c=>allCols.add(c));});
+    COLS=[...allCols].sort();
+    buildLayout([...rowSet]);
+    // Stats (excluye la raíz y las zonas no-rack)
+    const _zoneCodes=new Set(FRONT_ZONES.map(z=>z.code));
+    const bins=Object.keys(_binMap).filter(k=>k!=='A-CDP'&&!_zoneCodes.has(k)&&BIN_PAT.test(k));
     const occ=bins.filter(k=>_binMap[k].items.length>0).length;
     document.getElementById('st-total').textContent=bins.length;
     document.getElementById('st-occupied').textContent=occ;
