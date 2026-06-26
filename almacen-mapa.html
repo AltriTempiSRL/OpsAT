@@ -99,7 +99,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 <div class="topbar">
   <div>
     <h1>🏭 Mapa Almacén CDP · Vista 3D &nbsp;<span class="mock-badge">⚠ DIMS MOCK</span></h1>
-    <div class="sub">AlTriTempi · Arrastra = rotar · ↕ = inclinar · Shift+drag = mover · Rueda = zoom · Clic = detalle</div>
+    <div class="sub">AlTriTempi · Arrastra = mover · Shift+arrastra = rotar/inclinar · Rueda = zoom · Clic = detalle</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <span id="last-update" style="font-size:10px;opacity:.6"></span>
@@ -229,16 +229,16 @@ let ROWS = [];                          // filas de rack presentes (ordenadas)
 let COLS = ['A','B','C','D','E','F','G']; // máximo global de columnas (para ejes)
 let COLS_BY_ROW = {};                   // fila → columnas presentes
 let LVLS_BY_ROW = {};                   // fila → # de niveles
-const BIN_PAT = /^([A-Q])([A-G])([1-7])$/;
+const BIN_PAT = /^([A-Q])([A-I])([1-7])$/;   // Q llega hasta col I (9 columnas)
 const DIM_RX  = /(\d+(?:[.,]\d+)?)\s*[xX×\*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×\*]\s*[HhDdCc]?\.?\s*(\d+(?:[.,]\d+)?))?/;
-// Zonas especiales (no-rack). Nombres exactos en Odoo bajo …/A-CDP/Obsoleto.
+// Zonas especiales (no-rack). 'Frontal' = ALVEN/Stock/A-CDP/Obsoleto/Frontal.
+// 'Obsoleto' NO es zona plana: son los racks J–Q (se dibujan como racks normales).
 const FRONTAL_LOC = 'Frontal';
 const OBSOLETO_LOC = 'Obsoleto';
-// Zonas que se dibujan como franjas al FRENTE de los pasillos (ry negativo = frente).
-// Frontal = todo el frente de los racks; Obsoleto = banda más al frente.
+// Frontal = franja larga a TODO el frente de los pasillos (paralela a las filas,
+// justo delante de la columna A, abarcando toda la profundidad ry 0..MAX_RY).
 const FRONT_ZONES = [
-  { code: FRONTAL_LOC,  label: 'FRONTAL',  ry0: -1.7, ry1: -0.7, col: [200,140,230] },
-  { code: OBSOLETO_LOC, label: 'OBSOLETO', ry0: -3.1, ry1: -2.1, col: [150,160,175] }
+  { code: FRONTAL_LOC, label: 'FRONTAL', c0: -1.5, c1: -0.25, col: [200,140,230] }
 ];
 
 // Physical row positions (with 2-unit aisles between back-to-back pairs)
@@ -451,6 +451,15 @@ function drawLabels(ctx){
     ctx.font='bold 8px Inter,system-ui,sans-serif';
     ctx.fillText('pasillo',p.x,p.y);
   });
+  // Etiqueta de zona OBSOLETO sobre las filas J–Q (racks de obsoletos)
+  const obsRows=ROWS.filter(r=>r>='J');
+  if(obsRows.length){
+    const ry0=ROW_POS[obsRows[0]], ry1=ROW_POS[obsRows[obsRows.length-1]]+1;
+    const p=proj(-2.7,(ry0+ry1)/2,0);
+    ctx.save();ctx.font='bold 12px Inter,system-ui,sans-serif';ctx.fillStyle='rgba(150,70,30,0.85)';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.translate(p.x,p.y);ctx.fillText('OBSOLETO ▸',0,0);ctx.restore();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -522,17 +531,17 @@ function render3D(){
     drawBox(ctx,c,row,lv,code,isSel);
   });
 
-  // Zonas frontales (Frontal = todo el frente de los pasillos; Obsoleto = banda al frente)
+  // Frontal: franja larga a todo el frente de los pasillos (delante de col A, todas las filas)
   if(!filterRow){
     FRONT_ZONES.forEach(z=>{
       const cnt=(_binMap[z.code]?.items||[]).length;
       const isSel=_selectedBin===z.code;
-      const quad=[proj(0,z.ry0,0),proj(COLS.length,z.ry0,0),proj(COLS.length,z.ry1,0),proj(0,z.ry1,0)];
-      fillPoly(ctx,quad,rgb(z.col,1,0.82),isSel?rgb(C.sel):'rgba(70,55,100,0.55)',isSel?2.5:1);
-      const mid=proj(COLS.length/2,(z.ry0+z.ry1)/2,0);
-      ctx.font='bold 9px Inter,system-ui,sans-serif';
-      ctx.fillStyle='rgba(35,25,60,0.92)';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(`${z.label} · ${cnt} art.`,mid.x,mid.y);
+      const quad=[proj(z.c0,0,0),proj(z.c1,0,0),proj(z.c1,MAX_RY,0),proj(z.c0,MAX_RY,0)];
+      fillPoly(ctx,quad,rgb(z.col,1,0.85),isSel?rgb(C.sel):'rgba(120,60,170,0.6)',isSel?2.5:1.2);
+      const mid=proj((z.c0+z.c1)/2,MAX_RY/2,0);
+      ctx.save();ctx.font='bold 10px Inter,system-ui,sans-serif';
+      ctx.fillStyle='rgba(70,20,110,0.92)';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.translate(mid.x,mid.y);ctx.fillText(`${z.label} · ${cnt} art.`,0,0);ctx.restore();
     });
   }
 
@@ -572,10 +581,10 @@ function hitTest(cssX,cssY){
   const filterRow=document.getElementById('filter-row').value;
   const candidates=[];
 
-  // Zonas frontales primero (están al frente de los racks)
+  // Frontal primero (franja al frente, sin racks encima)
   if(!filterRow){
     for(const z of FRONT_ZONES){
-      const quad=[proj(0,z.ry0,0),proj(COLS.length,z.ry0,0),proj(COLS.length,z.ry1,0),proj(0,z.ry1,0)];
+      const quad=[proj(z.c0,0,0),proj(z.c1,0,0),proj(z.c1,MAX_RY,0),proj(z.c0,MAX_RY,0)];
       if(ptInPoly(wx,wy,quad)) return z.code;
     }
   }
@@ -625,12 +634,13 @@ function initEvents(){
   let _dragMode = 'rotate'; // 'rotate' or 'pan'
   canvas.addEventListener('mousedown',e=>{
     V.dragging=true;V.lastMX=e.clientX;V.lastMY=e.clientY;
-    _dragMode = (e.button===1 || e.shiftKey) ? 'pan' : 'rotate';
-    canvas.classList.add('rotating');
-    if(e.button===1) e.preventDefault();
+    // Por defecto MOVER (pan, tipo Google Maps); rotar con Shift o clic derecho/medio
+    _dragMode = (e.shiftKey || e.button===1 || e.button===2) ? 'rotate' : 'pan';
+    canvas.style.cursor = _dragMode==='pan' ? 'grabbing' : 'ew-resize';
+    if(e.button===1 || e.button===2) e.preventDefault();
   });
   window.addEventListener('mouseup',e=>{
-    V.dragging=false;canvas.classList.remove('rotating');
+    V.dragging=false;canvas.style.cursor='grab';
   });
   window.addEventListener('mousemove',e=>{
     if(V.dragging){

@@ -5363,8 +5363,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 
     <!-- ── MAPA ALMACÉN CDP ────────────────────────────────── -->
     <div id="section-almacen-mapa" class="page-section" style="display:none">
-    <div class="card" style="padding:0;overflow:hidden;height:calc(100vh - 120px);min-height:500px">
-      <iframe id="almacen-mapa-iframe" style="width:100%;height:100%;border:none" loading="lazy"></iframe>
+    <div class="card" style="padding:0;overflow:hidden;height:calc(100dvh - 84px);min-height:420px;margin:0">
+      <iframe id="almacen-mapa-iframe" style="display:block;width:100%;height:100%;border:none" loading="lazy"></iframe>
     </div>
     </div><!-- /section-almacen-mapa -->
 
@@ -7485,7 +7485,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v61';
+var APP_BUILD = 'v62';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
