@@ -6850,6 +6850,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     #tab-archivo .arch-group-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
     #tab-archivo .arch-group-count{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;flex-shrink:0}
     #tab-archivo .arch-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}
+    #tab-archivo .arch-sub-group{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
+    #tab-archivo .arch-sub-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
     #tab-archivo .arch-thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid var(--border);background:var(--surface-2)}
     #tab-archivo .arch-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .15s}
     #tab-archivo .arch-thumb:hover img{transform:scale(1.06)}
@@ -9965,19 +9967,49 @@ function renderPhotoArchive() {
   if (stats) stats.textContent = (data.totalFotos||0)+' fotos · '+(data.totalGrupos||0)+' tareas';
   if (!grupos.length) { host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Sin resultados</div>'; return; }
   const fmtD = s => { try { return new Date(s).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}); } catch(e){ return ''; } };
-  host.innerHTML = grupos.map(g => {
-    const head = (g.ref ? '<b>'+esc(g.ref)+'</b> · ' : '') + esc(g.title||'(sin título)');
-    const sub = [g.client?esc(g.client):'', g.exists?('Estado: '+esc(g.status||'—')):'⚠ tarea ya no existe', (g.lastDate?fmtD(g.lastDate):'')].filter(Boolean).join(' &middot; ');
-    const thumbs = (g.fotos||[]).map(f => {
-      const cap = (g.ref||g.title||'') + ' — ' + (ARCH_TYPE_LABEL[f.type]||f.type) + (f.productName?(' · '+f.productName):'');
-      const tag = ARCH_TYPE_LABEL[f.type]||f.type;
-      return '<div class="arch-thumb" onclick="openPhotoLightbox(this)" data-url="'+f.url+'" data-cap="'+esc(cap)+'" title="'+esc(cap)+'"><img loading="lazy" src="'+f.url+'" alt=""><span class="arch-thumb-tag">'+esc(tag)+'</span></div>';
+
+  // Mapa rápido taskId→grupo y detección de subtareas
+  const byId = {};
+  grupos.forEach(function(g){ byId[g.taskId] = g; });
+  const childIds = new Set();
+  if (Array.isArray(_tasks)) {
+    grupos.forEach(function(g){
+      var t = _tasks.find(function(x){ return x.id === g.taskId; });
+      if (t && t.parentId && byId[t.parentId]) childIds.add(g.taskId);
+    });
+  }
+
+  function thumbHtml(f, ref, title) {
+    var cap = (ref||title||'') + ' — ' + (ARCH_TYPE_LABEL[f.type]||f.type) + (f.productName?' · '+f.productName:'');
+    var tag = ARCH_TYPE_LABEL[f.type]||f.type;
+    return '<div class="arch-thumb" onclick="openPhotoLightbox(this)" data-url="'+f.url+'" data-cap="'+esc(cap)+'" title="'+esc(cap)+'"><img loading="lazy" src="'+f.url+'" alt=""><span class="arch-thumb-tag">'+esc(tag)+'</span></div>';
+  }
+
+  host.innerHTML = grupos.filter(function(g){ return !childIds.has(g.taskId); }).map(function(g) {
+    // Subtareas de este grupo que también tienen fotos
+    var subGrupos = [];
+    if (Array.isArray(_tasks)) {
+      _tasks.filter(function(t){ return t.parentId === g.taskId && byId[t.id]; })
+            .forEach(function(t){ subGrupos.push(byId[t.id]); });
+    }
+    var totalCount = g.count + subGrupos.reduce(function(s, sg){ return s + sg.count; }, 0);
+    var head = (g.ref ? '<b>'+esc(g.ref)+'</b> · ' : '') + esc(g.title||'(sin título)');
+    var sub = [g.client?esc(g.client):'', g.exists?('Estado: '+esc(g.status||'—')):'⚠ tarea ya no existe', g.lastDate?fmtD(g.lastDate):''].filter(Boolean).join(' &middot; ');
+    var mainThumbs = (g.fotos||[]).map(function(f){ return thumbHtml(f, g.ref, g.title); }).join('');
+    var subHtml = subGrupos.map(function(sg){
+      var st = (sg.fotos||[]).map(function(f){ return thumbHtml(f, sg.ref, sg.title); }).join('');
+      return '<div id="arch-g-'+sg.taskId+'" class="arch-sub-group">'
+        + '<div class="arch-sub-label">'+esc(sg.title||sg.ref||sg.taskId)+'</div>'
+        + (st ? '<div class="arch-thumbs">'+st+'</div>' : '')
+        + '</div>';
     }).join('');
     return '<div class="arch-group" id="arch-g-'+g.taskId+'">'
       + '<div class="arch-group-hdr"><div style="min-width:0"><div class="arch-group-title">'+head+'</div>'
       + '<div class="arch-group-sub">'+sub+'</div></div>'
-      + '<span class="arch-group-count">'+g.count+' foto'+(g.count>1?'s':'')+'</span></div>'
-      + '<div class="arch-thumbs">'+thumbs+'</div></div>';
+      + '<span class="arch-group-count">'+totalCount+' foto'+(totalCount>1?'s':'')+'</span></div>'
+      + (mainThumbs ? '<div class="arch-thumbs">'+mainThumbs+'</div>' : '')
+      + subHtml
+      + '</div>';
   }).join('');
   if (window.lucide) lucide.createIcons();
 }
