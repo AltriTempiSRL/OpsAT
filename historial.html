@@ -7484,7 +7484,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v58';
+var APP_BUILD = 'v59';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9961,15 +9961,11 @@ function renderPhotoArchive() {
   const data = _photoArchive || {grupos:[]};
   const sb = document.getElementById('arch-search');
   const q = (sb ? sb.value : '').trim().toLowerCase();
-  let grupos = data.grupos || [];
-  if (q) grupos = grupos.filter(g => ((g.ref||'')+' '+(g.title||'')+' '+(g.client||'')).toLowerCase().indexOf(q) >= 0);
+  const grupos = data.grupos || [];
   const stats = document.getElementById('arch-stats');
-  if (stats) stats.textContent = (data.totalFotos||0)+' fotos · '+(data.totalGrupos||0)+' tareas';
-  if (!grupos.length) { host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Sin resultados</div>'; return; }
   const fmtD = s => { try { return new Date(s).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}); } catch(e){ return ''; } };
 
-  // Agrupar por ref de orden (S07639, PTN/…).
-  // Grupos sin ref conservan clave propia para no mezclarse entre sí.
+  // Agrupar por ref de orden PRIMERO (S07639, PTN/…); grupos sin ref van solos.
   const byRef = {};
   grupos.forEach(function(g) {
     var key = g.ref ? g.ref : ('__' + g.taskId);
@@ -9977,12 +9973,30 @@ function renderPhotoArchive() {
     byRef[key].push(g);
   });
 
-  // Ordenar claves por fecha más reciente del grupo
-  var refKeys = Object.keys(byRef).sort(function(a, b) {
+  // Índice de búsqueda por grupo: ref + título + cliente + encargado + status
+  // + tipos de foto + nombres de productos en fotos
+  function grupoSearchStr(g) {
+    return [
+      g.ref || '', g.title || '', g.client || '', g.manager || '', g.status || '',
+      Object.keys(g.tipos || {}).join(' '),
+      (g.fotos || []).map(function(f){ return f.productName || ''; }).filter(Boolean).join(' ')
+    ].join(' ').toLowerCase();
+  }
+
+  // Filtrar a nivel de ref: incluir si CUALQUIER grupo en la ref coincide con la búsqueda
+  var refKeys = Object.keys(byRef).filter(function(key) {
+    if (!q) return true;
+    return byRef[key].some(function(g){ return grupoSearchStr(g).indexOf(q) >= 0; });
+  }).sort(function(a, b) {
     var la = byRef[a].reduce(function(mx, g){ return g.lastDate > mx ? g.lastDate : mx; }, '');
     var lb = byRef[b].reduce(function(mx, g){ return g.lastDate > mx ? g.lastDate : mx; }, '');
     return lb.localeCompare(la);
   });
+
+  if (stats) stats.textContent = q
+    ? refKeys.length + ' resultado'+(refKeys.length!==1?'s':'')+' de '+(data.totalGrupos||0)+' órdenes'
+    : (data.totalFotos||0)+' fotos · '+(data.totalGrupos||0)+' órdenes';
+  if (!refKeys.length) { host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Sin resultados para "'+esc(q)+'"</div>'; return; }
 
   // Dentro de cada ref: poner primero el grupo cuyo taskId sea padre en _tasks
   var taskParentIds = new Set();
