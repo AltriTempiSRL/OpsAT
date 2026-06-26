@@ -776,6 +776,10 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .veh-fuel-btn:hover{border-color:var(--accent);background:var(--surface-2)}
 .veh-fuel-btn.active{background:var(--green-bg);border-color:var(--green-dot);color:var(--green-text)}
 .veh-fuel-btn.active-low{background:var(--red-bg);border-color:var(--red);color:var(--red-text)}
+.veh-fuel-btn-mini{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;transition:all .15s;font-family:inherit;font-size:11px}
+.veh-fuel-btn-mini:hover{border-color:var(--accent);background:var(--surface-2)}
+.veh-fuel-btn-mini.active{background:var(--green-bg);border-color:var(--green-dot);color:var(--green-text)}
+.veh-fuel-btn-mini.active-low{background:var(--red-bg);border-color:var(--red);color:var(--red-text)}
 .fuel-label{font-size:12px;font-weight:700;text-transform:uppercase}
 .fuel-icon{font-size:20px;line-height:1}
 .veh-apto-nd{background:var(--surface-2);color:var(--text-muted)}
@@ -6608,8 +6612,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <!-- Medidor de Combustible -->
         <div class="veh-form-card">
           <h3><i data-lucide="fuel" class="tab-h3-icon"></i>Nivel de Combustible</h3>
-          <div style="display:flex;gap:20px;align-items:center;justify-content:center;margin:16px 0">
-            <svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:160px;height:220px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin:12px 0">
+            <svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))">
               <!-- Fondo del medidor -->
               <circle cx="120" cy="120" r="110" fill="var(--surface-2)" stroke="var(--border)" stroke-width="2"/>
               <!-- Escala de números (E=Empty, F=Full) -->
@@ -6638,12 +6642,12 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               </g>
             </svg>
             <!-- Botones para seleccionar nivel -->
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <button type="button" class="veh-fuel-btn" data-level="0" onclick="vehSetFuelLevel(0)"><span class="fuel-label">Vacío</span><span class="fuel-icon">∅</span></button>
-              <button type="button" class="veh-fuel-btn" data-level="25" onclick="vehSetFuelLevel(25)"><span class="fuel-label">1/4</span><span class="fuel-icon">▁</span></button>
-              <button type="button" class="veh-fuel-btn" data-level="50" onclick="vehSetFuelLevel(50)"><span class="fuel-label">1/2</span><span class="fuel-icon">▃</span></button>
-              <button type="button" class="veh-fuel-btn" data-level="75" onclick="vehSetFuelLevel(75)"><span class="fuel-label">3/4</span><span class="fuel-icon">▄</span></button>
-              <button type="button" class="veh-fuel-btn" data-level="100" onclick="vehSetFuelLevel(100)"><span class="fuel-label">Lleno</span><span class="fuel-icon">█</span></button>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;width:100%;max-width:350px">
+              <button type="button" class="veh-fuel-btn-mini" data-level="0" onclick="vehSetFuelLevel(0)"><span class="fuel-label">Vacío</span><span class="fuel-icon">∅</span></button>
+              <button type="button" class="veh-fuel-btn-mini" data-level="25" onclick="vehSetFuelLevel(25)"><span class="fuel-label">1/4</span><span class="fuel-icon">▁</span></button>
+              <button type="button" class="veh-fuel-btn-mini" data-level="50" onclick="vehSetFuelLevel(50)"><span class="fuel-label">1/2</span><span class="fuel-icon">▃</span></button>
+              <button type="button" class="veh-fuel-btn-mini" data-level="75" onclick="vehSetFuelLevel(75)"><span class="fuel-label">3/4</span><span class="fuel-icon">▄</span></button>
+              <button type="button" class="veh-fuel-btn-mini" data-level="100" onclick="vehSetFuelLevel(100)"><span class="fuel-label">Lleno</span><span class="fuel-icon">█</span></button>
             </div>
           </div>
           <input type="hidden" id="vf-combustible" value="">
@@ -7537,7 +7541,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v64';
+var APP_BUILD = 'v65';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -25846,8 +25850,8 @@ function vehSetFuelLevel(level) {
   const rotation = -90 + (level / 100) * 180;
   needle.setAttribute('transform', `rotate(${rotation} 120 120)`);
 
-  // Actualizar botones
-  document.querySelectorAll('.veh-fuel-btn').forEach((btn) => {
+  // Actualizar botones (selecta por data-level)
+  document.querySelectorAll('[data-level]').forEach((btn) => {
     btn.classList.remove('active', 'active-low');
     if (btn.dataset.level == level) {
       btn.classList.add(level <= 25 ? 'active-low' : 'active');
