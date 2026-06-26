@@ -3471,6 +3471,53 @@ function checkOverdueTasks() {
   });
 }
 
+// Alerta 8 PM hora RD (UTC-4): tareas que vencen HOY y no están cerradas
+// Dispara una vez por día; ventana de 5 min para absorber drift del setInterval.
+const RD_OFFSET_HOURS = parseInt(process.env.TZ_OFFSET_HOURS ?? '-4', 10);
+let _dueTodayAlertFiredDate = null;
+
+function nowRD() {
+  const utc = new Date();
+  return new Date(utc.getTime() + RD_OFFSET_HOURS * 3600 * 1000);
+}
+
+function checkDueTodayAlert() {
+  const rdNow  = nowRD();
+  const today  = rdNow.toISOString().slice(0, 10);
+  const h = rdNow.getUTCHours(), m = rdNow.getUTCMinutes();
+  if (h !== 20 || m > 5) return;
+  if (_dueTodayAlertFiredDate === today) return;
+  _dueTodayAlertFiredDate = today;
+
+  const tasks = loadWwpTasks();
+  const dueToday = tasks.filter(t =>
+    !t.parentId &&
+    t.dueDate === today &&
+    !['completed', 'validated', 'cancelled'].includes(t.status)
+  );
+  if (!dueToday.length) return;
+
+  const managers = loadAuthUsers()
+    .filter(u => u.active !== false && ['admin', 'manager'].includes(u.role))
+    .map(u => u.id);
+
+  dueToday.forEach(t => {
+    const responsible = taskResponsibleIds(t);
+    const recipients  = [...new Set([...responsible, ...managers])];
+    notifyMany(recipients, {
+      type:          'task_overdue',
+      title:         '⏰ Tarea vence hoy',
+      message:       `"${t.title}" vence hoy — confirma si se completó o necesita ETA antes de cerrar.`,
+      relatedTaskId: t.id,
+      priority:      t.priority,
+      dueDate:       t.dueDate
+    });
+  });
+  console.log(`[due-today-alert] ${today} — ${dueToday.length} tarea(s) notificadas a las 20:00 RD`);
+}
+
+setInterval(() => { try { checkDueTodayAlert(); } catch(e) { console.warn('[due-today-alert]', e.message); } }, 60_000);
+
 // ── Estado de sesión Odoo ────────────────────────────────────────────────────
 let odooUid  = null;
 let authBusy = false;
@@ -7180,6 +7227,15 @@ const server = http.createServer(async (req, res) => {
       if (d.password) users[idx].passwordHash = hashPassword(d.password);
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
+      if (d.workSchedule !== undefined) {
+        const ws = d.workSchedule || {};
+        const validDays = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+        users[idx].workSchedule = {
+          days:      Array.isArray(ws.days) ? ws.days.filter(x => validDays.includes(x)) : ['lunes','martes','miercoles','jueves','viernes'],
+          startTime: typeof ws.startTime === 'string' ? ws.startTime.slice(0,5) : '08:00',
+          endTime:   typeof ws.endTime   === 'string' ? ws.endTime.slice(0,5)   : '17:00'
+        };
+      }
       // Resumen del día — feature por usuario (piloto): on/off
       if (d.dailySummaryEnabled !== undefined) users[idx].dailySummaryEnabled = !!d.dailySummaryEnabled;
       // Inspección de vehículo diaria obligatoria — gate por usuario: on/off

@@ -3470,6 +3470,11 @@ body{font-family:var(--font);min-height:100dvh}
 .ur-toggle-btn::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:transform .18s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .ur-toggle-btn.on{background:var(--green-dot);border-color:var(--green-dot)}
 .ur-toggle-btn.on::after{transform:translateX(16px)}
+/* Días laborables — pills de selección en el modal de usuario */
+.uf-day-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.uf-day-pill{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-size:12px;font-weight:700;cursor:pointer;user-select:none;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-muted);transition:background .15s,border-color .15s,color .15s}
+.uf-day-pill input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.uf-day-pill.active{background:var(--brand-primary,#2563eb);border-color:var(--brand-primary,#2563eb);color:#fff}
 .ur-divider{width:1px;height:40px;background:var(--border);flex-shrink:0}
 .user-row-actions{display:flex;flex-direction:column;gap:5px}
 .btn-sm{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
@@ -7201,8 +7206,26 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de entrada asignada</label>
+          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de entrada</label>
           <input type="time" id="uf-schedule-start" class="form-input" value="08:00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Hora de salida</label>
+          <input type="time" id="uf-schedule-end" class="form-input" value="17:00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Días laborables</label>
+          <div class="uf-day-pills">
+            <label class="uf-day-pill active" title="Lunes"><input type="checkbox" name="uf-days" value="lunes" checked> L</label>
+            <label class="uf-day-pill active" title="Martes"><input type="checkbox" name="uf-days" value="martes" checked> M</label>
+            <label class="uf-day-pill active" title="Miércoles"><input type="checkbox" name="uf-days" value="miercoles" checked> X</label>
+            <label class="uf-day-pill active" title="Jueves"><input type="checkbox" name="uf-days" value="jueves" checked> J</label>
+            <label class="uf-day-pill active" title="Viernes"><input type="checkbox" name="uf-days" value="viernes" checked> V</label>
+            <label class="uf-day-pill" title="Sábado"><input type="checkbox" name="uf-days" value="sabado"> S</label>
+            <label class="uf-day-pill" title="Domingo"><input type="checkbox" name="uf-days" value="domingo"> D</label>
+          </div>
         </div>
       </div>
       <div class="form-group">
@@ -9926,8 +9949,17 @@ function openPhotoArchive(taskId) {
   switchTab('archivo');
   setTimeout(function(){
     if (!taskId) return;
-    const el = document.getElementById('arch-g-'+taskId);
-    if (el) { el.scrollIntoView({behavior:'smooth',block:'start'}); el.classList.add('arch-group-flash'); setTimeout(()=>el.classList.remove('arch-group-flash'),1600); }
+    var ids = [taskId];
+    if (Array.isArray(_tasks)) _tasks.filter(function(s){ return s.parentId === taskId; }).forEach(function(s){ ids.push(s.id); });
+    var first = null;
+    ids.forEach(function(id){
+      var el = document.getElementById('arch-g-'+id);
+      if (!el) return;
+      if (!first) first = el;
+      el.classList.add('arch-group-flash');
+      setTimeout(function(){ el.classList.remove('arch-group-flash'); }, 1600);
+    });
+    if (first) first.scrollIntoView({behavior:'smooth',block:'start'});
   }, 400);
 }
 
@@ -9948,7 +9980,8 @@ function openPhotoLightbox(el) {
 
 function photoArchiveBadgeHtml(t) {
   if (!_photoArchiveMap) return '';
-  const n = _photoArchiveMap[t.id];
+  var n = _photoArchiveMap[t.id] || 0;
+  if (Array.isArray(_tasks)) _tasks.filter(function(s){ return s.parentId === t.id; }).forEach(function(s){ n += _photoArchiveMap[s.id] || 0; });
   if (!n) return '';
   return '<span class="evidence-badge" onclick="event.stopPropagation();openPhotoArchive(\''+t.id+'\')" title="Ver '+n+' foto'+(n>1?'s':'')+' de evidencia en el archivo"><i data-lucide="camera" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> '+n+'</span>';
 }
@@ -10125,7 +10158,7 @@ function renderGroupedByType(visible, rowRenderer) {
   var _archOpen = (function(){try{return JSON.parse(localStorage.getItem('wwp_archive_open')||'{}');}catch(e){return{};}})();
   var buildArchive = function(key, label, icon, color, tasks) {
     if (!tasks.length) return '';
-    var open = !!_archOpen[key];
+    var open = key === 'closed' ? false : !!_archOpen[key];
     var inner = '';
     _TYPE_GROUPS.forEach(function(g) {
       var rows = tasks.filter(function(t){return t.type===g.type;}).sort(byDue);
@@ -11552,8 +11585,6 @@ function renderDrawer(t) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${_missingEvText})</button></div>${freeEvidenceHint}`;
     } else if (selItems.length && missingCond.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingCond.length} sin indicar condición)</button></div>`;
-    } else if (selItems.length && missingEmp.length) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingEmp.length} sin confirmar materiales ↓)</button></div>`;
     } else if (selItems.length && missingConf.length) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${completeVerb} (${missingConf.length} artículo${missingConf.length>1?'s':''} sin confirmar)</button></div>`;
     } else if ((t.items||[]).length>0 && !selItems.length) {
@@ -11611,8 +11642,6 @@ function renderDrawer(t) {
       actionHtml += `<div class="step-ptr">📷 Sube una foto de evidencia ↓</div><div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (faltan ${_faltanFotos||1} foto${(_faltanFotos||1)>1?'s':''})</button></div>`;
     } else if (_faltanCond>0) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanCond} sin indicar estado ↓)</button></div>`;
-    } else if (_faltanEmp>0) {
-      actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanEmp} sin confirmar materiales ↓)</button></div>`;
     } else if (_faltanConf>0) {
       actionHtml += `<div class="action-row"><button class="btn-primary" disabled style="${_btnDisabled}"><i data-lucide="lock" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Terminé mi parte (${_faltanConf} artículo${_faltanConf>1?'s':''} sin confirmar ↓)</button></div>`;
     } else {
@@ -11753,7 +11782,6 @@ function renderDrawer(t) {
         </div>`).join('')}</div>`:''}
         ${(canUpload&&!evs.length&&!isItemConf)?`<div class="step-ptr" style="margin-top:6px">📷 Falta la foto — toca el botón de cámara</div>`:''}
         ${canUpload?`<button class="btn-add-photo" onclick="uploadItemEvidence('${t.id}','${it.item_id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>${addPhotoText}</button>`:''}
-        ${it.odoo_categ_id?`<div class="task-emp-section" id="emp-item-${it.item_id}"><div style="color:var(--text-muted);font-size:11px;padding:4px">Cargando materiales de empaque…</div></div>`:''}
       </div>`;
     }).join('');
     }).join('');
@@ -16228,6 +16256,11 @@ async function loadUsers() {
       const lunchLabel = lunchAllowed >= 60
         ? `${Math.floor(lunchAllowed/60)}:${String(lunchAllowed%60).padStart(2,'0')} h`
         : `${lunchAllowed} min`;
+      const _wsDayNames = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+      const _todayName  = _wsDayNames[new Date().getDay()];
+      const _wsDays     = (u.workSchedule && u.workSchedule.days) || null;
+      const _libreHoy   = u.active !== false && _wsDays && !_wsDays.includes(_todayName);
+      const libreHoyHtml = _libreHoy ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot);white-space:nowrap">Libre hoy</span>` : '';
       // Wrap avatar con dot de presencia. El avatar va en un slot identificable para
       // poder sustituir las iniciales por la foto de Odoo tras el render (sin tocar el dot).
       const avatarWrapped = `<div class="user-avatar-wrap"><span class="user-avatar-slot" data-odoo-avatar="${u.id}">${avatarHtml(u, 44)}</span><span class="avatar-presence ${presence}" data-presence-dot="${u.id}"></span></div>`;
@@ -16255,6 +16288,7 @@ async function loadUsers() {
           <div class="user-row-tags">
             <span class="user-presence-pill ${presence}" data-presence-user="${u.id}">${cfg.icon} ${cfg.label}</span>
             ${u.categoria?`<span class="user-row-categoria">${esc(u.categoria)}</span>`:''}
+            ${libreHoyHtml}
           </div>
         </div>
         <div class="user-row-controls">
@@ -16454,6 +16488,26 @@ async function deleteRole(roleId) {
   } catch(e) { toast('Error: ' + e.message); }
 }
 
+var _WS_DAYS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+var _WS_DAY_DEFAULT = ['lunes','martes','miercoles','jueves','viernes'];
+function _ufSetDays(days) {
+  document.querySelectorAll('[name="uf-days"]').forEach(function(cb) {
+    var on = days.includes(cb.value);
+    cb.checked = on;
+    cb.closest('.uf-day-pill').classList.toggle('active', on);
+  });
+}
+// Wiring: clicks en las pills togglean estado visual
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.uf-day-pill').forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      var cb = pill.querySelector('input[type=checkbox]');
+      cb.checked = !cb.checked;
+      pill.classList.toggle('active', cb.checked);
+    });
+  });
+});
+
 function openNewUserModal() {
   _editingUser=null;
   document.getElementById('modal-user-title').textContent='Nuevo Usuario';
@@ -16465,6 +16519,8 @@ function openNewUserModal() {
   document.getElementById('uf-pw-wrap').style.display='';
   document.getElementById('uf-lunch-allowed').value='60';
   document.getElementById('uf-schedule-start').value='08:00';
+  document.getElementById('uf-schedule-end').value='17:00';
+  _ufSetDays(_WS_DAY_DEFAULT);
   const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value='';
   const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value='';
   document.getElementById('user-modal-error').classList.remove('show');
@@ -16486,7 +16542,10 @@ function openEditUserModal(uid) {
   const la = u.lunchTimeAllowed || 60;
   const sel = document.getElementById('uf-lunch-allowed');
   sel.value = la;
-  document.getElementById('uf-schedule-start').value = u.scheduleStart || '08:00';
+  var _ws = u.workSchedule || {};
+  document.getElementById('uf-schedule-start').value = _ws.startTime || u.scheduleStart || '08:00';
+  document.getElementById('uf-schedule-end').value   = _ws.endTime   || '17:00';
+  _ufSetDays(_ws.days && _ws.days.length ? _ws.days : _WS_DAY_DEFAULT);
   const catEl=document.getElementById('uf-categoria'); if(catEl) catEl.value = u.categoria || '';
   const odEl=document.getElementById('uf-odooId'); if(odEl) odEl.value = (u.odooId != null ? u.odooId : '');
   document.getElementById('user-modal-error').classList.remove('show');
@@ -16509,10 +16568,13 @@ async function saveUser() {
   if (!name||!email) { showErr(errEl,'Nombre y correo son requeridos'); return; }
   const lunchTimeAllowed = parseInt(document.getElementById('uf-lunch-allowed').value) || 60;
   const scheduleStart    = document.getElementById('uf-schedule-start').value || '08:00';
+  const scheduleEnd      = document.getElementById('uf-schedule-end').value   || '17:00';
+  const wsDays           = [...document.querySelectorAll('[name="uf-days"]:checked')].map(function(cb){ return cb.value; });
+  const workSchedule     = { startTime: scheduleStart, endTime: scheduleEnd, days: wsDays };
   const categoria        = (document.getElementById('uf-categoria')?.value || '').trim() || null;
   const odooIdRaw        = (document.getElementById('uf-odooId')?.value || '').trim();
   const odooId           = odooIdRaw === '' ? null : (parseInt(odooIdRaw, 10) || null);
-  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,categoria,odooId};
+  const body = {name,email,role,active,lunchTimeAllowed,scheduleStart,workSchedule,categoria,odooId};
   if (password) body.password=password;
   try {
     let r;
@@ -27491,6 +27553,9 @@ function empEnrichTaskItems(task, containerSelector) {
 }
 
 function empRenderItemSection(container, item, materiales) {
+  // DESACTIVADO: sección de materiales de empaque oculta hasta próxima iteración
+  if (container) container.innerHTML = '';
+  return;
   var conf = item.empaque_confirmacion || {};
   var isDone = conf.status === 'confirmed' || conf.status === 'partial';
 
