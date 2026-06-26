@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v59';
+const APP_BUILD = 'v60';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1297,7 +1297,8 @@ function buildPhotoArchiveIndex() {
   const meta = {};
   tasks.forEach(t => { meta[t.id] = {
     ref: t.odooRef || '', title: t.title || '', client: t.client || '',
-    manager: t.managerName || '', status: t.status || '', exists: true, items: t.items || []
+    manager: t.managerName || '', status: t.status || '', exists: true, items: t.items || [],
+    seq: t.seq || 0, subIndex: t.subIndex || null, parentId: t.parentId || null
   }; });
   // Títulos de tareas que ya no existen, recuperados del audit log (último conocido)
   let audit = [];
@@ -1346,6 +1347,7 @@ function buildPhotoArchiveIndex() {
     fotos.forEach(x => { tipos[x.type] = (tipos[x.type]||0) + 1; });
     out.push({ taskId, ref, title: mt.title || '(tarea sin título)', client: mt.client,
       manager: mt.manager, status: mt.status, exists: mt.exists,
+      seq: mt.seq || 0, subIndex: mt.subIndex || null, parentId: mt.parentId || null,
       count: fotos.length, tipos,
       lastDate: lastDate ? new Date(lastDate).toISOString() : null, fotos });
   });

@@ -6852,6 +6852,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     #tab-archivo .arch-thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}
     #tab-archivo .arch-sub-group{margin-top:10px;padding-top:8px;border-top:1px solid var(--border)}
     #tab-archivo .arch-sub-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px}
+    #tab-archivo .arch-seq-badge{display:inline-block;font-size:10px;font-weight:700;font-family:monospace;color:var(--accent);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-right:4px;vertical-align:1px}
     #tab-archivo .arch-thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid var(--border);background:var(--surface-2)}
     #tab-archivo .arch-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .15s}
     #tab-archivo .arch-thumb:hover img{transform:scale(1.06)}
@@ -7484,7 +7485,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v59';
+var APP_BUILD = 'v60';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9976,8 +9977,9 @@ function renderPhotoArchive() {
   // Índice de búsqueda por grupo: ref + título + cliente + encargado + status
   // + tipos de foto + nombres de productos en fotos
   function grupoSearchStr(g) {
+    var seq = (g.seq && g.seq > 0) ? '#' + String(g.seq).padStart(4,'0') + (g.subIndex ? '·'+g.subIndex : '') : '';
     return [
-      g.ref || '', g.title || '', g.client || '', g.manager || '', g.status || '',
+      g.ref || '', g.title || '', g.client || '', g.manager || '', g.status || '', seq,
       Object.keys(g.tipos || {}).join(' '),
       (g.fotos || []).map(function(f){ return f.productName || ''; }).filter(Boolean).join(' ')
     ].join(' ').toLowerCase();
@@ -10011,6 +10013,12 @@ function renderPhotoArchive() {
     });
   }
 
+  function archSeqLabel(g) {
+    if (!g.seq || g.seq <= 0) return '';
+    var base = '#' + String(g.seq).padStart(4, '0');
+    return g.subIndex ? base + '·' + g.subIndex : base;
+  }
+
   function thumbHtml(f, ref, title) {
     var cap = (ref||title||'') + ' — ' + (ARCH_TYPE_LABEL[f.type]||f.type) + (f.productName?' · '+f.productName:'');
     var tag = ARCH_TYPE_LABEL[f.type]||f.type;
@@ -10022,13 +10030,18 @@ function renderPhotoArchive() {
     var main = grps[0];
     var subs = grps.slice(1);
     var totalCount = grps.reduce(function(s, g){ return s + g.count; }, 0);
-    var head = (main.ref ? '<b>'+esc(main.ref)+'</b> · ' : '') + esc(main.title||'(sin título)');
+    var seqBadge = archSeqLabel(main);
+    var head = (seqBadge ? '<span class="arch-seq-badge">'+esc(seqBadge)+'</span> ' : '')
+      + (main.ref ? '<b>'+esc(main.ref)+'</b> · ' : '') + esc(main.title||'(sin título)');
     var sub = [main.client?esc(main.client):'', main.exists?('Estado: '+esc(main.status||'—')):'⚠ tarea ya no existe', main.lastDate?fmtD(main.lastDate):''].filter(Boolean).join(' &middot; ');
     var mainThumbs = (main.fotos||[]).map(function(f){ return thumbHtml(f, main.ref, main.title); }).join('');
     var subHtml = subs.map(function(sg){
+      var sgSeq = archSeqLabel(sg);
       var st = (sg.fotos||[]).map(function(f){ return thumbHtml(f, sg.ref, sg.title); }).join('');
       return '<div id="arch-g-'+sg.taskId+'" class="arch-sub-group">'
-        + '<div class="arch-sub-label">'+esc(sg.title||sg.taskId)+'</div>'
+        + '<div class="arch-sub-label">'
+        + (sgSeq ? '<span class="arch-seq-badge">'+esc(sgSeq)+'</span> ' : '')
+        + esc(sg.title||sg.taskId)+'</div>'
         + (st ? '<div class="arch-thumbs">'+st+'</div>' : '')
         + '</div>';
     }).join('');
