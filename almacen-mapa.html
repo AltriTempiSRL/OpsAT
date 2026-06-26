@@ -18,6 +18,12 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .mock-badge{background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;color:#856404}
 #btn-refresh{background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600}
 .layout{flex:1;display:grid;grid-template-columns:190px 1fr 290px;overflow:hidden;min-height:0}
+.layout.no-left{grid-template-columns:0 1fr 290px}
+.layout.no-right{grid-template-columns:190px 1fr 0}
+.layout.no-left.no-right{grid-template-columns:0 1fr 0}
+.side-left,.side-right{min-width:0}
+.tgl-btn{border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:13px;background:var(--surface);cursor:pointer;line-height:1.2}
+.tgl-btn.off{opacity:.4}
 
 /* LEFT */
 .side-left{background:var(--surface);border-right:1px solid var(--border);padding:10px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
@@ -163,6 +169,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
   <!-- CENTER -->
   <div class="map-center">
     <div class="map-toolbar">
+      <button class="tgl-btn" id="tgl-left" onclick="togglePanel('left')" title="Mostrar/ocultar panel de dimensiones">⚙</button>
       <div class="view-toggle">
         <button class="view-btn" id="btn-view-plant" onclick="setView('plant')">🗺 Planta</button>
         <button class="view-btn" id="btn-view-rack" onclick="setView('rack')">📐 Rack</button>
@@ -178,6 +185,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
         <option value="5">Nivel 5</option><option value="6">Nivel 6</option>
         <option value="7">Nivel 7</option>
       </select>
+      <button class="tgl-btn" id="tgl-right" onclick="togglePanel('right')" title="Mostrar/ocultar detalle de ubicación" style="margin-left:auto">📋 Detalle</button>
     </div>
     <div id="map-container">
       <canvas id="canvas-3d"></canvas>
@@ -704,6 +712,16 @@ function tiltBy(delta){ V.elevation=Math.max(0.08,Math.min(1.45,V.elevation+delt
 function zoom3D(f){ V.zoom=Math.max(0.25,Math.min(5,V.zoom*f)); schedRender(); }
 function resetView(){ V.azimuth=Math.PI*0.28; V.elevation=0.55; V.panX=0; V.panY=0; V.zoom=1.0; schedRender(); }
 
+// Retraer/expandir paneles laterales para ver el mapa completo
+function togglePanel(side){
+  const L=document.querySelector('.layout');
+  const cls=side==='left'?'no-left':'no-right';
+  L.classList.toggle(cls);
+  const btn=document.getElementById(side==='left'?'tgl-left':'tgl-right');
+  if(btn) btn.classList.toggle('off', L.classList.contains(cls));
+  setTimeout(()=>{ if(_currentView==='3d') resizeCanvas(); else renderMap(); }, 40);
+}
+
 function resizeCanvas(){
   const canvas=document.getElementById('canvas-3d');
   const cont=document.getElementById('map-container');
@@ -872,6 +890,9 @@ function selectBin(code){
   showDetail({code,path:bin.completeName,tot:bin.items.length,pct:u.pct,ok:u.ok,vU:u.volUsed,bV:u.vol,items:bin.items.map(it=>({...it,slot:code}))});
 }
 function showDetail({code,path,tot,pct,ok,vU,bV,items}){
+  // Si el panel de detalle está retraído, abrirlo automáticamente al consultar un bin
+  const _L=document.querySelector('.layout');
+  if(_L.classList.contains('no-right')){ _L.classList.remove('no-right'); const _b=document.getElementById('tgl-right'); if(_b)_b.classList.remove('off'); setTimeout(()=>{ if(_currentView==='3d') resizeCanvas(); },40); }
   document.getElementById('detail-placeholder').style.display='none';
   const ps=tot===0?'0%':(!ok?'N/D':Math.round(pct)+'%');
   const fc=tot===0?'#4caf50':(!ok?'#1976d2':(pct<50?'#f9a825':(pct<80?'#ef6c00':'#c62828')));
