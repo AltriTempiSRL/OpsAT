@@ -6527,13 +6527,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
                 <th>Vehículo</th>
                 <th>Conductor</th>
                 <th>KM</th>
+                <th>Combustible</th>
                 <th>Apto</th>
                 <th>Observaciones</th>
                 <th id="veh-col-acciones"></th>
               </tr>
             </thead>
             <tbody id="veh-insp-tbody">
-              <tr><td colspan="7" class="veh-empty">Cargando…</td></tr>
+              <tr><td colspan="8" class="veh-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -7507,7 +7508,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v68';
+var APP_BUILD = 'v69';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -25979,6 +25980,11 @@ function vehResetForm() {
   document.getElementById('vf-firma').value = '';
   document.getElementById('vf-apto').value = '';
   document.querySelectorAll('#vf-apto-btns .veh-apto-btn').forEach((b) => { b.classList.remove('active-si','active-no'); });
+  // Reset medidor de combustible
+  document.getElementById('vf-combustible').value = '';
+  document.getElementById('veh-gauge-container').innerHTML = '';
+  document.getElementById('veh-fuel-buttons-container').innerHTML = '';
+  var _fst = document.getElementById('veh-fuel-status'); if (_fst) _fst.textContent = 'Selecciona un vehículo primero';
   // Reset check rows
   document.querySelectorAll('.veh-check-row').forEach((row) => {
     row.querySelectorAll('.veh-yn-btn').forEach((b) => { b.classList.remove('active-si','active-no'); });
@@ -26026,6 +26032,7 @@ async function vehSubmit() {
     km:                    Number(document.getElementById('vf-km').value) || 0,
     items:                 items,
     apto:                  document.getElementById('vf-apto').value || null,
+    combustible:           document.getElementById('vf-combustible').value !== '' ? Number(document.getElementById('vf-combustible').value) : null,
     observacionesGenerales:document.getElementById('vf-observaciones').value.trim(),
     firmaConductor:        document.getElementById('vf-firma').value.trim(),
     fotos_condicion:       _vehFotos
@@ -26087,6 +26094,9 @@ function vehLoadList() {
         + (i.placa ? '<br><span style="font-size:11px;color:var(--text-muted)">'+escH(i.placa)+'</span>' : '') + '</td>'
         + '<td>' + escH(i.conductor||'—') + '</td>'
         + '<td>' + (i.km ? i.km.toLocaleString() + ' km' : '—') + '</td>'
+        + '<td>' + (i.combustible!=null
+            ? '<span style="display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;background:'+(i.combustible<=25?'var(--red-bg)':i.combustible<=50?'var(--amber-bg)':'var(--green-bg)')+';color:'+(i.combustible<=25?'var(--red-text)':i.combustible<=50?'var(--amber-text)':'var(--green-text)')+'">⛽ '+i.combustible+'%</span>'
+            : '<span style="color:var(--text-muted)">—</span>') + '</td>'
         + '<td><span class="veh-apto-badge '+aptoClass+'">'+aptoLabel+'</span></td>'
         + '<td>' + (i.observacionesGenerales ? '<span class="veh-obs">'+escH(i.observacionesGenerales)+'</span>' : '<span style="color:var(--text-muted)">—</span>') + '</td>'
         + accionCell
@@ -26094,7 +26104,7 @@ function vehLoadList() {
     }).join('');
   })
   .catch(function() {
-    tbody.innerHTML = '<tr><td colspan="7" class="veh-empty">Error al cargar inspecciones.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="veh-empty">Error al cargar inspecciones.</td></tr>';
   });
 }
 
@@ -26149,7 +26159,7 @@ function vehExportCSV() {
   .then(function(list) {
     if (!list.length) { _iosAlert('No hay inspecciones para exportar.'); return; }
     // Construir cabeceras: campos fijos + todas las preguntas del checklist
-    var fixedHeaders = ['ID','Fecha','Hora','Vehículo','Placa','Conductor','KM','Apto','Observaciones Generales','Firma Conductor','Registrado'];
+    var fixedHeaders = ['ID','Fecha','Hora','Vehículo','Placa','Conductor','KM','Combustible (%)','Apto','Observaciones Generales','Firma Conductor','Registrado'];
     // Generar claves en el mismo orden que VEH_SECTIONS
     var itemKeys = [], itemLabels = [];
     VEH_SECTIONS.forEach((sec) => {
@@ -26176,7 +26186,7 @@ function vehExportCSV() {
     });
     var rows = list.map((i) => {
       var fixed = [i.id, i.fecha, i.hora||'', i.vehiculo, i.placa||'', i.conductor||'',
-                   i.km||0, i.apto||'', (i.observacionesGenerales||'').replace(/,/g,';'),
+                   i.km||0, (i.combustible!=null?i.combustible:''), i.apto||'', (i.observacionesGenerales||'').replace(/,/g,';'),
                    (i.firmaConductor||'').replace(/,/g,';'), i.creadoEn||''];
       var itemCols = [];
       VEH_SECTIONS.forEach((sec) => {
