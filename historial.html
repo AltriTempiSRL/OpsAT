@@ -7484,7 +7484,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v57';
+var APP_BUILD = 'v58';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9968,14 +9968,32 @@ function renderPhotoArchive() {
   if (!grupos.length) { host.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Sin resultados</div>'; return; }
   const fmtD = s => { try { return new Date(s).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}); } catch(e){ return ''; } };
 
-  // Mapa rápido taskId→grupo y detección de subtareas
-  const byId = {};
-  grupos.forEach(function(g){ byId[g.taskId] = g; });
-  const childIds = new Set();
-  if (Array.isArray(_tasks)) {
-    grupos.forEach(function(g){
-      var t = _tasks.find(function(x){ return x.id === g.taskId; });
-      if (t && t.parentId && byId[t.parentId]) childIds.add(g.taskId);
+  // Agrupar por ref de orden (S07639, PTN/…).
+  // Grupos sin ref conservan clave propia para no mezclarse entre sí.
+  const byRef = {};
+  grupos.forEach(function(g) {
+    var key = g.ref ? g.ref : ('__' + g.taskId);
+    if (!byRef[key]) byRef[key] = [];
+    byRef[key].push(g);
+  });
+
+  // Ordenar claves por fecha más reciente del grupo
+  var refKeys = Object.keys(byRef).sort(function(a, b) {
+    var la = byRef[a].reduce(function(mx, g){ return g.lastDate > mx ? g.lastDate : mx; }, '');
+    var lb = byRef[b].reduce(function(mx, g){ return g.lastDate > mx ? g.lastDate : mx; }, '');
+    return lb.localeCompare(la);
+  });
+
+  // Dentro de cada ref: poner primero el grupo cuyo taskId sea padre en _tasks
+  var taskParentIds = new Set();
+  if (Array.isArray(_tasks)) _tasks.filter(function(t){ return t.parentId; }).forEach(function(t){ taskParentIds.add(t.parentId); });
+
+  function sortRefGrupos(grps) {
+    return grps.slice().sort(function(a, b) {
+      var ap = taskParentIds.has(a.taskId) ? 0 : 1;
+      var bp = taskParentIds.has(b.taskId) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return (b.count - a.count); // más fotos primero como desempate
     });
   }
 
@@ -9985,25 +10003,22 @@ function renderPhotoArchive() {
     return '<div class="arch-thumb" onclick="openPhotoLightbox(this)" data-url="'+f.url+'" data-cap="'+esc(cap)+'" title="'+esc(cap)+'"><img loading="lazy" src="'+f.url+'" alt=""><span class="arch-thumb-tag">'+esc(tag)+'</span></div>';
   }
 
-  host.innerHTML = grupos.filter(function(g){ return !childIds.has(g.taskId); }).map(function(g) {
-    // Subtareas de este grupo que también tienen fotos
-    var subGrupos = [];
-    if (Array.isArray(_tasks)) {
-      _tasks.filter(function(t){ return t.parentId === g.taskId && byId[t.id]; })
-            .forEach(function(t){ subGrupos.push(byId[t.id]); });
-    }
-    var totalCount = g.count + subGrupos.reduce(function(s, sg){ return s + sg.count; }, 0);
-    var head = (g.ref ? '<b>'+esc(g.ref)+'</b> · ' : '') + esc(g.title||'(sin título)');
-    var sub = [g.client?esc(g.client):'', g.exists?('Estado: '+esc(g.status||'—')):'⚠ tarea ya no existe', g.lastDate?fmtD(g.lastDate):''].filter(Boolean).join(' &middot; ');
-    var mainThumbs = (g.fotos||[]).map(function(f){ return thumbHtml(f, g.ref, g.title); }).join('');
-    var subHtml = subGrupos.map(function(sg){
+  host.innerHTML = refKeys.map(function(key) {
+    var grps = sortRefGrupos(byRef[key]);
+    var main = grps[0];
+    var subs = grps.slice(1);
+    var totalCount = grps.reduce(function(s, g){ return s + g.count; }, 0);
+    var head = (main.ref ? '<b>'+esc(main.ref)+'</b> · ' : '') + esc(main.title||'(sin título)');
+    var sub = [main.client?esc(main.client):'', main.exists?('Estado: '+esc(main.status||'—')):'⚠ tarea ya no existe', main.lastDate?fmtD(main.lastDate):''].filter(Boolean).join(' &middot; ');
+    var mainThumbs = (main.fotos||[]).map(function(f){ return thumbHtml(f, main.ref, main.title); }).join('');
+    var subHtml = subs.map(function(sg){
       var st = (sg.fotos||[]).map(function(f){ return thumbHtml(f, sg.ref, sg.title); }).join('');
       return '<div id="arch-g-'+sg.taskId+'" class="arch-sub-group">'
-        + '<div class="arch-sub-label">'+esc(sg.title||sg.ref||sg.taskId)+'</div>'
+        + '<div class="arch-sub-label">'+esc(sg.title||sg.taskId)+'</div>'
         + (st ? '<div class="arch-thumbs">'+st+'</div>' : '')
         + '</div>';
     }).join('');
-    return '<div class="arch-group" id="arch-g-'+g.taskId+'">'
+    return '<div class="arch-group" id="arch-g-'+main.taskId+'">'
       + '<div class="arch-group-hdr"><div style="min-width:0"><div class="arch-group-title">'+head+'</div>'
       + '<div class="arch-group-sub">'+sub+'</div></div>'
       + '<span class="arch-group-count">'+totalCount+' foto'+(totalCount>1?'s':'')+'</span></div>'
