@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v60';
+const APP_BUILD = 'v61';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1328,7 +1328,11 @@ function buildPhotoArchiveIndex() {
     const mt = meta[taskId] || { ref:'', title: auditTitle[taskId] || '', client:'', manager:'', status:'', exists:false, items:[] };
     const ref = mt.ref || parseRef(mt.title);
     const pidName = {};
-    (mt.items || []).forEach(it => { const p = String(it.odoo_product_id||''); if (p && it.product_name) pidName[p] = it.product_name; });
+    const barcodes = [];
+    (mt.items || []).forEach(it => {
+      const p = String(it.odoo_product_id||''); if (p && it.product_name) pidName[p] = it.product_name;
+      if (it.barcode) barcodes.push(String(it.barcode));
+    });
     let lastDate = 0;
     const fotos = groups[taskId].map(f => {
       const rest = f.slice(taskId.length + 1);
@@ -1348,7 +1352,7 @@ function buildPhotoArchiveIndex() {
     out.push({ taskId, ref, title: mt.title || '(tarea sin título)', client: mt.client,
       manager: mt.manager, status: mt.status, exists: mt.exists,
       seq: mt.seq || 0, subIndex: mt.subIndex || null, parentId: mt.parentId || null,
-      count: fotos.length, tipos,
+      barcodes, count: fotos.length, tipos,
       lastDate: lastDate ? new Date(lastDate).toISOString() : null, fotos });
   });
   out.sort((a,b) => String(b.lastDate||'').localeCompare(String(a.lastDate||'')));
