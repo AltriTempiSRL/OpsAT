@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v69';
+const APP_BUILD = 'v70';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7727,7 +7727,11 @@ const server = http.createServer(async (req, res) => {
         // ── Cadena: dependencia del paso anterior al INICIAR una subtarea ──
         if (d.status==='in_progress' && tasks[idx].parentId && tasks[idx].dependsOnPrev) {
           const sibs = tasks.filter(x => x.parentId===tasks[idx].parentId);
-          const prev = sibs.find(x => (x.subIndex||0) === ((tasks[idx].subIndex||0) - 1));
+          // Predecesor = hermano ACTIVO más cercano por subIndex (salta los 'cancelled',
+          // que no deben bloquear el inicio del siguiente paso). Cubre varios cancelados seguidos.
+          const prev = sibs
+            .filter(x => x.status!=='cancelled' && (x.subIndex||0) < (tasks[idx].subIndex||0))
+            .sort((a,b) => (b.subIndex||0) - (a.subIndex||0))[0];
           if (prev && !['completed','validated'].includes(prev.status)) {
             res.writeHead(409,{'Content-Type':'application/json'});
             res.end(JSON.stringify({ok:false,error:`No puedes iniciar este paso hasta completar el anterior: "${prev.title}"`}));
@@ -7737,7 +7741,17 @@ const server = http.createServer(async (req, res) => {
         // ── Cierre de la madre bloqueado si quedan subtareas abiertas ──
         if ((d.status==='completed'||d.status==='validated') && !tasks[idx].parentId) {
           const children = tasks.filter(x => x.parentId===tasks[idx].id);
-          const abiertas = children.filter(c => !['completed','validated','cancelled'].includes(c.status));
+          // Handoff secuencial (Pit): en una tarea LIBRE de retiro, la subtarea de despacho
+          // es un eslabón downstream que corre DESPUÉS del handoff físico. "Terminé mi parte"
+          // cierra la madre al entregar el material al despachador, sin esperar la entrega al
+          // cliente. Por eso un despacho abierto NO bloquea cerrar una madre libre.
+          // (No aplica al flujo Odoo empaque→despacho, donde la madre es type 'packaging'.)
+          const isFreeParent = tasks[idx].type==='general' || tasks[idx].taskConcept==='free';
+          const abiertas = children.filter(c => {
+            if (['completed','validated','cancelled'].includes(c.status)) return false;
+            if (isFreeParent && c.type==='dispatch_order') return false; // handoff downstream
+            return true;
+          });
           if (abiertas.length>0) {
             res.writeHead(409,{'Content-Type':'application/json'});
             res.end(JSON.stringify({ok:false,error:`Faltan ${abiertas.length} subtarea(s) por completar en la cadena antes de cerrar.`}));
