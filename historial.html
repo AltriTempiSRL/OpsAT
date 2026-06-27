@@ -5458,7 +5458,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <div class="mv-wrap" id="sa-picks-wrap" style="display:none">
         <table class="desp-table">
           <thead><tr>
-            <th>PICK</th><th>Fecha PICK</th><th>OUT</th><th>Estado OUT</th>
+            <th>PICK</th><th>Fecha PICK</th><th>Hizo PICK</th><th>OUT</th><th>Estado OUT</th><th>Resp. OUT</th>
             <th>Orden de Venta</th><th>Cliente</th><th>Vendedor</th><th style="white-space:nowrap">Fecha comprometida</th>
           </tr></thead>
           <tbody id="sa-picks-tbody"></tbody>
@@ -7554,7 +7554,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v71';
+var APP_BUILD = 'v72';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -22003,8 +22003,10 @@ function _sinAdjRenderPicksTable(rows) {
     tr.innerHTML = ''
       + '<td><span style="font-family:monospace;font-size:11px;color:var(--text-primary)">'+esc(r.pickName)+'</span></td>'
       + '<td style="color:var(--text-secondary);white-space:nowrap">'+esc(r.pickDate)+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary)">'+esc(r.pickUser)+'</td>'
       + '<td>'+outCell+'</td>'
       + '<td>'+_saPicksStateBadge(r.outState)+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary)">'+esc(r.outUser)+'</td>'
       + '<td>'+soCell+'</td>'
       + '<td style="font-size:11px;color:var(--text-primary)">'+esc(r.cliente)+'</td>'
       + '<td style="font-size:11px;color:var(--text-secondary)">'+esc(r.vendedor)+'</td>'
@@ -22043,7 +22045,7 @@ async function cargarPicksSinOut() {
     if (from) pickDomain.push(['date_done','>=',from+' 00:00:00']);
     if (to)   pickDomain.push(['date_done','<=',to+' 23:59:59']);
     var picks = await odooSearch('stock.picking', pickDomain,
-      ['name','date_done','sale_id','partner_id'], 500);
+      ['name','date_done','sale_id','partner_id','write_uid','user_id'], 500);
 
     statusEl.textContent = '';
     if (!picks || !picks.length) {
@@ -22061,7 +22063,7 @@ async function cargarPicksSinOut() {
     // 3. OUTs pendientes para esas órdenes (assigned=listo, waiting/confirmed=bloqueado)
     var outs = await odooSearch('stock.picking',
       [['picking_type_id','=',2],['state','in',['assigned','confirmed','waiting']],['sale_id','in',saleIds]],
-      ['name','state','scheduled_date','partner_id','sale_id'], 500);
+      ['name','state','scheduled_date','partner_id','sale_id','write_uid','user_id'], 500);
 
     // 4. Vendedor desde sale.order
     var soIds = [...new Set(outs.filter(function(o){ return o.sale_id; }).map(function(o){ return o.sale_id[0]; }))];
@@ -22088,11 +22090,21 @@ async function cargarPicksSinOut() {
       var pks  = (pickBySale[sid] || []).sort(function(a,b){ return (b.date_done||'').localeCompare(a.date_done||''); });
       var pk   = pks[0];
       var so   = soById[sid];
+      // Usuario del PICK: write_uid preferido sobre user_id (odoobot excluido)
+      var pkWu = pk && pk.write_uid, pkUu = pk && pk.user_id;
+      var pickUser = (pkWu&&pkWu[1]&&pkWu[1].toLowerCase()!=='odoobot') ? pkWu[1]
+        : (pkUu&&pkUu[1]&&pkUu[1].toLowerCase()!=='odoobot') ? pkUu[1] : '—';
+      // Responsable OUT: write_uid preferido
+      var outWu = out.write_uid, outUu = out.user_id;
+      var outUser = (outWu&&outWu[1]&&outWu[1].toLowerCase()!=='odoobot') ? outWu[1]
+        : (outUu&&outUu[1]&&outUu[1].toLowerCase()!=='odoobot') ? outUu[1] : '—';
       rows.push({
         pickName : pk ? pk.name : '—',
         pickDate : pk ? fmtOdooDate(pk.date_done) : '—',
+        pickUser : pickUser,
         outName  : out.name,
         outState : out.state,
+        outUser  : outUser,
         soName   : out.sale_id[1] || '',
         cliente  : out.partner_id ? out.partner_id[1] : '—',
         vendedor : so && so.user_id ? so.user_id[1] : '—',
