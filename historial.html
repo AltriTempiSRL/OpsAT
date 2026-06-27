@@ -1554,6 +1554,10 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .rpt-filter-bar input[type=date]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(27,59,111,.1)}
 .rpt-filter-bar .btn-consultar{padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-weight:700;font-size:11px;cursor:pointer;letter-spacing:.2px;transition:background .15s;font-family:inherit}
 .rpt-filter-bar .btn-consultar:hover{background:var(--accent-hover)}
+.sa-pf-btn{padding:4px 12px;border:1.5px solid var(--border);border-radius:20px;background:transparent;color:var(--text-3);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+.sa-pf-btn.sa-pf-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sa-picks-badge-listo{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:var(--green-bg);color:var(--green-text)}
+.sa-picks-badge-espera{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:var(--amber-bg);color:var(--amber-text)}
 .rpt-filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
 .rpt-stat-bar{display:flex;gap:24px;padding:10px 16px;border-bottom:1px solid var(--border-light)}
 .rpt-stat{display:flex;flex-direction:column;gap:2px}
@@ -5379,23 +5383,52 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </div>
     </div><!-- /section-almacen-mapa -->
 
-    <!-- ── DESPACHOS SIN COMPROBANTE ────────────────────────── -->
+    <!-- ── DESPACHOS SIN COMPROBANTE / PICKS SIN OUT ─────────── -->
     <div id="section-sin-adjuntos" class="page-section" style="display:none">
 
     <div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">
+
+      <!-- Toggle de modo -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface-2)">
+        <button id="sa-btn-outs" onclick="sinAdjSetMode('outs')"
+          style="flex:1;padding:9px 12px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;border-radius:0;transition:background .15s">
+          <i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>OUTs sin comprobante
+        </button>
+        <button id="sa-btn-picks" onclick="sinAdjSetMode('picks')"
+          style="flex:1;padding:9px 12px;border:none;background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;border-radius:0;transition:background .15s">
+          <i data-lucide="package-check" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>PICKs sin despacho
+        </button>
+      </div>
+
+      <!-- Filtros (compartidos) -->
       <div class="rpt-filter-bar">
-        <span style="font-size:12px;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:5px"><i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor"></i>Transferencias OUT sin adjunto</span>
+        <span id="sa-mode-label" style="font-size:12px;font-weight:700;color:var(--text-primary);display:inline-flex;align-items:center;gap:5px;white-space:nowrap">
+          <i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor"></i>Transferencias OUT sin adjunto
+        </span>
         <div class="rpt-filter-sep"></div>
-        <label>Desde</label>
+        <label id="sa-date-label">Desde</label>
         <input type="date" id="desp-from" autocomplete="off">
         <label>Hasta</label>
         <input type="date" id="desp-to" autocomplete="off">
-        <button class="btn-consultar" onclick="cargarSinAdjuntos()">Consultar</button>
+        <button class="btn-consultar" onclick="sinAdjConsultar()">Consultar</button>
         <span id="sin-adj-status" style="font-size:11px;color:var(--text-muted)"></span>
       </div>
+
+      <!-- Filtro estado picks (solo visible en modo picks) -->
+      <div id="sa-picks-filter" style="display:none;padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface-alt,var(--surface));align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-3);font-weight:600">Estado OUT:</span>
+        <button id="sa-pf-all"    class="sa-pf-btn sa-pf-active" onclick="sinAdjPicksFilter('all')">Todos</button>
+        <button id="sa-pf-listo"  class="sa-pf-btn"              onclick="sinAdjPicksFilter('listo')">
+          <i data-lucide="check-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Listos
+        </button>
+        <button id="sa-pf-espera" class="sa-pf-btn"              onclick="sinAdjPicksFilter('espera')">
+          <i data-lucide="clock" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>En espera
+        </button>
+      </div>
+
       <div class="rpt-stat-bar" id="sin-adj-stats" style="display:none"></div>
 
-      <!-- Panel de notificaciones por usuario (solo admin/manager) -->
+      <!-- Panel de notificaciones (solo modo outs, admin/manager) -->
       <div id="sin-adj-notif-panel" style="display:none;border-top:1px solid var(--border)">
         <div class="rpt-filter-bar" style="background:var(--surface-alt,var(--surface));padding:8px 14px;gap:8px">
           <i data-lucide="bell" style="width:13px;height:13px;stroke:var(--accent);flex-shrink:0"></i>
@@ -5410,6 +5443,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
         <div id="sin-adj-user-list"></div>
       </div>
 
+      <!-- Tabla: OUTs sin comprobante -->
       <div class="mv-wrap" id="sin-adj-wrap" style="display:none">
         <table class="desp-table">
           <thead><tr>
@@ -5419,6 +5453,18 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <tbody id="sin-adj-tbody"></tbody>
         </table>
       </div>
+
+      <!-- Tabla: PICKs sin despacho -->
+      <div class="mv-wrap" id="sa-picks-wrap" style="display:none">
+        <table class="desp-table">
+          <thead><tr>
+            <th>PICK</th><th>Fecha PICK</th><th>OUT</th><th>Estado OUT</th>
+            <th>Orden de Venta</th><th>Cliente</th><th>Vendedor</th><th style="white-space:nowrap">Fecha comprometida</th>
+          </tr></thead>
+          <tbody id="sa-picks-tbody"></tbody>
+        </table>
+      </div>
+
       <div id="sin-adj-empty" class="desp-empty">Selecciona un rango de fechas y presiona <strong>Consultar</strong></div>
     </div>
     </div><!-- /section-sin-adjuntos -->
@@ -7508,7 +7554,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v70';
+var APP_BUILD = 'v71';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -21873,6 +21919,218 @@ function initDespFiltro(){
   }
   document.getElementById('desp-from').value=from.toISOString().slice(0,10);
   document.getElementById('desp-to').value=today.toISOString().slice(0,10);
+}
+
+// ── Sin Adjuntos / Picks sin despacho — modo toggle ──────────────
+var _saMode = 'outs';
+var _saPicksData = null; // cache de datos picks
+var _saPicksFilter = 'all';
+
+function sinAdjSetMode(mode) {
+  _saMode = mode;
+  // Botones toggle
+  var btnOuts  = document.getElementById('sa-btn-outs');
+  var btnPicks = document.getElementById('sa-btn-picks');
+  if (btnOuts)  { btnOuts.style.background  = mode==='outs'  ? 'var(--accent)' : 'var(--surface-2)'; btnOuts.style.color  = mode==='outs'  ? '#fff' : 'var(--text-2)'; }
+  if (btnPicks) { btnPicks.style.background = mode==='picks' ? 'var(--accent)' : 'var(--surface-2)'; btnPicks.style.color = mode==='picks' ? '#fff' : 'var(--text-2)'; }
+  // Label y fecha label
+  var lbl = document.getElementById('sa-mode-label');
+  var dlbl = document.getElementById('sa-date-label');
+  if (lbl)  lbl.innerHTML = mode==='outs'
+    ? '<i data-lucide="paperclip" style="width:13px;height:13px;stroke:currentColor"></i>Transferencias OUT sin adjunto'
+    : '<i data-lucide="package-check" style="width:13px;height:13px;stroke:currentColor"></i>PICKs completados sin despacho';
+  if (dlbl) dlbl.textContent = mode==='outs' ? 'Desde' : 'PICK desde';
+  if (window.lucide && lbl) lucide.createIcons({el: lbl});
+  // Filtro estado picks
+  var pf = document.getElementById('sa-picks-filter');
+  if (pf) pf.style.display = mode==='picks' ? 'flex' : 'none';
+  // Panel notif solo en outs
+  var np = document.getElementById('sin-adj-notif-panel');
+  if (np && mode==='picks') np.style.display = 'none';
+  // Limpiar resultados
+  var empty = document.getElementById('sin-adj-empty');
+  document.getElementById('sin-adj-wrap').style.display = 'none';
+  document.getElementById('sa-picks-wrap').style.display = 'none';
+  document.getElementById('sin-adj-stats').style.display = 'none';
+  if (empty) { empty.innerHTML = 'Selecciona un rango de fechas y presiona <strong>Consultar</strong>'; empty.style.display = ''; }
+}
+
+function sinAdjConsultar() {
+  if (_saMode === 'picks') cargarPicksSinOut();
+  else cargarSinAdjuntos();
+}
+
+function sinAdjPicksFilter(f) {
+  _saPicksFilter = f;
+  ['all','listo','espera'].forEach(function(k) {
+    var b = document.getElementById('sa-pf-'+k);
+    if (b) b.className = 'sa-pf-btn' + (k===f ? ' sa-pf-active' : '');
+  });
+  if (_saPicksData) _sinAdjRenderPicksTable(_saPicksData);
+}
+
+function _saPicksStateBadge(state) {
+  if (state==='assigned') return '<span class="sa-picks-badge-listo">✓ Listo</span>';
+  if (state==='waiting')  return '<span class="sa-picks-badge-espera">⏳ En espera</span>';
+  return '<span class="sa-picks-badge-espera">'+esc(state)+'</span>';
+}
+
+function _sinAdjRenderPicksTable(rows) {
+  var f = _saPicksFilter;
+  var filtered = rows.filter(function(r) {
+    if (f==='listo')  return r.outState==='assigned';
+    if (f==='espera') return r.outState==='waiting' || r.outState==='confirmed';
+    return true;
+  });
+  var tbody = document.getElementById('sa-picks-tbody');
+  var wrap  = document.getElementById('sa-picks-wrap');
+  var empty = document.getElementById('sin-adj-empty');
+  if (!filtered.length) {
+    wrap.style.display = 'none';
+    empty.textContent = 'No hay resultados para el filtro seleccionado.';
+    empty.style.display = '';
+    return;
+  }
+  tbody.innerHTML = '';
+  filtered.forEach(function(r) {
+    var tr = document.createElement('tr');
+    var soCell = r.soName
+      ? '<a class="desp-ov" href="#" onclick="setSearchMode(\'orden\');buscarDirecta(\''+esc(r.soName)+'\');return false;">'+esc(r.soName)+'</a>'
+      : '<span style="color:var(--text-muted)">—</span>';
+    var outCell = r.outName
+      ? '<a class="desp-ref" href="#" onclick="setSearchMode(\'transferencia\');buscarTransferencia(\''+esc(r.outName)+'\');return false;">'+esc(r.outName)+'</a>'
+      : '<span style="color:var(--text-muted)">—</span>';
+    tr.innerHTML = ''
+      + '<td><span style="font-family:monospace;font-size:11px;color:var(--text-primary)">'+esc(r.pickName)+'</span></td>'
+      + '<td style="color:var(--text-secondary);white-space:nowrap">'+esc(r.pickDate)+'</td>'
+      + '<td>'+outCell+'</td>'
+      + '<td>'+_saPicksStateBadge(r.outState)+'</td>'
+      + '<td>'+soCell+'</td>'
+      + '<td style="font-size:11px;color:var(--text-primary)">'+esc(r.cliente)+'</td>'
+      + '<td style="font-size:11px;color:var(--text-secondary)">'+esc(r.vendedor)+'</td>'
+      + '<td style="font-size:11px;color:var(--text-muted);white-space:nowrap">'+esc(r.scheduled)+'</td>';
+    tbody.appendChild(tr);
+  });
+  wrap.style.display = '';
+  empty.style.display = 'none';
+  if (window.lucide) lucide.createIcons({el: wrap});
+}
+
+async function cargarPicksSinOut() {
+  _saPicksData = null;
+  var statusEl = document.getElementById('sin-adj-status');
+  var emptyEl  = document.getElementById('sin-adj-empty');
+  var statsEl  = document.getElementById('sin-adj-stats');
+  var wrapEl   = document.getElementById('sa-picks-wrap');
+  document.getElementById('sin-adj-wrap').style.display = 'none';
+  document.getElementById('sin-adj-notif-panel').style.display = 'none';
+
+  if (!ODOO_LIVE) {
+    emptyEl.textContent = 'Esta sección requiere conexión activa con Odoo ERP.';
+    emptyEl.style.display = ''; wrapEl.style.display = 'none'; statsEl.style.display = 'none';
+    return;
+  }
+
+  var from = document.getElementById('desp-from').value;
+  var to   = document.getElementById('desp-to').value;
+  statusEl.textContent = 'Consultando PICKs…';
+  emptyEl.textContent  = 'Buscando picks completados…';
+  emptyEl.style.display = ''; wrapEl.style.display = 'none'; statsEl.style.display = 'none';
+
+  try {
+    // 1. PICKs done (picking_type_id=3 = ALVEN VENTAS: Pick) en el rango de fechas
+    var pickDomain = [['picking_type_id','=',3],['state','=','done']];
+    if (from) pickDomain.push(['date_done','>=',from+' 00:00:00']);
+    if (to)   pickDomain.push(['date_done','<=',to+' 23:59:59']);
+    var picks = await odooSearch('stock.picking', pickDomain,
+      ['name','date_done','sale_id','partner_id'], 500);
+
+    statusEl.textContent = '';
+    if (!picks || !picks.length) {
+      emptyEl.textContent = 'No se encontraron picks completados en el período seleccionado.';
+      return;
+    }
+
+    // 2. Sale IDs de esos picks
+    var saleIds = [...new Set(picks.filter(function(p){ return p.sale_id; }).map(function(p){ return p.sale_id[0]; }))];
+    if (!saleIds.length) {
+      emptyEl.textContent = 'Los picks del período no tienen orden de venta asociada.';
+      return;
+    }
+
+    // 3. OUTs pendientes para esas órdenes (assigned=listo, waiting/confirmed=bloqueado)
+    var outs = await odooSearch('stock.picking',
+      [['picking_type_id','=',2],['state','in',['assigned','confirmed','waiting']],['sale_id','in',saleIds]],
+      ['name','state','scheduled_date','partner_id','sale_id'], 500);
+
+    // 4. Vendedor desde sale.order
+    var soIds = [...new Set(outs.filter(function(o){ return o.sale_id; }).map(function(o){ return o.sale_id[0]; }))];
+    var soById = {};
+    if (soIds.length) {
+      var sos = await odooSearch('sale.order',[['id','in',soIds]],['id','user_id'],soIds.length+5);
+      sos.forEach(function(s){ soById[s.id] = s; });
+    }
+
+    // 5. Map: sale_id → pick(s)
+    var pickBySale = {};
+    picks.forEach(function(p) {
+      if (!p.sale_id) return;
+      var sid = p.sale_id[0];
+      if (!pickBySale[sid]) pickBySale[sid] = [];
+      pickBySale[sid].push(p);
+    });
+
+    // 6. Build rows: un row por OUT, con el PICK más reciente
+    var rows = [];
+    outs.forEach(function(out) {
+      if (!out.sale_id) return;
+      var sid  = out.sale_id[0];
+      var pks  = (pickBySale[sid] || []).sort(function(a,b){ return (b.date_done||'').localeCompare(a.date_done||''); });
+      var pk   = pks[0];
+      var so   = soById[sid];
+      rows.push({
+        pickName : pk ? pk.name : '—',
+        pickDate : pk ? fmtOdooDate(pk.date_done) : '—',
+        outName  : out.name,
+        outState : out.state,
+        soName   : out.sale_id[1] || '',
+        cliente  : out.partner_id ? out.partner_id[1] : '—',
+        vendedor : so && so.user_id ? so.user_id[1] : '—',
+        scheduled: out.scheduled_date ? fmtOdooDate(out.scheduled_date) : '—'
+      });
+    });
+
+    // Ordenar: listos primero, luego por fecha comprometida
+    rows.sort(function(a,b) {
+      var ao = a.outState==='assigned'?0:1, bo = b.outState==='assigned'?0:1;
+      if (ao !== bo) return ao-bo;
+      return (a.scheduled||'').localeCompare(b.scheduled||'');
+    });
+
+    // Stats
+    var nListo  = rows.filter(function(r){ return r.outState==='assigned'; }).length;
+    var nEspera = rows.length - nListo;
+    statsEl.innerHTML = ''
+      + '<div class="rpt-stat"><div class="rpt-stat-val">'+(picks.length)+'</div><div class="rpt-stat-lbl">PICKs en período</div></div>'
+      + '<div class="rpt-stat"><div class="rpt-stat-val '+(rows.length?'amber':'green')+'">'+rows.length+'</div><div class="rpt-stat-lbl">OUTs pendientes</div></div>'
+      + '<div class="rpt-stat"><div class="rpt-stat-val green">'+nListo+'</div><div class="rpt-stat-lbl">Listos ✓</div></div>'
+      + '<div class="rpt-stat"><div class="rpt-stat-val '+(nEspera?'amber':'')+'">'+nEspera+'</div><div class="rpt-stat-lbl">En espera</div></div>';
+    statsEl.style.display = '';
+
+    if (!rows.length) {
+      emptyEl.textContent = 'Todos los picks del período ya tienen su OUT despachado.';
+      emptyEl.style.display = ''; wrapEl.style.display = 'none';
+      return;
+    }
+
+    _saPicksData = rows;
+    _sinAdjRenderPicksTable(rows);
+
+  } catch(e) {
+    statusEl.textContent = '';
+    emptyEl.textContent = 'Error al consultar Odoo: ' + e.message;
+    emptyEl.style.display = '';
+  }
 }
 
 async function cargarSinAdjuntos(){
