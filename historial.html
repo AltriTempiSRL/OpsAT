@@ -7560,7 +7560,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v75';
+var APP_BUILD = 'v76';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11772,7 +11772,6 @@ function renderDrawer(t) {
     const selItems = (t.items||[]).filter(i=>i.selected);
     const missingEv = isStorageFlow ? selItems.filter(i=>!i.evidence_images||!i.evidence_images.length) : [];
     const missingCond = isStorageFlow ? selItems.filter(i=>!i.condition) : [];
-    const missingEmp = selItems.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial'));
     const missingConf = selItems.filter(i=>!i.confirmado);
     const hasGuiaEvidencia = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
     const missingGeneralEv = !selItems.length && !(t.evidence||[]).length && !hasGuiaEvidencia;
@@ -11824,7 +11823,6 @@ function renderDrawer(t) {
     const _sel = (t.items||[]).filter(i=>i.selected);
     const _faltanFotos = _sel.filter(i=>!(i.evidence_images||[]).length).length;
     const _faltanCond  = isStorageFlow ? _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.condition).length : 0;
-    const _faltanEmp   = _sel.filter(i=>i.odoo_categ_id&&!((i.empaque_confirmacion||{}).status==='confirmed'||(i.empaque_confirmacion||{}).status==='partial')).length;
     const _faltanConf  = isStorageFlow
       ? _sel.filter(i=>(i.evidence_images||[]).length>0&&!!i.condition&&!i.confirmado).length
       : _sel.filter(i=>(i.evidence_images||[]).length>0&&!i.confirmado).length;
@@ -11909,8 +11907,7 @@ function renderDrawer(t) {
       const evs = it.evidence_images||[];
       const isItemConf = !!it.confirmado;
       const canUpload = !isClosedTask && (_user.role!=='assistant' || (t.executors||[]).includes(myId) || taskAuxiliaryIds(t).includes(_user.id));
-      const _empOkForConf = !it.odoo_categ_id || ((it.empaque_confirmacion||{}).status==='confirmed'||(it.empaque_confirmacion||{}).status==='partial');
-      const _canConfirmThis = !isClosedTask && canParticipate && (!isStorageFlow || (evs.length>0 && !!it.condition && _empOkForConf));
+      const _canConfirmThis = !isClosedTask && canParticipate && (!isStorageFlow || (evs.length>0 && !!it.condition));
       const confirmedShortLabel = isStorageFlow ? storageCopy.confirmedLabel : 'LISTO';
       const pendingShortLabel = isStorageFlow ? storageCopy.pendingLabel : 'PEND.';
       const emptyPhotoBadge = isStorageFlow ? storageCopy.photoBadgeEmpty : 'Sin fotos';
@@ -11922,7 +11919,7 @@ function renderDrawer(t) {
       const damagePlaceholder = isStorageFlow ? storageCopy.damagePlaceholder : 'Tipo de avería…';
       const locationPrefix = isStorageFlow ? storageCopy.locationPrefix : '';
       return `<div class="item-card" style="border:1.5px solid ${isItemConf?'#16a34a':'var(--border)'}">
-        ${(()=>{const _hE=!!it.odoo_categ_id;const _eD=_hE&&((it.empaque_confirmacion||{}).status==='confirmed'||(it.empaque_confirmacion||{}).status==='partial');const _s=_hE?4:3;const _d=(evs.length>0?1:0)+(!!it.condition?1:0)+(_hE?(_eD?1:0):0)+(isItemConf?1:0);const _p=isItemConf?100:Math.round(_d/_s*100);return `<div class="item-prog-bar"><div class="item-prog-fill${_p>=100?' prog-done':''}" style="transform:scaleX(${(_p/100).toFixed(2)})"></div></div>`;})()}
+        ${(()=>{const _d=(evs.length>0?1:0)+(!!it.condition?1:0)+(isItemConf?1:0);const _p=isItemConf?100:Math.round(_d/3*100);return `<div class="item-prog-bar"><div class="item-prog-fill${_p>=100?' prog-done':''}" style="transform:scaleX(${(_p/100).toFixed(2)})"></div></div>`;})()}
         ${(evs.length>0&&!!it.condition&&!isItemConf)?`<div class="step-ptr sptr-g" style="margin-bottom:8px">Último paso — confirma este artículo</div>`:''}
         <div class="item-header" style="align-items:flex-start;gap:8px">
           <label style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;cursor:${_canConfirmThis?'pointer':'default'};padding-top:2px">
