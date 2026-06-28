@@ -7560,7 +7560,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v76';
+var APP_BUILD = 'v77';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -14276,14 +14276,14 @@ function _wizS2(body){
       // Modo no dividido: UI normal pero con el banner arriba
       inner=`${banner}<div class="wiz-2col">
         <div>
-          <div class="wiz-role-lbl"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+          <div class="wiz-role-lbl" style="min-height:32px"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
             ¿Quién empacará? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>
           </div>
           <div class="wiz-ulist">${users.map(u=>uRowArr(_wizState.packers,u)).join('')}</div>
           ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque')}
         </div>
         <div>
-          <div class="wiz-role-lbl"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+          <div class="wiz-role-lbl" style="min-height:32px"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
             ${sLbl} ${sNote}
           </div>
           <div class="wiz-ulist">${users.map(u=>uRowArr(sArr,u)).join('')}</div>
@@ -14294,14 +14294,14 @@ function _wizS2(body){
       // pack_store o sin items: layout original
       inner=`<div class="wiz-2col">
         <div>
-          <div class="wiz-role-lbl"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+          <div class="wiz-role-lbl" style="min-height:32px"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
             ¿Quién empacará? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>
           </div>
           <div class="wiz-ulist">${users.map(u=>uRowArr(_wizState.packers,u)).join('')}</div>
           ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque')}
         </div>
         <div>
-          <div class="wiz-role-lbl"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+          <div class="wiz-role-lbl" style="min-height:32px"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
             ${sLbl} ${sNote}
           </div>
           <div class="wiz-ulist">${users.map(u=>uRowArr(sArr,u)).join('')}</div>
