@@ -7560,7 +7560,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v74';
+var APP_BUILD = 'v75';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11119,9 +11119,9 @@ function renderListRow(t) {
     meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`);
   });
   if (t.odooRef) meta.push(chip('Orden Odoo', t.odooRef));
-  // Badge de par: otras tareas de empaque con el mismo odooRef (despacho dividido por localidad)
-  if (t.odooRef && !t.parentId && t.type==='packaging') {
-    const pares = (_tasks||[]).filter(t2=>t2.id!==t.id && t2.odooRef===t.odooRef && t2.type==='packaging' && !t2.parentId && !['cancelled'].includes(t2.status));
+  // Badge de par: solo en tareas split (título con prefijo [LOC]) que tienen hermanas con el mismo odooRef
+  if (t.odooRef && !t.parentId && t.type==='packaging' && /^\[/.test(t.title)) {
+    const pares = (_tasks||[]).filter(t2=>t2.id!==t.id && t2.odooRef===t.odooRef && t2.type==='packaging' && !t2.parentId && /^\[/.test(t2.title) && !['cancelled'].includes(t2.status));
     pares.forEach(p=>{
       const locLabel = p.title.match(/^\[([^\]]+)\]/)?.[1] || '↔';
       const parStatus = ({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');
