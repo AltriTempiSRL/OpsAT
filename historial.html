@@ -2838,6 +2838,10 @@ body{font-family:var(--font);min-height:100dvh}
 .task-list-title{font-size:var(--fs-base);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .task-list-meta{font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap;overflow:hidden;margin-top:4px}
 .task-list-sep{color:var(--border);flex-shrink:0}
+/* Meta row con columnas fijas: mgr · aux · odoo se reservan siempre */
+.task-meta-fixed{font-size:var(--fs-xs);color:var(--text-muted);display:grid;grid-template-columns:minmax(142px,max-content) minmax(130px,max-content) minmax(126px,max-content) auto auto auto auto;align-items:center;column-gap:7px;overflow:hidden;margin-top:4px}
+.task-mc-ph{display:block;height:1px} /* placeholder invisible para mantener columna */
+.task-mc-aux{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
 .task-meta-chip{display:inline-flex;align-items:center;gap:3px;min-width:0;max-width:260px;line-height:1.35;color:var(--text-2)}
 .task-meta-chip .meta-label{font-size:9px;font-weight:800;color:var(--text-2);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
 .task-meta-chip .meta-label::after{content:":"}
@@ -7560,7 +7564,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v77';
+var APP_BUILD = 'v78';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11104,34 +11108,30 @@ function renderListRow(t) {
   const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot',staffing:'users'}[t.type]||'circle-dot';
   const priorityColor = {high:'#dc2626',medium:'#f59e0b',low:'#10b981'}[t.priority||'medium']||'#f59e0b';
   const typeLabel = t.taskConcept==='customer_return' ? 'Devolución de cliente' : ({dispatch_order:'Despacho / Entrega',packaging:'Empaque y almacenamiento',item_pickup:'Recogida de articulos',truck_loading:'Carga de camion',warehouse_move:'Movimiento de almacen',staffing:'Solicitud de personal',general:'Tarea general'}[t.type] || (t.type || 'Tarea'));
-  const meta = [];
-  const chip = (label, value, extraClass='', icon='') => {
+  const chip = (label, value, extraClass='') => {
     const val = String(value || '').trim();
     if (!val) return '';
-    return `<span class="task-meta-chip ${extraClass}">${icon || ''}<span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(val)}</span></span>`;
+    return `<span class="task-meta-chip ${extraClass}"><span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(val)}</span></span>`;
   };
-  if (mgr) meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(mgr,15)}</span><span class="meta-label">Responsable</span><span class="meta-value">${esc(mgr.name.split(' ')[0])}</span></span>`);
-  // Auxiliares — avatar + nombre, mismo estilo que el responsable
   const auxIds = taskAuxiliaryIds(t);
-  auxIds.forEach(id => {
-    const u = (_authUsers||[]).find(u=>u.id===id);
-    if (!u) return;
-    meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`);
-  });
-  if (t.odooRef) meta.push(chip('Orden Odoo', t.odooRef));
-  // Badge de par: solo en tareas split (título con prefijo [LOC]) que tienen hermanas con el mismo odooRef
-  if (t.odooRef && !t.parentId && t.type==='packaging' && /^\[/.test(t.title)) {
-    const pares = (_tasks||[]).filter(t2=>t2.id!==t.id && t2.odooRef===t.odooRef && t2.type==='packaging' && !t2.parentId && /^\[/.test(t2.title) && !['cancelled'].includes(t2.status));
-    pares.forEach(p=>{
-      const locLabel = p.title.match(/^\[([^\]]+)\]/)?.[1] || '↔';
-      const parStatus = ({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');
-      meta.push(`<span class="task-meta-chip" style="cursor:pointer;border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.07)" onclick="event.stopPropagation();openDrawer('${p.id}')" title="Ver tarea par"><span class="meta-label">Par</span><span class="meta-value">${esc(locLabel)} ${parStatus}</span></span>`);
-    });
-  }
-  // Tipo eliminado — redundante con el encabezado de grupo
-  if (t.dueDate) meta.push(chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':''));
-  if (subs.length) meta.push(chip('Subtareas', `${doneSubs}/${subs.length} completadas`));
-  if (t.location) meta.push(chip('Ubicacion', t.location));
+  // ── Columnas fijas (siempre presentes para mantener alineación entre filas) ──
+  // Slot 1: Responsable
+  const _s1 = mgr
+    ? `<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(mgr,15)}</span><span class="meta-label">Responsable</span><span class="meta-value">${esc(mgr.name.split(' ')[0])}</span></span>`
+    : `<span class="task-mc-ph"></span>`;
+  // Slot 2: Auxiliar(es) — contenedor siempre presente
+  const _s2 = `<span class="task-mc-aux">${auxIds.map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`:''}).join('')}</span>`;
+  // Slot 3: Orden Odoo
+  const _s3 = t.odooRef ? chip('Orden Odoo', t.odooRef) : `<span class="task-mc-ph"></span>`;
+  // Chips opcionales (columnas 4+)
+  const _parChips = (t.odooRef && !t.parentId && t.type==='packaging' && /^\[/.test(t.title))
+    ? (_tasks||[]).filter(t2=>t2.id!==t.id&&t2.odooRef===t.odooRef&&t2.type==='packaging'&&!t2.parentId&&/^\[/.test(t2.title)&&!['cancelled'].includes(t2.status))
+        .map(p=>{const locLabel=p.title.match(/^\[([^\]]+)\]/)?.[1]||'↔';const parStatus=({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');return `<span class="task-meta-chip" style="cursor:pointer;border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.07)" onclick="event.stopPropagation();openDrawer('${p.id}')" title="Ver tarea par"><span class="meta-label">Par</span><span class="meta-value">${esc(locLabel)} ${parStatus}</span></span>`;}).join('')
+    : '';
+  const _dueChip  = t.dueDate   ? chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':'') : '';
+  const _subsChip = subs.length  ? chip('Subtareas', `${doneSubs}/${subs.length} completadas`) : '';
+  const _locChip  = t.location   ? chip('Ubicacion', t.location) : '';
+  const _metaContent = _s1 + _s2 + _s3 + _parChips + _dueChip + _subsChip + _locChip;
   // Solicitante + periodo como subtítulo junto al título (staffing)
   const rowSubMeta = [];
   if (t.type==='staffing') {
@@ -11144,7 +11144,7 @@ function renderListRow(t) {
       <span class="task-list-title" style="font-weight:700">${t.parentId?'<i data-lucide="git-branch" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-1px;margin-right:3px"></i>':''}${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:5px">Tarea ${seqLabel(t)}</span>`:''}${esc(t.title)}</span>
       ${rowSubMeta.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--text-muted);margin-top:1px">${rowSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>`:''}
       ${t.parentId?(()=>{const p=(_tasks||[]).find(x=>x.id===t.parentId);return `<div class="task-list-meta" style="color:var(--accent)">↳ Subtarea de ${p?(seqLabel(p)+' '+esc(p.title.slice(0,30))):'tarea madre'}</div>`;})():''}
-      ${meta.length?`<div class="task-list-meta">${meta.join('<span class="task-list-sep">·</span>')}</div>`:''}
+      ${_metaContent?`<div class="task-meta-fixed">${_metaContent}</div>`:''}
     </div>
     <div class="task-list-badges">
       ${overdueBadgeHtml(t)}
