@@ -4244,6 +4244,12 @@ body{font-family:var(--font);min-height:100dvh}
 .wiz-uwl{font-size:10px;font-weight:500;margin-top:1px}
 .wiz-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .wiz-footer{justify-content:space-between!important;align-items:center}
+.wiz-split-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(37,99,235,.07);border:1px solid rgba(37,99,235,.18);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--text-secondary)}
+.wiz-loc-group{border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.wiz-loc-group-hdr{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.wiz-loc-badge{background:rgba(37,99,235,.12);color:var(--accent);border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800}
+.wiz-date-inp{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:6px 9px;font-size:12px;background:var(--surface-2);color:var(--text-primary);margin-top:6px}
+.wiz-urow-sel{border-color:var(--accent)!important;background:rgba(37,99,235,.08)!important}
 .wiz-slabel{font-size:11px;color:var(--text-3);font-weight:600;white-space:nowrap}
 .wiz-sblock{background:var(--surface-2);border:1.5px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:8px}
 .wiz-srole{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
@@ -7554,7 +7560,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v73';
+var APP_BUILD = 'v74';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11113,6 +11119,15 @@ function renderListRow(t) {
     meta.push(`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`);
   });
   if (t.odooRef) meta.push(chip('Orden Odoo', t.odooRef));
+  // Badge de par: otras tareas de empaque con el mismo odooRef (despacho dividido por localidad)
+  if (t.odooRef && !t.parentId && t.type==='packaging') {
+    const pares = (_tasks||[]).filter(t2=>t2.id!==t.id && t2.odooRef===t.odooRef && t2.type==='packaging' && !t2.parentId && !['cancelled'].includes(t2.status));
+    pares.forEach(p=>{
+      const locLabel = p.title.match(/^\[([^\]]+)\]/)?.[1] || '↔';
+      const parStatus = ({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');
+      meta.push(`<span class="task-meta-chip" style="cursor:pointer;border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.07)" onclick="event.stopPropagation();openDrawer('${p.id}')" title="Ver tarea par"><span class="meta-label">Par</span><span class="meta-value">${esc(locLabel)} ${parStatus}</span></span>`);
+    });
+  }
   // Tipo eliminado — redundante con el encabezado de grupo
   if (t.dueDate) meta.push(chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':''));
   if (subs.length) meta.push(chip('Subtareas', `${doneSubs}/${subs.length} completadas`));
@@ -14018,7 +14033,10 @@ async function openTaskWizard(opts) {
     staffStart:'', staffEnd:'', staffFrom:'', staffTo:'', // fechas + horario
     staffManager: null,      // {id, name} encargado responsable principal (obligatorio)
     staffWorkers:[],         // [{id,name}] auxiliares de la mano de obra (opcional)
-    staffReleases:{}         // { auxId: { taskId, replacementId } } liberaciones de tareas en conflicto
+    staffReleases:{},        // { auxId: { taskId, replacementId } } liberaciones de tareas en conflicto
+    // ── División por localidad (solo pack_dispatch) ──
+    splitByLocalidad: false,
+    localGrupos: {}          // {loc: {packerId, packerName, dispatchMgrId, dispatchMgrName, dueDispatch}}
   };
   _wizItems=[];_wizSearch=[];
   _wizRef      = (opts&&opts.odooRef)      ? opts.odooRef      : '';
@@ -14198,29 +14216,102 @@ function _wizS2(body){
   }
   if(_wizState.concept==='pack_dispatch'||_wizState.concept==='pack_store'){
     const sArr=_wizState.concept==='pack_dispatch'?_wizState.dispatchMgrs:_wizState.storeMgrs;
-    const sArrName=_wizState.concept==='pack_dispatch'?'dispatchMgrs':'storeMgrs';
     const sIcon=_wizState.concept==='pack_dispatch'?'truck':'warehouse';
     const sLbl=_wizState.concept==='pack_dispatch'?'¿Quién despachará?':'¿Quién almacenará?';
     const sNote=_wizState.concept==='pack_dispatch'
       ?'<span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles · cada uno entrega por su cuenta</span>'
       :'<span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>';
     const sDateLbl=_wizState.concept==='pack_dispatch'?'Fecha límite despacho':'Fecha límite almacenamiento';
-    inner=`<div class="wiz-2col">
-      <div>
-        <div class="wiz-role-lbl"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
-          ¿Quién empacará? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>
+
+    // ── Modo dividido por localidad (solo pack_dispatch con ≥2 localidades) ──
+    if (_wizState.concept==='pack_dispatch' && _wizItems.length) {
+      const locs = _wizGetLocalidades();
+      const canSplit = locs.length > 1;
+      const isSplit = _wizState.splitByLocalidad && canSplit;
+
+      // Banner informativo + toggle
+      const banner = canSplit ? `<div class="wiz-split-banner">
+        <span><i data-lucide="layers" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px;margin-right:4px"></i>
+          <strong>${locs.length} localidades detectadas:</strong> ${locs.join(' · ')}
+        </span>
+        <button class="sa-pf-btn${isSplit?' sa-pf-active':''}" onclick="wizToggleSplit()" style="padding:3px 10px;font-size:11px;white-space:nowrap">
+          ${isSplit?'✓ Dividido':'Dividir por localidad'}
+        </button>
+      </div>` : '';
+
+      if (isSplit) {
+        // Una sección por localidad con su propio empacador + despachador + fecha
+        const gruposHtml = locs.map(loc => {
+          const locJs = loc.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); // seguro para onclick/oninput
+          const g = _wizState.localGrupos[loc] || {};
+          const locCount = _wizItems.filter(it=>_wizItemLocalidad(it)===loc).length;
+          const mkRow = (selId, role) => users.map(u=>{
+            const sel = selId===u.id;
+            return `<div class="wiz-urow${sel?' wiz-urow-sel':''}" onclick="wizPickLocalGrupo('${locJs}','${role}','${u.id}')">
+              <div class="wiz-uavatar" style="background:${_wac(u.name)}">${_wai(u.name)}</div>
+              <div class="wiz-uname">${esc(u.name)}</div>
+              ${sel?`<i data-lucide="check" style="width:14px;height:14px;stroke:var(--green-text);margin-left:auto;flex-shrink:0"></i>`:''}
+            </div>`;
+          }).join('');
+          return `<div class="wiz-loc-group">
+            <div class="wiz-loc-group-hdr">
+              <span class="wiz-loc-badge">${esc(loc)}</span>
+              <span style="font-weight:500;color:var(--text-secondary)">${locCount} artículo${locCount!==1?'s':''}</span>
+            </div>
+            <div class="wiz-2col" style="gap:10px">
+              <div>
+                <div class="wiz-role-lbl" style="font-size:10px"><i data-lucide="package" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> Empacará</div>
+                <div class="wiz-ulist" style="max-height:160px">${mkRow(g.packerId,'packer')}</div>
+              </div>
+              <div>
+                <div class="wiz-role-lbl" style="font-size:10px"><i data-lucide="truck" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i> Despachará</div>
+                <div class="wiz-ulist" style="max-height:160px">${mkRow(g.dispatchMgrId,'dispatch')}</div>
+                <input type="date" class="wiz-date-inp" value="${g.dueDispatch||''}" oninput="_wizState.localGrupos['${locJs}'].dueDispatch=this.value" placeholder="Fecha límite">
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        inner = `${banner}${gruposHtml}${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque (compartida)')}`;
+        body.innerHTML=`<div class="wiz-stitle">¿Quién lo hará?</div>${inner}`;
+        if(window.lucide)lucide.createIcons();
+        return;
+      }
+      // Modo no dividido: UI normal pero con el banner arriba
+      inner=`${banner}<div class="wiz-2col">
+        <div>
+          <div class="wiz-role-lbl"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+            ¿Quién empacará? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>
+          </div>
+          <div class="wiz-ulist">${users.map(u=>uRowArr(_wizState.packers,u)).join('')}</div>
+          ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque')}
         </div>
-        <div class="wiz-ulist">${users.map(u=>uRowArr(_wizState.packers,u)).join('')}</div>
-        ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque')}
-      </div>
-      <div>
-        <div class="wiz-role-lbl"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
-          ${sLbl} ${sNote}
+        <div>
+          <div class="wiz-role-lbl"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+            ${sLbl} ${sNote}
+          </div>
+          <div class="wiz-ulist">${users.map(u=>uRowArr(sArr,u)).join('')}</div>
+          ${dateField('wiz-due-sub',_wizState.dueSub,sDateLbl)}
         </div>
-        <div class="wiz-ulist">${users.map(u=>uRowArr(sArr,u)).join('')}</div>
-        ${dateField('wiz-due-sub',_wizState.dueSub,sDateLbl)}
-      </div>
-    </div>`;
+      </div>`;
+    } else {
+      // pack_store o sin items: layout original
+      inner=`<div class="wiz-2col">
+        <div>
+          <div class="wiz-role-lbl"><i data-lucide="package" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+            ¿Quién empacará? <span style="font-size:9px;color:var(--text-3);font-weight:400;text-transform:none">varios posibles</span>
+          </div>
+          <div class="wiz-ulist">${users.map(u=>uRowArr(_wizState.packers,u)).join('')}</div>
+          ${dateField('wiz-due-pack',_wizState.duePack,'Fecha límite empaque')}
+        </div>
+        <div>
+          <div class="wiz-role-lbl"><i data-lucide="${sIcon}" style="width:12px;height:12px;stroke:var(--accent);display:inline-block;vertical-align:-2px"></i>
+            ${sLbl} ${sNote}
+          </div>
+          <div class="wiz-ulist">${users.map(u=>uRowArr(sArr,u)).join('')}</div>
+          ${dateField('wiz-due-sub',_wizState.dueSub,sDateLbl)}
+        </div>
+      </div>`;
+    }
   } else if(_wizState.concept==='free'||_wizState.concept==='customer_return'){
     const _cretLbl = _wizState.concept==='customer_return' ? '¿Quién coordinará la recogida?' : '¿Quién se encargará?';
     inner=`<div style="max-width:400px;margin:0 auto">
@@ -14254,6 +14345,45 @@ function wizPickSingle(role,id){
   const user=(_authUsers||[]).find(u=>u.id===id);if(!user)return;
   const cur=_wizState[role];
   _wizState[role]=cur&&cur.id===id?null:{id,name:user.name};
+  _wizS2(document.getElementById('wiz-body'));
+}
+
+// ── División por localidad ────────────────────────────────────────────
+function _wizItemLocalidad(it) {
+  let raw = it.selected_location_name || '';
+  if (!raw && Array.isArray(it.unitBins) && it.unitBins.length) raw = it.unitBins[0];
+  if (!raw && it.locations) {
+    if (typeof it.selected_location === 'number') raw = (it.locations[it.selected_location]||{}).location_name||'';
+    else if (it.locations.length === 1) raw = it.locations[0].location_name||'';
+  }
+  if (!raw) return 'Sin loc.';
+  const seg = shortBin(raw).split('/')[0]; // "A-CDP", "A-PTN", etc.
+  return seg.replace(/^A-/i,'') || seg;
+}
+function _wizGetLocalidades() {
+  return [...new Set(_wizItems.map(it=>_wizItemLocalidad(it)))].sort();
+}
+function wizToggleSplit() {
+  _wizState.splitByLocalidad = !_wizState.splitByLocalidad;
+  if (_wizState.splitByLocalidad) {
+    _wizGetLocalidades().forEach(loc => {
+      if (!_wizState.localGrupos[loc]) _wizState.localGrupos[loc]={packerId:null,packerName:'',dispatchMgrId:null,dispatchMgrName:'',dueDispatch:''};
+    });
+  }
+  _wizS2(document.getElementById('wiz-body'));
+}
+function wizPickLocalGrupo(localidad, role, id) {
+  if (!_wizState.localGrupos[localidad]) _wizState.localGrupos[localidad]={packerId:null,packerName:'',dispatchMgrId:null,dispatchMgrName:'',dueDispatch:''};
+  const g = _wizState.localGrupos[localidad];
+  const user = (_authUsers||[]).find(u=>u.id===id);
+  if (!user) return;
+  if (role==='packer') {
+    g.packerId = g.packerId===id ? null : id;
+    g.packerName = g.packerId ? user.name : '';
+  } else {
+    g.dispatchMgrId = g.dispatchMgrId===id ? null : id;
+    g.dispatchMgrName = g.dispatchMgrId ? user.name : '';
+  }
   _wizS2(document.getElementById('wiz-body'));
 }
 
@@ -15384,6 +15514,45 @@ async function _wizSave(){
             await authFetch('/api/wwp/tasks/'+d.task.id+'/fotos-guia',{method:'POST',
               body:JSON.stringify({fotos:fotos.map(f=>({data:f.b64,ext:f.ext,instruccion:f.instruccion||''})),by:_user.name})});
           }catch(e2){toast('Error subiendo fotos: '+e2.message);}
+        }
+      }
+    } else if(_wizState.concept==='pack_dispatch' && _wizState.splitByLocalidad && _wizGetLocalidades().length>1){
+      // ── Modo dividido: una par de tareas (empaque + despacho) por localidad ──
+      const locs = _wizGetLocalidades();
+      for(const loc of locs){
+        const g = _wizState.localGrupos[loc] || {};
+        const locItems = _wizItems.filter(it=>_wizItemLocalidad(it)===loc);
+        const locTitle = `[${loc}] ${base.title}`;
+        // Tarea de empaque para esta localidad
+        const pu = g.packerId ? (_authUsers||[]).find(u=>u.id===g.packerId) : null;
+        const pb = {...base, title:locTitle, type:'packaging',
+          managerId:g.packerId||null, managerName:g.packerName||null,
+          assignedTo:(g.packerId&&pu?.odooId)?('oe_'+pu.odooId):undefined,
+          dueDate:_wizState.duePack||null};
+        const pr = await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(pb)});
+        const pd = await pr.json();
+        if(pd.task?.id){
+          const packId=pd.task.id;
+          if(!firstPackId)firstPackId=packId;
+          tasksCreated++;
+          if(locItems.length) await authFetch('/api/wwp/tasks/'+packId+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(locItems.map(it=>({...it,quantity:it._wizQty||it.quantity})))})});
+          // Subtarea de despacho para esta localidad
+          const du = g.dispatchMgrId ? (_authUsers||[]).find(u=>u.id===g.dispatchMgrId) : null;
+          const sb = {...base, title:locTitle+' — Despacho', type:'dispatch_order',
+            managerId:g.dispatchMgrId||null, managerName:g.dispatchMgrName||null,
+            assignedTo:(g.dispatchMgrId&&du?.odooId)?('oe_'+du.odooId):undefined,
+            dueDate:g.dueDispatch||_wizState.dueSub||null,
+            parentId:packId, dependsOnPrev:true, subIndex:2,
+            requiresDeliveryPhoto:true};
+          const sr = await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(sb)});
+          const sd = await sr.json();
+          if(sd.task?.id){
+            tasksCreated++;
+            if(locItems.length){
+              const inh=locItems.map(it=>({...it,evidence_images:[],confirmado:false,status:'pending'}));
+              await authFetch('/api/wwp/tasks/'+sd.task.id+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(inh)})});
+            }
+          }
         }
       }
     } else {

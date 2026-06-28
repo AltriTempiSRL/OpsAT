@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v73';
+const APP_BUILD = 'v74';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7864,8 +7864,16 @@ const server = http.createServer(async (req, res) => {
         }
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
         // ── AUTOMÁTICO: Actualizar SDV a 'despachada' cuando tarea se valida ──
+        // Con tareas divididas por localidad, esperar a que TODAS las tareas del mismo sdvId
+        // estén validadas o canceladas antes de marcar la SDV como despachada.
         if (d.status === 'validated' && tasks[idx].sdvId) {
-          try {
+          const todasListas = tasks
+            .filter(t => t.sdvId === tasks[idx].sdvId)
+            .every(t => ['validated','cancelled'].includes(t.id === tasks[idx].id ? d.status : t.status));
+          if (!todasListas) {
+            console.log('[WWP→SDV] Tarea', tasks[idx].id, 'validada pero otras del mismo sdvId aún abiertas — SDV espera');
+          }
+          if (todasListas) try {
             const sdvList = loadSdv();
             const sdvIdx = sdvList.findIndex(s => s.id === tasks[idx].sdvId);
             if (sdvIdx >= 0) {
