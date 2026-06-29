@@ -4425,7 +4425,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-dev-chip{cursor:pointer;transition:opacity .15s}
 .eo-dev-chip:hover{opacity:.75}
 .eo-dev-modal-overlay{position:fixed;inset:0;z-index:19000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
-.eo-dev-modal{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
+.eo-dev-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .eo-dev-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
 .eo-dev-modal-title{font-size:15px;font-weight:800;color:var(--red-text)}
 .eo-dev-modal-body{padding:20px;display:flex;flex-direction:column;gap:12px}
@@ -7624,7 +7624,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v82';
+var APP_BUILD = 'v83';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11732,8 +11732,8 @@ function renderDrawer(t) {
   // Artículos de entrega: hereda config de kit del empaque (kit armado = 1 unidad; desarmado = componentes).
   // Incluye tarjetas-kit armadas (isKit && selected) y excluye componentes ocultos (selected:false).
   const _dispSel = (t.items||[]).filter(i=>i.selected);
-  const dispatchItemsPending = isDispatch ? _dispSel.filter(i =>
-    !i.deliveryStatus || (!retiradoPorCliente && i.deliveryStatus!=='not_delivered' && (i.evidence_images||[]).length===0)
+  const dispatchItemsPending = isDispatch && !retiradoPorCliente ? _dispSel.filter(i =>
+    !i.deliveryStatus || (i.deliveryStatus!=='not_delivered' && (i.evidence_images||[]).length===0)
   ) : [];
   const dispatchItemsOk = isDispatch && _dispSel.length>0 && dispatchItemsPending.length===0;
 
