@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v81';
+const APP_BUILD = 'v82';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -3316,6 +3316,19 @@ function getAdminUserIds() {
     silentCatch(e, 'getAdminUserIds');
     return [];
   }
+}
+
+function notifyVentasDevolucion(taskId, odooRef, client, registradoByName) {
+  try {
+    const users = loadAuthUsers() || [];
+    const ids = users.filter(u => u.active && (u.role === 'admin' || u.role === 'manager')).map(u => u.id);
+    notifyMany(ids, {
+      type: 'dev_en_ruta',
+      title: 'Devolución en ruta registrada',
+      message: `${registradoByName} registró artículos devueltos en orden ${odooRef||taskId} · Cliente: ${client||'—'}. Crear RET en Odoo.`,
+      relatedTaskId: taskId
+    });
+  } catch (e) { silentCatch(e, 'notifyVentasDevolucion'); }
 }
 
 // ── Auto-cierre de almuerzo ───────────────────────────────────────────────────
@@ -11479,6 +11492,49 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, demoStatus: d.action, pickupTaskId}));
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── POST /api/wwp/tasks/:id/devolucion — registrar devolución en ruta ──────────
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/devolucion$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const taskId = reqPath.split('/')[4];
+      const d = await readBody(req);
+      if (!d.fotos || !Array.isArray(d.fotos) || d.fotos.length === 0) {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Se requiere al menos una foto'}));
+        return;
+      }
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t => t.id === taskId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const task = tasks[idx];
+      if (!['in_progress','completed'].includes(task.status)) {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Solo se puede registrar devolución en tareas en progreso o completadas'}));
+        return;
+      }
+      const devEntry = {
+        id: wwpId('dev'),
+        fotos: d.fotos,
+        descripcion: (d.descripcion||'').trim().slice(0,500),
+        registradoBy: jp.userId || '',
+        registradoByName: jp.name || '',
+        registradoAt: new Date().toISOString(),
+      };
+      if (!task.devoluciones) task.devoluciones = [];
+      task.devoluciones.push(devEntry);
+      task.tieneDevolucion = true;
+      task.updatedAt = new Date().toISOString();
+      saveWwpTasks(tasks);
+      notifyVentasDevolucion(task.id, task.odooRef||'', task.client||'', jp.name||'auxiliar');
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, devEntry}));
+    } catch(e) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:e.message}));
+    }
     return;
   }
 

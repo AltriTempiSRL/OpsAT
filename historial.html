@@ -4422,6 +4422,18 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-ops-chip.blue{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.3);color:var(--accent)}
 .eo-ops-chip.red{background:rgba(220,38,38,.1);border-color:var(--red-dot);color:var(--red-text)}
 .eo-ops-chip.purple{background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.4);color:#9333ea}
+.eo-dev-chip{cursor:pointer;transition:opacity .15s}
+.eo-dev-chip:hover{opacity:.75}
+.eo-dev-modal-overlay{position:fixed;inset:0;z-index:19000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.eo-dev-modal{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
+.eo-dev-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.eo-dev-modal-title{font-size:15px;font-weight:800;color:var(--red-text)}
+.eo-dev-modal-body{padding:20px;display:flex;flex-direction:column;gap:12px}
+.eo-dev-foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.eo-dev-foto-ph{aspect-ratio:1;background:var(--surface-3);border:1.5px dashed var(--border);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--text-3);font-size:9px;font-weight:600;text-align:center;padding:8px}
+.eo-dev-callout{background:rgba(245,158,11,.07);border:1.5px solid var(--amber-dot);border-radius:10px;padding:12px 14px}
+.eo-dev-callout-title{font-size:11px;font-weight:800;color:var(--amber-text);margin-bottom:4px}
+.eo-dev-callout-body{font-size:11px;color:var(--text-2);line-height:1.55}
 /* Lista mis solicitudes */
 .sdv-list-wrap{display:flex;flex-direction:column;gap:10px}
 .sdv-list-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);padding:14px 16px;cursor:pointer;transition:border-color .15s}
@@ -7612,7 +7624,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v81';
+var APP_BUILD = 'v82';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29424,10 +29436,12 @@ var _EO_MOCK_DATA = [
   {id:'mock-007',folio:'SDV-2026-0041',estado:'despachada',clienteNombre:'ZUNIFLOR',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-9059',articulosOdoo:[{},{},{},{}],creadoAt:'2026-06-21T08:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'completed',mgr:'Jose Ureña'},_evidencias:0,_sinOut:true},
   // Despachada — demo activo (artículo en cliente, pendiente confirmación)
   {id:'mock-008',folio:'SDV-2026-0042',estado:'despachada',clienteNombre:'Carlos Matamoros',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-8946',articulosOdoo:[{},{}],creadoAt:'2026-06-22T10:30:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Melvin Grullón'},_evidencias:4,_demoPend:2},
-  // Despachada — artículo devuelto
-  {id:'mock-009',folio:'SDV-2026-0038',estado:'despachada',clienteNombre:'Rosa Morales',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-8820',articulosOdoo:[{}],creadoAt:'2026-06-18T13:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Jose Ureña'},_evidencias:2,_devolucion:true},
+  // Despachada — artículo devuelto (validado)
+  {id:'mock-009',folio:'SDV-2026-0038',estado:'despachada',clienteNombre:'Rosa Morales',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-8820',articulosOdoo:[{}],creadoAt:'2026-06-18T13:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Jose Ureña'},_evidencias:2,_devolucion:true,_devolucionData:{fotos:2,descripcion:'Silla de comedor — cliente reportó que ya tenía una igual. Mesa de centro — no cupó en el espacio designado.',registradoPor:'Jose Angel De La Rosa',registradoAt:'2026-06-18T14:23:00Z'}},
   // Rechazada
   {id:'mock-010',folio:'SDV-2026-0037',estado:'rechazada',clienteNombre:'CBELL Event Media',vendedorNombre:'Jhonathan Martínez',odooOrderRef:'S09059',articulosOdoo:[{},{},{}],creadoAt:'2026-06-15T09:45:00Z',tipoSolicitud:'despacho_cliente',_mock:true},
+  // En proceso — devolución registrada EN RUTA ahora mismo (urgente para Ventas)
+  {id:'mock-011',folio:'SDV-2026-0051',estado:'en_proceso',clienteNombre:'Ircania Pérez',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-9250',articulosOdoo:[{},{},{},{}],creadoAt:'2026-06-29T08:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'in_progress',mgr:'Welby Rodríguez'},_evidencias:3,_devolucion:true,_devolucionData:{fotos:3,descripcion:'Sofá seccional izquierdo — descuadrado al llegar, cliente rechazó la pieza. Espejo decorativo 120 cm — cliente dice que no lo ordenó, no aparece en la factura.',registradoPor:'Welby Rodríguez',registradoAt:'2026-06-29T10:45:00Z'}},
 ];
 // ── FIN MOCK DATA ─────────────────────────────────────────────────────────────
 
@@ -29474,20 +29488,26 @@ function renderEstadoOrdenes() {
       return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); });
     });
   }
+  function hasDev(s) {
+    if (s._mock) return !!s._devolucion;
+    return tasks.some(function(t){ return t.sdvId===s.id && t.tieneDevolucion; });
+  }
 
   // KPIs
   var nPend = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
   var nProc = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
   var nDesp = sols.filter(function(s){ return s.estado==='despachada'; }).length;
   var nDemo = sols.filter(hasDemoPend).length;
+  var nDev  = sols.filter(hasDev).length;
   var nCanc = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
 
   var kpis = [
-    {n:nPend, lbl:'Pendiente revisión', color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
-    {n:nProc, lbl:'En operaciones',     color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso'},
-    {n:nDesp, lbl:'Despachadas',        color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada'},
-    {n:nDemo, lbl:'Con demo activo',    color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo'},
-    {n:nCanc, lbl:'Rechazadas/Canel.', color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada'},
+    {n:nPend, lbl:'Pendiente revisión',  color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
+    {n:nProc, lbl:'En operaciones',      color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso'},
+    {n:nDesp, lbl:'Despachadas',         color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada'},
+    {n:nDemo, lbl:'Con demo activo',     color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo'},
+    {n:nDev,  lbl:'Devoluciones en ruta',color:'var(--red-text)',    bg:'rgba(220,38,38,.08)',  filt:'devolucion'},
+    {n:nCanc, lbl:'Rechazadas/Canel.',  color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada'},
   ];
   if (kpiEl) kpiEl.innerHTML = kpis.map(function(k){
     return '<div class="eo-kpi-card'+((_eoFiltro===k.filt)?' active':'')+'" onclick="estadoOrdenesFiltrar(\''+k.filt+'\')" style="border-left:3px solid '+k.color+';background:'+k.bg+'">'+
@@ -29503,6 +29523,7 @@ function renderEstadoOrdenes() {
     {k:'en_proceso',        lbl:'En operaciones'},
     {k:'despachada',        lbl:'Despachadas'},
     {k:'demo',              lbl:'Con demo'},
+    {k:'devolucion',        lbl:'Devoluciones ('+nDev+')'},
     {k:'cancelada',         lbl:'Rechazadas'},
   ];
   if (pillsEl) pillsEl.innerHTML = filtros.map(function(f){
@@ -29513,6 +29534,8 @@ function renderEstadoOrdenes() {
   var visible = sols;
   if (_eoFiltro === 'demo') {
     visible = sols.filter(hasDemoPend);
+  } else if (_eoFiltro === 'devolucion') {
+    visible = sols.filter(hasDev);
   } else if (_eoFiltro === 'cancelada') {
     visible = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; });
   } else if (_eoFiltro) {
@@ -29552,7 +29575,7 @@ function eoCardHtml(s, tasks) {
     demoPend   = 0;
     linked.forEach(function(t){ demoPend += (t.items||[]).filter(function(it){ return it.esDemo&&(!it.demoStatus||it.demoStatus==='en_demo'); }).length; });
     sinOut     = s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); });
-    devolucion = false;
+    devolucion = linked.some(function(t){ return t.tieneDevolucion; });
   }
 
   // Chips
@@ -29572,7 +29595,10 @@ function eoCardHtml(s, tasks) {
   }
   if (demoPend>0)   chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
   if (sinOut)       chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
-  if (devolucion)   chips += ' <span class="eo-ops-chip amber"><i data-lucide="rotate-ccw" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución registrada</span>';
+  if (devolucion) {
+    var _devFotos = (s._devolucionData&&s._devolucionData.fotos) ? ' · '+s._devolucionData.fotos+' foto'+(s._devolucionData.fotos>1?'s':'') : '';
+    chips += ' <span class="eo-ops-chip red eo-dev-chip" onclick="event.stopPropagation();eoDevolucionModal(\''+esc(s.id)+'\')"><i data-lucide="package-open" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución en ruta'+_devFotos+'</span>';
+  }
 
   var arts  = (s.articulosOdoo||[]).length;
   var fecha = s.creadoAt ? sdvFmtDate(s.creadoAt).split(' ')[0] : '—';
@@ -29594,6 +29620,60 @@ function eoCardHtml(s, tasks) {
     '<div class="eo-card-meta">'+meta+'</div>'+
     (chips?'<div class="eo-card-ops">'+chips+'</div>':'')+
   '</div>';
+}
+
+function eoDevolucionModal(sdvId) {
+  var s = _eoData.find(function(x){ return x.id===sdvId; });
+  if (!s) return;
+  var d = s._devolucionData || {};
+  var nFotos = d.fotos || 0;
+  var when = d.registradoAt
+    ? new Date(d.registradoAt).toLocaleString('es-DO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})
+    : '—';
+  var fotosHtml = '';
+  for (var _fi=0; _fi<nFotos; _fi++) {
+    fotosHtml += '<div class="eo-dev-foto-ph"><i data-lucide="camera" style="width:22px;height:22px;stroke:var(--text-3)"></i><span>Foto '+(_fi+1)+'</span></div>';
+  }
+  var html =
+    '<div class="eo-dev-modal-overlay" id="eoDevOverlay" onclick="if(event.target===this)document.getElementById(\'eoDevOverlay\').remove()">' +
+      '<div class="eo-dev-modal">' +
+        '<div class="eo-dev-modal-hdr">' +
+          '<div>' +
+            '<div class="eo-dev-modal-title"><i data-lucide="package-open" style="width:14px;height:14px;stroke:currentColor;display:inline-block;margin-right:5px;vertical-align:-2px"></i>Devolución en ruta</div>' +
+            '<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+esc(s.folio||s.id)+' · <strong style="color:var(--text-2)">'+esc(s.clienteNombre||'')+'</strong></div>' +
+          '</div>' +
+          '<button onclick="document.getElementById(\'eoDevOverlay\').remove()" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-2);font-size:22px;line-height:1">&times;</button>' +
+        '</div>' +
+        '<div class="eo-dev-modal-body">' +
+          '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)">' +
+            '<i data-lucide="user" style="width:13px;height:13px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>' +
+            '<strong style="color:var(--text-1)">'+esc(d.registradoPor||'Auxiliar')+'</strong>' +
+            '<span style="color:var(--text-3)">·</span>' +
+            '<span>'+when+'</span>' +
+          '</div>' +
+          (d.descripcion
+            ? '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:11px 13px">' +
+                '<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Descripción del chofer</div>' +
+                '<div style="font-size:12px;line-height:1.65;color:var(--text-1)">'+esc(d.descripcion)+'</div>' +
+              '</div>'
+            : '') +
+          (nFotos > 0
+            ? '<div>' +
+                '<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+nFotos+' foto'+(nFotos>1?'s adjuntas':' adjunta')+' — datos reales en producción</div>' +
+                '<div class="eo-dev-foto-grid">'+fotosHtml+'</div>' +
+              '</div>'
+            : '') +
+          '<div class="eo-dev-callout">' +
+            '<div class="eo-dev-callout-title"><i data-lucide="alert-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;margin-right:3px;vertical-align:-1px"></i>Acción requerida en Odoo</div>' +
+            '<div class="eo-dev-callout-body">Crear transferencia de devolución (RET) en Odoo para los artículos indicados. Usar esta información como referencia.<br>Orden: <strong>'+esc(s.odooOrderRef||'—')+'</strong> · Vendedor/a: <strong>'+esc(s.vendedorNombre||'—')+'</strong></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  var old = document.getElementById('eoDevOverlay');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (window.lucide) lucide.createIcons();
 }
 
 function sdvBandejaFilter(btn, estado) {
