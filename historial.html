@@ -7640,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v86';
+var APP_BUILD = 'v87';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12336,6 +12336,8 @@ function renderDrawer(t) {
   let pickStatusHtml = '', dispatchChecklistHtml = '', dispatchItemsHtml = '', devolucionRutaHtml = '';
   if (isDispatch) {
     const canDispUpload = !isClosedTask && canCloseDispatch;
+    // Devolución: se permite registrar mientras la tarea no esté validada (in_progress o completed)
+    const canRegisterDevolucion = t.status !== 'validated' && canCloseDispatch;
 
     // ── Banner estado del pick de Odoo ──
     const ps = _drawerPickStatus;
@@ -12466,7 +12468,7 @@ function renderDrawer(t) {
     const drAbierta = !!(dr && dr.estado === 'abierta');
     const drArts = dr ? (dr.articulos||[]) : [];
     const canCerrarDevolucion = drAbierta && ['ventas','manager','admin'].includes(_user.role);
-    if (drArts.length || (canDispUpload && t.status==='in_progress')) {
+    if (drArts.length || canRegisterDevolucion) {
       const artsHtml = drArts.map(a => `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--surface-2);border-radius:8px;margin-bottom:6px">
         <img src="${mediaUrl(a.foto.url)}" onclick="openLightbox('${mediaUrl(a.foto.url)}')" style="width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0">
         <div style="flex:1;min-width:0">
@@ -12481,7 +12483,7 @@ function renderDrawer(t) {
         </div>
         ${dr ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Artículo(s) devuelto(s) por el cliente en campo — pendiente crear RET en Odoo.</div>` : `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Si el cliente devuelve mercancía sin planificación previa, regístrala aquí artículo por artículo.</div>`}
         ${artsHtml}
-        ${(canDispUpload && t.status==='in_progress')?`<button class="btn-add-photo" onclick="uploadDevolucionArticulo('${t.id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Registrar artículo devuelto</button>`:''}
+        ${canRegisterDevolucion?`<button class="btn-add-photo" onclick="uploadDevolucionArticulo('${t.id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Registrar artículo devuelto</button>`:''}
         ${canCerrarDevolucion?`<button class="btn-secondary" style="margin-top:6px" onclick="cerrarDevolucionRuta('${t.id}')"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Marcar como resuelto (RET creado en Odoo)</button>`:''}
         ${dr && !drAbierta?`<div style="font-size:10px;color:var(--text-3);margin-top:4px">Cerrado por ${esc(dr.cerradoByName||'')} · ${fmtDate(dr.cerradoAt)}</div>`:''}`;
     }
