@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v78';
+const APP_BUILD = 'v79';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -11401,6 +11401,114 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, confirmado: !!d.confirmado}));
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── PATCH /api/wwp/tasks/:id/items/:itemId/demo — actualizar estado demo ──────
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items\/[A-Za-z0-9_]+\/demo$/) && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const parts = reqPath.split('/');
+      const taskId = parts[4], itemId = parts[6];
+      const d = await readBody(req);
+      const VALID_DEMO_ACTIONS = ['facturado', 'retiro_solicitado', 'retirado'];
+      if (!VALID_DEMO_ACTIONS.includes(d.action)) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'action inválido. Debe ser: facturado | retiro_solicitado | retirado'}));
+        return;
+      }
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t => t.id === taskId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const task = tasks[idx];
+      const itemIdx = (task.items||[]).findIndex(it => it.item_id === itemId);
+      if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      const item = task.items[itemIdx];
+      item.demoStatus = d.action;
+      if (!item.demoHistory) item.demoHistory = [];
+      item.demoHistory.push({ action: d.action, by: d.by || jp.userId || '', byName: d.byName || jp.name || '', at: new Date().toISOString() });
+      task.updatedAt = new Date().toISOString();
+      let pickupTaskId = null;
+      // Si retiro solicitado, auto-crear tarea de recogida con los ítems demo de esta tarea
+      if (d.action === 'retiro_solicitado') {
+        const demoItems = (task.items||[]).filter(it => it.esDemo === true).map(it => ({
+          ...it, status:'pending', evidence_images: [], confirmado: false, condition: '', deliveryStatus: ''
+        }));
+        const now = new Date().toISOString();
+        const pickupTask = {
+          id: wwpId('wt'),
+          seq: null,
+          title: '[Demo retiro] ' + (task.title||taskId),
+          type: 'item_pickup',
+          description: '',
+          priority: task.priority || 'medium',
+          status: 'pending',
+          sdvId: task.sdvId || null,
+          odooRef: task.odooRef || '',
+          client: task.client || '',
+          salesperson: task.salesperson || '',
+          deliveryAddress: task.deliveryAddress || '',
+          phone: task.phone || '',
+          location: task.location || '',
+          dueDate: null,
+          managerId: null,
+          managerName: null,
+          assignedTo: null,
+          executors: [], assignees: [], coManagerIds: [], auxiliaryAssignees: [],
+          actionNote: '',
+          requester: '', staffStart:null, staffEnd:null, staffFrom:'', staffTo:'', totalHours:null,
+          dependsOnPrev: false, subIndex: null,
+          evidence: [], fotos_guia: [],
+          dispatchStartedAt: null, dispatchCompletedAt: null,
+          parentId: taskId,       // referencia a la tarea origen (trazabilidad)
+          demoRef: taskId,        // link bidireccional
+          statusHistory: [{ status:'pending', date:now, by: jp.userId||'', note:'Auto-creado desde demo retiro' }],
+          createdBy: jp.userId || '',
+          createdAt: now,
+          updatedAt: now,
+          items: demoItems
+        };
+        tasks.push(pickupTask);
+        pickupTaskId = pickupTask.id;
+        // Marcar en la tarea origen que tiene una tarea de retiro
+        if (!task.demoPickupTasks) task.demoPickupTasks = [];
+        task.demoPickupTasks.push(pickupTaskId);
+      }
+      saveWwpTasks(tasks);
+      broadcastWwpTasks('demo_updated', task, { taskId, itemId, action: d.action, pickupTaskId });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, demoStatus: d.action, pickupTaskId}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── GET /api/wwp/demo-pendientes — tareas con ítems demo en_demo o sin estado ──
+  if (reqPath === '/api/wwp/demo-pendientes' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const tasks = loadWwpTasks();
+      const result = [];
+      tasks.forEach(t => {
+        const pendingDemoItems = (t.items||[]).filter(it =>
+          it.esDemo === true && (!it.demoStatus || it.demoStatus === 'en_demo')
+        );
+        if (pendingDemoItems.length > 0) {
+          result.push({
+            taskId: t.id,
+            taskTitle: t.title || '',
+            odooRef: t.odooRef || '',
+            client: t.client || '',
+            items: pendingDemoItems.map(it => ({
+              item_id: it.item_id,
+              product_name: it.product_name || it.sku || '',
+              demoStatus: it.demoStatus || 'en_demo'
+            }))
+          });
+        }
+      });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify(result));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
 

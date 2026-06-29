@@ -2972,6 +2972,13 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* Artículos */
 .item-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;overflow:hidden}
+.demo-chip{display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,.12);color:var(--amber-text);border:1px solid var(--amber-text);border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800;margin-left:6px;vertical-align:middle}
+.demo-status-line{font-size:10px;margin-top:3px;color:var(--text-3)}
+.demo-callout{background:rgba(245,158,11,.1);border:1.5px solid var(--amber-dot);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+.demo-callout-title{font-size:12px;font-weight:700;color:var(--amber-text);margin-bottom:8px}
+.demo-callout-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.demo-toggle-btn{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--surface-3);color:var(--text-2);transition:background .15s,border-color .15s}
+.demo-toggle-btn.active{background:rgba(245,158,11,.15);border-color:var(--amber-text);color:var(--amber-text)}
 .item-prog-bar{height:4px;background:var(--surface-3);margin:-12px -12px 10px}
 .item-prog-fill{height:100%;width:100%;background:var(--amber-dot);transform-origin:left;transform:scaleX(0);transition:transform .5s ease,background .4s ease}
 .item-prog-fill.prog-done{background:var(--green-dot)}
@@ -7564,7 +7571,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v78';
+var APP_BUILD = 'v79';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11131,7 +11138,9 @@ function renderListRow(t) {
   const _dueChip  = t.dueDate   ? chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':'') : '';
   const _subsChip = subs.length  ? chip('Subtareas', `${doneSubs}/${subs.length} completadas`) : '';
   const _locChip  = t.location   ? chip('Ubicacion', t.location) : '';
-  const _metaContent = _s1 + _s2 + _s3 + _parChips + _dueChip + _subsChip + _locChip;
+  const _demoPendRow = (t.items||[]).filter(it=>it.esDemo===true&&(!it.demoStatus||it.demoStatus==='en_demo')).length;
+  const _demoChipRow = _demoPendRow>0?`<span class="task-meta-chip" style="border-color:var(--amber-dot);background:rgba(245,158,11,.08);color:var(--amber-text)"><span class="meta-label"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i></span><span class="meta-value">${_demoPendRow} en demo</span></span>`:'';
+  const _metaContent = _s1 + _s2 + _s3 + _parChips + _dueChip + _subsChip + _locChip + _demoChipRow;
   // Solicitante + periodo como subtítulo junto al título (staffing)
   const rowSubMeta = [];
   if (t.type==='staffing') {
@@ -11293,14 +11302,20 @@ function renderTaskCard(t) {
   if (t.requester) cardSubMeta.push(`<span style="font-weight:700;color:var(--text-2)">${esc(t.requester)}</span>`);
   if (t.staffStart) cardSubMeta.push(`<span style="color:var(--text-muted)">${esc(t.staffStart)}${t.staffEnd&&t.staffEnd!==t.staffStart?' → '+t.staffEnd:''}${t.staffFrom?' · '+t.staffFrom+(t.staffTo?'-'+t.staffTo:''):''}${t.totalHours!=null?' · '+t.totalHours+'h':''}</span>`);
 
+  // Chip de ítems demo pendientes
+  const _demoPendN = (t.items||[]).filter(it=>it.esDemo===true&&(!it.demoStatus||it.demoStatus==='en_demo')).length;
+  const _demoChipCard = _demoPendN>0?`<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,.15);color:var(--amber-text);border:1px solid var(--amber-dot);border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800;white-space:nowrap"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block"></i> ${_demoPendN} en demo</span>`:''
   return `<div class="task-card" data-status="${t.status}" onclick="openDrawer('${t.id}')" style="${tier?DUE_CARD_STYLE[tier]:''}">
     <div class="tc-header">
       <div>
         <div class="tc-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:6px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
         ${cardSubMeta.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px;font-size:var(--fs-xs)">${cardSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>` : ''}
       </div>
-      ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
-      ${photoArchiveBadgeHtml(t)}
+      <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+        ${_demoChipCard}
+        ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
+        ${photoArchiveBadgeHtml(t)}
+      </div>
     </div>
     ${subs.length ? `<div class="tc-progress"><div class="tc-progress-bar" style="width:${progPct}%"></div></div>` : ''}
     <div class="tc-grid">
@@ -11799,6 +11814,28 @@ function renderDrawer(t) {
     if (canDevolver)      rowBtns += `<button class="btn-danger" onclick="showDevolverModal('${t.id}')">↩ Devolver</button>`;
     if (rowBtns) actionHtml += `<div class="action-row">${rowBtns}</div>`;
   }
+  // ── Callout demo post-entrega: aparece cuando hay ítems demo pendientes de confirmación ──
+  if (['completed','validated'].includes(t.status)) {
+    const _demoItems = (t.items||[]).filter(it => it.esDemo === true && (!it.demoStatus || it.demoStatus === 'en_demo'));
+    if (_demoItems.length > 0) {
+      const _dN = _demoItems.length;
+      // Botones individuales por ítem (para confirmar uno a uno)
+      const _indivBtns = _demoItems.map(it => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(245,158,11,.15)">
+          <span style="flex:1;font-size:11px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.product_name||it.sku||it.item_id)}</span>
+          <button onclick="confirmarDemoItem('${t.id}','${it.item_id}','facturado')" style="font-size:10px;padding:2px 8px;border:1px solid var(--green-dot);border-radius:5px;background:rgba(16,163,74,.1);color:var(--green-text);cursor:pointer;font-weight:700;white-space:nowrap;font-family:inherit">✓ Facturar</button>
+          <button onclick="confirmarDemoItem('${t.id}','${it.item_id}','retiro_solicitado')" style="font-size:10px;padding:2px 8px;border:1px solid var(--amber-dot);border-radius:5px;background:rgba(245,158,11,.1);color:var(--amber-text);cursor:pointer;font-weight:700;white-space:nowrap;font-family:inherit">↩ Retirar</button>
+        </div>`).join('');
+      actionHtml += `<div class="demo-callout">
+        <div class="demo-callout-title"><i data-lucide="eye" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>⚠️ ${_dN} artículo${_dN>1?'s':''} en demo — pendiente de confirmación</div>
+        <div style="margin-bottom:8px">${_indivBtns}</div>
+        <div class="demo-callout-btns">
+          <button onclick="confirmarDemo('${t.id}','facturado')" style="flex:1;padding:6px 10px;border:1.5px solid var(--green-dot);border-radius:7px;background:rgba(16,163,74,.1);color:var(--green-text);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">✓ Facturar todos</button>
+          <button onclick="confirmarDemo('${t.id}','retiro_solicitado')" style="flex:1;padding:6px 10px;border:1.5px solid var(--amber-dot);border-radius:7px;background:rgba(245,158,11,.1);color:var(--amber-text);cursor:pointer;font-size:11px;font-weight:700;font-family:inherit">↩ Solicitar retiro de todos</button>
+        </div>
+      </div>`;
+    }
+  }
   // Cancelar tarea/subtarea (admin o encargado responsable) — libera la orden/pick para reasignar
   if (isResponsibleCloser && !['validated','cancelled'].includes(t.status)) {
     actionHtml += `<div class="action-row"><button class="btn-danger" onclick="cancelTask('${t.id}')" style="background:transparent;color:var(--red-text);border:1.5px solid var(--red-dot)"><i data-lucide="x-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Cancelar ${t.parentId?'subtarea':'tarea'}</button></div>`;
@@ -11931,7 +11968,8 @@ function renderDrawer(t) {
           ${it.image?`<img class="item-thumb" src="${it.image}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:''}
           <div class="item-thumb-ph" style="${it.image?'display:none':''}"><i data-lucide="package" style="width:22px;height:22px;stroke:currentColor;opacity:.4"></i></div>
           <div style="flex:1;min-width:0">
-            <div class="item-name">${esc(it.product_name||it.sku||'')}${(it.unit_total>1)?`<span style="font-size:10px;font-weight:700;color:var(--accent);margin-left:6px">Unidad ${it.unit_index}/${it.unit_total}</span>`:''}</div>
+            <div class="item-name">${esc(it.product_name||it.sku||'')}${(it.unit_total>1)?`<span style="font-size:10px;font-weight:700;color:var(--accent);margin-left:6px">Unidad ${it.unit_index}/${it.unit_total}</span>`:''}${it.esDemo?`<span class="demo-chip"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block"></i> DEMO</span>`:''}</div>
+            ${it.esDemo?(()=>{const _ds=it.demoStatus||'en_demo';return `<div class="demo-status-line">${_ds==='facturado'?'✓ Facturado':_ds==='retiro_solicitado'?'↩ Retiro solicitado':_ds==='retirado'?'📦 Retirado':'⏳ Pendiente confirmación'}</div>`})():''}
             ${(()=>{ const pg=it.pickGroup;
               if(pg==='executed') return `<div style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(16,163,74,.12);color:var(--green-text);border:1px solid var(--green-dot);margin:2px 0">✅ Ejecutado en Odoo</div>`;
               if(pg==='moved')    return `<div style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;background:rgba(37,99,235,.1);color:var(--accent);border:1px solid var(--accent);margin:2px 0">🔄 En otro pick${it.pickNameNow?(': '+esc(it.pickNameNow)):''}</div>`;
@@ -13062,6 +13100,53 @@ async function toggleItemConfirm(taskId, itemId, checked) {
   } catch(e) { toast(e.message); openDrawer(taskId); }
 }
 
+// ── Demo: confirmar un ítem individual ────────────────────────────────────────
+async function confirmarDemoItem(taskId, itemId, action) {
+  try {
+    const r = await authFetch('/api/wwp/tasks/'+taskId+'/items/'+itemId+'/demo', {
+      method: 'PATCH',
+      body: JSON.stringify({ action, by: _user.id, byName: _user.name })
+    });
+    const d = await r.json();
+    if (!d.ok) { toast('Error: '+(d.error||'desconocido')); return; }
+    if (action === 'retiro_solicitado' && d.pickupTaskId) {
+      await loadTasks();
+      toast('✓ Retiro solicitado — tarea de recogida creada');
+      openDrawer(taskId);
+    } else {
+      await loadTasks();
+      openDrawer(taskId);
+    }
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Demo: confirmar TODOS los ítems demo pendientes de una tarea ──────────────
+async function confirmarDemo(taskId, action) {
+  const t = (_tasks||[]).find(x=>x.id===taskId) || _drawerTask;
+  if (!t) return;
+  const pendingItems = (t.items||[]).filter(it => it.esDemo === true && (!it.demoStatus || it.demoStatus === 'en_demo'));
+  if (!pendingItems.length) { toast('Sin ítems demo pendientes'); return; }
+  let pickupTaskId = null;
+  for (const it of pendingItems) {
+    try {
+      const r = await authFetch('/api/wwp/tasks/'+taskId+'/items/'+it.item_id+'/demo', {
+        method: 'PATCH',
+        body: JSON.stringify({ action, by: _user.id, byName: _user.name })
+      });
+      const d = await r.json();
+      if (d.pickupTaskId) pickupTaskId = d.pickupTaskId;
+    } catch(e) { toast('Error en ítem '+it.item_id+': '+e.message); }
+  }
+  await loadTasks();
+  if (action === 'retiro_solicitado' && pickupTaskId) {
+    toast('✓ Retiro solicitado — tarea de recogida creada');
+    openDrawer(taskId);
+  } else {
+    toast(action === 'facturado' ? '✓ Artículos marcados como facturados' : '✓ Demo actualizado');
+    openDrawer(taskId);
+  }
+}
+
 // Cancelar tarea/subtarea (libera la orden/pick). Al cancelar la madre, cascada a subtareas.
 async function cancelTask(taskId) {
   const t = (_tasks||[]).find(x=>x.id===taskId) || _drawerTask;
@@ -13768,6 +13853,11 @@ function shortBin(b){ return (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH
 function expandUnitRows(items) {
   const out = [];
   items.forEach(it => {
+    // Normalizar _esDemo (campo interno del wizard) → esDemo + demoStatus para el servidor
+    if (it._esDemo !== undefined) {
+      it = { ...it, esDemo: !!it._esDemo, demoStatus: it._esDemo ? 'en_demo' : undefined };
+      delete it._esDemo;
+    }
     // Idempotente: si ya es una fila-unidad materializada (tiene unit_index), pasarla tal cual.
     // Esto preserva item_id (y por ende sus evidencias en el server) al editar una tarea existente.
     if (it.unit_index && it.unit_total) { out.push({ ...it, quantity:1 }); return; }
@@ -14834,19 +14924,24 @@ function _wizRenderItems(){
       `<input type="checkbox" style="width:16px;height:16px;accent-color:var(--accent)" ${it.selected?'checked':''} onclick="event.stopPropagation();_wizSearch[${i}].selected=this.checked">`;
     const thumb=it.image?`<img src="${it.image}" style="width:30px;height:30px;object-fit:cover;border-radius:5px;flex-shrink:0" onerror="this.style.display='none'">`:'';
     const indent=indented?'padding-left:10px;border-left:3px solid rgba(37,99,235,.25);margin-left:4px;':'';
+    // Toggle DEMO — solo visible cuando el ítem está seleccionado (no en carrito, no claimed)
+    const demoToggle=(it.selected&&!it._inCart&&!isClaimed)?`<button class="demo-toggle-btn${it._esDemo?' active':''}" onclick="event.stopPropagation();_wizSearch[${i}]._esDemo=!_wizSearch[${i}]._esDemo;_wizRenderItems()" title="Marcar como artículo en demo"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Demo</button>`:'';
     return `<div class="item-row${isClaimed?' item-claimed':''}" style="${indent}" onclick="${isClaimed||it._inCart?'':('_wizSearch['+i+'].selected=!_wizSearch['+i+'].selected;_wizRenderItems()')}">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:18px;flex-shrink:0">${ctrl}</div>
         ${thumb}
         <div style="flex:1;min-width:0">
-          <div class="item-sku" style="font-size:11px">${esc(it.sku||'')} <span class="item-name">${esc(it.product_name||'')}</span></div>
+          <div class="item-sku" style="font-size:11px">${esc(it.sku||'')} <span class="item-name">${esc(it.product_name||'')}</span>${it._esDemo?'<span class="demo-chip"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block"></i> DEMO</span>':''}</div>
           <div style="font-size:10px;color:var(--text-3);margin-top:1px">Qty: ${it.quantity||1} · ${stock}${claimedB}${partB}</div>
         </div>
+        ${demoToggle}
       </div>
     </div>`;
   };
 
-  let html='';
+  // Banner de demo si algún ítem está marcado como demo
+  if (_wizCtx) _wizCtx.isDemo = _wizSearch.some(it => it._esDemo);
+  let html=(_wizCtx&&_wizCtx.isDemo)?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:9px 12px;background:rgba(245,158,11,.1);border:1.5px solid var(--amber-dot);border-radius:8px"><i data-lucide="eye" style="width:14px;height:14px;stroke:var(--amber-text);flex-shrink:0"></i><span style="font-size:12px;font-weight:700;color:var(--amber-text)">⚠️ Esta orden incluye artículos en demo — marca cuáles son</span></div>`:'';
 
   // Grupos de kit
   Object.values(kitGroups).forEach(kg=>{
