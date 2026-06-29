@@ -7612,7 +7612,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v80';
+var APP_BUILD = 'v81';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29403,6 +29403,34 @@ async function sdvBandejaCargar() {
 var _eoFiltro = '';
 var _eoData   = [];
 
+// ── DEMO FLAG ── cambiar a false después de la reunión para quitar el mock ──
+var _EO_MOCK = true;
+// ── FIN DEMO FLAG ────────────────────────────────────────────────────────────
+
+// ── MOCK DATA (solo activo cuando _EO_MOCK === true) ─────────────────────────
+var _EO_MOCK_DATA = [
+  // Pendiente revisión
+  {id:'mock-001',folio:'SDV-2026-0048',estado:'pendiente_revision',clienteNombre:'Lissette Polanco',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-9201',articulosOdoo:[{},{},{}],creadoAt:'2026-06-28T09:10:00Z',tipoSolicitud:'despacho_cliente',_mock:true},
+  {id:'mock-002',folio:'SDV-2026-0049',estado:'pendiente_revision',clienteNombre:'Germán Rodríguez',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-9205',articulosOdoo:[{},{}],creadoAt:'2026-06-29T08:30:00Z',tipoSolicitud:'despacho_cliente',_mock:true},
+  // En proceso — empaque
+  {id:'mock-003',folio:'SDV-2026-0044',estado:'en_proceso',clienteNombre:'Andrea Hormazabal',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-9115',articulosOdoo:[{},{}],creadoAt:'2026-06-24T11:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'packaging',estado:'in_progress',mgr:'Franklin Candelario'}},
+  // En proceso — listo para despacho
+  {id:'mock-004',folio:'SDV-2026-0045',estado:'en_proceso',clienteNombre:'Geremia Jimenez',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-9120',articulosOdoo:[{},{},{},{},{}],creadoAt:'2026-06-25T10:15:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'assigned',mgr:'Melvin Grullón'},_demoPend:1},
+  // En proceso — con demo
+  {id:'mock-005',folio:'SDV-2026-0046',estado:'en_proceso',clienteNombre:'Claudette Cochon',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-9114',articulosOdoo:[{},{},{}],creadoAt:'2026-06-25T14:20:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'packaging',estado:'completed',mgr:'Franklin Candelario'},_evidencias:3},
+  // Despachada — con evidencias
+  {id:'mock-006',folio:'SDV-2026-0040',estado:'despachada',clienteNombre:'Dianne Bisono',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-8946',articulosOdoo:[{},{},{},{},{},{}],creadoAt:'2026-06-20T09:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Melvin Grullón'},_evidencias:5},
+  // Despachada — sin OUT Odoo (el caso del correo de Ircania)
+  {id:'mock-007',folio:'SDV-2026-0041',estado:'despachada',clienteNombre:'ZUNIFLOR',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-9059',articulosOdoo:[{},{},{},{}],creadoAt:'2026-06-21T08:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'completed',mgr:'Jose Ureña'},_evidencias:0,_sinOut:true},
+  // Despachada — demo activo (artículo en cliente, pendiente confirmación)
+  {id:'mock-008',folio:'SDV-2026-0042',estado:'despachada',clienteNombre:'Carlos Matamoros',vendedorNombre:'Daniela Castillo',odooOrderRef:'OV-2026-8946',articulosOdoo:[{},{}],creadoAt:'2026-06-22T10:30:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Melvin Grullón'},_evidencias:4,_demoPend:2},
+  // Despachada — artículo devuelto
+  {id:'mock-009',folio:'SDV-2026-0038',estado:'despachada',clienteNombre:'Rosa Morales',vendedorNombre:'Heidy Nuñez',odooOrderRef:'OV-2026-8820',articulosOdoo:[{}],creadoAt:'2026-06-18T13:00:00Z',tipoSolicitud:'despacho_cliente',_mock:true,_taskMock:{tipo:'dispatch_order',estado:'validated',mgr:'Jose Ureña'},_evidencias:2,_devolucion:true},
+  // Rechazada
+  {id:'mock-010',folio:'SDV-2026-0037',estado:'rechazada',clienteNombre:'CBELL Event Media',vendedorNombre:'Jhonathan Martínez',odooOrderRef:'S09059',articulosOdoo:[{},{},{}],creadoAt:'2026-06-15T09:45:00Z',tipoSolicitud:'despacho_cliente',_mock:true},
+];
+// ── FIN MOCK DATA ─────────────────────────────────────────────────────────────
+
 async function estadoOrdenesCargar() {
   var listEl = document.getElementById('eo-list');
   var kpiEl  = document.getElementById('eo-kpi-row');
@@ -29410,12 +29438,15 @@ async function estadoOrdenesCargar() {
   listEl.innerHTML = '<div style="color:var(--text-2);padding:30px;text-align:center">Cargando…</div>';
   if (kpiEl) kpiEl.innerHTML = '';
   try {
-    var r = await authFetch('/api/sdv');
-    var d = await r.json();
-    if (!r.ok || !d.ok) { listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error al cargar solicitudes</div>'; return; }
-    // Filtrar últimos 60 días en cliente
-    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
-    _eoData = (d.solicitudes||[]).filter(function(s){ return !s.creadoAt || new Date(s.creadoAt) >= cutoff; });
+    if (_EO_MOCK) {
+      _eoData = _EO_MOCK_DATA;
+    } else {
+      var r = await authFetch('/api/sdv');
+      var d = await r.json();
+      if (!r.ok || !d.ok) { listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error al cargar solicitudes</div>'; return; }
+      var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+      _eoData = (d.solicitudes||[]).filter(function(s){ return !s.creadoAt || new Date(s.creadoAt) >= cutoff; });
+    }
     var upEl = document.getElementById('eo-last-update');
     if (upEl) upEl.textContent = 'actualizado ' + new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',hour12:true});
     renderEstadoOrdenes();
@@ -29438,17 +29469,18 @@ function renderEstadoOrdenes() {
   var tasks = _tasks || [];
 
   function hasDemoPend(s) {
+    if (s._mock) return (s._demoPend||0) > 0;
     return tasks.filter(function(t){ return t.sdvId===s.id; }).some(function(t){
       return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); });
     });
   }
 
   // KPIs
-  var nPend  = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
-  var nProc  = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
-  var nDesp  = sols.filter(function(s){ return s.estado==='despachada'; }).length;
-  var nDemo  = sols.filter(hasDemoPend).length;
-  var nCanc  = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
+  var nPend = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
+  var nProc = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
+  var nDesp = sols.filter(function(s){ return s.estado==='despachada'; }).length;
+  var nDemo = sols.filter(hasDemoPend).length;
+  var nCanc = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
 
   var kpis = [
     {n:nPend, lbl:'Pendiente revisión', color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
@@ -29487,37 +29519,48 @@ function renderEstadoOrdenes() {
     visible = sols.filter(function(s){ return s.estado===_eoFiltro; });
   }
 
+  var demoBanner = _EO_MOCK
+    ? '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:12px;background:rgba(37,99,235,.07);border:1.5px dashed rgba(37,99,235,.3);border-radius:8px;font-size:11px;color:var(--accent)"><i data-lucide="flask-conical" style="width:13px;height:13px;stroke:currentColor;display:inline-block;flex-shrink:0"></i><strong>MODO DEMO</strong> — Datos de ejemplo para presentación. Estos no son datos reales de producción.</div>'
+    : '';
+
   if (!visible.length) {
-    listEl.innerHTML = '<div style="color:var(--text-2);padding:30px;text-align:center;font-size:13px">Sin solicitudes en este período</div>';
+    listEl.innerHTML = demoBanner + '<div style="color:var(--text-2);padding:30px;text-align:center;font-size:13px">Sin solicitudes en este período</div>';
     if (window.lucide) lucide.createIcons();
     return;
   }
-  listEl.innerHTML = visible.map(function(s){ return eoCardHtml(s, tasks); }).join('');
+  listEl.innerHTML = demoBanner + visible.map(function(s){ return eoCardHtml(s, tasks); }).join('');
   if (window.lucide) lucide.createIcons();
 }
 
 function eoCardHtml(s, tasks) {
-  var linked   = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
-  var mainTask = linked.find(function(t){ return t.type==='packaging'; }) ||
-                 linked.find(function(t){ return t.type==='dispatch_order'; }) ||
-                 linked[0];
+  // Soporte dual: datos mock (_mock:true) o datos reales (SDV + tasks)
+  var mainTask, totalEvid, anyDone, demoPend, sinOut, devolucion;
 
-  // Demo items pendientes
-  var demoPend = 0;
-  linked.forEach(function(t){
-    demoPend += (t.items||[]).filter(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); }).length;
-  });
+  if (s._mock) {
+    mainTask   = s._taskMock ? {type:s._taskMock.tipo, status:s._taskMock.estado, managerName:s._taskMock.mgr} : null;
+    totalEvid  = s._evidencias || 0;
+    anyDone    = mainTask && (mainTask.status==='completed'||mainTask.status==='validated');
+    demoPend   = s._demoPend || 0;
+    sinOut     = !!s._sinOut;
+    devolucion = !!s._devolucion;
+  } else {
+    var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+    mainTask   = linked.find(function(t){ return t.type==='packaging'; }) ||
+                 linked.find(function(t){ return t.type==='dispatch_order'; }) || linked[0];
+    totalEvid  = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; }, 0);
+    anyDone    = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
+    demoPend   = 0;
+    linked.forEach(function(t){ demoPend += (t.items||[]).filter(function(it){ return it.esDemo&&(!it.demoStatus||it.demoStatus==='en_demo'); }).length; });
+    sinOut     = s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); });
+    devolucion = false;
+  }
 
-  // Evidencias
-  var totalEvid = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; }, 0);
-  var anyDone   = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
-
-  // Chips de operaciones
+  // Chips
   var chips = '';
   if (mainTask) {
-    var stLbl = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
-    var stCls = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
-    var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
+    var stLbl  = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
+    var stCls  = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
+    var tyLbl  = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
     var tyIcon = mainTask.type==='packaging'?'package':mainTask.type==='item_pickup'?'scan-line':'truck';
     chips += '<span class="eo-ops-chip '+stCls+'"><i data-lucide="'+tyIcon+'" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(tyLbl)+' · '+esc(stLbl)+'</span>';
     if (mainTask.managerName) chips += ' <span class="eo-ops-chip"><i data-lucide="user" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(mainTask.managerName.split(' ')[0])+'</span>';
@@ -29527,28 +29570,23 @@ function eoCardHtml(s, tasks) {
   } else if (anyDone && totalEvid===0) {
     chips += ' <span class="eo-ops-chip amber"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
   }
-  if (demoPend>0) {
-    chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
-  }
-  // OUT pendiente: despachada en WWP pero sin odooRef en tarea completada
-  if (s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); })) {
-    chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
-  }
+  if (demoPend>0)   chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
+  if (sinOut)       chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
+  if (devolucion)   chips += ' <span class="eo-ops-chip amber"><i data-lucide="rotate-ccw" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución registrada</span>';
 
   var arts  = (s.articulosOdoo||[]).length;
   var fecha = s.creadoAt ? sdvFmtDate(s.creadoAt).split(' ')[0] : '—';
   var meta  = [
-    s.clienteNombre ? '<strong>'+esc(s.clienteNombre)+'</strong>' : '',
+    s.clienteNombre  ? '<strong>'+esc(s.clienteNombre)+'</strong>' : '',
     s.vendedorNombre ? esc(s.vendedorNombre) : '',
-    s.odooOrderRef  ? 'Orden '+esc(s.odooOrderRef) : '',
+    s.odooOrderRef   ? 'Orden '+esc(s.odooOrderRef) : '',
     arts             ? arts+' artículo'+(arts>1?'s':'') : '',
     fecha
   ].filter(Boolean).join(' · ');
 
-  // Click: navegar a sdv-portal y ver detalle
-  var onClick = 'sdvVerDetalle(\''+s.id+'\',\'mis\');navTo(\'sdv-portal\')';
+  var onClick = s._mock ? '' : 'sdvVerDetalle(\''+s.id+'\',\'mis\');navTo(\'sdv-portal\')';
 
-  return '<div class="eo-card" onclick="'+onClick+'" title="Ver detalle">'+
+  return '<div class="eo-card"'+(onClick?' onclick="'+onClick+'" title="Ver detalle"':'')+'>'+
     '<div class="eo-card-top">'+
       '<span class="eo-folio">'+esc(s.folio||s.id)+'</span>'+
       sdvBadge(s.estado)+
