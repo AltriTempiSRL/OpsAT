@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v85';
+const APP_BUILD = 'v86';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7876,15 +7876,29 @@ const server = http.createServer(async (req, res) => {
           tasks[idx].dispatchCompletedAt = now;
         }
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
-        // ── AUTOMÁTICO: Actualizar SDV a 'despachada' cuando tarea se valida ──
+        // ── AUTOMÁTICO: Actualizar SDV a 'despachada' ──
+        // Para tareas de despacho (dispatch_order), basta con que el chofer la marque
+        // 'completed' — esto ya exige el checklist de 3 fotos (incluye documentos de
+        // entrega firmados), así que no hace falta esperar la validación de un admin.
+        // Para otros tipos de tarea (retiro en sucursal, etc.) se mantiene el criterio
+        // anterior: solo 'validated' cierra el ciclo.
         // Con tareas divididas por localidad, esperar a que TODAS las tareas del mismo sdvId
-        // estén validadas o canceladas antes de marcar la SDV como despachada.
-        if (d.status === 'validated' && tasks[idx].sdvId) {
+        // estén en su estado final antes de marcar la SDV como despachada.
+        const _esSenalDespacho = tasks[idx].sdvId && (
+          (d.status === 'completed' && tasks[idx].type === 'dispatch_order') ||
+          d.status === 'validated'
+        );
+        if (_esSenalDespacho) {
           const todasListas = tasks
             .filter(t => t.sdvId === tasks[idx].sdvId)
-            .every(t => ['validated','cancelled'].includes(t.id === tasks[idx].id ? d.status : t.status));
+            .every(t => {
+              const st = t.id === tasks[idx].id ? d.status : t.status;
+              if (st === 'cancelled') return true;
+              if (t.type === 'dispatch_order') return ['completed','validated'].includes(st);
+              return st === 'validated';
+            });
           if (!todasListas) {
-            console.log('[WWP→SDV] Tarea', tasks[idx].id, 'validada pero otras del mismo sdvId aún abiertas — SDV espera');
+            console.log('[WWP→SDV] Tarea', tasks[idx].id, 'lista pero otras del mismo sdvId aún abiertas — SDV espera');
           }
           if (todasListas) try {
             const sdvList = loadSdv();
@@ -7898,7 +7912,7 @@ const server = http.createServer(async (req, res) => {
                 por: 'sistema',
                 nombre: 'Sistema',
                 at: now,
-                nota: 'Tarea WWP validada: ' + tasks[idx].id
+                nota: 'Tarea WWP ' + d.status + ': ' + tasks[idx].id
               });
               sdvList[sdvIdx] = sdv;
               saveSdv(sdvList);
@@ -11495,15 +11509,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── POST /api/wwp/tasks/:id/devolucion — registrar devolución en ruta ──────────
-  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/devolucion$/) && req.method === 'POST') {
+  // ── POST /api/wwp/tasks/:id/devolucion-ruta/articulo — chofer registra UN artículo
+  // devuelto por el cliente en campo (sin planificación previa). Va dentro de la
+  // tarea de despacho como "devolucionRuta" — no es una tarea WWP independiente.
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/devolucion-ruta\/articulo$/) && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     try {
       const taskId = reqPath.split('/')[4];
       const d = await readBody(req);
-      if (!d.fotos || !Array.isArray(d.fotos) || d.fotos.length === 0) {
+      if (!d.foto || !d.foto.data) {
         res.writeHead(400,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:false,error:'Se requiere al menos una foto'}));
+        res.end(JSON.stringify({ok:false,error:'Se requiere una foto del artículo'}));
         return;
       }
       const tasks = loadWwpTasks();
@@ -11515,22 +11531,73 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ok:false,error:'Solo se puede registrar devolución en tareas en progreso o completadas'}));
         return;
       }
-      const devEntry = {
-        id: wwpId('dev'),
-        fotos: d.fotos,
-        descripcion: (d.descripcion||'').trim().slice(0,500),
+      const { b64, ext } = validatePhoto(d.foto);
+      const fname = `${taskId}_devart_${Date.now()}.${ext}`;
+      fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64, 'base64'));
+      const fotoUrl = `/wwp-fotos/${fname}`;
+      const now = new Date().toISOString();
+      const esNueva = !task.devolucionRuta || task.devolucionRuta.estado === 'cerrada';
+      if (esNueva) {
+        task.devolucionRuta = {
+          estado: 'abierta',
+          abiertaAt: now,
+          abiertaBy: jp.userId || '',
+          abiertaByName: jp.name || '',
+          articulos: []
+        };
+      }
+      const articulo = {
+        id: wwpId('devart'),
+        descripcion: (d.descripcion||'').trim().slice(0,300),
+        foto: { url: fotoUrl },
         registradoBy: jp.userId || '',
         registradoByName: jp.name || '',
-        registradoAt: new Date().toISOString(),
+        registradoAt: now,
       };
-      if (!task.devoluciones) task.devoluciones = [];
-      task.devoluciones.push(devEntry);
-      task.tieneDevolucion = true;
-      task.updatedAt = new Date().toISOString();
+      task.devolucionRuta.articulos.push(articulo);
+      task.updatedAt = now;
       saveWwpTasks(tasks);
-      notifyVentasDevolucion(task.id, task.odooRef||'', task.client||'', jp.name||'auxiliar');
+      if (esNueva) {
+        notifyVentasDevolucion(task.id, task.odooRef||'', task.client||'', jp.name||'auxiliar');
+        try {
+          const sdvList = loadSdv();
+          const sdv = sdvList.find(s => s.id === task.sdvId);
+          if (sdv) notifySeller(sdv, { type:'dev_en_ruta', title:'📦 Devolución en ruta', message:`${jp.name||'Un auxiliar'} registró artículos devueltos por el cliente en ${sdv.folio||sdv.id}. Crea el RET en Odoo cuando puedas.` });
+        } catch(e) { silentCatch(e,'notifySeller_devolucionRuta'); }
+      }
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, devEntry}));
+      res.end(JSON.stringify({ok:true, articulo, devolucionRuta: task.devolucionRuta}));
+    } catch(e) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:e.message}));
+    }
+    return;
+  }
+
+  // ── POST /api/wwp/tasks/:id/devolucion-ruta/cerrar — Ventas cierra el caso al crear el RET en Odoo
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/devolucion-ruta\/cerrar$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['ventas','manager','admin'])) return;
+    try {
+      const taskId = reqPath.split('/')[4];
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t => t.id === taskId);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const task = tasks[idx];
+      if (!task.devolucionRuta || task.devolucionRuta.estado !== 'abierta') {
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'No hay una devolución en ruta abierta para esta tarea'}));
+        return;
+      }
+      const now = new Date().toISOString();
+      task.devolucionRuta.estado = 'cerrada';
+      task.devolucionRuta.cerradoBy = jp.userId || '';
+      task.devolucionRuta.cerradoByName = jp.name || '';
+      task.devolucionRuta.cerradoAt = now;
+      task.updatedAt = now;
+      saveWwpTasks(tasks);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, devolucionRuta: task.devolucionRuta}));
     } catch(e) {
       res.writeHead(500,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:false,error:e.message}));

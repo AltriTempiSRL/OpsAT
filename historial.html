@@ -7640,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v85';
+var APP_BUILD = 'v86';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12333,7 +12333,7 @@ function renderDrawer(t) {
   ` : '';
 
   // ══════════════ PIEZAS DE DESPACHO (vista del auxiliar/ejecutor) ══════════════
-  let pickStatusHtml = '', dispatchChecklistHtml = '', dispatchItemsHtml = '';
+  let pickStatusHtml = '', dispatchChecklistHtml = '', dispatchItemsHtml = '', devolucionRutaHtml = '';
   if (isDispatch) {
     const canDispUpload = !isClosedTask && canCloseDispatch;
 
@@ -12460,6 +12460,31 @@ function renderDrawer(t) {
         <button class="btn-primary" onclick="syncPickNow('${t.id}')" style="margin-top:4px;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;font-size:13px;min-height:40px"><i data-lucide="refresh-cw" style="width:14px;height:14px;stroke:currentColor;flex-shrink:0"></i>Actualizar desde pick</button>
       </div>`;
     }
+
+    // ── Devolución en ruta (artículos recibidos del cliente sin planificación previa) ──
+    const dr = t.devolucionRuta;
+    const drAbierta = !!(dr && dr.estado === 'abierta');
+    const drArts = dr ? (dr.articulos||[]) : [];
+    const canCerrarDevolucion = drAbierta && ['ventas','manager','admin'].includes(_user.role);
+    if (drArts.length || (canDispUpload && t.status==='in_progress')) {
+      const artsHtml = drArts.map(a => `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--surface-2);border-radius:8px;margin-bottom:6px">
+        <img src="${mediaUrl(a.foto.url)}" onclick="openLightbox('${mediaUrl(a.foto.url)}')" style="width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:var(--text);line-height:1.4">${esc(a.descripcion||'Sin descripción')}</div>
+          <div style="font-size:10px;color:var(--text-3);margin-top:2px">${esc(a.registradoByName||'')} · ${fmtDate(a.registradoAt)}</div>
+        </div>
+      </div>`).join('');
+      devolucionRutaHtml = `<div class="sec-header" style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <i data-lucide="package-open" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>
+          DEVOLUCIÓN EN RUTA
+          ${dr?`<span style="margin-left:auto;font-size:10px;font-weight:700;color:${drAbierta?'var(--red-text)':'var(--green-text)'}">${drAbierta?'ABIERTA':'CERRADA'}</span>`:''}
+        </div>
+        ${dr ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Artículo(s) devuelto(s) por el cliente en campo — pendiente crear RET en Odoo.</div>` : `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Si el cliente devuelve mercancía sin planificación previa, regístrala aquí artículo por artículo.</div>`}
+        ${artsHtml}
+        ${(canDispUpload && t.status==='in_progress')?`<button class="btn-add-photo" onclick="uploadDevolucionArticulo('${t.id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Registrar artículo devuelto</button>`:''}
+        ${canCerrarDevolucion?`<button class="btn-secondary" style="margin-top:6px" onclick="cerrarDevolucionRuta('${t.id}')"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Marcar como resuelto (RET creado en Odoo)</button>`:''}
+        ${dr && !drAbierta?`<div style="font-size:10px;color:var(--text-3);margin-top:4px">Cerrado por ${esc(dr.cerradoByName||'')} · ${fmtDate(dr.cerradoAt)}</div>`:''}`;
+    }
   }
 
   // Aislamiento: el auxiliar de despacho solo ve lo de despacho (oculta guía/evidencia/subtareas de empaque)
@@ -12496,6 +12521,7 @@ function renderDrawer(t) {
     ${_guiaHtml}
     ${dispatchChecklistHtml}
     ${_itemsHtml}
+    ${devolucionRutaHtml}
     <div style="border-top:1.5px solid var(--border);margin:16px 0 12px"></div>
     ${actionHtml}
     ${histHtml}
@@ -13527,6 +13553,43 @@ async function deleteFotoEntrega(taskId, fotoId) {
     await authFetch('/api/wwp/tasks/'+taskId+'/fotos-entrega/'+encodeURIComponent(fotoId),{method:'DELETE'});
     toast('Foto eliminada'); openDrawer(taskId);
   } catch(e) { toast(e.message); }
+}
+
+// ── Devolución en ruta (artículo por artículo, dentro de la tarea de despacho) ──
+function uploadDevolucionArticulo(taskId) {
+  _openPhotoSource({
+    title: 'Foto del artículo devuelto',
+    multiple: false,
+    onFiles: async function(files) {
+      var desc = await _iosPrompt('Describe brevemente el artículo devuelto (opcional):', '');
+      if (desc === null) return;
+      toast('Subiendo…');
+      var b64 = await _compressImage(files[0]);
+      if (!b64) return;
+      try {
+        var r = await authFetch('/api/wwp/tasks/'+taskId+'/devolucion-ruta/articulo', {
+          method:'POST',
+          body:JSON.stringify({foto:{data:b64,ext:'jpg'}, descripcion:desc, by:_user.name})
+        });
+        var d = await r.json();
+        if (!d.ok) { toast('Error: '+(d.error||'No se pudo registrar')); return; }
+        toast('✓ Artículo registrado — Ventas fue notificado');
+        openDrawer(taskId);
+      } catch(e) { toast('Error: '+e.message); }
+    }
+  });
+}
+async function cerrarDevolucionRuta(taskId) {
+  if (!await _iosConfirm('¿Confirmas que ya creaste el RET en Odoo para esta devolución? Se marcará como resuelta.')) return;
+  try {
+    var r = await authFetch('/api/wwp/tasks/'+taskId+'/devolucion-ruta/cerrar', {method:'POST'});
+    var d = await r.json();
+    if (!d.ok) { toast('Error: '+(d.error||'No se pudo cerrar')); return; }
+    toast('✓ Devolución marcada como resuelta');
+    var drawerOpen = document.getElementById('drawer-body') && document.getElementById('task-drawer') && document.getElementById('task-drawer').classList.contains('open');
+    if (drawerOpen) { try { openDrawer(taskId); } catch(e) {} }
+    if (typeof estadoOrdenesCargar === 'function' && document.getElementById('eo-list')) estadoOrdenesCargar();
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 function uploadItemEvidence(taskId, itemId) {
@@ -29480,7 +29543,7 @@ function renderEstadoOrdenes() {
   }
   function hasDev(s) {
     if (s._mock) return !!s._devolucion;
-    return tasks.some(function(t){ return t.sdvId===s.id && t.tieneDevolucion; });
+    return tasks.some(function(t){ return t.sdvId===s.id && t.devolucionRuta && t.devolucionRuta.estado==='abierta'; });
   }
 
   // KPIs
@@ -29565,7 +29628,7 @@ function eoCardHtml(s, tasks) {
     demoPend   = 0;
     linked.forEach(function(t){ demoPend += (t.items||[]).filter(function(it){ return it.esDemo&&(!it.demoStatus||it.demoStatus==='en_demo'); }).length; });
     sinOut     = s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); });
-    devolucion = linked.some(function(t){ return t.tieneDevolucion; });
+    devolucion = linked.some(function(t){ return t.devolucionRuta && t.devolucionRuta.estado==='abierta'; });
   }
 
   // Chips
@@ -29586,8 +29649,7 @@ function eoCardHtml(s, tasks) {
   if (demoPend>0)   chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
   if (sinOut)       chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
   if (devolucion) {
-    var _devFotos = (s._devolucionData&&s._devolucionData.fotos) ? ' · '+s._devolucionData.fotos+' foto'+(s._devolucionData.fotos>1?'s':'') : '';
-    chips += ' <span class="eo-ops-chip red eo-dev-chip" onclick="event.stopPropagation();eoDevolucionModal(\''+esc(s.id)+'\')"><i data-lucide="package-open" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución en ruta'+_devFotos+'</span>';
+    chips += ' <span class="eo-ops-chip red eo-dev-chip" onclick="event.stopPropagation();eoAbrirDetalle(\''+esc(s.id)+'\')"><i data-lucide="package-open" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución en ruta</span>';
   }
 
   var arts  = (s.articulosOdoo||[]).length;
@@ -29629,7 +29691,8 @@ async function eoAbrirDetalle(sdvId) {
     var mainTask = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
                   linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
     var totalEvid = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; },0);
-    var hasDevolucion = linked.some(function(t){ return t.tieneDevolucion; });
+    var devTask = linked.find(function(t){ return t.devolucionRuta; });
+    var hasDevolucion = !!(devTask && devTask.devolucionRuta.estado==='abierta');
 
     // Artículos
     var artsHtml = (s.articulosOdoo||[]).map(function(it){
@@ -29668,11 +29731,18 @@ async function eoAbrirDetalle(sdvId) {
     // Devolución callout
     var devHtml = '';
     if (hasDevolucion) {
-      var devTask = linked.find(function(t){ return t.tieneDevolucion && (t.devoluciones||[]).length; });
-      var devD = devTask ? devTask.devoluciones[devTask.devoluciones.length-1] : null;
+      var dr = devTask.devolucionRuta;
+      var canCerrarDev = ['ventas','manager','admin'].includes((_user||{}).role);
+      var artsDevHtml = (dr.articulos||[]).map(function(a){
+        return '<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 9px;background:rgba(220,38,38,.05);border-radius:8px;margin-bottom:6px">' +
+          '<img src="'+mediaUrl(a.foto.url)+'" onclick="openLightbox(\''+mediaUrl(a.foto.url)+'\')" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0">' +
+          '<div style="flex:1;min-width:0"><div style="font-size:12px;color:var(--text)">'+esc(a.descripcion||'Sin descripción')+'</div>' +
+          '<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+esc(a.registradoByName||'')+' · '+sdvFmtDate(a.registradoAt)+'</div></div></div>';
+      }).join('');
       devHtml = '<div class="eo-dev-callout" style="border-color:var(--red-text);background:rgba(220,38,38,.06)">' +
-        '<div class="eo-dev-callout-title" style="color:var(--red-text)"><i data-lucide="package-open" style="width:11px;height:11px;stroke:currentColor;display:inline-block;margin-right:3px;vertical-align:-1px"></i>Devolución en ruta registrada</div>' +
-        '<div class="eo-dev-callout-body">'+(devD && devD.descripcion ? esc(devD.descripcion) : 'Ver chip en la tarjeta para fotos y detalle.')+(devD && devD.registradoPor ? '<br><strong>Registró:</strong> '+esc(devD.registradoPor) : '')+'</div>' +
+        '<div class="eo-dev-callout-title" style="color:var(--red-text)"><i data-lucide="package-open" style="width:11px;height:11px;stroke:currentColor;display:inline-block;margin-right:3px;vertical-align:-1px"></i>Devolución en ruta — '+(dr.articulos||[]).length+' artículo(s)</div>' +
+        '<div class="eo-dev-callout-body">'+artsDevHtml+'Crear transferencia de devolución (RET) en Odoo para los artículos indicados.</div>' +
+        (canCerrarDev ? '<button class="btn btn-secondary" style="margin-top:8px" onclick="cerrarDevolucionRuta(\''+esc(devTask.id)+'\');document.getElementById(\'eoDetOverlay\').remove()">Marcar como resuelto (RET creado)</button>' : '') +
         '</div>';
     }
 
@@ -29703,60 +29773,6 @@ async function eoAbrirDetalle(sdvId) {
     var ov2 = document.getElementById('eoDetOverlay');
     if (ov2) ov2.innerHTML = '<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text);margin-bottom:12px">Error: '+esc(e.message)+'</div><button class="btn btn-secondary" onclick="document.getElementById(\'eoDetOverlay\').remove()">Cerrar</button></div>';
   }
-}
-
-function eoDevolucionModal(sdvId) {
-  var s = _eoData.find(function(x){ return x.id===sdvId; });
-  if (!s) return;
-  var d = s._devolucionData || {};
-  var nFotos = d.fotos || 0;
-  var when = d.registradoAt
-    ? new Date(d.registradoAt).toLocaleString('es-DO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:true})
-    : '—';
-  var fotosHtml = '';
-  for (var _fi=0; _fi<nFotos; _fi++) {
-    fotosHtml += '<div class="eo-dev-foto-ph"><i data-lucide="camera" style="width:22px;height:22px;stroke:var(--text-3)"></i><span>Foto '+(_fi+1)+'</span></div>';
-  }
-  var html =
-    '<div class="eo-dev-modal-overlay" id="eoDevOverlay" onclick="if(event.target===this)document.getElementById(\'eoDevOverlay\').remove()">' +
-      '<div class="eo-dev-modal">' +
-        '<div class="eo-dev-modal-hdr">' +
-          '<div>' +
-            '<div class="eo-dev-modal-title"><i data-lucide="package-open" style="width:14px;height:14px;stroke:currentColor;display:inline-block;margin-right:5px;vertical-align:-2px"></i>Devolución en ruta</div>' +
-            '<div style="font-size:11px;color:var(--text-3);margin-top:2px">'+esc(s.folio||s.id)+' · <strong style="color:var(--text-2)">'+esc(s.clienteNombre||'')+'</strong></div>' +
-          '</div>' +
-          '<button onclick="document.getElementById(\'eoDevOverlay\').remove()" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-2);font-size:22px;line-height:1">&times;</button>' +
-        '</div>' +
-        '<div class="eo-dev-modal-body">' +
-          '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)">' +
-            '<i data-lucide="user" style="width:13px;height:13px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>' +
-            '<strong style="color:var(--text-1)">'+esc(d.registradoPor||'Auxiliar')+'</strong>' +
-            '<span style="color:var(--text-3)">·</span>' +
-            '<span>'+when+'</span>' +
-          '</div>' +
-          (d.descripcion
-            ? '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:11px 13px">' +
-                '<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Descripción del chofer</div>' +
-                '<div style="font-size:12px;line-height:1.65;color:var(--text-1)">'+esc(d.descripcion)+'</div>' +
-              '</div>'
-            : '') +
-          (nFotos > 0
-            ? '<div>' +
-                '<div style="font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">'+nFotos+' foto'+(nFotos>1?'s adjuntas':' adjunta')+' — datos reales en producción</div>' +
-                '<div class="eo-dev-foto-grid">'+fotosHtml+'</div>' +
-              '</div>'
-            : '') +
-          '<div class="eo-dev-callout">' +
-            '<div class="eo-dev-callout-title"><i data-lucide="alert-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;margin-right:3px;vertical-align:-1px"></i>Acción requerida en Odoo</div>' +
-            '<div class="eo-dev-callout-body">Crear transferencia de devolución (RET) en Odoo para los artículos indicados. Usar esta información como referencia.<br>Orden: <strong>'+esc(s.odooOrderRef||'—')+'</strong> · Vendedor/a: <strong>'+esc(s.vendedorNombre||'—')+'</strong></div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-  var old = document.getElementById('eoDevOverlay');
-  if (old) old.remove();
-  document.body.insertAdjacentHTML('beforeend', html);
-  if (window.lucide) lucide.createIcons();
 }
 
 function sdvBandejaFilter(btn, estado) {
