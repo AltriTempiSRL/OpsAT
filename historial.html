@@ -4434,6 +4434,22 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-dev-callout{background:rgba(245,158,11,.07);border:1.5px solid var(--amber-dot);border-radius:10px;padding:12px 14px}
 .eo-dev-callout-title{font-size:11px;font-weight:800;color:var(--amber-text);margin-bottom:4px}
 .eo-dev-callout-body{font-size:11px;color:var(--text-2);line-height:1.55}
+/* Modal detalle EO (abre inline sin salir de Estado de Órdenes) */
+.eo-det-overlay{position:fixed;inset:0;z-index:19000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.eo-det-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:600px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.eo-det-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.eo-det-folio{font-size:16px;font-weight:800;color:var(--text)}
+.eo-det-sub{font-size:11px;color:var(--text-3);margin-top:3px}
+.eo-det-body{padding:18px 20px;display:flex;flex-direction:column;gap:16px}
+.eo-det-sec-title{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.eo-det-row{display:flex;gap:8px;font-size:12px;margin-bottom:6px}
+.eo-det-row dt{color:var(--text-3);font-weight:600;min-width:100px;flex-shrink:0}
+.eo-det-row dd{color:var(--text);margin:0}
+.eo-det-art{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface-2);border-radius:8px;margin-bottom:6px;font-size:12px}
+.eo-det-art-name{font-weight:600;color:var(--text);flex:1}
+.eo-det-art-sku{color:var(--text-3);font-size:10px}
+.eo-det-art-qty{font-weight:700;color:var(--text-2);flex-shrink:0}
+.eo-det-ops-box{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 /* Lista mis solicitudes */
 .sdv-list-wrap{display:flex;flex-direction:column;gap:10px}
 .sdv-list-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);padding:14px 16px;cursor:pointer;transition:border-color .15s}
@@ -7624,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v84';
+var APP_BUILD = 'v85';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29584,7 +29600,7 @@ function eoCardHtml(s, tasks) {
     fecha
   ].filter(Boolean).join(' · ');
 
-  var onClick = s._mock ? '' : 'sdvVerDetalle(\''+s.id+'\',\'mis\');navTo(\'sdv-portal\')';
+  var onClick = 'eoAbrirDetalle(\''+esc(s.id)+'\')';
 
   return '<div class="eo-card"'+(onClick?' onclick="'+onClick+'" title="Ver detalle"':'')+'>'+
     '<div class="eo-card-top">'+
@@ -29594,6 +29610,99 @@ function eoCardHtml(s, tasks) {
     '<div class="eo-card-meta">'+meta+'</div>'+
     (chips?'<div class="eo-card-ops">'+chips+'</div>':'')+
   '</div>';
+}
+
+async function eoAbrirDetalle(sdvId) {
+  var old = document.getElementById('eoDetOverlay');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="eoDetOverlay" onclick="if(event.target===this)this.remove()">' +
+      '<div class="eo-det-modal" style="padding:30px;text-align:center;color:var(--text-2)">Cargando…</div>' +
+    '</div>');
+  try {
+    var r = await authFetch('/api/sdv/'+sdvId);
+    if (!r) throw new Error('Sin respuesta');
+    var data = await r.json();
+    if (!r.ok || !data.ok) throw new Error(data.error||'No encontrado');
+    var s = data.solicitud;
+    var linked = (_tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+    var mainTask = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
+                  linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
+    var totalEvid = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; },0);
+    var hasDevolucion = linked.some(function(t){ return t.tieneDevolucion; });
+
+    // Artículos
+    var artsHtml = (s.articulosOdoo||[]).map(function(it){
+      return '<div class="eo-det-art"><i data-lucide="package" style="width:14px;height:14px;stroke:var(--text-3);flex-shrink:0"></i>' +
+        '<div style="flex:1"><div class="eo-det-art-name">'+esc(it.product_name||'Artículo')+'</div>'+(it.sku?'<div class="eo-det-art-sku">'+esc(it.sku)+'</div>':'')+'</div>' +
+        '<span class="eo-det-art-qty">×'+it.quantity+'</span></div>';
+    }).join('') || '<span style="color:var(--text-3);font-size:12px">Sin artículos</span>';
+
+    // Datos
+    var datosRows = '';
+    if (s.clienteNombre)          datosRows += '<div class="eo-det-row"><dt>Cliente</dt><dd>'+esc(s.clienteNombre)+'</dd></div>';
+    if (s.vendedorNombre)         datosRows += '<div class="eo-det-row"><dt>Vendedor/a</dt><dd>'+esc(s.vendedorNombre)+'</dd></div>';
+    if (s.odooOrderRef)           datosRows += '<div class="eo-det-row"><dt>Orden Odoo</dt><dd><strong>'+esc(s.odooOrderRef)+'</strong></dd></div>';
+    if (s.direccionEntrega)       datosRows += '<div class="eo-det-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+'</dd></div>';
+    if (s.ciudadEntrega)          datosRows += '<div class="eo-det-row"><dt>Ciudad</dt><dd>'+esc(s.ciudadEntrega)+'</dd></div>';
+    if (s.receptorNombre)         datosRows += '<div class="eo-det-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>';
+    if (s.receptorContacto)       datosRows += '<div class="eo-det-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>';
+    if (s.fechaSolicitudDeseada)  datosRows += '<div class="eo-det-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>';
+    if (s.fechaEntrega)           datosRows += '<div class="eo-det-row"><dt>Fecha entrega</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>';
+    if (s.observaciones)          datosRows += '<div class="eo-det-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>';
+
+    // Estado operativo
+    var opsHtml = '';
+    if (mainTask) {
+      var stLbl = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
+      var stCls = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
+      var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
+      opsHtml = '<div class="eo-det-ops-box">' +
+        '<div class="eo-det-sec-title">Estado operativo</div>' +
+        '<div class="eo-det-row"><dt>Tarea</dt><dd><span class="eo-ops-chip '+stCls+'">'+esc(tyLbl)+' · '+esc(stLbl)+'</span></dd></div>' +
+        (mainTask.managerName ? '<div class="eo-det-row"><dt>Encargado</dt><dd>'+esc(mainTask.managerName)+'</dd></div>' : '') +
+        (totalEvid>0 ? '<div class="eo-det-row"><dt>Evidencias</dt><dd><span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' foto'+(totalEvid>1?'s':'')+'</span></dd></div>' : '') +
+        '</div>';
+    }
+
+    // Devolución callout
+    var devHtml = '';
+    if (hasDevolucion) {
+      var devTask = linked.find(function(t){ return t.tieneDevolucion && (t.devoluciones||[]).length; });
+      var devD = devTask ? devTask.devoluciones[devTask.devoluciones.length-1] : null;
+      devHtml = '<div class="eo-dev-callout" style="border-color:var(--red-text);background:rgba(220,38,38,.06)">' +
+        '<div class="eo-dev-callout-title" style="color:var(--red-text)"><i data-lucide="package-open" style="width:11px;height:11px;stroke:currentColor;display:inline-block;margin-right:3px;vertical-align:-1px"></i>Devolución en ruta registrada</div>' +
+        '<div class="eo-dev-callout-body">'+(devD && devD.descripcion ? esc(devD.descripcion) : 'Ver chip en la tarjeta para fotos y detalle.')+(devD && devD.registradoPor ? '<br><strong>Registró:</strong> '+esc(devD.registradoPor) : '')+'</div>' +
+        '</div>';
+    }
+
+    var html = '<div class="eo-det-overlay" id="eoDetOverlay" onclick="if(event.target===this)this.remove()">' +
+      '<div class="eo-det-modal">' +
+        '<div class="eo-det-hdr">' +
+          '<div>' +
+            '<div class="eo-det-folio">'+esc(s.folio||s.id)+'</div>' +
+            '<div class="eo-det-sub">'+(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud||'')+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+esc(s.creadoNombre||'')+'</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">' +
+            sdvBadge(s.estado) +
+            '<button onclick="document.getElementById(\'eoDetOverlay\').remove()" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-2);font-size:22px;line-height:1">&times;</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="eo-det-body">' +
+          '<div><div class="eo-det-sec-title">Artículos ('+(s.articulosOdoo||[]).length+')</div>'+artsHtml+'</div>' +
+          '<div><div class="eo-det-sec-title">Datos</div>'+datosRows+'</div>' +
+          opsHtml +
+          devHtml +
+        '</div>' +
+      '</div>' +
+    '</div>';
+    var ov = document.getElementById('eoDetOverlay');
+    if (ov) ov.outerHTML = html;
+    if (window.lucide) lucide.createIcons();
+  } catch(e) {
+    var ov2 = document.getElementById('eoDetOverlay');
+    if (ov2) ov2.innerHTML = '<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text);margin-bottom:12px">Error: '+esc(e.message)+'</div><button class="btn btn-secondary" onclick="document.getElementById(\'eoDetOverlay\').remove()">Cerrar</button></div>';
+  }
 }
 
 function eoDevolucionModal(sdvId) {
