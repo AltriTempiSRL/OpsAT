@@ -4400,6 +4400,28 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-badge-proceso{background:var(--blue-bg,var(--surface-3));color:var(--brand-primary)}
 .sdv-badge-despachada{background:var(--green-bg);color:var(--green-text)}
 .sdv-badge-cancelada{background:var(--surface-3);color:var(--text-2)}
+/* ── Estado de Órdenes (panel ventas) ─────────────────────────── */
+.eo-kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.eo-kpi-card{flex:1;min-width:90px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;text-align:center;cursor:pointer;transition:box-shadow .15s}
+.eo-kpi-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.eo-kpi-card.active{box-shadow:0 0 0 2px var(--accent)}
+.eo-kpi-n{font-size:26px;font-weight:800;line-height:1.1}
+.eo-kpi-lbl{font-size:10px;color:var(--text-2);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.eo-filter-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.eo-pill{padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-2);transition:all .15s;font-family:inherit}
+.eo-pill.active,.eo-pill:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.eo-card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:box-shadow .15s}
+.eo-card:hover{box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.eo-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.eo-folio{font-size:14px;font-weight:800;color:var(--text-1)}
+.eo-card-meta{font-size:11px;color:var(--text-2);line-height:1.5}
+.eo-card-ops{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.eo-ops-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);white-space:nowrap}
+.eo-ops-chip.green{background:rgba(16,163,74,.1);border-color:var(--green-dot);color:var(--green-text)}
+.eo-ops-chip.amber{background:rgba(245,158,11,.1);border-color:var(--amber-dot);color:var(--amber-text)}
+.eo-ops-chip.blue{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.3);color:var(--accent)}
+.eo-ops-chip.red{background:rgba(220,38,38,.1);border-color:var(--red-dot);color:var(--red-text)}
+.eo-ops-chip.purple{background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.4);color:#9333ea}
 /* Lista mis solicitudes */
 .sdv-list-wrap{display:flex;flex-direction:column;gap:10px}
 .sdv-list-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);padding:14px 16px;cursor:pointer;transition:border-color .15s}
@@ -4799,8 +4821,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       </div>
     </div>
 
-    <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;" style="margin-bottom:4px">
+    <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;">
       <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard Ventas
+    </a>
+    <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;" style="margin-bottom:4px">
+      <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Estado de Órdenes
     </a>
 
     <div class="sidebar-group" id="navg-consultar">Consultar</div>
@@ -6201,6 +6226,22 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <iframe id="dashboard-ventas-iframe" style="width:100%;height:100dvh;border:none;display:block" loading="lazy"></iframe>
     </div><!-- /section-dashboard-ventas -->
 
+    <!-- ── ESTADO DE ÓRDENES (Panel Ventas) ──────────────────────── -->
+    <div id="section-estado-ordenes" class="page-section" style="display:none;padding:20px;max-width:900px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;margin:0 0 2px;color:var(--text-1)">Estado de Órdenes</h2>
+          <div style="font-size:11px;color:var(--text-2)">Últimas 60 días · <span id="eo-last-update" style="color:var(--text-3)">—</span></div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="estadoOrdenesCargar()" style="white-space:nowrap">
+          <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Actualizar
+        </button>
+      </div>
+      <div id="eo-kpi-row" class="eo-kpi-row"></div>
+      <div id="eo-filter-pills" class="eo-filter-pills"></div>
+      <div id="eo-list"></div>
+    </div><!-- /section-estado-ordenes -->
+
   </main>
   </div><!-- /page-layout -->
 </div>
@@ -7571,7 +7612,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v79';
+var APP_BUILD = 'v80';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -7657,8 +7698,12 @@ function canSection(key) {
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos')) {
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes')) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
+  }
+  // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
+  if (key === 'estado-ordenes') {
+    return Object.prototype.hasOwnProperty.call(sp, 'estado-ordenes') ? !!sp['estado-ordenes'] : (!!sp['sdv-portal'] || !!sp['sdv-bandeja']);
   }
   return !!sp[key];
 }
@@ -7695,7 +7740,7 @@ function isDespachosUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'dashboard-ventas','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
+    'dashboard-ventas','estado-ordenes','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'validacion','averias','reportes','wwp',
     'sdv-portal','sdv-bandeja'
@@ -7718,7 +7763,7 @@ function applyNavPerms() {
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto'],
-    'navg-ventas':      ['sdv-portal','sdv-bandeja']
+    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) es visible para todo usuario
@@ -22742,7 +22787,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -22761,6 +22806,7 @@ var NAV_SECTION_MAP={
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
   'dashboard-ventas':        'dashboard-ventas',
+  'estado-ordenes':          'estado-ordenes',
   'sdv-portal':              'sdv-portal',
   'sdv-bandeja':             'sdv-bandeja'
 };
@@ -23021,6 +23067,7 @@ function navTo(section){
     var dvIframe = document.getElementById('dashboard-ventas-iframe');
     if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
+  if(target==='estado-ordenes') estadoOrdenesCargar();
 }
 
 function setNavActive(section){
@@ -29350,6 +29397,165 @@ async function sdvBandejaCargar() {
     list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
     if (window.lucide) lucide.createIcons();
   } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+
+// ── Estado de Órdenes — Panel Ventas ──────────────────────────────────────
+var _eoFiltro = '';
+var _eoData   = [];
+
+async function estadoOrdenesCargar() {
+  var listEl = document.getElementById('eo-list');
+  var kpiEl  = document.getElementById('eo-kpi-row');
+  if (!listEl) return;
+  listEl.innerHTML = '<div style="color:var(--text-2);padding:30px;text-align:center">Cargando…</div>';
+  if (kpiEl) kpiEl.innerHTML = '';
+  try {
+    var r = await authFetch('/api/sdv');
+    var d = await r.json();
+    if (!r.ok || !d.ok) { listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error al cargar solicitudes</div>'; return; }
+    // Filtrar últimos 60 días en cliente
+    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+    _eoData = (d.solicitudes||[]).filter(function(s){ return !s.creadoAt || new Date(s.creadoAt) >= cutoff; });
+    var upEl = document.getElementById('eo-last-update');
+    if (upEl) upEl.textContent = 'actualizado ' + new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',hour12:true});
+    renderEstadoOrdenes();
+  } catch(e) {
+    if (listEl) listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>';
+  }
+}
+
+function estadoOrdenesFiltrar(filt) {
+  _eoFiltro = (_eoFiltro === filt) ? '' : filt;
+  renderEstadoOrdenes();
+}
+
+function renderEstadoOrdenes() {
+  var kpiEl   = document.getElementById('eo-kpi-row');
+  var pillsEl = document.getElementById('eo-filter-pills');
+  var listEl  = document.getElementById('eo-list');
+  if (!listEl) return;
+  var sols  = _eoData;
+  var tasks = _tasks || [];
+
+  function hasDemoPend(s) {
+    return tasks.filter(function(t){ return t.sdvId===s.id; }).some(function(t){
+      return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); });
+    });
+  }
+
+  // KPIs
+  var nPend  = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
+  var nProc  = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
+  var nDesp  = sols.filter(function(s){ return s.estado==='despachada'; }).length;
+  var nDemo  = sols.filter(hasDemoPend).length;
+  var nCanc  = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
+
+  var kpis = [
+    {n:nPend, lbl:'Pendiente revisión', color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
+    {n:nProc, lbl:'En operaciones',     color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso'},
+    {n:nDesp, lbl:'Despachadas',        color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada'},
+    {n:nDemo, lbl:'Con demo activo',    color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo'},
+    {n:nCanc, lbl:'Rechazadas/Canel.', color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada'},
+  ];
+  if (kpiEl) kpiEl.innerHTML = kpis.map(function(k){
+    return '<div class="eo-kpi-card'+((_eoFiltro===k.filt)?' active':'')+'" onclick="estadoOrdenesFiltrar(\''+k.filt+'\')" style="border-left:3px solid '+k.color+';background:'+k.bg+'">'+
+      '<div class="eo-kpi-n" style="color:'+k.color+'">'+k.n+'</div>'+
+      '<div class="eo-kpi-lbl">'+k.lbl+'</div>'+
+    '</div>';
+  }).join('');
+
+  // Filtros pill
+  var filtros = [
+    {k:'',                  lbl:'Todas ('+sols.length+')'},
+    {k:'pendiente_revision',lbl:'Pendiente revisión'},
+    {k:'en_proceso',        lbl:'En operaciones'},
+    {k:'despachada',        lbl:'Despachadas'},
+    {k:'demo',              lbl:'Con demo'},
+    {k:'cancelada',         lbl:'Rechazadas'},
+  ];
+  if (pillsEl) pillsEl.innerHTML = filtros.map(function(f){
+    return '<button class="eo-pill'+((_eoFiltro===f.k)?' active':'')+'" onclick="estadoOrdenesFiltrar(\''+f.k+'\')">'+f.lbl+'</button>';
+  }).join('');
+
+  // Filtrar lista
+  var visible = sols;
+  if (_eoFiltro === 'demo') {
+    visible = sols.filter(hasDemoPend);
+  } else if (_eoFiltro === 'cancelada') {
+    visible = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; });
+  } else if (_eoFiltro) {
+    visible = sols.filter(function(s){ return s.estado===_eoFiltro; });
+  }
+
+  if (!visible.length) {
+    listEl.innerHTML = '<div style="color:var(--text-2);padding:30px;text-align:center;font-size:13px">Sin solicitudes en este período</div>';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+  listEl.innerHTML = visible.map(function(s){ return eoCardHtml(s, tasks); }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function eoCardHtml(s, tasks) {
+  var linked   = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+  var mainTask = linked.find(function(t){ return t.type==='packaging'; }) ||
+                 linked.find(function(t){ return t.type==='dispatch_order'; }) ||
+                 linked[0];
+
+  // Demo items pendientes
+  var demoPend = 0;
+  linked.forEach(function(t){
+    demoPend += (t.items||[]).filter(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); }).length;
+  });
+
+  // Evidencias
+  var totalEvid = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; }, 0);
+  var anyDone   = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
+
+  // Chips de operaciones
+  var chips = '';
+  if (mainTask) {
+    var stLbl = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
+    var stCls = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
+    var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
+    var tyIcon = mainTask.type==='packaging'?'package':mainTask.type==='item_pickup'?'scan-line':'truck';
+    chips += '<span class="eo-ops-chip '+stCls+'"><i data-lucide="'+tyIcon+'" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(tyLbl)+' · '+esc(stLbl)+'</span>';
+    if (mainTask.managerName) chips += ' <span class="eo-ops-chip"><i data-lucide="user" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(mainTask.managerName.split(' ')[0])+'</span>';
+  }
+  if (anyDone && totalEvid>0) {
+    chips += ' <span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' evidencia'+(totalEvid>1?'s':'')+'</span>';
+  } else if (anyDone && totalEvid===0) {
+    chips += ' <span class="eo-ops-chip amber"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
+  }
+  if (demoPend>0) {
+    chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
+  }
+  // OUT pendiente: despachada en WWP pero sin odooRef en tarea completada
+  if (s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); })) {
+    chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
+  }
+
+  var arts  = (s.articulosOdoo||[]).length;
+  var fecha = s.creadoAt ? sdvFmtDate(s.creadoAt).split(' ')[0] : '—';
+  var meta  = [
+    s.clienteNombre ? '<strong>'+esc(s.clienteNombre)+'</strong>' : '',
+    s.vendedorNombre ? esc(s.vendedorNombre) : '',
+    s.odooOrderRef  ? 'Orden '+esc(s.odooOrderRef) : '',
+    arts             ? arts+' artículo'+(arts>1?'s':'') : '',
+    fecha
+  ].filter(Boolean).join(' · ');
+
+  // Click: navegar a sdv-portal y ver detalle
+  var onClick = 'sdvVerDetalle(\''+s.id+'\',\'mis\');navTo(\'sdv-portal\')';
+
+  return '<div class="eo-card" onclick="'+onClick+'" title="Ver detalle">'+
+    '<div class="eo-card-top">'+
+      '<span class="eo-folio">'+esc(s.folio||s.id)+'</span>'+
+      sdvBadge(s.estado)+
+    '</div>'+
+    '<div class="eo-card-meta">'+meta+'</div>'+
+    (chips?'<div class="eo-card-ops">'+chips+'</div>':'')+
+  '</div>';
 }
 
 function sdvBandejaFilter(btn, estado) {
