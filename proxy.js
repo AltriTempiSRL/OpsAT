@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v88';
+const APP_BUILD = 'v89';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7738,7 +7738,8 @@ const server = http.createServer(async (req, res) => {
       const now = new Date().toISOString();
       if (d.status && d.status!==tasks[idx].status) {
         // ── Cadena: dependencia del paso anterior al INICIAR una subtarea ──
-        if (d.status==='in_progress' && tasks[idx].parentId && tasks[idx].dependsOnPrev) {
+        // Solo aplica al inicio real (pending/assigned→in_progress), no al Devolver (completed→in_progress).
+        if (d.status==='in_progress' && tasks[idx].status!=='completed' && tasks[idx].parentId && tasks[idx].dependsOnPrev) {
           const sibs = tasks.filter(x => x.parentId===tasks[idx].parentId);
           // Predecesor = hermano ACTIVO más cercano por subIndex (salta los 'cancelled',
           // que no deben bloquear el inicio del siguiente paso). Cubre varios cancelados seguidos.
