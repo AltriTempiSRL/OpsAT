@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v91';
+const APP_BUILD = 'v92';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7856,10 +7856,10 @@ const server = http.createServer(async (req, res) => {
                 res.end(JSON.stringify({ok: false, error: 'Picking anulado (todos los picks cancelados) — revisar con un administrador antes de despachar'}));
                 return;
               }
-              const allDone = activos.every(p => p.state === 'done');
-              if (!allDone) {
+              const anyDone = activos.some(p => p.state === 'done');
+              if (!anyDone) {
                 res.writeHead(422, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa el pick en Odoo antes de iniciar despacho'}));
+                res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa al menos un pick en Odoo antes de iniciar despacho'}));
                 return;
               }
             }

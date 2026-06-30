@@ -7640,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v91';
+var APP_BUILD = 'v92';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12476,16 +12476,24 @@ function renderDrawer(t) {
           <div style="font-size:10px;color:var(--text-3);margin-top:2px">${esc(a.registradoByName||'')} · ${fmtDate(a.registradoAt)}</div>
         </div>
       </div>`).join('');
-      devolucionRutaHtml = `<div class="sec-header" style="display:flex;align-items:center;gap:6px;margin-top:4px">
-          <i data-lucide="package-open" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>
-          DEVOLUCIÓN EN RUTA
-          ${dr?`<span style="margin-left:auto;font-size:10px;font-weight:700;color:${drAbierta?'var(--red-text)':'var(--green-text)'}">${drAbierta?'ABIERTA':'CERRADA'}</span>`:''}
-        </div>
-        ${dr ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Artículo(s) devuelto(s) por el cliente en campo — pendiente crear RET en Odoo.</div>` : `<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Si el cliente devuelve mercancía sin planificación previa, regístrala aquí artículo por artículo.</div>`}
-        ${artsHtml}
-        ${canRegisterDevolucion?`<button class="btn-add-photo" onclick="uploadDevolucionArticulo('${t.id}')"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Registrar artículo devuelto</button>`:''}
-        ${canCerrarDevolucion?`<button class="btn-secondary" style="margin-top:6px" onclick="cerrarDevolucionRuta('${t.id}')"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Marcar como resuelto (RET creado en Odoo)</button>`:''}
-        ${dr && !drAbierta?`<div style="font-size:10px;color:var(--text-3);margin-top:4px">Cerrado por ${esc(dr.cerradoByName||'')} · ${fmtDate(dr.cerradoAt)}</div>`:''}`;
+      devolucionRutaHtml = `<div style="border:1.5px solid var(--amber-border,#fbbf24);background:var(--amber-bg,rgba(251,191,36,.07));border-radius:10px;padding:12px 14px;margin-top:14px">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+            <i data-lucide="package-open" style="width:15px;height:15px;stroke:var(--amber-text,#b45309);flex-shrink:0;display:inline-block"></i>
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber-text,#b45309)">Devolución en ruta</span>
+            ${dr?`<span style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:${drAbierta?'var(--red-bg,#fee2e2)':'var(--green-bg,#dcfce7)'};color:${drAbierta?'var(--red-text,#dc2626)':'var(--green-text,#16a34a)'}">${drAbierta?'ABIERTA':'CERRADA'}</span>`:''}
+          </div>
+          <div style="font-size:12px;color:var(--text-2);line-height:1.55;margin-bottom:10px">
+            ${dr && drAbierta
+              ? `<b>${drArts.length} artículo(s) registrado(s)</b> — pendiente crear RET en Odoo para cerrar esta devolución.`
+              : dr && !drAbierta
+              ? `Devolución resuelta. RET creado en Odoo.`
+              : `<b>¿El cliente devuelve artículos que no estaban en el plan de despacho?</b><br>Registra cada pieza aquí — queda la trazabilidad y Ventas recibe notificación inmediata.`}
+          </div>
+          ${artsHtml}
+          ${canRegisterDevolucion?`<button class="btn-add-photo" onclick="uploadDevolucionArticulo('${t.id}')" style="border-color:var(--amber-text,#b45309);color:var(--amber-text,#b45309)"><i data-lucide="camera" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Registrar artículo devuelto</button>`:''}
+          ${canCerrarDevolucion?`<button class="btn-secondary" style="margin-top:6px" onclick="cerrarDevolucionRuta('${t.id}')"><i data-lucide="check-circle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Marcar como resuelto (RET creado en Odoo)</button>`:''}
+          ${dr && !drAbierta?`<div style="font-size:10px;color:var(--text-3);margin-top:6px">Cerrado por ${esc(dr.cerradoByName||'')} · ${fmtDate(dr.cerradoAt)}</div>`:''}
+        </div>`;
     }
   }
 
