@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v87';
+const APP_BUILD = 'v88';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -7799,11 +7799,13 @@ const server = http.createServer(async (req, res) => {
               res.end(JSON.stringify({ok:false,error:'Checklist de despacho incompleto — falta: '+faltan.join(', ')}));
               return;
             }
-            const sinEntrega=selItems.filter(it=>!it.deliveryStatus || (it.deliveryStatus!=='not_delivered' && (!it.evidence_images||!it.evidence_images.length)));
-            if (sinEntrega.length>0) {
-              res.writeHead(422,{'Content-Type':'application/json'});
-              res.end(JSON.stringify({ok:false,error:`Faltan ${sinEntrega.length} artículo(s) por registrar entrega (estado + foto)`}));
-              return;
+            if (!tasks[idx].retirado_por_cliente) {
+              const sinEntrega=selItems.filter(it=>!it.deliveryStatus || (it.deliveryStatus!=='not_delivered' && (!it.evidence_images||!it.evidence_images.length)));
+              if (sinEntrega.length>0) {
+                res.writeHead(422,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({ok:false,error:`Faltan ${sinEntrega.length} artículo(s) por registrar entrega (estado + foto)`}));
+                return;
+              }
             }
           } else {
             const missing=selItems.filter(it=>!it.evidence_images||it.evidence_images.length===0);
