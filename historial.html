@@ -7640,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v90';
+var APP_BUILD = 'v91';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12468,7 +12468,7 @@ function renderDrawer(t) {
     const drAbierta = !!(dr && dr.estado === 'abierta');
     const drArts = dr ? (dr.articulos||[]) : [];
     const canCerrarDevolucion = drAbierta && ['ventas','manager','admin'].includes(_user.role);
-    if (drArts.length || canRegisterDevolucion) {
+    if (t.status !== 'validated') {
       const artsHtml = drArts.map(a => `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--surface-2);border-radius:8px;margin-bottom:6px">
         <img src="${mediaUrl(a.foto.url)}" onclick="openLightbox('${mediaUrl(a.foto.url)}')" style="width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:zoom-in;flex-shrink:0">
         <div style="flex:1;min-width:0">

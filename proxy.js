@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v90';
+const APP_BUILD = 'v91';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -11529,9 +11529,9 @@ const server = http.createServer(async (req, res) => {
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const task = tasks[idx];
-      if (!['in_progress','completed'].includes(task.status)) {
+      if (task.status === 'validated') {
         res.writeHead(400,{'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:false,error:'Solo se puede registrar devolución en tareas en progreso o completadas'}));
+        res.end(JSON.stringify({ok:false,error:'No se puede registrar devolución en una tarea ya validada'}));
         return;
       }
       const { b64, ext } = validatePhoto(d.foto);
