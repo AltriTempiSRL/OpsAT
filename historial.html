@@ -7640,7 +7640,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v89';
+var APP_BUILD = 'v90';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29543,6 +29543,10 @@ function renderEstadoOrdenes() {
       return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); });
     });
   }
+  function hasEnRuta(s) {
+    if (s._mock) return false;
+    return tasks.some(function(t){ return t.sdvId===s.id && t.type==='dispatch_order' && t.status==='in_progress'; });
+  }
   function hasDev(s) {
     if (s._mock) return !!s._devolucion;
     return tasks.some(function(t){ return t.sdvId===s.id && t.devolucionRuta && t.devolucionRuta.estado==='abierta'; });
@@ -29551,6 +29555,7 @@ function renderEstadoOrdenes() {
   // KPIs
   var nPend = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
   var nProc = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
+  var nRuta = sols.filter(hasEnRuta).length;
   var nDesp = sols.filter(function(s){ return s.estado==='despachada'; }).length;
   var nDemo = sols.filter(hasDemoPend).length;
   var nDev  = sols.filter(hasDev).length;
@@ -29559,6 +29564,7 @@ function renderEstadoOrdenes() {
   var kpis = [
     {n:nPend, lbl:'Pendiente revisión',  color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
     {n:nProc, lbl:'En operaciones',      color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso'},
+    {n:nRuta, lbl:'En ruta',             color:'#0891b2',            bg:'rgba(8,145,178,.08)',  filt:'en_ruta'},
     {n:nDesp, lbl:'Despachadas',         color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada'},
     {n:nDemo, lbl:'Con demo activo',     color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo'},
     {n:nDev,  lbl:'Devoluciones en ruta',color:'var(--red-text)',    bg:'rgba(220,38,38,.08)',  filt:'devolucion'},
@@ -29576,6 +29582,7 @@ function renderEstadoOrdenes() {
     {k:'',                  lbl:'Todas ('+sols.length+')'},
     {k:'pendiente_revision',lbl:'Pendiente revisión'},
     {k:'en_proceso',        lbl:'En operaciones'},
+    {k:'en_ruta',           lbl:'En ruta ('+nRuta+')'},
     {k:'despachada',        lbl:'Despachadas'},
     {k:'demo',              lbl:'Con demo'},
     {k:'devolucion',        lbl:'Devoluciones ('+nDev+')'},
@@ -29587,7 +29594,9 @@ function renderEstadoOrdenes() {
 
   // Filtrar lista
   var visible = sols;
-  if (_eoFiltro === 'demo') {
+  if (_eoFiltro === 'en_ruta') {
+    visible = sols.filter(hasEnRuta);
+  } else if (_eoFiltro === 'demo') {
     visible = sols.filter(hasDemoPend);
   } else if (_eoFiltro === 'devolucion') {
     visible = sols.filter(hasDev);
@@ -29647,6 +29656,9 @@ function eoCardHtml(s, tasks) {
     chips += ' <span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' evidencia'+(totalEvid>1?'s':'')+'</span>';
   } else if (anyDone && totalEvid===0) {
     chips += ' <span class="eo-ops-chip amber"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
+  }
+  if (mainTask && mainTask.type==='dispatch_order' && mainTask.status==='in_progress') {
+    chips += ' <span class="eo-ops-chip" style="color:#0891b2;background:rgba(8,145,178,.1)"><i data-lucide="truck" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> En ruta</span>';
   }
   if (demoPend>0)   chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
   if (sinOut)       chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
