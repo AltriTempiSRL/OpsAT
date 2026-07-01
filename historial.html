@@ -7680,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v94';
+var APP_BUILD = 'v95';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29113,28 +29113,49 @@ async function sdvBuscar() {
 }
 
 // ── Crear solicitud adicional para una orden que ya está en despacho ──────
-// La vendedora no puede editar la SDV original (ya en_proceso); en vez de eso
-// se le lleva al formulario de "Nueva" pre-llenado con los datos de la orden
-// original, vinculando la nueva SDV con solicitudOrigenId para trazabilidad.
+// La vendedora no puede editar la SDV original (ya en_proceso). La razón de ser de esta
+// solicitud adicional es que la orden CAMBIÓ en Odoo después de crear la SDV original
+// (se agregaron artículos o subió una cantidad) — NO es una forma de re-pedir lo que
+// ya se solicitó. Por eso se calcula el diff contra Odoo (mismo endpoint que usa el
+// refresh de edición) y solo se precargan los artículos nuevos o el incremento de
+// cantidad; el resto de la orden (lo ya solicitado) no se duplica.
 async function sdvCrearAdicional(origenId) {
   try {
     var r = await authFetch('/api/sdv/'+origenId);
     var d = await r.json();
     if (!r.ok||!d.ok) { toast('Error al cargar la solicitud original'); return; }
     var s = d.solicitud;
+    if (!s.odooOrderRef) { toast('Esta solicitud no tiene una orden de Odoo asociada; no se puede calcular qué cambió.'); return; }
+    toast('Consultando cambios en Odoo…');
+    var rf = await authFetch('/api/sdv/'+origenId+'/odoo/refresh');
+    var df = await rf.json();
+    if (!rf.ok||!df.ok) { toast('Error al consultar Odoo: '+(df.error||'')); return; }
+    var added = df.changes.added || [];
+    var incrementos = (df.changes.modified||[]).map(function(m){ return {sku:m.sku, delta:(m.odoo-m.current)}; }).filter(function(m){ return m.delta > 0; });
+    if (!added.length && !incrementos.length) {
+      toast('No se detectaron artículos nuevos ni incrementos de cantidad en Odoo para esta orden. Si necesitas otro cambio, contacta a Operaciones.');
+      return;
+    }
     sdvSwitchTab('nueva');
     sdvSetTipo(s.tipoSolicitud);
     _sdvSolicitudOrigenId = origenId;
     _sdv$('sdv-ref-input').value = s.odooOrderRef || '';
-    toast('Revisa/ajusta los artículos y confirma. Se vinculará a '+(s.folio||'')+'.');
-    if (_sdv$('sdv-ref-input').value) {
-      await sdvBuscar();
-      // Pre-llenar receptor y observaciones desde la SDV original (Buscar ya trae cliente/dirección/ciudad frescos de Odoo)
-      if (s.receptorNombre) _sdv$('sdv-receptor-nombre').value = s.receptorNombre;
-      if (s.receptorContacto) _sdv$('sdv-receptor-contacto').value = s.receptorContacto;
-      if (s.observaciones) _sdv$('sdv-observaciones').value = s.observaciones;
-      var chk = document.getElementById('sdv-transporte'); if (chk) chk.checked = !!s.transporteIncluido;
-    }
+    await sdvBuscar(); // trae items completos + cliente/dirección/ciudad frescos de Odoo
+    // Filtrar SOLO lo que cambió: artículos nuevos (cantidad completa) o incrementos (solo el delta)
+    var wantQty = {};
+    added.forEach(function(a){ wantQty[a.sku] = a.quantity; });
+    incrementos.forEach(function(m){ wantQty[m.sku] = m.delta; });
+    _sdvItems = _sdvItems.filter(function(it){ return wantQty.hasOwnProperty(it.sku); }).map(function(it){
+      var q = wantQty[it.sku];
+      return Object.assign({}, it, {quantity:q, maxQty:q});
+    });
+    sdvRenderItems();
+    // Pre-llenar receptor y observaciones desde la SDV original
+    if (s.receptorNombre) _sdv$('sdv-receptor-nombre').value = s.receptorNombre;
+    if (s.receptorContacto) _sdv$('sdv-receptor-contacto').value = s.receptorContacto;
+    if (s.observaciones) _sdv$('sdv-observaciones').value = s.observaciones;
+    var chk = document.getElementById('sdv-transporte'); if (chk) chk.checked = !!s.transporteIncluido;
+    toast('Se detectaron '+added.length+' artículo(s) nuevo(s) y '+incrementos.length+' con incremento de cantidad. Revisa y confirma — se vinculará a '+(s.folio||'')+'.');
   } catch(e) { toast('Error: '+e.message); }
 }
 
