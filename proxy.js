@@ -1097,11 +1097,14 @@ function saveSolicitudes(list) { saveJson(WWP_SOLICITUDES_FILE, list); }
 const SDV_FILE     = path.join(DATA_DIR, 'sdv-solicitudes.json');
 const SDV_SEQ_FILE = path.join(DATA_DIR, 'sdv-seq.json');
 function loadSdv() { return loadJson(SDV_FILE, []); }
-function saveSdv(list) { saveJson(SDV_FILE, list); }
+// Blindaje SDV (Fase BK, jul-2026): SDV usa la misma capa protegida que WWP (anti-vacío +
+// respaldo rotativo pre-escritura), no saveJson plano. Ver saveCriticalArray (arriba) y el incidente del 25-jun.
+function saveSdv(list) { saveCriticalArray(SDV_FILE, list); }
 function sdvNextFolio() {
   let seq; try { seq = JSON.parse(fs.readFileSync(SDV_SEQ_FILE,'utf-8')); } catch { seq = {n:0}; }
   seq.n = (seq.n||0)+1;
-  fs.writeFileSync(SDV_SEQ_FILE, JSON.stringify(seq));
+  // Blindaje SDV (Fase BK, jul-2026): escritura atómica (tmp→rename) para evitar torn-write / colisión de folios.
+  saveJson(SDV_SEQ_FILE, seq);
   return 'SD-'+new Date().getFullYear()+'-'+String(seq.n).padStart(4,'0');
 }
 
@@ -13110,15 +13113,15 @@ server.listen(PORT, async () => {
 // ── Alertas de solicitudes SDV ─────────────────────────────────────────────
 const SDV_ALERTAS_FILE = path.join(DATA_DIR, 'sdv-alertas.json');
 function loadSdvAlertas() { return loadJson(SDV_ALERTAS_FILE, []); }
-function saveSdvAlertas(list) { saveJson(SDV_ALERTAS_FILE, list); }
+function saveSdvAlertas(list) { saveCriticalArray(SDV_ALERTAS_FILE, list); }
 
 // ── Cancelaciones y Reactivaciones SDV ───────────────────────────────────────
 const SDV_REACTIVATION_FILE = path.join(DATA_DIR, 'sdv-reactivation-requests.json');
 const SDV_CANCELLATION_AUDIT_FILE = path.join(DATA_DIR, 'sdv-cancellation-audit.json');
 function loadReactivationRequests() { return loadJson(SDV_REACTIVATION_FILE, []); }
-function saveReactivationRequests(list) { saveJson(SDV_REACTIVATION_FILE, list); }
+function saveReactivationRequests(list) { saveCriticalArray(SDV_REACTIVATION_FILE, list); }
 function loadCancellationAudit() { return loadJson(SDV_CANCELLATION_AUDIT_FILE, []); }
-function saveCancellationAudit(list) { saveJson(SDV_CANCELLATION_AUDIT_FILE, list); }
+function saveCancellationAudit(list) { saveCriticalArray(SDV_CANCELLATION_AUDIT_FILE, list); }
 
 // Detectar cambios en solicitud (solo campos editables por vendedor)
 function detectarCambiosSdv(solAnterior, solNueva) {
