@@ -2862,10 +2862,16 @@ body{font-family:var(--font);min-height:100dvh}
   .task-list-main{flex-basis:calc(100% - 22px)}
   .task-list-title{white-space:normal;line-height:1.3}
   .task-list-badges{width:100%;justify-content:flex-start;padding-left:20px;flex-wrap:wrap;margin-top:6px}
-  .task-meta-chip{max-width:100%}
+  /* Mark 2026-06-30: grid de 7 columnas → flex-wrap para no desbordar en móvil */
+  .task-meta-fixed{display:flex;flex-wrap:wrap;gap:4px 6px;overflow:visible}
+  .task-mc-aux{flex-wrap:wrap;gap:4px}
+  .task-meta-chip{max-width:calc(50vw - 20px)}
+  .task-meta-chip .meta-value{max-width:90px}
   /* Reasignar se oculta en móvil: la reasignación vive en el drawer de la tarea */
   .row-reassign{display:none!important}
   .task-list-badges .btn-sm{min-height:36px}
+  /* Badge de estado: altura mínima touch-friendly en vista lista */
+  .task-list-badges .badge{min-height:28px;display:inline-flex;align-items:center;padding:4px 10px}
 }
 
 /* ── Vista Kanban ────────────────────────────────────────────────────── */
@@ -3831,12 +3837,46 @@ body{font-family:var(--font);min-height:100dvh}
   }
 
   /* — Task cards — */
-  .task-card{padding:14px 16px;margin-bottom:8px}
+  .task-card{padding:12px 14px;margin-bottom:8px}
   .tc-title{font-size:14px}
   .tc-grid{grid-template-columns:repeat(2,1fr);gap:10px 14px}
   .task-title{font-size:14px}
   .task-meta{font-size:11px;gap:8px}
   .task-empty{padding:40px 16px}
+
+  /* — Task list row: meta-chips en móvil ─────────────────────────────
+     El grid de 7 columnas fijas (minmax 142/130/126px) desborda en
+     pantallas < 480px y genera los chips de AUXILIAR amontonados.
+     En móvil: apilamos en dos líneas (responsable+aux | odoo+extras)
+     usando flex-wrap y dejamos que cada chip ocupe el espacio que necesita.
+  ─────────────────────────────────────────────────────────────────── */
+  .task-meta-fixed{
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px 8px;
+    overflow:visible;
+  }
+  /* Chips de auxiliares: permitir wrap cuando hay varios */
+  .task-mc-aux{
+    flex-wrap:wrap;
+    gap:4px;
+  }
+  /* Cada chip: limitar ancho y permitir que el nombre se trunque */
+  .task-meta-chip{
+    max-width:calc(50vw - 24px);
+    flex-shrink:1;
+  }
+  .task-meta-chip .meta-value{
+    max-width:80px;
+  }
+  /* Badge de estado en lista: altura mínima touch-friendly */
+  .task-list-badges .badge{
+    padding:4px 10px;
+    font-size:10px;
+    min-height:28px;
+    display:inline-flex;
+    align-items:center;
+  }
 
   /* — Drawer: Bottom sheet — */
   #wwp-drawer{
@@ -7640,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v92';
+var APP_BUILD = 'v93';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
