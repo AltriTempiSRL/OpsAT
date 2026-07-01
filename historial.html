@@ -7680,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v98';
+var APP_BUILD = 'v99';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29731,8 +29731,11 @@ function eoCardHtml(s, tasks) {
     devolucion = !!s._devolucion;
   } else {
     var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
-    mainTask   = linked.find(function(t){ return t.type==='packaging'; }) ||
-                 linked.find(function(t){ return t.type==='dispatch_order'; }) || linked[0];
+    // Consistencia tarjeta↔detalle: misma prioridad que eoAbrirDetalle (dispatch_order = tarea
+    // madre/canónica primero). Antes la tarjeta priorizaba packaging y mostraba "Empaque" mientras
+    // el detalle mostraba "Despacho" para la misma SDV.
+    mainTask   = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
+                 linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
     totalEvid  = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; }, 0);
     anyDone    = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
     demoPend   = 0;
