@@ -7680,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v95';
+var APP_BUILD = 'v97';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29133,7 +29133,13 @@ async function sdvCrearAdicional(origenId) {
     var added = df.changes.added || [];
     var incrementos = (df.changes.modified||[]).map(function(m){ return {sku:m.sku, delta:(m.odoo-m.current)}; }).filter(function(m){ return m.delta > 0; });
     if (!added.length && !incrementos.length) {
-      toast('No se detectaron artículos nuevos ni incrementos de cantidad en Odoo para esta orden. Si necesitas otro cambio, contacta a Operaciones.');
+      var cubren = df.adicionalesCubren || [];
+      if (cubren.length) {
+        var folios = Array.from(new Set(cubren.map(function(c){ return c.folio; })));
+        toast('Los artículos de esta orden ya fueron solicitados en: '+folios.join(', ')+'. No hay nada adicional por crear.');
+      } else {
+        toast('No se detectaron artículos nuevos ni incrementos de cantidad en Odoo para esta orden. Si necesitas otro cambio, contacta a Operaciones.');
+      }
       return;
     }
     sdvSwitchTab('nueva');
@@ -30022,10 +30028,15 @@ async function sdvVerDetalle(id, ctx) {
 // ── Editar Solicitud (NUEVO) ──────────────────────────────────────────────
 var _sdvEditDraftInterval = null;
 var _sdvEditCurrentSolicitud = null; // almacena el objeto solicitud actual
+var _sdvEditOdooApplied = false; // true si la vendedora aplicó un diff de Odoo en esta sesión de edición
+var _sdvEditDiffData = null; // último diff calculado (para aplicar)
 async function sdvOpenEditModal(id) {
   var modal = document.getElementById('sdv-edit-modal');
   if (!modal) return;
   document.getElementById('sdv-edit-current-id').value = id;
+  _sdvEditOdooApplied = false;
+  _sdvEditDiffData = null;
+  var bannerEl = document.getElementById('sdv-edit-diff-banner'); if (bannerEl) bannerEl.style.display = 'none';
   try {
     var r = await authFetch('/api/sdv/'+id);
     var d = await r.json();
@@ -30038,7 +30049,9 @@ async function sdvOpenEditModal(id) {
 
     // ── Sección ODOO (read-only) ──
     sdvRenderEditOdooFields(s); // mostrar cliente, ciudad, dirección como text display
-    sdvRenderEditItems(s.articulos||[]); // renderizar artículos en sección Odoo
+    sdvRenderEditItems(s.articulosOdoo||[]); // renderizar artículos en sección Odoo
+    // Chequear automáticamente si Odoo cambió desde que se creó/actualizó esta SDV
+    if (s.estado==='pendiente_revision'||s.estado==='rechazada') sdvCheckOdooDiff(id);
 
     var draft = sdvLoadDraft(id);
     var data = draft || s;
@@ -30122,54 +30135,92 @@ function sdvRenderEditItems(items) {
     return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
   var html = items.map(function(item) {
+    var nombre = item.product_name || item.nombre || '';
+    var cantidad = item.quantity!==undefined ? item.quantity : item.cantidad;
     var imgHtml = item.imagenUrl ?
-      '<div class="sdv-edit-item-img"><img src="'+escapeHtml(item.imagenUrl)+'" alt="'+escapeHtml(item.nombre)+'" loading="lazy"></div>' :
+      '<div class="sdv-edit-item-img"><img src="'+escapeHtml(item.imagenUrl)+'" alt="'+escapeHtml(nombre)+'" loading="lazy"></div>' :
       '<div class="sdv-edit-item-img" style="background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-3)">sin foto</div>';
     return '<div class="sdv-edit-item">'+
       imgHtml+
       '<div class="sdv-edit-item-content">'+
-        '<div class="sdv-edit-item-name">'+escapeHtml(item.nombre)+'</div>'+
+        '<div class="sdv-edit-item-name">'+escapeHtml(nombre)+'</div>'+
         '<div class="sdv-edit-item-sku">SKU: '+escapeHtml(item.sku)+'</div>'+
       '</div>'+
-      '<div class="sdv-edit-item-qty">× '+item.cantidad+'</div>'+
+      '<div class="sdv-edit-item-qty">× '+cantidad+'</div>'+
     '</div>';
   }).join('');
   container.innerHTML = html;
 }
 
-async function sdvRefreshFromOdoo() {
-  var id = document.getElementById('sdv-edit-current-id').value;
-  if (!id) return;
+// Consulta el diff contra Odoo y, si hay cambios, muestra el banner con el botón
+// "Aplicar cambios de Odoo". Se llama automáticamente al abrir el modal (si la SDV
+// está en pendiente_revision/rechazada) y también al tocar "Actualizar desde Odoo".
+async function sdvCheckOdooDiff(id) {
   var btn = document.getElementById('sdv-edit-refresh-btn');
-  if (!btn) return;
-  btn.disabled = true;
-  var originalText = btn.innerHTML;
-  btn.innerHTML = '<svg data-lucide="loader" style="width:14px;height:14px;animation:spin .8s linear infinite"></svg> Actualizando…';
+  var banner = document.getElementById('sdv-edit-diff-banner');
+  var summaryEl = document.getElementById('sdv-edit-diff-summary');
+  if (btn) { btn.disabled = true; var originalText = btn.innerHTML; btn.innerHTML = '<svg data-lucide="loader" style="width:14px;height:14px;animation:spin .8s linear infinite"></svg> Consultando…'; }
   try {
     var r = await authFetch('/api/sdv/'+id+'/odoo/refresh');
     var d = await r.json();
-    if (!r.ok || !d.ok) {
-      toast(d.error || 'Error al actualizar desde Odoo');
+    if (!r.ok || !d.ok) { toast(d.error || 'Error al consultar Odoo'); return; }
+    var ch = d.changes || {added:[],removed:[],modified:[]};
+    var totalCambios = (ch.added||[]).length + (ch.removed||[]).length + (ch.modified||[]).length + (d.fieldChanges||[]).length;
+    if (totalCambios === 0) {
+      if (banner) banner.style.display = 'none';
+      _sdvEditDiffData = null;
+      if (btn) toast('Sin cambios desde Odoo', 'info');
       return;
     }
-    // Si no hay cambios
-    if (!d.cambios || d.cambios.length === 0) {
-      toast('Sin cambios desde Odoo', 'info');
-      btn.disabled = false;
-      btn.innerHTML = originalText;
-      return;
-    }
-    // Mostrar modal de comparación (TO DO: Ron implementará backend)
-    toast('Cambios detectados: '+d.cambios.length, 'info');
-    btn.disabled = false;
-    btn.innerHTML = originalText;
+    _sdvEditDiffData = d;
+    var partes = [];
+    if ((ch.added||[]).length) partes.push(ch.added.length+' artículo(s) nuevo(s)');
+    if ((ch.removed||[]).length) partes.push(ch.removed.length+' artículo(s) removido(s)');
+    if ((ch.modified||[]).length) partes.push(ch.modified.length+' con cambio de cantidad');
+    if ((d.fieldChanges||[]).length) partes.push(d.fieldChanges.length+' dato(s) de cabecera (cliente/dirección/ciudad/contacto)');
+    if (summaryEl) summaryEl.innerHTML = '<i data-lucide="info" style="width:13px;height:13px;vertical-align:-2px;color:var(--brand-primary)"></i> Odoo tiene cambios: '+partes.join(', ')+'.';
+    if (banner) banner.style.display = 'block';
+    if (window.lucide) lucide.createIcons();
   } catch(e) {
     toast('Error: '+e.message);
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-    if (window.lucide) lucide.createIcons();
+    if (btn) { btn.disabled = false; btn.innerHTML = originalText; if (window.lucide) lucide.createIcons(); }
   }
+}
+
+// Botón "Actualizar desde Odoo" — re-chequea el diff manualmente.
+function sdvRefreshFromOdoo() {
+  var id = document.getElementById('sdv-edit-current-id').value;
+  if (!id) return;
+  sdvCheckOdooDiff(id);
+}
+
+// Botón "Aplicar cambios de Odoo" del banner — trae los datos frescos completos
+// (vía el mismo lookup que usa el formulario de creación) y los aplica en memoria.
+// Es un paso explícito y separado de "Guardar cambios": la vendedora ve el diff,
+// decide aplicarlo, y luego decide guardar — nunca se sobreescribe sin que ella confirme.
+async function sdvApplyOdooDiff() {
+  var id = document.getElementById('sdv-edit-current-id').value;
+  if (!id || !_sdvEditCurrentSolicitud) return;
+  var s = _sdvEditCurrentSolicitud;
+  if (!s.odooOrderRef) { toast('Esta solicitud no tiene una orden de Odoo asociada'); return; }
+  try {
+    var url = '/api/sdv/lookup?ref='+encodeURIComponent(s.odooOrderRef)+'&tipo='+encodeURIComponent(s.tipoSolicitud);
+    var r = await authFetch(url);
+    var d = await r.json();
+    if (!r.ok || !d.ok) { toast(d.error || 'Error al traer datos de Odoo'); return; }
+    var items = (d.items||[]).map(function(it){ return {item_id:it.item_id,odoo_product_id:it.odoo_product_id,product_name:it.product_name,sku:it.sku||'',quantity:it.quantity}; });
+    _sdvEditCurrentSolicitud.articulosOdoo = items;
+    if (d.client) _sdvEditCurrentSolicitud.clienteNombre = d.client;
+    if (d.deliveryAddress) _sdvEditCurrentSolicitud.direccionEntrega = d.deliveryAddress;
+    if (d.city) _sdvEditCurrentSolicitud.ciudadEntrega = d.city;
+    sdvRenderEditOdooFields(_sdvEditCurrentSolicitud);
+    sdvRenderEditItems(items);
+    _sdvEditOdooApplied = true;
+    _sdvEditDiffData = null;
+    var banner = document.getElementById('sdv-edit-diff-banner'); if (banner) banner.style.display = 'none';
+    toast('Cambios de Odoo aplicados. Revisa y toca «Guardar cambios» para confirmar.', 'success');
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 function sdvCloseEditModal(saveDraft) {
@@ -30183,10 +30234,7 @@ function sdvCloseEditModal(saveDraft) {
 }
 
 function sdvGetEditFormData() {
-  return {
-    // Campos ODOO (no editables en el modal — vienen de solicitud.odoo)
-    // clienteNombre, ciudadEntrega, direccionEntrega son read-only
-
+  var data = {
     // Campos LOCAL (editables)
     receptorNombre: document.getElementById('sdv-edit-receptor-nombre').value.trim(),
     receptorContacto: document.getElementById('sdv-edit-receptor-contacto').value.trim(),
@@ -30195,6 +30243,15 @@ function sdvGetEditFormData() {
     gpsCoords: (document.getElementById('sdv-edit-gps').value||'').trim() || null,
     fechaSolicitudDeseada: sdvGetEditFecha()
   };
+  // Campos ODOO: solo se incluyen si la vendedora tocó explícitamente "Aplicar cambios
+  // de Odoo" — nunca se envían valores viejos/sin tocar para no pisar nada por accidente.
+  if (_sdvEditOdooApplied && _sdvEditCurrentSolicitud) {
+    data.articulosOdoo = _sdvEditCurrentSolicitud.articulosOdoo;
+    data.clienteNombre = _sdvEditCurrentSolicitud.clienteNombre;
+    data.direccionEntrega = _sdvEditCurrentSolicitud.direccionEntrega;
+    data.ciudadEntrega = _sdvEditCurrentSolicitud.ciudadEntrega;
+  }
+  return data;
 }
 
 function sdvGetEditFecha() {
@@ -30786,6 +30843,12 @@ async function loadCancelacionesKPIs() {
 
         <!-- Warnings de validación (si hay) -->
         <div id="sdv-edit-odoo-warnings" style="display:none"></div>
+
+        <!-- Banner de diff: aparece si Odoo cambió desde que se creó/actualizó esta SDV -->
+        <div id="sdv-edit-diff-banner" style="display:none;background:var(--surface);border:1px solid var(--brand-primary);border-radius:var(--radius);padding:12px;margin-bottom:14px">
+          <div id="sdv-edit-diff-summary" style="font-size:var(--fs-sm);margin-bottom:10px"></div>
+          <button type="button" class="btn btn-primary btn-sm" onclick="sdvApplyOdooDiff()"><i data-lucide="check" style="width:13px;height:13px;vertical-align:-2px"></i> Aplicar cambios de Odoo</button>
+        </div>
 
         <!-- Cliente, Ciudad, Dirección (read-only text display) -->
         <div class="sdv-edit-odoo-fields">

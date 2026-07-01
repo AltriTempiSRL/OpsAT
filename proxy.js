@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v95';
+const APP_BUILD = 'v97';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -3280,6 +3280,29 @@ function notifySdvAdditionalCreated(solOrigen, solNueva) {
       message: `Se creó una solicitud adicional para tu orden ${solNueva.odooOrderRef||solOrigen.odooOrderRef||''}: ${solNueva.folio||solNueva.id}.`
     });
   } catch (e) { silentCatch(e, 'notifySdvAdditionalCreated'); }
+}
+
+// Notifica cuando se cancela una SDV origen que tenía solicitudes adicionales activas
+// vinculadas — no se cancelan en cascada automáticamente (podría haber trabajo físico en
+// curso), pero Ops y cada vendedora dueña de una adicional deben enterarse por el sistema,
+// no por el cliente.
+function notifySdvOrigenCanceladaConAdicionales(solOrigen, adicionalesActivas) {
+  try {
+    const opsIds = getOpsUserIds();
+    adicionalesActivas.forEach(ad => {
+      notifyMany(opsIds, {
+        type: 'sdv_origen_cancelada',
+        title: '🚫 Orden origen cancelada con solicitud adicional activa',
+        message: `La SDV ${solOrigen.folio||solOrigen.id} (orden ${solOrigen.odooOrderRef||'N/A'}) fue cancelada, pero la solicitud adicional ${ad.folio||ad.id} sigue activa. Revisar si también debe cancelarse.`,
+        relatedTaskId: ad.id
+      });
+      notifySeller(ad, {
+        type: 'sdv_origen_cancelada',
+        title: '🚫 La orden de tu solicitud adicional fue cancelada',
+        message: `La solicitud original de la orden ${solOrigen.odooOrderRef||''} (${solOrigen.folio||solOrigen.id}) fue cancelada. Tu solicitud adicional ${ad.folio||ad.id} sigue activa — confirma con Operaciones si debe cancelarse también.`
+      });
+    });
+  } catch (e) { silentCatch(e, 'notifySdvOrigenCanceladaConAdicionales'); }
 }
 
 function notifyOpsPickIncomplete(pickId, sdvId, razon = 'falta ubicación') {
@@ -10559,7 +10582,21 @@ const server = http.createServer(async (req, res) => {
         if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Not found'})); return; }
         if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
         
-        const currentItems = sol.articulosOdoo || [];
+        // Base de comparación = artículos de esta SDV + los de TODAS sus solicitudes adicionales
+        // ya creadas (excepto canceladas/rechazadas). Sin esto, el diff detecta el mismo artículo
+        // como "nuevo" una y otra vez después de que ya se creó una solicitud adicional para él.
+        const adicionalesActivas = list.filter(s => s.solicitudOrigenId === sol.id && !['cancelada','rechazada'].includes(s.estado));
+        const qtyBySku = new Map();
+        const skuAdicionalFolio = new Map(); // sku -> folio de la adicional que ya lo cubre (para el mensaje)
+        (sol.articulosOdoo||[]).forEach(it => { const sku=(it.sku||'').trim(); if (sku) qtyBySku.set(sku, (qtyBySku.get(sku)||0) + (it.quantity||0)); });
+        adicionalesActivas.forEach(ad => {
+          (ad.articulosOdoo||[]).forEach(it => {
+            const sku = (it.sku||'').trim(); if (!sku) return;
+            qtyBySku.set(sku, (qtyBySku.get(sku)||0) + (it.quantity||0));
+            if (!skuAdicionalFolio.has(sku)) skuAdicionalFolio.set(sku, ad.folio||ad.id);
+          });
+        });
+        const currentItems = Array.from(qtyBySku.entries()).map(([sku,quantity]) => ({sku,quantity}));
         if (!sol.odooOrderRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No ref'})); return; }
         
         // Fetch desde Odoo
@@ -10647,6 +10684,9 @@ const server = http.createServer(async (req, res) => {
           ok: true,
           timestamp: new Date().toISOString(),
           changes: {added,removed,modified,current:odooItems},
+          // Artículos ya cubiertos por una solicitud adicional activa (para que el frontend
+          // distinga "sin cambios en Odoo" de "ya solicitado, ver folio X" en vez de un mensaje genérico.
+          adicionalesCubren: Array.from(skuAdicionalFolio.entries()).map(([sku,folio]) => ({sku,folio})),
           odooFields,
           fieldChanges,
           summary: {totalCurrent:currentItems.length,totalOdoo:odooItems.length,addedCount:added.length,removedCount:removed.length,modifiedCount:modified.length,fieldChangedCount:fieldChanges.length}
@@ -12209,6 +12249,13 @@ const server = http.createServer(async (req, res) => {
       });
       // Avisar a la vendedora (si no fue ella quien canceló)
       try { if (jp.userId !== sdv.creadoPor) notifySeller(sdv, { type:'task_cancelled', title:'🚫 Solicitud cancelada', message:`Tu solicitud ${sdv.folio||sdv.id} fue cancelada${d.motivo?': '+d.motivo:''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
+      // Si esta SDV tenía solicitudes adicionales vinculadas y activas, no se cancelan
+      // en cascada (puede haber trabajo físico en curso) pero sí se avisa — sin esto
+      // quedarían huérfanas y nadie se entera hasta que el cliente pregunte.
+      try {
+        const adicionalesActivas = sdvList.filter(s => s.solicitudOrigenId === sdvId && !['cancelada','rechazada'].includes(s.estado));
+        if (adicionalesActivas.length) notifySdvOrigenCanceladaConAdicionales(sdv, adicionalesActivas);
+      } catch(e) { silentCatch(e,'notifySdvOrigenCanceladaConAdicionales'); }
 
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, sdv, auditoriaId:audId}));
