@@ -1108,6 +1108,19 @@ function sdvNextFolio() {
   return 'SD-'+new Date().getFullYear()+'-'+String(seq.n).padStart(4,'0');
 }
 
+// ── Máquina de estados SDV (Fase 0, F0-2/F0-5) ───────────────────────────────
+// Antes el PATCH aceptaba cualquier string en `estado` (SDV muerta en UI) y cualquier
+// regresión. Estos son los estados válidos y las transiciones permitidas desde el PATCH
+// de Ops. La auto-despachada (WWP→SDV) y la reactivación usan sus propios caminos.
+const SDV_ESTADOS = ['pendiente_revision','en_proceso','despachada','rechazada','cancelada'];
+const SDV_TRANSICIONES = {
+  pendiente_revision: ['en_proceso','rechazada','cancelada'],
+  rechazada:          ['pendiente_revision','cancelada'],
+  en_proceso:         ['despachada','rechazada','cancelada','pendiente_revision'],
+  despachada:         [],   // terminal aquí (reactivación tiene su propio flujo)
+  cancelada:          [],   // terminal aquí (reactivación tiene su propio flujo)
+};
+
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 }
@@ -7729,7 +7742,10 @@ const server = http.createServer(async (req, res) => {
           if (_si >= 0) {
             if (!_sdvL[_si].wwpTaskId) _sdvL[_si].wwpTaskId = task.id; // primer enlace = puntero principal
             _sdvL[_si].wwpTareas = _sdvL[_si].wwpTareas || [];
-            _sdvL[_si].wwpTareas.push({ taskId: task.id, titulo: task.title, creadoAt: now });
+            // Fase 0 (F0-7): idempotente — no duplicar si ya existe una entrada con este taskId.
+            if (!_sdvL[_si].wwpTareas.some(w => w.taskId === task.id)) {
+              _sdvL[_si].wwpTareas.push({ taskId: task.id, titulo: task.title, creadoAt: now });
+            }
             saveSdv(_sdvL);
             console.log('[WWP→SDV] Tarea', task.id, 'enlazada a solicitud', task.sdvId);
           }
@@ -10826,7 +10842,19 @@ const server = http.createServer(async (req, res) => {
       global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_soPayload});
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify(_soPayload));
-    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    } catch(e) {
+      // Fase 0 (F0-6): si Odoo está caído/inaccesible, responder 503 con mensaje amigable en vez
+      // del 500 crudo ('Invalid URL' etc.) que la vendedora no entiende.
+      const msg = String((e && e.message) || e);
+      const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
+      if (odooDown) {
+        res.writeHead(503,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'Odoo no está disponible en este momento. Intenta de nuevo en unos minutos.',odoo_down:true}));
+      } else {
+        res.writeHead(500,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:msg}));
+      }
+    }
     return;
   }
 
@@ -11011,6 +11039,17 @@ const server = http.createServer(async (req, res) => {
       // Ops-only: estado, fechaEntrega, wwpTareas
       if (isOps) {
         if (d.estado && d.estado!==sol.estado) {
+          // Fase 0 (F0-2/F0-5): validar estado contra enum + transiciones permitidas.
+          if (!SDV_ESTADOS.includes(d.estado)) {
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'Estado inválido: '+d.estado}));
+            return;
+          }
+          if (!(SDV_TRANSICIONES[sol.estado]||[]).includes(d.estado)) {
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'Transición no permitida: '+sol.estado+' → '+d.estado}));
+            return;
+          }
           sol.estado = d.estado;
           sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||d.razon||''});
           // Mantener informada a la vendedora del avance de SU solicitud
@@ -11022,22 +11061,9 @@ const server = http.createServer(async (req, res) => {
         }
         if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
         if (d.wwpTarea) sol.wwpTareas.push({taskId:d.wwpTarea.taskId,titulo:d.wwpTarea.titulo,creadoAt:now});
-        
-        // ── AUTOMÁTICO: Crear tarea WWP cuando se aprueba solicitud (in_process) ──
-        if (d.estado === 'in_process' && !sol.wwpTaskId) {
-          try {
-            const newTask = createWwpTaskFromSdv(sol, jp.userId);
-            const tasks = loadWwpTasks();
-            newTask.seq = nextTaskSeq();
-            tasks.push(newTask);
-            saveWwpTasks(tasks);
-            sol.wwpTaskId = newTask.id;
-            sol.wwpTareas.push({ taskId: newTask.id, titulo: newTask.title, creadoAt: now });
-            console.log('[SDV→WWP] Tarea creada:', newTask.id, 'para solicitud:', sol.id);
-          } catch (e) {
-            console.error('[SDV→WWP] Error creando tarea:', e.message);
-          }
-        }
+        // Fase 0 (F0-3): eliminado el bloque muerto `in_process` (inglés, nunca disparaba desde la
+        // UI que usa `en_proceso`). La tarea WWP se crea por el reverse-link al hacer POST /api/wwp/tasks
+        // con sdvId. La aprobación 1-clic server-side sobre `en_proceso` llegará en F1-1 (Sprint 2).
       }
       
       // Detectar cambios y crear alerta si hay modificaciones en estado != pendiente_revision
@@ -12194,29 +12220,40 @@ const server = http.createServer(async (req, res) => {
       const sdv = sdvList[idx];
       const estado = sdv.estado;
       const force = parsed.query.force === 'true';
+      const isOps = ['admin','manager','ops_manager'].includes(jp.role);
+      const isOwner = sdv.creadoPor === jp.userId;
 
-      // Validar estado: bloqueo en D, E
-      if (['D', 'E', 'empaque_in_progress', 'packing'].includes(estado)) {
-        if (!force) {
-          // N-014: Notificar a Ops que hay una cancelación bloqueada que requiere decisión
-          try { notifyOpsCancelBlocked(sdvId, sdv.clienteNombre || sdv.odooOrderRef || 'N/A', estado); } catch(e) { silentCatch(e,'notifyOpsCancelBlocked'); }
-          res.writeHead(403, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({ok:false, error:'Cancelación bloqueada: empaque en progreso', estado_actual:estado, riesgo:'alto'}));
-          return;
-        }
-        // Si force=true, solo admin/ops pueden forzar
-        if (!['admin', 'ops_manager', 'manager'].includes(jp.role)) {
-          res.writeHead(403, {'Content-Type':'application/json'});
-          res.end(JSON.stringify({ok:false, error:'No autorizado para forzar cancelación'}));
-          return;
-        }
+      // Fase 0 (F0-1): AUTORIZACIÓN. Antes este handler solo tenía requireJwt — cualquier usuario
+      // autenticado podía cancelar cualquier SDV (incl. de otra vendedora) con solo un motivo.
+      // Ahora: Ops (admin/manager) cancela cualquiera; la vendedora dueña solo la suya y solo en
+      // estados tempranos; cualquier otro caso → 403.
+      if (!isOps && !isOwner) {
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No autorizado para cancelar esta solicitud'}));
+        return;
+      }
+      if (!isOps && isOwner && !['pendiente_revision','rechazada'].includes(estado)) {
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Tu solicitud ya está en preparación. Pídele a Operaciones que la cancele.'}));
+        return;
       }
 
-      // Estado F (en tránsito): imposible cancelar
-      if (estado === 'F' || estado === 'in_transit') {
+      // Estados terminales: ya no se cancela (antes se validaban estados 'D','E','F' que NO
+      // existen en SDV, así que los guards estaban muertos y todo era cancelable).
+      if (estado === 'cancelada') {
         res.writeHead(400, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ok:false, error:'No se puede cancelar: en tránsito'}));
+        res.end(JSON.stringify({ok:false, error:'La solicitud ya está cancelada'}));
         return;
+      }
+      if (estado === 'despachada') {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No se puede cancelar: la solicitud ya fue despachada'}));
+        return;
+      }
+      // Cancelar una SDV en_proceso es una decisión de Ops (la vendedora ya quedó bloqueada arriba);
+      // se conserva la señal a Ops del patrón N-014 como aviso, sin bloquear.
+      if (estado === 'en_proceso' && !force) {
+        try { notifyOpsCancelBlocked(sdvId, sdv.clienteNombre || sdv.odooOrderRef || 'N/A', estado); } catch(e) { silentCatch(e,'notifyOpsCancelBlocked'); }
       }
 
       const ahora = new Date().toISOString();
@@ -12238,16 +12275,30 @@ const server = http.createServer(async (req, res) => {
         fuerza_aplicada: force
       });
 
-      // Si existe tarea WWP ligada, marcarla como cancelled
-      if (sdv.wwpTaskId) {
+      // Fase 0 (F0-4): cancelar en CASCADA todas las tareas de esta SDV — madre, tareas divididas
+      // por localidad que comparten sdvId, y subtareas hijas. Antes solo se marcaba la madre y las
+      // hijas quedaban huérfanas activas, sin audit ni aviso.
+      try {
         const tasks = loadWwpTasks();
-        const taskIdx = tasks.findIndex(t => t.id === sdv.wwpTaskId);
-        if (taskIdx >= 0) {
-          tasks[taskIdx].status = 'cancelled';
-          tasks[taskIdx].updatedAt = ahora;
-          saveWwpTasks(tasks);
-        }
-      }
+        const finales = ['completed','validated','cancelled'];
+        const objetivoIds = new Set(tasks.filter(t => t.sdvId === sdvId).map(t => t.id));
+        if (sdv.wwpTaskId) objetivoIds.add(sdv.wwpTaskId);
+        let tocadas = 0;
+        tasks.forEach(t => {
+          const esObjetivo = objetivoIds.has(t.id) || (t.parentId && objetivoIds.has(t.parentId));
+          if (esObjetivo && !finales.includes(t.status)) {
+            const prev = t.status;
+            t.status = 'cancelled';
+            t.updatedAt = ahora;
+            t.statusHistory = t.statusHistory || [];
+            t.statusHistory.push({ status:'cancelled', date:ahora, by:jp.userId, note:'Cancelada al cancelar la solicitud SDV '+(sdv.folio||sdvId) });
+            tocadas++;
+            try { appendAuditLog('task_status_change', { taskId:t.id, taskTitle:t.title, prevStatus:prev, newStatus:'cancelled', by:jp.userId, note:'Cascada por cancelación de SDV '+(sdv.folio||sdvId) }); } catch(e) { silentCatch(e,'auditCascadeSdv'); }
+            try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_cancelled', title:'🚫 Tarea cancelada', message:`La tarea "${t.title}" fue cancelada porque se canceló la solicitud ${sdv.folio||sdvId}.`, relatedTaskId:t.id }); } catch(e) { silentCatch(e,'notifyCascadeSdv'); }
+          }
+        });
+        if (tocadas) saveWwpTasks(tasks);
+      } catch(e) { silentCatch(e,'cascadaCancelSdv'); }
 
       // Guardar SDV actualizada
       sdvList[idx] = sdv;
