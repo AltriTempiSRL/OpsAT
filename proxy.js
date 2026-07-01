@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v97';
+const APP_BUILD = 'v98';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -10908,11 +10908,19 @@ const server = http.createServer(async (req, res) => {
     const id = reqPath.split('/')[3];
     try {
       const list = loadSdv();
-      const sol = list.find(s=>s.id===id);
-      if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
-      if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      const solCached = list.find(s=>s.id===id);
+      if (!solCached) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      if (jp.role!=='admin'&&jp.role!=='manager'&&solCached.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      // Copia superficial: loadSdv() devuelve el mismo objeto en memoria entre requests
+      // (cache por mtime/size). Enriquecer sobre `sol` directamente mutaba ese objeto
+      // compartido, y un campo solo se pisaba cuando había datos — nunca se limpiaba
+      // cuando dejaban de aplicar (bug real: solicitudesAdicionales viejas quedaban
+      // pegadas tras borrar los registros a los que apuntaban). Trabajar sobre una copia
+      // y asignar SIEMPRE (con valor vacío si no aplica) evita que quede nada obsoleto.
+      const sol = { ...solCached };
       // Enriquecer wwpTareas con el estado real de cada tarea vinculada, para que la UI
       // sepa si ya hay una tarea WWP activa y evite ofrecer "crear otra" innecesariamente.
+      sol.wwpTareaActiva = false;
       if (sol.wwpTareas && sol.wwpTareas.length) {
         try {
           const wwpTasks = loadWwpTasks();
@@ -10926,12 +10934,13 @@ const server = http.createServer(async (req, res) => {
       }
       // Enriquecer con folio de la SDV origen (si esta es una solicitud adicional) y con las
       // adicionales vinculadas a esta (si esta es la original) — solo trazabilidad, no lógica.
+      sol.solicitudOrigenFolio = null;
       if (sol.solicitudOrigenId) {
         const origen = list.find(s => s.id === sol.solicitudOrigenId);
         sol.solicitudOrigenFolio = origen ? origen.folio : null;
       }
       const adicionales = list.filter(s => s.solicitudOrigenId === sol.id);
-      if (adicionales.length) sol.solicitudesAdicionales = adicionales.map(s => ({ id: s.id, folio: s.folio, estado: s.estado }));
+      sol.solicitudesAdicionales = adicionales.length ? adicionales.map(s => ({ id: s.id, folio: s.folio, estado: s.estado })) : [];
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
