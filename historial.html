@@ -7680,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v93';
+var APP_BUILD = 'v94';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -7814,10 +7814,10 @@ function applyNavPerms() {
     'sdv-portal','sdv-bandeja'
   ];
   sections.forEach(function(s) {
-    // "Workforce Labor" (wwp) es el módulo base donde aterrizan TODOS los usuarios
-    // autenticados; no depende de una clave de sección granular, así que se muestra
-    // siempre que haya sesión. El resto de secciones (Despachos) por canSection().
-    var show = (s === 'wwp') ? !!_user : canSection(s);
+    // "Workforce Labor" (wwp) es el módulo base donde aterrizan los usuarios operativos
+    // (admin/manager/assistant); no depende de una clave de sección granular. Ventas no
+    // opera en WWP, así que se excluye explícitamente aunque tenga sesión activa.
+    var show = (s === 'wwp') ? (!!_user && _user.role !== 'ventas') : canSection(s);
     var nav = document.getElementById('nav-' + s);
     if (nav) nav.style.display = show ? '' : 'none';
     var mob = document.getElementById('mob-nav-' + s);
@@ -7834,9 +7834,8 @@ function applyNavPerms() {
     'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes']
   };
   Object.keys(GROUPS).forEach(function(gid) {
-    // Mismo criterio que arriba: 'wwp' (Workforce Labor) es visible para todo usuario
-    // autenticado, así que el grupo "Plataforma" siempre aparece cuando hay sesión.
-    var anyVisible = GROUPS[gid].some(function(s){ return s === 'wwp' ? !!_user : canSection(s); });
+    // Mismo criterio que arriba: 'wwp' (Workforce Labor) no aplica a ventas.
+    var anyVisible = GROUPS[gid].some(function(s){ return s === 'wwp' ? (!!_user && _user.role !== 'ventas') : canSection(s); });
     var el = document.getElementById(gid);
     if (el) el.style.display = anyVisible ? '' : 'none';
   });
@@ -8288,12 +8287,8 @@ async function doChangePassword() {
   if (!current) { showErr(errEl,'Ingresa tu contraseña actual'); return; }
   if (pw.length<6) { showErr(errEl,'La nueva contraseña debe tener al menos 6 caracteres'); return; }
   if (pw!==confirm) { showErr(errEl,'Las contraseñas no coinciden'); return; }
-  // Verify current via login attempt, then update
   try {
-    const loginR = await fetch('/api/wwp/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:_user.email,password:current})});
-    const loginD = await loginR.json();
-    if (!loginD.ok) { showErr(errEl,'Contraseña actual incorrecta'); return; }
-    const r = await authFetch('/api/wwp/auth/users/'+_user.id,{method:'PATCH',body:JSON.stringify({password:pw})});
+    const r = await authFetch('/api/wwp/auth/users/'+_user.id,{method:'PATCH',body:JSON.stringify({currentPassword:current,password:pw})});
     const d = await r.json();
     if (!d.ok) { showErr(errEl,d.error); return; }
     closePasswordModal();
@@ -23251,6 +23246,7 @@ function goToBuscar(){
 // ═══════════════════════════════════════════════════════════════════════
 var _wwpEntered = false;
 function goToWWP() {
+  if (_user && _user.role === 'ventas') { toast('Workforce Labor no aplica a tu rol.'); return; }
   toggleSidebar(false);
   showScreen('screen-app');
   if (!_wwpEntered && _token) {
@@ -28937,6 +28933,7 @@ document.getElementById('devolver-modal') && document.getElementById('devolver-m
 var _sdvTipo = '';             // tipo seleccionado
 var _sdvItems = [];            // artículos confirmados (de Odoo)
 var _sdvOrderRef = '';         // ref de orden resuelta
+var _sdvSolicitudOrigenId = null; // si esta nueva SDV es "adicional" de una ya en despacho
 var _sdvOrigenPrev = '';       // valor previo del select origen (para revertir)
 var _sdvMisFiltro = '';        // filtro activo en "Mis solicitudes"
 var _sdvBandejaFiltro = '';    // filtro activo en bandeja ops
@@ -29115,6 +29112,32 @@ async function sdvBuscar() {
   }
 }
 
+// ── Crear solicitud adicional para una orden que ya está en despacho ──────
+// La vendedora no puede editar la SDV original (ya en_proceso); en vez de eso
+// se le lleva al formulario de "Nueva" pre-llenado con los datos de la orden
+// original, vinculando la nueva SDV con solicitudOrigenId para trazabilidad.
+async function sdvCrearAdicional(origenId) {
+  try {
+    var r = await authFetch('/api/sdv/'+origenId);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast('Error al cargar la solicitud original'); return; }
+    var s = d.solicitud;
+    sdvSwitchTab('nueva');
+    sdvSetTipo(s.tipoSolicitud);
+    _sdvSolicitudOrigenId = origenId;
+    _sdv$('sdv-ref-input').value = s.odooOrderRef || '';
+    toast('Revisa/ajusta los artículos y confirma. Se vinculará a '+(s.folio||'')+'.');
+    if (_sdv$('sdv-ref-input').value) {
+      await sdvBuscar();
+      // Pre-llenar receptor y observaciones desde la SDV original (Buscar ya trae cliente/dirección/ciudad frescos de Odoo)
+      if (s.receptorNombre) _sdv$('sdv-receptor-nombre').value = s.receptorNombre;
+      if (s.receptorContacto) _sdv$('sdv-receptor-contacto').value = s.receptorContacto;
+      if (s.observaciones) _sdv$('sdv-observaciones').value = s.observaciones;
+      var chk = document.getElementById('sdv-transporte'); if (chk) chk.checked = !!s.transporteIncluido;
+    }
+  } catch(e) { toast('Error: '+e.message); }
+}
+
 // ── Ayuda contextual por campo: dónde corregir en Odoo + refrescar ────────
 // Tono (gestión del cambio): beneficio para ellos, continuidad no ruptura, acción exacta sin jerga.
 var SDV_HELP = {
@@ -29275,6 +29298,7 @@ async function sdvEnviar() {
       odooOrderRef: _sdvOrderRef,
       articulosOdoo: _sdvItems.map(function(it){ return {item_id:it.item_id,odoo_product_id:it.odoo_product_id,product_name:it.product_name,sku:it.sku||'',quantity:it.quantity}; }),
     };
+    if (_sdvSolicitudOrigenId) body.solicitudOrigenId = _sdvSolicitudOrigenId;
     if (_sdvTipo!=='traslado_interno') {
       Object.assign(body,{
         clienteNombre: _sdv$('sdv-cliente').value.trim(),
@@ -29309,7 +29333,7 @@ function sdvReset(skipConfirm) {
   if (!skipConfirm && (_sdvTipo||_sdvItems.length)) {
     if (!confirm('¿Limpiar el formulario? Se perderán los datos ingresados.')) return;
   }
-  _sdvTipo=''; _sdvItems=[]; _sdvOrderRef='';
+  _sdvTipo=''; _sdvItems=[]; _sdvOrderRef=''; _sdvSolicitudOrigenId=null;
   ['despacho_cliente','devolucion','traslado_interno'].forEach(function(t){
     var b=document.getElementById('sdv-tipo-'+t); if(b) b.classList.remove('selected');
   });
@@ -29861,6 +29885,7 @@ function sdvCardHtml(s, ctx) {
       '<span class="sdv-list-folio">'+s.folio+'</span>'+
       sdvBadge(s.estado)+
     '</div>'+
+    (s.solicitudOrigenId?'<div style="font-size:11px;color:var(--brand-primary)">↳ Adicional de '+(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
     '<div class="sdv-list-meta">'+tipoLabel+ref+'</div>'+
     '<div class="sdv-list-meta" style="margin-top:3px">'+
       (s.clienteNombre?s.clienteNombre+' · ':'')+(arts?arts+' artículo(s) · ':'')+
@@ -29899,16 +29924,34 @@ async function sdvVerDetalle(id, ctx) {
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
     } else if (ctx==='bandeja' && isOps && s.estado==='en_proceso') {
-      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
-        '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
-        '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
-      '</div>';
+      if (s.wwpTareaActiva) {
+        var _wtActiva = (s.wwpTareas||[]).slice().reverse().find(function(t){ return t.status && !['completed','validated','cancelled'].includes(t.status); });
+        var _wtLabel = _wtActiva ? (STATUS_LABELS[_wtActiva.status]||_wtActiva.status) : 'en curso';
+        acciones = '<div style="margin-top:16px">'+
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
+            '<button class="btn" disabled style="opacity:0.55;cursor:not-allowed;display:flex;align-items:center;gap:6px">'+
+              '<i data-lucide="loader" style="width:14px;height:14px"></i> Tarea en proceso ('+_wtLabel+')'+
+            '</button>'+
+            '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
+          '</div>'+
+        '</div>';
+      } else {
+        acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+          '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
+          '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
+        '</div>';
+      }
     }
     // Contexto Mis Solicitudes (Vendedora)
     else if (ctx==='mis' && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="sdvOpenEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Editar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
+      '</div>';
+    } else if (ctx==='mis' && s.estado==='en_proceso') {
+      acciones = '<div style="margin-top:16px">'+
+        '<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:8px;line-height:1.5"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:-2px"></i> Esta solicitud ya está en preparación por Operaciones y no se puede editar. Si necesitas agregar o cambiar artículos de esta orden, crea una solicitud adicional — el sistema la vincula automáticamente a esta.</div>'+
+        '<button class="btn btn-primary" onclick="sdvCrearAdicional(\''+s.id+'\')"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px"></i> Crear solicitud adicional para esta orden</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada') {
       acciones = '<div style="margin-top:16px">'+
@@ -29929,6 +29972,8 @@ async function sdvVerDetalle(id, ctx) {
           '<button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="document.getElementById(\'sdv-'+(ctx==='bandeja'?'bandeja':'mis')+'-detail\').style.display=\'none\'">✕</button>'+
         '</div>'+
         '<div class="sdv-detail-sub">'+(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre+'</div>'+
+        (s.solicitudOrigenId?'<div style="font-size:var(--fs-sm);color:var(--brand-primary);margin-bottom:4px">↳ Adicional de '+(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
+        (s.solicitudesAdicionales&&s.solicitudesAdicionales.length?'<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:4px">Adicionales vinculadas: '+s.solicitudesAdicionales.map(function(a){return a.folio+' ('+(SDV_ESTADO_LABEL[a.estado]||a.estado)+')';}).join(', ')+'</div>':'')+
         '<div class="sdv-detail-section"><h4>Artículos</h4>'+(artHtml||'<span style="color:var(--text-2)">Sin artículos</span>')+'</div>'+
         '<div class="sdv-detail-section"><h4>Datos</h4>'+
           (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+s.clienteNombre+'</dd></div>':'')+

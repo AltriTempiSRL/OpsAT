@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v93';
+const APP_BUILD = 'v94';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -2524,6 +2524,26 @@ function clearLoginAttempts(email) {
   _loginAttempts.delete((email || '').toLowerCase().trim());
 }
 
+// ── Rate limiting para self-service de contraseña (PATCH /api/wwp/auth/users/:id) ──
+// Evita fuerza bruta contra currentPassword usando un JWT robado de sesión activa.
+const _selfPwAttempts = new Map(); // userId → { count, resetAt }
+const SELF_PW_MAX_ATTEMPTS = 5;
+const SELF_PW_WINDOW_MS    = 15 * 60 * 1000;
+function checkSelfPwRateLimit(userId) {
+  const now = Date.now();
+  const entry = _selfPwAttempts.get(userId) || { count: 0, resetAt: now + SELF_PW_WINDOW_MS };
+  if (entry.resetAt < now) { entry.count = 0; entry.resetAt = now + SELF_PW_WINDOW_MS; }
+  return entry.count >= SELF_PW_MAX_ATTEMPTS;
+}
+function recordSelfPwAttempt(userId) {
+  const now = Date.now();
+  const entry = _selfPwAttempts.get(userId) || { count: 0, resetAt: now + SELF_PW_WINDOW_MS };
+  if (entry.resetAt < now) { entry.count = 0; entry.resetAt = now + SELF_PW_WINDOW_MS; }
+  entry.count++;
+  _selfPwAttempts.set(userId, entry);
+}
+function clearSelfPwAttempts(userId) { _selfPwAttempts.delete(userId); }
+
 // ── Rate limiting por IP (endpoints costosos) ────────────────────────────────
 const _ipRateMap = new Map();
 const IP_RATE_RULES = {
@@ -3227,6 +3247,41 @@ function notifySeller(sol, { type, title, message }) {
   catch (e) { silentCatch(e, 'notifySeller'); }
 }
 
+// Notifica que se creó una SDV "adicional" para una orden que ya tiene tarea WWP en curso.
+// solOrigen: la SDV original (para avisar al encargado activo y a la vendedora original).
+// solNueva: la SDV adicional recién creada.
+function notifySdvAdditionalCreated(solOrigen, solNueva) {
+  try {
+    const opsIds = getOpsUserIds();
+    notifyMany(opsIds, {
+      type: 'sdv_additional_new',
+      title: '📋 Solicitud adicional para orden en preparación',
+      message: `Cliente: ${solNueva.clienteNombre||solNueva.odooOrderRef||'N/A'} · Orden: ${solNueva.odooOrderRef||'N/A'} · Ya existe una tarea WWP en curso para esta orden. Folio original: ${solOrigen.folio||solOrigen.id}. Revisar para coordinar con el picking en curso.`,
+      relatedTaskId: solNueva.id
+    });
+    // Aviso dirigido al encargado que ya tiene la tarea WWP activa de la orden original (evita picking duplicado)
+    const activa = (solOrigen.wwpTareas||[]).slice().reverse().find(t => t.status && !['completed','validated','cancelled'].includes(t.status));
+    if (activa) {
+      const tasks = loadWwpTasks();
+      const task = tasks.find(t => t.id === activa.taskId);
+      if (task && task.managerId) {
+        createNotification(task.managerId, {
+          type: 'sdv_additional_manager',
+          title: '⚠️ Solicitud adicional de una orden que ya tienes activa',
+          message: `Tienes una tarea activa de ${solNueva.odooOrderRef||solOrigen.odooOrderRef||'N/A'} y llegó una solicitud adicional (${solNueva.folio||solNueva.id}). Revisa si conviene consolidar antes de iniciar picking.`,
+          relatedTaskId: solNueva.id
+        });
+      }
+    }
+    // Aviso a la vendedora dueña de la SDV original
+    notifySeller(solOrigen, {
+      type: 'sdv_additional_linked',
+      title: '📎 Solicitud adicional vinculada',
+      message: `Se creó una solicitud adicional para tu orden ${solNueva.odooOrderRef||solOrigen.odooOrderRef||''}: ${solNueva.folio||solNueva.id}.`
+    });
+  } catch (e) { silentCatch(e, 'notifySdvAdditionalCreated'); }
+}
+
 function notifyOpsPickIncomplete(pickId, sdvId, razon = 'falta ubicación') {
   const opsIds = getOpsUserIds();
   notifyMany(opsIds, {
@@ -3301,7 +3356,9 @@ function notifyAdminSyncError(errorMsg) {
 function getOpsUserIds() {
   try {
     const users = loadAuthUsers() || [];
-    return users.filter(u => u.role === 'ops_manager' || u.role === 'admin').map(u => u.id);
+    // 'ops_manager' es el id del agente de chatbot (Pit), no un rol real de usuario.
+    // Los encargados reales tienen role='manager'.
+    return users.filter(u => u.active !== false && (u.role === 'manager' || u.role === 'admin')).map(u => u.id);
   } catch (e) {
     silentCatch(e, 'getOpsUserIds');
     return [];
@@ -7226,16 +7283,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // PATCH /api/wwp/auth/users/:id — admin: actualizar usuario
+  // PATCH /api/wwp/auth/users/:id — admin: actualizar usuario; self-service: solo su propia contraseña
   if (reqPath.startsWith('/api/wwp/auth/users/') && req.method === 'PATCH') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
-    if (jwtPayload.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin'})); return; }
+    const userId = reqPath.split('/').pop();
+    const isSelf = jwtPayload.userId === userId;
+    if (jwtPayload.role !== 'admin' && !isSelf) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin'})); return; }
     try {
-      const userId = reqPath.split('/').pop();
       const d = await readBody(req);
       const users = loadAuthUsers();
       const idx   = users.findIndex(u => u.id === userId);
       if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Usuario no encontrado'})); return; }
+      // Self-service (no-admin editando su propio registro): SOLO puede cambiar su contraseña,
+      // y debe re-verificar la actual en el servidor (no confiar en que el frontend hizo login antes).
+      if (jwtPayload.role !== 'admin' && isSelf) {
+        if (checkSelfPwRateLimit(userId)) { res.writeHead(429,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Demasiados intentos. Intenta de nuevo en unos minutos.'})); return; }
+        const allowedKeys = new Set(['currentPassword','password']);
+        const extraKeys = Object.keys(d).filter(k => !allowedKeys.has(k));
+        if (extraKeys.length) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo puedes cambiar tu contraseña'})); return; }
+        if (!d.password || d.password.length < 6) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La contraseña debe tener al menos 6 caracteres'})); return; }
+        if (!d.currentPassword || !verifyPassword(d.currentPassword, users[idx].passwordHash)) {
+          recordSelfPwAttempt(userId);
+          res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Contraseña actual incorrecta'})); return;
+        }
+        clearSelfPwAttempts(userId);
+        users[idx].passwordHash = hashPassword(d.password);
+        saveAuthUsers(users);
+        try { appendAuditLog('self_password_change', { by: jwtPayload.userId, userId }); } catch(e) { silentCatch(e,'self_password_change'); }
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role}}));
+        return;
+      }
       if (d.role && !loadRoleDefs().map(r=>r.id).includes(d.role)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Rol inválido'})); return; }
       if (d.name)     users[idx].name   = d.name;
       if (d.email)    users[idx].email  = d.email.toLowerCase().trim();
@@ -10748,12 +10826,18 @@ const server = http.createServer(async (req, res) => {
         wwpTaskId: null,      // ID de tarea WWP creada
         fechaDespacho: null,  // Fecha cuando se validó automáticamente
         alertas: [],
+        solicitudOrigenId: d.solicitudOrigenId || null, // Vínculo a la SDV original, si es una solicitud adicional
       };
       const list = loadSdv();
       list.push(sol);
       saveSdv(list);
       // N-005: Notificar a Ops que hay una nueva SDV pendiente de revisión
-      try { notifyOpsNewSdv(sol.id, sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e) { silentCatch(e,'notifyOpsNewSdv'); }
+      const solOrigen = sol.solicitudOrigenId ? list.find(s => s.id === sol.solicitudOrigenId) : null;
+      if (solOrigen) {
+        try { notifySdvAdditionalCreated(solOrigen, sol); } catch(e) { silentCatch(e,'notifySdvAdditionalCreated'); }
+      } else {
+        try { notifyOpsNewSdv(sol.id, sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e) { silentCatch(e,'notifyOpsNewSdv'); }
+      }
       res.writeHead(201,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -10770,7 +10854,10 @@ const server = http.createServer(async (req, res) => {
       const q = parsed.query||{};
       if (q.estado) list = list.filter(s=>s.estado===q.estado);
       list = list.slice().sort((a,b)=>new Date(b.creadoAt)-new Date(a.creadoAt));
-      sendGzipJson(req, res, 200, {ok:true,solicitudes:list});
+      // Enriquecer con folio de origen (solo el nombre, sin objeto completo) para el badge en la card
+      const full = loadSdv();
+      const outList = list.map(s => s.solicitudOrigenId ? { ...s, solicitudOrigenFolio: (full.find(o=>o.id===s.solicitudOrigenId)||{}).folio || null } : s);
+      sendGzipJson(req, res, 200, {ok:true,solicitudes:outList});
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -10784,6 +10871,27 @@ const server = http.createServer(async (req, res) => {
       const sol = list.find(s=>s.id===id);
       if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       if (jp.role!=='admin'&&jp.role!=='manager'&&sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      // Enriquecer wwpTareas con el estado real de cada tarea vinculada, para que la UI
+      // sepa si ya hay una tarea WWP activa y evite ofrecer "crear otra" innecesariamente.
+      if (sol.wwpTareas && sol.wwpTareas.length) {
+        try {
+          const wwpTasks = loadWwpTasks();
+          const terminal = new Set(['completed','validated','cancelled']);
+          sol.wwpTareas = sol.wwpTareas.map(t => {
+            const task = wwpTasks.find(wt => wt.id === t.taskId);
+            return { ...t, status: task ? task.status : null };
+          });
+          sol.wwpTareaActiva = sol.wwpTareas.some(t => t.status && !terminal.has(t.status));
+        } catch (e) { silentCatch(e, 'sdv-wwpTareas-status'); }
+      }
+      // Enriquecer con folio de la SDV origen (si esta es una solicitud adicional) y con las
+      // adicionales vinculadas a esta (si esta es la original) — solo trazabilidad, no lógica.
+      if (sol.solicitudOrigenId) {
+        const origen = list.find(s => s.id === sol.solicitudOrigenId);
+        sol.solicitudOrigenFolio = origen ? origen.folio : null;
+      }
+      const adicionales = list.filter(s => s.solicitudOrigenId === sol.id);
+      if (adicionales.length) sol.solicitudesAdicionales = adicionales.map(s => ({ id: s.id, folio: s.folio, estado: s.estado }));
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
