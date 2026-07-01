@@ -7680,7 +7680,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v99';
+var APP_BUILD = 'v100';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29653,7 +29653,9 @@ function renderEstadoOrdenes() {
 
   // KPIs
   var nPend = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
-  var nProc = sols.filter(function(s){ return s.estado==='en_proceso'; }).length;
+  // "En operaciones" y "En ruta" son excluyentes: en ruta es la sub-fase posterior (la tarea de
+  // despacho ya arrancó). Sin este !hasEnRuta, la misma SDV se contaba en ambos KPI.
+  var nProc = sols.filter(function(s){ return s.estado==='en_proceso' && !hasEnRuta(s); }).length;
   var nRuta = sols.filter(hasEnRuta).length;
   var nDesp = sols.filter(function(s){ return s.estado==='despachada'; }).length;
   var nDemo = sols.filter(hasDemoPend).length;
@@ -29695,6 +29697,8 @@ function renderEstadoOrdenes() {
   var visible = sols;
   if (_eoFiltro === 'en_ruta') {
     visible = sols.filter(hasEnRuta);
+  } else if (_eoFiltro === 'en_proceso') {
+    visible = sols.filter(function(s){ return s.estado==='en_proceso' && !hasEnRuta(s); });
   } else if (_eoFiltro === 'demo') {
     visible = sols.filter(hasDemoPend);
   } else if (_eoFiltro === 'devolucion') {
