@@ -9,7 +9,6 @@ const path       = require('path');
 const url        = require('url');
 const crypto     = require('crypto');
 const zlib       = require('zlib');
-const os         = require('os');
 // nodemailer se carga de forma lazy (solo si está instalado y se usa SMTP)
 let nodemailer = null;
 try { nodemailer = require('nodemailer'); } catch { /* no disponible en este entorno */ }
@@ -22,21 +21,37 @@ try { webpush = require('web-push'); } catch { /* web-push no instalado */ }
 const _jsonFileCache = new Map();
 
 function loadJson(file, fallback) {
+  const def = () => (fallback !== undefined ? fallback : []);
+  let st;
+  try { st = fs.statSync(file); }
+  catch { return def(); } // El archivo no existe → fallback legítimo
+  const hit = _jsonFileCache.get(file);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.data;
+  const raw = fs.readFileSync(file, 'utf-8');
   try {
-    const st = fs.statSync(file);
-    const hit = _jsonFileCache.get(file);
-    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.data;
-    const data = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const data = JSON.parse(raw);
     _jsonFileCache.set(file, { mtimeMs: st.mtimeMs, size: st.size, data });
     return data;
+  } catch (e) {
+    // El archivo EXISTE pero el JSON es inválido. NO devolver [] en silencio:
+    // eso haría que la siguiente escritura persistiera la pérdida de datos.
+    // Intentar recuperar el último respaldo bueno; si no hay, fallar visible.
+    console.error('[loadJson] JSON corrupto en', file, '—', e.message);
+    try {
+      const bak = JSON.parse(fs.readFileSync(file + '.bak', 'utf-8'));
+      console.warn('[loadJson] recuperado desde respaldo', file + '.bak');
+      return bak;
+    } catch { /* sin respaldo utilizable */ }
+    throw new Error('Datos corruptos en ' + path.basename(file) + ': ' + e.message);
   }
-  catch { return fallback !== undefined ? fallback : []; }
 }
 function saveJson(file, data) {
   // Escritura atómica: tmp → rename. Si el proceso es killed a mitad de writeFileSync,
   // el archivo original queda intacto (el kernel solo intercambia el inodo en rename).
+  // El estado anterior queda en .bak para recuperación ante corrupción (ver loadJson).
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8');
+  try { if (fs.existsSync(file)) fs.copyFileSync(file, file + '.bak'); } catch { /* best-effort */ }
   fs.renameSync(tmp, file);
   try {
     const st = fs.statSync(file);
@@ -1428,6 +1443,20 @@ function requireRole(jp, res, roles) {
   return true;
 }
 
+// ¿El usuario (jp) participa en la tarea? (encargado, co-encargado, asignado o
+// ejecutor). Se usa para autorizar mutaciones a nivel de artículo/foto además del
+// rol, cerrando el IDOR de clase entre equipos. (Port de da267a4 — Filippo)
+function isTaskParticipant(task, jp) {
+  if (!task || !jp) return false;
+  const myAuthId  = jp.userId;
+  const myOdooStr = 'oe_' + jp.odooId;
+  return task.managerId === myAuthId ||
+         (task.coManagerIds||[]).includes(myAuthId) ||
+         task.assignedTo === myOdooStr ||
+         (task.executors||[]).some(e => e === myOdooStr || e === myAuthId) ||
+         (task.assignees||[]).includes(myAuthId);
+}
+
 // ── Helper de respuesta JSON ─────────────────────────────────────────────────
 function sendJson(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -2700,8 +2729,13 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS    = 15 * 60 * 1000;
 
 function checkLoginRateLimit(email) {
-  // Bloqueo por intentos fallidos DESACTIVADO (solicitado para pruebas en vivo).
-  return false;
+  // Reactivado (port de da267a4 — Filippo): bloquea tras LOGIN_MAX_ATTEMPTS fallos
+  // dentro de LOGIN_WINDOW_MS (anti fuerza bruta).
+  const key = (email || '').toLowerCase().trim();
+  const entry = _loginAttempts.get(key);
+  if (!entry) return false;
+  if (entry.resetAt < Date.now()) { _loginAttempts.delete(key); return false; }
+  return entry.count >= LOGIN_MAX_ATTEMPTS;
 }
 function recordFailedLogin(email) {
   const key   = (email || '').toLowerCase().trim();
@@ -4460,7 +4494,7 @@ const server = http.createServer(async (req, res) => {
   // Crea conduces de Despacho de Obsoleto desde datos congelados (los 2 PDFs ya
   // usados). Idempotente por migrationKey: si ya existe uno con esa clave, lo
   // omite. NUNCA toca CO-0001. Protegido por x-migrate-secret.
-  if (reqPath === '/api/_fix/import-conduces' && req.method === 'POST') {
+  if (false && reqPath === '/api/_fix/import-conduces' && req.method === 'POST') { // migración de un solo uso ya ejecutada — desactivada (evita endpoint vivo con secreto hardcodeado; port de da267a4)
     const FIX_SECRET = '86dca6380c724d3e3ede648de6d78da0';
     if ((req.headers['x-migrate-secret'] || '') !== FIX_SECRET) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
@@ -4666,10 +4700,24 @@ const server = http.createServer(async (req, res) => {
   }
   // ── /api/odoo — llamada genérica ─────────────────────────────────────────
   if (reqPath === '/api/odoo' && req.method === 'POST') {
+    // Antes estaba SIN autenticar: cualquiera podía ejecutar RPC arbitrario contra
+    // Odoo con la API key privilegiada del servidor. Ahora exige JWT + rol con acceso
+    // a las pantallas que lo usan (historial/dashboards; 'ventas' incluido para no
+    // romper sus tableros) y limita a una allowlist de métodos de SOLO lectura.
+    // (Port de da267a4 — Filippo; roles ampliados con 'ventas'.)
+    const _jpOdoo = requireJwt(req, res); if (!_jpOdoo) return;
+    if (!requireRole(_jpOdoo, res, ['admin', 'manager', 'ventas'])) return;
     try {
       const body   = await readBody(req);
       const { model, method, args = [[]], kwargs = {} } = body;
       if (!model || !method) throw new Error('Faltan campos: model, method');
+      // Escrituras (create/write/unlink) deben ir por endpoints dedicados con su propia lógica.
+      const ODOO_PROXY_ALLOWED = new Set(['read', 'search', 'search_read', 'search_count', 'read_group', 'fields_get', 'name_search', 'name_get']);
+      if (!ODOO_PROXY_ALLOWED.has(method)) {
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:false, error:`Método '${method}' no permitido por el proxy genérico` }));
+        return;
+      }
       const result = await odooCall(model, method, args, kwargs);
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({ ok: true, result }));
@@ -6301,6 +6349,15 @@ const server = http.createServer(async (req, res) => {
         if (!permitidos.includes(d.estado)) {
           res.writeHead(422,{'Content-Type':'application/json'});
           res.end(JSON.stringify({ok:false,error:`Transición no permitida: ${rec.estado} → ${d.estado}`}));
+          return;
+        }
+        // Aprobar/rechazar es acción de encargado (P1: el backend no verificaba rol;
+        // el frontend solo ocultaba el botón, así que era eludible por llamada directa).
+        // (Port de da267a4 — Filippo)
+        if ((d.estado === 'aprobada' || d.estado === 'rechazada') &&
+            !['admin','manager','ops_manager'].includes(_jpRPA.role)) {
+          res.writeHead(403,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false,error:'Solo un encargado puede aprobar o rechazar reposiciones'}));
           return;
         }
         const estadoPrev = rec.estado;
@@ -8235,7 +8292,9 @@ const server = http.createServer(async (req, res) => {
         if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
           tasks[idx].dispatchCompletedAt = now;
         }
-        tasks[idx].statusHistory.push({ status:d.status, date:now, by:d.by||'', note:d.note||'' });
+        // by derivado del JWT (no del body) + límites de longitud: evita spoofing
+        // y reduce superficie de XSS almacenado (el escape real va en el render).
+        tasks[idx].statusHistory.push({ status:d.status, date:now, by:String(jp.name||d.by||'').slice(0,120), note:String(d.note||'').slice(0,500) });
         // ── AUTOMÁTICO: Actualizar SDV a 'despachada' ──
         // Para tareas de despacho (dispatch_order), basta con que el chofer la marque
         // 'completed' — esto ya exige el checklist de 3 fotos (incluye documentos de
@@ -12043,6 +12102,7 @@ const server = http.createServer(async (req, res) => {
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const itemIdx=(tasks[idx].items||[]).findIndex(it=>it.item_id===itemId);
       if (itemIdx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      if (!isTaskParticipant(tasks[idx], _jpC) && !ROLE_PERMISSIONS.edit_task.includes(_jpC.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       tasks[idx].items[itemIdx].condition = condition;
       tasks[idx].items[itemIdx].damageType = damageType;
       tasks[idx].updatedAt=new Date().toISOString();
@@ -12183,6 +12243,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const itemIdx = (tasks[idx].items||[]).findIndex(it => it.item_id === itemId);
       if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      if (!isTaskParticipant(tasks[idx], _jpItemConf) && !ROLE_PERMISSIONS.edit_task.includes(_jpItemConf.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       tasks[idx].items[itemIdx].confirmado = !!d.confirmado;
       tasks[idx].items[itemIdx].confirmado_by = d.confirmado ? (d.by||_jpItemConf.name||'') : null;
       tasks[idx].items[itemIdx].confirmado_at = d.confirmado ? new Date().toISOString() : null;
@@ -12549,6 +12610,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const itemIdx = (tasks[idx].items||[]).findIndex(it => it.item_id === itemId);
       if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      if (!isTaskParticipant(tasks[idx], _jpEnt) && !ROLE_PERMISSIONS.edit_task.includes(_jpEnt.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const it = tasks[idx].items[itemIdx];
       // delivered: true/false/null ; deliveryStatus: 'ok'|'damaged'|'not_delivered' ; damageType opcional
       if (d.delivered !== undefined)      it.delivered = d.delivered;
@@ -13431,6 +13493,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const itemIdx = (tasks[idx].items||[]).findIndex(it => it.item_id === itemId);
       if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      if (!isTaskParticipant(tasks[idx], jp) && !ROLE_PERMISSIONS.edit_task.includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const status = ['confirmed','partial'].includes(d.status) ? d.status : 'confirmed';
       tasks[idx].items[itemIdx].empaque_confirmacion = {
         status,
@@ -13647,7 +13710,12 @@ const server = http.createServer(async (req, res) => {
   ]);
   const _fname = path.basename(_realPath);
   const _fext  = path.extname(_realPath).toLowerCase();
-  if (_FORBIDDEN.has(_fname)) {
+  // Datos de negocio/respaldo en .json NO deben servirse como estático (fuga de PII):
+  // se bloquean por patrón aunque .json esté en la allowlist de extensiones. La
+  // denylist por nombre exacto se desincronizaba al aparecer archivos nuevos (p.ej.
+  // backup-wwp-tasks-*.json quedaba servible sin auth). (Port de da267a4 — Filippo)
+  const _FORBIDDEN_JSON = /^(backup-|wwp-|sdv|solicitudes|reposicion|despacho|vehiculos-|averias|daily-close|empaque-|politicas|_nave2|_aa1|contenedores)/i;
+  if (_FORBIDDEN.has(_fname) || (_fext === '.json' && _fname !== 'manifest.json' && _FORBIDDEN_JSON.test(_fname))) {
     res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
   }
   if (_fext && !_ALLOWED_EXT.has(_fext)) {

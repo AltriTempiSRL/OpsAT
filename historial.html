@@ -3372,10 +3372,14 @@ body{font-family:var(--font);min-height:100dvh}
 .toast{
   position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
   background:#1e293b;color:white;padding:12px 20px;border-radius:10px;
-  font-size:13px;font-weight:600;z-index:999;transition:transform .3s;white-space:nowrap;
-  box-shadow:0 8px 24px rgba(0,0,0,.3);
+  font-size:13px;font-weight:600;z-index:999;transition:transform .3s;
+  max-width:calc(100vw - 32px);white-space:normal;text-align:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.3);border-left:4px solid transparent;
 }
 .toast.show{transform:translateX(-50%) translateY(0)}
+.toast.toast-error{border-left-color:#ef4444}
+.toast.toast-success{border-left-color:#22c55e}
+.toast.toast-info{border-left-color:#3b82f6}
 
 /* ── DASHBOARD PANEL ─────────────────────────────────────────────── */
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px}
@@ -12341,7 +12345,7 @@ function renderDrawer(t) {
   }
 
   // History
-  const histHtml = `<div class="sec-header" style="margin-top:20px">HISTORIAL DE ESTADO</div>${(t.statusHistory||[]).map(h=>`<div class="hist-item"><div class="hist-dot"></div><div class="hist-content"><div class="hist-status">${STATUS_LABELS[h.status]||h.status}</div><div class="hist-meta">${fmtDate(h.date)} · ${h.by||'—'}${h.note?' — '+h.note:''}</div></div></div>`).join('')}`;
+  const histHtml = `<div class="sec-header" style="margin-top:20px">HISTORIAL DE ESTADO</div>${(t.statusHistory||[]).map(h=>`<div class="hist-item"><div class="hist-dot"></div><div class="hist-content"><div class="hist-status">${STATUS_LABELS[h.status]||h.status}</div><div class="hist-meta">${fmtDate(h.date)} · ${esc(h.by)||'—'}${h.note?' — '+esc(h.note):''}</div></div></div>`).join('')}`;
 
   // Trazabilidad unificada — combina el historial de la madre + todas las subtareas (cadena), cronológico
   let traceHtml = '';
@@ -12355,7 +12359,7 @@ function renderDrawer(t) {
       <i data-lucide="route" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>TRAZABILIDAD DE LA CADENA</div>
       ${ev.map(e=>`<div class="hist-item"><div class="hist-dot" style="background:var(--accent)"></div><div class="hist-content">
         <div class="hist-status" style="font-size:11px"><span style="color:var(--accent);font-weight:700">${esc(e.label)}</span> → ${STATUS_LABELS[e.status]||e.status}</div>
-        <div class="hist-meta">${fmtDate(e.date)} · ${e.by||'—'}${e.note?' — '+esc(e.note):''}</div>
+        <div class="hist-meta">${fmtDate(e.date)} · ${esc(e.by)||'—'}${e.note?' — '+esc(e.note):''}</div>
       </div></div>`).join('')}`;
   }
 
@@ -17779,7 +17783,17 @@ function showErr(el, msg){ el.textContent=msg; el.classList.add('show'); }
 function togglePw(id, btn){ const el=document.getElementById(id); const isHidden=el.type==='password'; el.type=isHidden?'text':'password'; btn.innerHTML='<i data-lucide="'+(isHidden?'eye-off':'eye')+'"></i>'; if(window.lucide) lucide.createIcons(); }
 function fmtDate(iso){ try{ return new Date(iso).toLocaleString('es-DO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{return iso||'';} }
 let _toastTimer;
-function toast(msg, duration){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>t.classList.remove('show'), duration||3000); }
+function toast(msg, opt){
+  // opt: número → duración ms (comportamiento previo); string error|success|info → tipo visual (port da267a4)
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.remove('toast-error','toast-success','toast-info');
+  const duration = (typeof opt==='number') ? opt : 3000;
+  if (typeof opt==='string' && ['error','success','info'].includes(opt)) t.classList.add('toast-'+opt);
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'), duration);
+}
 
 // ═══════════════════════════════════════════════
 // RESULT CARD RENDERERS — Tarjetas de búsqueda
@@ -17985,7 +17999,7 @@ function installPWA() {
 <script>
 async function odooSearch(model,domain,fields,limit){
   var res=await fetch('/api/odoo',{
-    method:'POST',headers:{'Content-Type':'application/json'},
+    method:'POST',headers:{'Content-Type':'application/json',...wwpAuthHeaders()},
     body:JSON.stringify({model,method:'search_read',args:[domain],kwargs:{fields,limit:limit||80}})
   });
   var data=await res.json();
