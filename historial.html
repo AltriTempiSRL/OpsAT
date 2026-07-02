@@ -4439,6 +4439,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-badge-pendiente{background:var(--amber-bg);color:var(--amber-text)}
 .sdv-badge-proceso{background:var(--blue-bg,var(--surface-3));color:var(--brand-primary)}
 .sdv-badge-despachada{background:var(--green-bg);color:var(--green-text)}
+.sdv-badge-rechazada{background:var(--red-bg);color:var(--red-text)}
 .sdv-badge-cancelada{background:var(--surface-3);color:var(--text-2)}
 /* ── Estado de Órdenes (panel ventas) ─────────────────────────── */
 .eo-kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
@@ -6155,6 +6156,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'pendiente_revision')">Pendientes</button>
               <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'en_proceso')">En proceso</button>
               <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'despachada')">Despachadas</button>
+              <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'rechazada')">Rechazadas</button>
+              <button class="sdv-bandeja-filter" onclick="sdvMisFilter(this,'cancelada')">Canceladas</button>
             </div>
             <button class="btn btn-sm btn-secondary" onclick="sdvCargarMis()">
               <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i>
@@ -7680,7 +7683,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v100';
+var APP_BUILD = 'v101';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -28955,7 +28958,8 @@ var SDV_TIPO_LABEL = {
 function sdvBadge(estado) {
   var cls = estado==='pendiente_revision'?'sdv-badge-pendiente':
             estado==='en_proceso'?'sdv-badge-proceso':
-            estado==='despachada'?'sdv-badge-despachada':'sdv-badge-cancelada';
+            estado==='despachada'?'sdv-badge-despachada':
+            estado==='rechazada'?'sdv-badge-rechazada':'sdv-badge-cancelada';
   return '<span class="sdv-badge '+cls+'">'+(SDV_ESTADO_LABEL[estado]||estado)+'</span>';
 }
 function sdvFmtDate(iso) {
@@ -30023,8 +30027,9 @@ async function sdvVerDetalle(id, ctx) {
           (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+s.observaciones+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
         '</div>'+
+        (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.wwpTaskId?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
-        (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+t.titulo+'</dd></div>'; }).join('')+'</div>':'')+
+        (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+esc(t.titulo||'')+(t.status?' · <span class="eo-ops-chip">'+(STATUS_LABELS[t.status]||t.status)+'</span>':'')+'</dd></div>'; }).join('')+'</div>':'')+
         acciones+
         ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
       '</div>';
