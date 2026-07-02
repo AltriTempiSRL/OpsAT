@@ -4417,6 +4417,12 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-item-qty{font-size:var(--fs-sm);font-weight:600;color:var(--text-1);white-space:nowrap}
 .sdv-item-del{background:none;border:none;color:var(--text-3);cursor:pointer;padding:4px;border-radius:4px;line-height:1}
 .sdv-item-del:hover{color:var(--red-text)}
+/* F2-5: stepper táctil de cantidad (reemplaza input number, mejor en móvil) */
+.sdv-qty-stepper{display:inline-flex;align-items:center;gap:6px}
+.sdv-qty-btn{width:36px;height:36px;border:1.5px solid var(--border);background:var(--surface-2);border-radius:8px;font-size:19px;font-weight:700;color:var(--text-1);cursor:pointer;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;-webkit-user-select:none;user-select:none}
+.sdv-qty-btn:hover{border-color:var(--brand-primary);color:var(--brand-primary)}
+.sdv-qty-btn:active{background:var(--surface-3)}
+.sdv-qty-val{min-width:28px;text-align:center;font-weight:700;font-size:15px;color:var(--text-1)}
 /* Form grid */
 .sdv-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 .sdv-form-grid.cols1{grid-template-columns:1fr}
@@ -7683,7 +7689,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v104';
+var APP_BUILD = 'v105';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29004,6 +29010,17 @@ function sdvSetQty(idx, val) {
   if (inp && parseInt(inp.value,10) !== n) inp.value = n;
 }
 
+// F2-5: stepper táctil — ajusta la cantidad ±1 dentro de [1, maxQty] sin teclado.
+function sdvStepQty(idx, delta) {
+  var item = _sdvItems.find(function(it){ return it._idx===idx; });
+  if (!item) return;
+  var max = item.maxQty || item.quantity;
+  var n = Math.max(1, Math.min(max, (parseInt(item.quantity,10)||1) + delta));
+  item.quantity = n;
+  var el = document.getElementById('sdv-qty-'+idx);
+  if (el) el.textContent = n;
+}
+
 // ── Inicializar portal (al navegar a sdv-portal) ─────────────────────────
 function sdvInitPortal() {
   // Pre-llenar vendedora con el usuario logueado
@@ -29274,7 +29291,11 @@ function sdvRenderItems() {
     var maxQ = it.maxQty || it.quantity;
     var ctrl = canDel
       ? '<button class="sdv-item-del" onclick="sdvQuitarItem('+it._idx+')" title="Quitar"><i data-lucide="x" style="width:13px;height:13px"></i></button>'
-      : '<div style="text-align:center"><input type="number" id="sdv-qty-'+it._idx+'" class="sdv-item-qty-input" min="1" max="'+maxQ+'" value="'+it.quantity+'" onchange="sdvSetQty('+it._idx+',this.value)" onclick="event.stopPropagation()"><span class="sdv-item-qty-max">máx '+maxQ+'</span></div>';
+      : '<div style="text-align:center"><div class="sdv-qty-stepper" onclick="event.stopPropagation()">'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvStepQty('+it._idx+',-1)" aria-label="Menos">−</button>'+
+          '<span class="sdv-qty-val" id="sdv-qty-'+it._idx+'">'+it.quantity+'</span>'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvStepQty('+it._idx+',1)" aria-label="Más">+</button>'+
+        '</div><div class="sdv-item-qty-max">máx '+maxQ+'</div></div>';
     return '<div class="sdv-item-row">'+img+
       '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
       ctrl+'</div>';
@@ -30005,7 +30026,7 @@ async function sdvVerDetalle(id, ctx) {
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada') {
       acciones = '<div style="margin-top:16px">'+
-        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px;line-height:1.5"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Si el motivo es un dato de la orden (cliente, dirección, artículos), corrígelo en Odoo y vuelve a tocar «Buscar / Actualizar». Si es de quien recibe, edítalo aquí.</div>'+
+        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px;line-height:1.5"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Si el motivo es un dato de la orden (cliente, dirección, artículos), corrígelo en Odoo y luego pulsa «Corregir y reenviar» para aplicar los cambios. Si es de quien recibe, edítalo ahí mismo.</div>'+
         '<button class="btn btn-primary" onclick="sdvOpenEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Corregir y reenviar</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='cancelada') {
