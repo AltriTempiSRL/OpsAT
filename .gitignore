@@ -30,8 +30,14 @@ temp_*.html
 # ── Dependencias ──────────────────────────────────────────────────────────────
 node_modules/
 
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+
 # ── Backups de datos en tiempo de ejecución ──────────────────────────────────
 backups/
+backup-wwp-*.json
+# Respaldos que genera saveJson atómico (write .tmp → rename; .bak = estado previo)
+*.bak
 
 # ── Herramientas de desarrollo ────────────────────────────────────────────────
 .claude/

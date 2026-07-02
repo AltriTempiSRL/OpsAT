@@ -863,8 +863,12 @@ function showDetail({code,path,tot,pct,ok,vU,bV,items}){
 // ═══════════════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════════════
+function _mapaAuthHeader(){
+  try{var a=JSON.parse(localStorage.getItem('wwp_auth')||sessionStorage.getItem('wwp_auth')||'{}');if(a.accessToken)return{'Authorization':'Bearer '+a.accessToken};}catch(e){}
+  return {};
+}
 async function odoo(m,me,a,k={}) {
-  const r=await fetch('/api/odoo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:m,method:me,args:a,kwargs:k})});
+  const r=await fetch('/api/odoo',{method:'POST',headers:{'Content-Type':'application/json',..._mapaAuthHeader()},body:JSON.stringify({model:m,method:me,args:a,kwargs:k})});
   const d=await r.json();if(!d.ok)throw new Error(d.error);return d.result;
 }
 function setLoading(msg,sub){
