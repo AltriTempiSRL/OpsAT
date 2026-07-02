@@ -7723,7 +7723,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v113';
+var APP_BUILD = 'v114';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29750,6 +29750,9 @@ async function sdvCargarMis() {
     var d = await r.json();
     if (!r.ok||!d.ok) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error al cargar</div>'; return; }
     var sols = d.solicitudes||[];
+    // v114: el API ahora devuelve TODAS las solicitudes al equipo de Ventas (visibilidad
+    // de equipo en Estado de Órdenes); esta vista es "MIS solicitudes" → solo las propias.
+    sols = sols.filter(function(s){ return !s.creadoPor || s.creadoPor === (_user&&_user.id); });
     if (!sols.length) { list.innerHTML='<div style="color:var(--text-2);padding:20px;text-align:center">Sin solicitudes'+((_sdvMisFiltro)?' en este estado':'')+'</div>'; return; }
     list.innerHTML = sols.map(function(s){ return sdvCardHtml(s, 'mis'); }).join('');
     if (window.lucide) lucide.createIcons();

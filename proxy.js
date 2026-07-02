@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v113';
+const APP_BUILD = 'v114';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -10896,7 +10896,8 @@ const server = http.createServer(async (req, res) => {
       try {
         const sol = loadSdv().find(s => s.id === id);
         if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Not found'})); return; }
-        if (jp.role!=='admin' && jp.role!=='manager' && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
+        // v114: Ventas puede consultar el estado del pick de cualquier solicitud (read-only)
+        if (!['admin','manager','ventas'].includes(jp.role) && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
         if (!sol.odooOrderRef) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null})); return; }
         const pickStatus = await sdvComputePickStatus(sol.odooOrderRef);
         res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus}));
@@ -11240,7 +11241,10 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     try {
       let list = loadSdv();
-      if (jp.role !== 'admin' && jp.role !== 'manager') list = list.filter(s=>s.creadoPor===jp.userId);
+      // v114: el equipo de Ventas ve TODAS las solicitudes (visibilidad de equipo en
+      // Estado de Órdenes); editar/cancelar siguen siendo solo del dueño u Ops. La vista
+      // "Mis Solicitudes" filtra por dueño en el cliente. Otros roles: solo las suyas.
+      if (!['admin','manager','ventas'].includes(jp.role)) list = list.filter(s=>s.creadoPor===jp.userId);
       // Filtros opcionales
       const q = parsed.query||{};
       if (q.estado) list = list.filter(s=>s.estado===q.estado);
@@ -11261,7 +11265,8 @@ const server = http.createServer(async (req, res) => {
       const list = loadSdv();
       const solCached = list.find(s=>s.id===id);
       if (!solCached) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
-      if (jp.role!=='admin'&&jp.role!=='manager'&&solCached.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      // v114: Ventas puede LEER cualquier solicitud (detalle de Estado de Órdenes); escribir no.
+      if (!['admin','manager','ventas'].includes(jp.role) && solCached.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
       // Copia superficial: loadSdv() devuelve el mismo objeto en memoria entre requests
       // (cache por mtime/size). Enriquecer sobre `sol` directamente mutaba ese objeto
       // compartido, y un campo solo se pisaba cuando había datos — nunca se limpiaba
