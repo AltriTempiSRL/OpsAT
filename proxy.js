@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v101';
+const APP_BUILD = 'v102';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -11051,6 +11051,10 @@ const server = http.createServer(async (req, res) => {
             return;
           }
           sol.estado = d.estado;
+          // F1-2: sellar timestamp de la transición (habilita SLA de aprobación y lead time).
+          if (d.estado==='en_proceso' && !sol.aprobadoEn) sol.aprobadoEn = now;
+          else if (d.estado==='despachada') sol.despachadaEn = now;
+          else if (d.estado==='rechazada') sol.rechazadaEn = now;
           sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||d.razon||''});
           // Mantener informada a la vendedora del avance de SU solicitud
           try {
@@ -11061,9 +11065,25 @@ const server = http.createServer(async (req, res) => {
         }
         if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
         if (d.wwpTarea) sol.wwpTareas.push({taskId:d.wwpTarea.taskId,titulo:d.wwpTarea.titulo,creadoAt:now});
-        // Fase 0 (F0-3): eliminado el bloque muerto `in_process` (inglés, nunca disparaba desde la
-        // UI que usa `en_proceso`). La tarea WWP se crea por el reverse-link al hacer POST /api/wwp/tasks
-        // con sdvId. La aprobación 1-clic server-side sobre `en_proceso` llegará en F1-1 (Sprint 2).
+        // ── F1-1: Aprobación 1-clic ──────────────────────────────────────────
+        // Al aprobar (transición a `en_proceso`) por primera vez, crear la tarea WWP de despacho
+        // server-side desde el snapshot de la SDV — sin wizard, sin re-captura. Idempotente vía
+        // !sol.wwpTaskId (si ya tiene tarea, no duplica). Elimina la fricción que empujaba a Ops
+        // a saltarse la SDV (Pit R1).
+        if (d.estado === 'en_proceso' && !sol.wwpTaskId) {
+          try {
+            const newTask = createWwpTaskFromSdv(sol, jp.userId);
+            if (sol.tipoSolicitud === 'devolucion') newTask.type = 'general';
+            newTask.seq = nextTaskSeq();
+            const tasks = loadWwpTasks();
+            tasks.push(newTask);
+            saveWwpTasks(tasks);
+            sol.wwpTaskId = newTask.id;
+            sol.wwpTareas = sol.wwpTareas || [];
+            sol.wwpTareas.push({ taskId: newTask.id, titulo: newTask.title, creadoAt: now });
+            console.log('[SDV→WWP] Aprobación 1-clic: tarea', newTask.id, 'creada para solicitud', sol.id);
+          } catch (e) { console.error('[SDV→WWP] Error creando tarea en aprobación 1-clic:', e.message); }
+        }
       }
       
       // Detectar cambios y crear alerta si hay modificaciones en estado != pendiente_revision

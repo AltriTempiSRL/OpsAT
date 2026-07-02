@@ -7683,7 +7683,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v101';
+var APP_BUILD = 'v102';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29956,8 +29956,7 @@ async function sdvVerDetalle(id, ctx) {
     // Contexto Bandeja (Ops)
     if (ctx==='bandeja' && isOps && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
-        '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Convertir en Tarea WWP</button>'+
-        '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'en_proceso\')">Marcar En Proceso</button>'+
+        '<button class="btn btn-primary" onclick="sdvAprobar(\''+s.id+'\')"><i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Aprobar (crea la tarea)</button>'+
         '<button class="btn" style="color:var(--amber-text);border-color:var(--amber-text)" onclick="sdvRechazar(\''+s.id+'\')"><i data-lucide="x-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Rechazar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
@@ -30401,6 +30400,22 @@ function sdvEditConfirmMapLocation() {
 }
 
 // ── Cambiar estado (ops) ──────────────────────────────────────────────────
+// ── F1-1: Aprobación 1-clic ───────────────────────────────────────────────
+// Aprobar = un solo clic: pasa la SDV a "en proceso" y el backend crea la tarea de
+// despacho automáticamente desde el snapshot (sin wizard, sin re-captura).
+async function sdvAprobar(id) {
+  if (!confirm('¿Aprobar esta solicitud? Se creará la tarea de despacho automáticamente en Workforce.')) return;
+  try {
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso'})});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al aprobar'); return; }
+    var creada = d.solicitud && d.solicitud.wwpTaskId;
+    toast(creada?'Aprobada · tarea de despacho creada en Workforce':'Solicitud aprobada');
+    sdvBandejaCargar();
+    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+  } catch(e) { toast('Error: '+e.message); }
+}
+
 async function sdvCambiarEstado(id, estado) {
   var labels = {en_proceso:'En proceso',despachada:'Despachada',cancelada:'Cancelada'};
   if (!confirm('¿Marcar esta solicitud como "'+labels[estado]+'"?')) return;
