@@ -4899,8 +4899,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;">
       <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard Ventas
     </a>
-    <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;" style="margin-bottom:4px">
+    <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Estado de Órdenes
+    </a>
+    <a class="nav-item" id="nav-kpis-despacho" href="#" onclick="navTo('kpis-despacho');return false;" style="margin-bottom:4px">
+      <span class="nav-icon"><i data-lucide="bar-chart-3"></i></span>KPIs de Despacho
     </a>
 
     <div class="sidebar-group" id="navg-consultar">Consultar</div>
@@ -6322,6 +6325,29 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <div id="eo-list"></div>
     </div><!-- /section-estado-ordenes -->
 
+    <!-- ── KPIs DE DESPACHO (admin/manager) ──────────────────────── -->
+    <div id="section-kpis-despacho" class="page-section" style="display:none;padding:20px;max-width:900px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;margin:0 0 2px;color:var(--text-1)">KPIs de Despacho</h2>
+          <div style="font-size:11px;color:var(--text-2)">Solicitudes de despacho (SDV) · <span id="kpi-periodo-lbl">últimos 60 días</span></div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="kpi-days" onchange="kpisDespachoCargar()" class="sdv-input" style="width:auto;padding:6px 10px;font-size:12px">
+            <option value="30">30 días</option>
+            <option value="60" selected>60 días</option>
+            <option value="90">90 días</option>
+            <option value="365">1 año</option>
+          </select>
+          <button class="btn btn-sm btn-secondary" onclick="kpisDespachoCargar()" style="white-space:nowrap">
+            <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Actualizar
+          </button>
+        </div>
+      </div>
+      <div id="kpi-cards" class="eo-kpi-row"></div>
+      <div id="kpi-detail" style="margin-top:18px"></div>
+    </div><!-- /section-kpis-despacho -->
+
   </main>
   </div><!-- /page-layout -->
 </div>
@@ -7692,7 +7718,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v107';
+var APP_BUILD = 'v108';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -7778,9 +7804,11 @@ function canSection(key) {
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes')) {
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes' || key === 'kpis-despacho')) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
   }
+  // kpis-despacho: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
+  if (key === 'kpis-despacho') return false;
   // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
   if (key === 'estado-ordenes') {
     return Object.prototype.hasOwnProperty.call(sp, 'estado-ordenes') ? !!sp['estado-ordenes'] : (!!sp['sdv-portal'] || !!sp['sdv-bandeja']);
@@ -7820,7 +7848,7 @@ function isDespachosUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'dashboard-ventas','estado-ordenes','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
+    'dashboard-ventas','estado-ordenes','kpis-despacho','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'validacion','averias','reportes','wwp',
     'sdv-portal','sdv-bandeja'
@@ -7843,7 +7871,7 @@ function applyNavPerms() {
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto'],
-    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes']
+    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes','kpis-despacho']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) no aplica a ventas.
@@ -22935,7 +22963,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','estado-ordenes','kpis-despacho','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -22955,6 +22983,7 @@ var NAV_SECTION_MAP={
   'despacho-obsoleto':       'despacho-obsoleto',
   'dashboard-ventas':        'dashboard-ventas',
   'estado-ordenes':          'estado-ordenes',
+  'kpis-despacho':           'kpis-despacho',
   'sdv-portal':              'sdv-portal',
   'sdv-bandeja':             'sdv-bandeja'
 };
@@ -23216,6 +23245,7 @@ function navTo(section){
     if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
+  if(target==='kpis-despacho') kpisDespachoCargar();
 }
 
 function setNavActive(section){
@@ -29642,6 +29672,63 @@ async function sdvBandejaCargar() {
     list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
     if (window.lucide) lucide.createIcons();
   } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+
+// ── KPIs de Despacho (F4-2) — dashboard admin/manager ─────────────────────
+function kpiFmtMin(m) {
+  if (m == null) return '—';
+  if (m < 60) return Math.round(m)+' min';
+  var h = Math.floor(m/60), mm = Math.round(m%60);
+  if (h < 24) return h+'h'+(mm?' '+mm+'m':'');
+  var dd = Math.floor(h/24); return dd+'d'+(h%24?' '+(h%24)+'h':'');
+}
+async function kpisDespachoCargar() {
+  var cards = document.getElementById('kpi-cards');
+  var detail = document.getElementById('kpi-detail');
+  var days = (document.getElementById('kpi-days')||{}).value || '60';
+  var lbl = document.getElementById('kpi-periodo-lbl'); if (lbl) lbl.textContent = 'últimos '+days+' días';
+  if (cards) cards.innerHTML = '<div style="color:var(--text-2);padding:16px">Cargando…</div>';
+  if (detail) detail.innerHTML = '';
+  try {
+    var r = await authFetch('/api/sdv-kpis?days='+encodeURIComponent(days));
+    var d = await r.json();
+    if (!r.ok || !d.ok) { if (cards) cards.innerHTML = '<div style="color:var(--red-text);padding:16px">'+esc(d.error||'Error al cargar KPIs')+'</div>'; return; }
+    function card(n, lblTxt, sub, color) {
+      return '<div class="eo-kpi-card" style="border-left:3px solid '+color+';cursor:default">'+
+        '<div class="eo-kpi-n" style="color:'+color+';font-size:20px">'+n+'</div>'+
+        '<div class="eo-kpi-lbl">'+lblTxt+'</div>'+
+        '<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+sub+'</div></div>';
+    }
+    var slaVal = d.sla.avgMin!=null ? kpiFmtMin(d.sla.avgMin) : '—';
+    var slaSub = d.sla.n ? ((d.sla.pctUnder30!=null?d.sla.pctUnder30+'% ≤ 30 min · ':'')+d.sla.n+' aprobadas') : 'sin datos';
+    var leadVal = d.leadTime.avgMin!=null ? kpiFmtMin(d.leadTime.avgMin) : '—';
+    var leadSub = d.leadTime.n ? (d.leadTime.n+' despachadas') : 'sin datos';
+    var vinc = d.vinculoWWP.pct!=null ? d.vinculoWWP.pct+'%' : '—';
+    var vincSub = d.vinculoWWP.de ? (d.vinculoWWP.con+' de '+d.vinculoWWP.de+' en flujo') : 'sin datos';
+    if (cards) cards.innerHTML =
+      card(d.total, 'Solicitudes', 'en el período', 'var(--brand-primary)')+
+      card(slaVal, 'SLA de aprobación', slaSub, 'var(--accent)')+
+      card(leadVal, 'Lead time', leadSub, '#0891b2')+
+      card(d.rechazo.pct+'%', 'Tasa de rechazo', d.rechazo.count+' de '+d.total+' creadas', 'var(--red-text)')+
+      card(vinc, '% con tarea WWP', vincSub, 'var(--green-text)');
+    var html = '';
+    if (d.rechazo.topMotivos && d.rechazo.topMotivos.length) {
+      html += '<div class="eo-det-ops-box"><div class="eo-det-sec-title">Top motivos de rechazo</div>'+
+        d.rechazo.topMotivos.map(function(m){ return '<div class="eo-det-row"><dt style="max-width:none">'+esc(m.motivo)+'</dt><dd><b>'+m.n+'</b></dd></div>'; }).join('')+'</div>';
+    }
+    if (d.adopcion && d.adopcion.length) {
+      html += '<div class="eo-det-ops-box" style="margin-top:12px"><div class="eo-det-sec-title">Solicitudes por vendedora</div>'+
+        d.adopcion.slice(0,12).map(function(a){ return '<div class="eo-det-row"><dt style="max-width:none">'+esc(a.nombre)+'</dt><dd><b>'+a.n+'</b></dd></div>'; }).join('')+'</div>';
+    }
+    var estLbls = {pendiente_revision:'Pendiente revisión',en_proceso:'En proceso',despachada:'Despachada',rechazada:'Rechazada',cancelada:'Cancelada'};
+    var estKeys = Object.keys(d.porEstado||{});
+    if (estKeys.length) {
+      html += '<div class="eo-det-ops-box" style="margin-top:12px"><div class="eo-det-sec-title">Por estado</div>'+
+        estKeys.map(function(k){ return '<div class="eo-det-row"><dt style="max-width:none">'+esc(estLbls[k]||k)+'</dt><dd><b>'+d.porEstado[k]+'</b></dd></div>'; }).join('')+'</div>';
+    }
+    if (detail) detail.innerHTML = html || '<div style="color:var(--text-3);font-size:12px;padding:8px">Sin datos en el período.</div>';
+    if (window.lucide) lucide.createIcons();
+  } catch(e) { if (cards) cards.innerHTML = '<div style="color:var(--red-text);padding:16px">Error: '+esc(e.message)+'</div>'; }
 }
 
 // ── Estado de Órdenes — Panel Ventas ──────────────────────────────────────

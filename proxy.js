@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v107';
+const APP_BUILD = 'v108';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -10608,6 +10608,52 @@ const server = http.createServer(async (req, res) => {
   // SOLICITUDES DE DESPACHO VENTAS (SDV)
   // ══════════════════════════════════════════════════════════════════════════════
 
+
+  // GET /api/sdv-kpis?days=60 — métricas de tiempo para el dashboard (F4-2) [admin/manager].
+  // Todo se calcula desde los datos SDV locales (statusHistory + timestamps); no llama a Odoo.
+  // Ruta con guion (no /api/sdv/kpis) para no colisionar con el handler GET /api/sdv/:id.
+  if (reqPath === '/api/sdv-kpis' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role!=='admin' && jp.role!=='manager') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin/manager'})); return; }
+    try {
+      const days = Math.min(365, Math.max(1, parseInt((parsed.query||{}).days,10)||60));
+      const since = Date.now() - days*864e5;
+      const all = loadSdv();
+      const createdTs = sol => new Date(sol.fechaSolicitud||sol.creadoAt||0).getTime();
+      const firstAt = (sol, estado) => { const h=(sol.statusHistory||[]).find(x=>x.estado===estado); return h?h.at:null; };
+      const inPeriod = all.filter(s => createdTs(s) >= since);
+      const total = inPeriod.length;
+      // SLA de aprobación: pendiente_revision → en_proceso (minutos)
+      const slaMins = [];
+      inPeriod.forEach(s => { const ap = s.aprobadoEn || firstAt(s,'en_proceso'); if (ap) { const m=(new Date(ap).getTime()-createdTs(s))/60000; if (m>=0) slaMins.push(m); } });
+      // Lead time: creación → despachada (minutos)
+      const leadMins = [];
+      inPeriod.forEach(s => { const dp = s.despachadaEn || firstAt(s,'despachada'); if (dp) { const m=(new Date(dp).getTime()-createdTs(s))/60000; if (m>=0) leadMins.push(m); } });
+      const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : null;
+      const pctUnder = (arr,lim) => arr.length ? Math.round(100*arr.filter(m=>m<=lim).length/arr.length) : null;
+      // Tasa de rechazo (estado actual o alguna vez rechazada) + top motivos
+      const rechazadas = inPeriod.filter(s => s.estado==='rechazada' || (s.statusHistory||[]).some(h=>h.estado==='rechazada'));
+      const motivos = {};
+      rechazadas.forEach(s => { const h=(s.statusHistory||[]).slice().reverse().find(x=>x.estado==='rechazada'&&x.nota); const m=((h&&h.nota)||'Sin motivo').trim().slice(0,80); motivos[m]=(motivos[m]||0)+1; });
+      const topMotivos = Object.entries(motivos).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([motivo,n])=>({motivo,n}));
+      // % con vínculo WWP (de las que están en flujo o despachadas)
+      const enFlujo = inPeriod.filter(s=>s.estado==='en_proceso'||s.estado==='despachada');
+      const conVinculo = enFlujo.filter(s=>s.wwpTaskId);
+      // Adopción por vendedora + conteo por estado
+      const porVendedora = {}; inPeriod.forEach(s => { const v=s.creadoNombre||s.vendedorNombre||'—'; porVendedora[v]=(porVendedora[v]||0)+1; });
+      const adopcion = Object.entries(porVendedora).sort((a,b)=>b[1]-a[1]).map(([nombre,n])=>({nombre,n}));
+      const porEstado = {}; inPeriod.forEach(s => { porEstado[s.estado]=(porEstado[s.estado]||0)+1; });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, days, total,
+        sla:{avgMin:avg(slaMins), pctUnder30:pctUnder(slaMins,30), n:slaMins.length},
+        leadTime:{avgMin:avg(leadMins), n:leadMins.length},
+        rechazo:{count:rechazadas.length, pct: total?Math.round(100*rechazadas.length/total):0, topMotivos},
+        vinculoWWP:{con:conVinculo.length, de:enFlujo.length, pct: enFlujo.length?Math.round(100*conVinculo.length/enFlujo.length):null},
+        adopcion, porEstado
+      }));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
 
   // GET /api/sdv/:id/pickstatus — estado real del despacho (OUT) en Odoo (F3-2). Read-only,
   // fail-open: si Odoo no responde, devuelve pickStatus:null y la UI simplemente no muestra el badge.
