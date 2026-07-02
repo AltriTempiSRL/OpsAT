@@ -5997,6 +5997,9 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <div class="sdv-field">
                 <label>Contacto (tel / WhatsApp) <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorContacto" aria-label="Más información"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-receptor-contacto" placeholder="+1 809 000 0000">
+                <div id="sdv-tel-warn" style="display:none;font-size:11px;color:var(--amber-text);margin-top:4px;line-height:1.4;padding:6px 8px;background:var(--amber-bg);border-radius:6px;border:1px solid rgba(245,158,11,.25)">
+                  ⓘ <b>Odoo no tiene teléfono para este contacto.</b> Escríbelo aquí para esta entrega, y corrígelo en <span style="font-weight:700">Contactos › abre el cliente › Teléfono</span> para futuras órdenes.
+                </div>
               </div>
             </div>
             <div class="sdv-form-grid cols1">
@@ -7689,7 +7692,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v105';
+var APP_BUILD = 'v106';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29124,6 +29127,9 @@ async function sdvBuscar() {
       if (_ciudadEl && _ciudadEl.style) { _ciudadEl.style.borderColor=''; _ciudadEl.style.boxShadow=''; }
       if (_ciudadWarnEl) _ciudadWarnEl.style.display='none';
     }
+    // F3-3: aviso suave si Odoo no trae teléfono del contacto (nudge a corregirlo en la fuente).
+    var _telEl = _sdv$('sdv-receptor-contacto'), _telWarnEl = document.getElementById('sdv-tel-warn');
+    if (_telWarnEl) _telWarnEl.style.display = (!(_telEl && _telEl.value.trim()) && _sdvTipo !== 'traslado_interno') ? '' : 'none';
     // Info de resultado
     var infoMsg = _sdvOrderRef ? ('Orden: '+_sdvOrderRef) : '';
     if (d.tipo==='devolucion') infoMsg = 'RET: '+d.retRef+' ('+d.retState+') · Orden: '+d.orderRef;
@@ -29162,7 +29168,19 @@ async function sdvCrearAdicional(origenId) {
     if (!rf.ok||!df.ok) { toast('Error al consultar Odoo: '+(df.error||'')); return; }
     var added = df.changes.added || [];
     var incrementos = (df.changes.modified||[]).map(function(m){ return {sku:m.sku, delta:(m.odoo-m.current)}; }).filter(function(m){ return m.delta > 0; });
+    // F3-4: reducciones (artículos quitados o cantidad bajada en Odoo). La "solicitud adicional"
+    // solo AGREGA, no reduce → no hay camino automático; se avisa para no despachar de más.
+    var removidos = df.changes.removed || [];
+    var decrementos = (df.changes.modified||[]).map(function(m){ return {sku:m.sku, delta:(m.odoo-m.current)}; }).filter(function(m){ return m.delta < 0; });
+    var reduccMsg = '';
+    if (removidos.length || decrementos.length) {
+      var _rd = [];
+      if (removidos.length) _rd.push(removidos.length+' artículo(s) quitado(s)');
+      if (decrementos.length) _rd.push(decrementos.length+' con cantidad reducida');
+      reduccMsg = '⚠️ En Odoo se redujo esta orden ('+_rd.join(' y ')+'). Una solicitud adicional solo AGREGA; avisa a Operaciones para que ajusten el despacho y no envíen de más.';
+    }
     if (!added.length && !incrementos.length) {
+      if (reduccMsg) { toast(reduccMsg, 9000); return; }
       var cubren = df.adicionalesCubren || [];
       if (cubren.length) {
         var folios = Array.from(new Set(cubren.map(function(c){ return c.folio; })));
@@ -29192,6 +29210,7 @@ async function sdvCrearAdicional(origenId) {
     if (s.observaciones) _sdv$('sdv-observaciones').value = s.observaciones;
     var chk = document.getElementById('sdv-transporte'); if (chk) chk.checked = !!s.transporteIncluido;
     toast('Se detectaron '+added.length+' artículo(s) nuevo(s) y '+incrementos.length+' con incremento de cantidad. Revisa y confirma — se vinculará a '+(s.folio||'')+'.');
+    if (reduccMsg) toast(reduccMsg, 9000); // F3-4: además hubo reducciones — avisar aparte
   } catch(e) { toast('Error: '+e.message); }
 }
 
