@@ -118,6 +118,32 @@ WWP nació independiente; SDV ahora es el origen de las tareas de ventas. El pat
 | **D3** | ¿Quién decide el empaque? | ✅ **Toggle del aprobador en el 1-clic** (evolucionable a regla por categoría después). |
 | **D4** | Señal de cierre de la SDV | ✅ **Solo las tareas `dispatch_order` del vínculo gobiernan el cierre** (el empaque es paso intermedio encadenado). |
 
+## 4-bis. Estado de implementación (local, pendiente de UN deploy en lote)
+
+> Modo lote acordado (evitar micro-cortes por deploy con volumen). Todo validado en local con e2e aislado (sin Odoo). **v109 (Fase H0) YA está en producción.**
+
+**Fase H0 — Integridad del vínculo — ✅ EN PRODUCCIÓN (v109)**
+H0-1 helper `sdvTransition` · H0-2 espejo de cancelación · H0-3/D4 cierre por dispatch + parcial · H0-4 DELETE limpia vínculo · H0-5 POST 409 sobre terminal · H0-6 reactivación canónica · H0-7 subBase hereda sdvId + guard reactivar.
+
+**Fase H1 — Motor único + cierre honesto — ✅ IMPLEMENTADO (local, sin deploy)**
+- H1-1 ✅ endpoint `POST /api/sdv/:id/crear-tarea` (server-side) + frontend `sdvCrearTarea` (ya no wizard).
+- H1-3/D1 ✅ "Marcar Despachada" eliminado con tarea activa; override manual con motivo sin tarea (`sdvMarcarDespachadaManual`).
+- H1-4 ✅ 1-clic notifica a Ops al nacer + prioridad derivada de fecha deseada (`sdvDerivePriority`).
+- H1-2/D3 ✅ toggle de empaque en la aprobación → cadena empaque→despacho (`createSdvTasks`).
+- H1-6 ✅ fix `[object Object]` del buscador.
+- H1-5 ⏭️ cross-check de SDV activa por odooRef en el wizard/buscador — DIFERIDO (siguiente lote).
+
+**Fase H2 — Frontera de campos — ✅ IMPLEMENTADO (local, sin deploy)**
+- H2-1/D2 ✅ frontera DURA: PATCH de tarea con campo propiedad-SDV → 422.
+- H2-2 ✅ PATCH de SDV propaga a tareas activas + avisa a su equipo.
+- H2-3 ✅ snapshot completo (receptor, GPS, vendedora, transporte, folio) en `createWwpTaskFromSdv`.
+
+**Fase H3 — Visibilidad — parcial**
+- H3-1 ✅ bloque "Solicitud de Ventas" en el drawer de tarea (folio, vendedora, receptor, contacto, GPS, observaciones).
+- H3-2/3/4/5 ⏭️ eventos intermedios a la vendedora, comparador pick vs snapshot, kanban gate — DIFERIDOS (siguiente lote).
+
+Validación e2e local (todo PASA): aprobar con empaque→2 tareas; prioridad urgent; snapshot completo; 422 en campo propiedad-SDV; propagación SDV→tarea; crear-tarea server-side; espejo cancelación→pendiente_revision+null; 409 sobre terminales; reactivación canónica→en_proceso; DELETE linkedSdv; regla D4 5/5 en node. Sintaxis backend + 6 bloques frontend OK.
+
 ## 5. KPIs de éxito de la homologación (Pit, PDCA)
 - SDVs `en_proceso` sin tarea activa >24h = **0**
 - SDVs `despachada` con tarea abierta = **0**

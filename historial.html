@@ -7718,7 +7718,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v109';
+var APP_BUILD = 'v110';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12587,6 +12587,17 @@ function renderDrawer(t) {
     </div>
     ${overdueReassignButtonHtml(t, {primary:true})}
   </div>` : '';
+  // H3-1: bloque "Solicitud de Ventas" — el operario ve de quién viene la tarea, quién recibe,
+  // el contacto, GPS y las observaciones de la vendedora (antes el drawer no mencionaba la SDV).
+  var sdvBlockHtml = t.sdvId ? `
+    <div class="info-grid" style="background:var(--blue-bg,var(--surface-2));border:1px solid var(--border-light,var(--border));border-radius:10px;padding:10px 12px;margin-bottom:12px">
+      <div class="info-cell info-cell-wide"><div class="info-cell-label"><i data-lucide="clipboard-list" style="width:12px;height:12px;stroke:currentColor;vertical-align:-2px"></i> Solicitud de Ventas</div><div class="info-cell-val"><b>${esc(t.sdvFolio||t.sdvId)}</b>${t.salesperson?` · ${esc(t.salesperson)}`:''}</div></div>
+      ${t.receptorNombre?`<div class="info-cell"><div class="info-cell-label">Recibe</div><div class="info-cell-val">${esc(t.receptorNombre)}</div></div>`:''}
+      ${t.phone?`<div class="info-cell"><div class="info-cell-label">Contacto</div><div class="info-cell-val"><a href="tel:${esc(t.phone)}" style="color:var(--brand-primary)">${esc(t.phone)}</a></div></div>`:''}
+      ${t.transporteIncluido?`<div class="info-cell"><div class="info-cell-label">Transporte</div><div class="info-cell-val">Incluido</div></div>`:''}
+      ${t.gpsCoords?`<div class="info-cell info-cell-wide"><div class="info-cell-label">GPS</div><div class="info-cell-val"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.gpsCoords)}" target="_blank" style="color:var(--brand-primary)">${esc(t.gpsCoords)} 📍</a></div></div>`:''}
+      ${t.actionNote?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Observaciones de ventas</div><div class="info-cell-val">${esc(t.actionNote)}</div></div>`:''}
+    </div>` : '';
   var _drawerBodyEl = document.getElementById('drawer-body');
   var _savedDrawerScroll = _drawerBodyEl ? _drawerBodyEl.scrollTop : 0;
   _drawerBodyEl.innerHTML = isDispatch ? `
@@ -12600,6 +12611,7 @@ function renderDrawer(t) {
       ${t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Entrega</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
     </div>
+    ${sdvBlockHtml}
     ${parentCtxHtml}
     ${descriptionHtml}
     ${pickStatusHtml}
@@ -12645,6 +12657,7 @@ function renderDrawer(t) {
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
     </div>
+    ${sdvBlockHtml}
     ${parentCtxHtml}
     ${descriptionHtml}
     <div id="dr-pick-sync"></div>
@@ -17632,7 +17645,8 @@ function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 function showErr(el, msg){ el.textContent=msg; el.classList.add('show'); }
 function togglePw(id, btn){ const el=document.getElementById(id); const isHidden=el.type==='password'; el.type=isHidden?'text':'password'; btn.innerHTML='<i data-lucide="'+(isHidden?'eye-off':'eye')+'"></i>'; if(window.lucide) lucide.createIcons(); }
 function fmtDate(iso){ try{ return new Date(iso).toLocaleString('es-DO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{return iso||'';} }
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+let _toastTimer;
+function toast(msg, duration){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>t.classList.remove('show'), duration||3000); }
 
 // ═══════════════════════════════════════════════
 // RESULT CARD RENDERERS — Tarjetas de búsqueda
@@ -17678,7 +17692,7 @@ function renderOrderCard(order) {
     </div>
     <div class="result-card-footer">
       <button onclick="toggleResultCardExpand(this)">↓ Detalles</button>
-      <button class="btn-primary" onclick="abrirNuevaTareaWWP({odooRef:'${esc(order.name)}',concept:'dispatch'})">+ Tarea</button>
+      <button class="btn-primary" onclick="abrirNuevaTareaWWP('${esc(order.name)}','','','dispatch_order')">+ Tarea</button>
     </div>
     <div class="result-card-expanded"></div>
   </div>`;
@@ -29214,7 +29228,7 @@ async function sdvCrearAdicional(origenId) {
       reduccMsg = '⚠️ En Odoo se redujo esta orden ('+_rd.join(' y ')+'). Una solicitud adicional solo AGREGA; avisa a Operaciones para que ajusten el despacho y no envíen de más.';
     }
     if (!added.length && !incrementos.length) {
-      if (reduccMsg) { toast(reduccMsg, 9000); return; }
+      if (reduccMsg) { toast(reduccMsg, 12000); return; }
       var cubren = df.adicionalesCubren || [];
       if (cubren.length) {
         var folios = Array.from(new Set(cubren.map(function(c){ return c.folio; })));
@@ -29244,7 +29258,7 @@ async function sdvCrearAdicional(origenId) {
     if (s.observaciones) _sdv$('sdv-observaciones').value = s.observaciones;
     var chk = document.getElementById('sdv-transporte'); if (chk) chk.checked = !!s.transporteIncluido;
     toast('Se detectaron '+added.length+' artículo(s) nuevo(s) y '+incrementos.length+' con incremento de cantidad. Revisa y confirma — se vinculará a '+(s.folio||'')+'.');
-    if (reduccMsg) toast(reduccMsg, 9000); // F3-4: además hubo reducciones — avisar aparte
+    if (reduccMsg) toast(reduccMsg, 12000); // F3-4: además hubo reducciones — avisar aparte
   } catch(e) { toast('Error: '+e.message); }
 }
 
@@ -30127,18 +30141,21 @@ async function sdvVerDetalle(id, ctx) {
       if (s.wwpTareaActiva) {
         var _wtActiva = (s.wwpTareas||[]).slice().reverse().find(function(t){ return t.status && !['completed','validated','cancelled'].includes(t.status); });
         var _wtLabel = _wtActiva ? (STATUS_LABELS[_wtActiva.status]||_wtActiva.status) : 'en curso';
+        // H1-3/D1: con tarea activa NO hay cierre manual — el despacho cierra por la tarea
+        // (con su evidencia). Antes el botón manual forzaba estado terminal con la tarea viva.
         acciones = '<div style="margin-top:16px">'+
           '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
             '<button class="btn" disabled style="opacity:0.55;cursor:not-allowed;display:flex;align-items:center;gap:6px">'+
               '<i data-lucide="loader" style="width:14px;height:14px"></i> Tarea en proceso ('+_wtLabel+')'+
             '</button>'+
-            '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
           '</div>'+
+          '<div style="font-size:var(--fs-sm);color:var(--text-2);margin-top:8px;line-height:1.5"><i data-lucide="info" style="width:13px;height:13px;vertical-align:-2px"></i> La solicitud se marcará <b>despachada</b> sola cuando el equipo complete la tarea de despacho (con su evidencia). No hace falta cerrarla a mano.</div>'+
         '</div>';
       } else {
+        // Sin tarea activa: crear tarea (motor server-side, H1-1) + override manual con motivo (D1)
         acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
-          '<button class="btn btn-primary" onclick="sdvConvertirTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear otra Tarea WWP</button>'+
-          '<button class="btn btn-secondary" onclick="sdvCambiarEstado(\''+s.id+'\',\'despachada\')">Marcar Despachada</button>'+
+          '<button class="btn btn-primary" onclick="sdvCrearTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear tarea de despacho</button>'+
+          '<button class="btn btn-secondary" onclick="sdvMarcarDespachadaManual(\''+s.id+'\')"><i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Marcar despachada (sin tarea)</button>'+
         '</div>';
       }
     }
@@ -30563,17 +30580,32 @@ function sdvEditConfirmMapLocation() {
 }
 
 // ── Cambiar estado (ops) ──────────────────────────────────────────────────
-// ── F1-1: Aprobación 1-clic ───────────────────────────────────────────────
-// Aprobar = un solo clic: pasa la SDV a "en proceso" y el backend crea la tarea de
-// despacho automáticamente desde el snapshot (sin wizard, sin re-captura).
-async function sdvAprobar(id) {
-  if (!confirm('¿Aprobar esta solicitud? Se creará la tarea de despacho automáticamente en Workforce.')) return;
+// ── F1-1 + D3: Aprobación 1-clic con toggle de empaque ─────────────────────
+// Aprobar = un clic: el backend crea la(s) tarea(s) desde el snapshot (sin wizard). El
+// aprobador decide si lleva empaque (D3) → cadena empaque→despacho server-side.
+function sdvAprobar(id) {
+  var old=document.getElementById('sdvAprobarOverlay'); if(old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="sdvAprobarOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" style="max-width:420px;padding:22px">'+
+        '<h3 style="margin:0 0 4px;font-size:16px;color:var(--text-1)">Aprobar solicitud</h3>'+
+        '<p style="margin:0 0 14px;font-size:12px;color:var(--text-2);line-height:1.5">Se creará la tarea de despacho en Workforce con los datos de la solicitud. ¿Este despacho lleva <b>empaque</b> previo?</p>'+
+        '<div style="display:flex;flex-direction:column;gap:8px">'+
+          '<button class="btn btn-primary" onclick="sdvAprobarConfirm(\''+id+'\',false)"><i data-lucide="truck" style="width:14px;height:14px;vertical-align:-2px"></i> Solo despacho</button>'+
+          '<button class="btn btn-primary" onclick="sdvAprobarConfirm(\''+id+'\',true)"><i data-lucide="package" style="width:14px;height:14px;vertical-align:-2px"></i> Empaque + despacho</button>'+
+          '<button class="btn btn-secondary" onclick="var o=document.getElementById(\'sdvAprobarOverlay\');if(o)o.remove()">Cancelar</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>');
+  if (window.lucide) lucide.createIcons();
+}
+async function sdvAprobarConfirm(id, conEmpaque) {
+  var ov=document.getElementById('sdvAprobarOverlay'); if(ov) ov.remove();
   try {
-    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso'})});
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso',conEmpaque:conEmpaque})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al aprobar'); return; }
-    var creada = d.solicitud && d.solicitud.wwpTaskId;
-    toast(creada?'Aprobada · tarea de despacho creada en Workforce':'Solicitud aprobada');
+    toast('Aprobada · '+(conEmpaque?'tareas de empaque + despacho creadas':'tarea de despacho creada'));
     sdvBandejaCargar();
     var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
   } catch(e) { toast('Error: '+e.message); }
@@ -30645,20 +30677,66 @@ async function sdvEliminar(id, folio){
   } catch(e){ toast('Error: '+e.message); }
 }
 
-// ── Convertir en tarea WWP ────────────────────────────────────────────────
-async function sdvConvertirTarea(id) {
+// ── H1-1: Crear tarea de despacho (motor server-side, no wizard) ───────────
+// Reemplaza a sdvConvertirTarea: usa el mismo motor que la aprobación 1-clic (createSdvTasks),
+// preservando el snapshot completo de la SDV. Antes iba al wizard y perdía observaciones/
+// receptor/fecha y traía la dirección de Odoo en vez de la de la solicitud.
+function sdvCrearTarea(id) {
+  var old=document.getElementById('sdvCrearTareaOverlay'); if(old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="sdvCrearTareaOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" style="max-width:420px;padding:22px">'+
+        '<h3 style="margin:0 0 4px;font-size:16px;color:var(--text-1)">Crear tarea de despacho</h3>'+
+        '<p style="margin:0 0 14px;font-size:12px;color:var(--text-2);line-height:1.5">Se crea con los datos de la solicitud. ¿Lleva <b>empaque</b> previo?</p>'+
+        '<div style="display:flex;flex-direction:column;gap:8px">'+
+          '<button class="btn btn-primary" onclick="sdvCrearTareaConfirm(\''+id+'\',false)"><i data-lucide="truck" style="width:14px;height:14px;vertical-align:-2px"></i> Solo despacho</button>'+
+          '<button class="btn btn-primary" onclick="sdvCrearTareaConfirm(\''+id+'\',true)"><i data-lucide="package" style="width:14px;height:14px;vertical-align:-2px"></i> Empaque + despacho</button>'+
+          '<button class="btn btn-secondary" onclick="var o=document.getElementById(\'sdvCrearTareaOverlay\');if(o)o.remove()">Cancelar</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>');
+  if (window.lucide) lucide.createIcons();
+}
+async function sdvCrearTareaConfirm(id, conEmpaque) {
+  var ov=document.getElementById('sdvCrearTareaOverlay'); if(ov) ov.remove();
   try {
-    var r = await authFetch('/api/sdv/'+id);
+    var r = await authFetch('/api/sdv/'+id+'/crear-tarea',{method:'POST',body:JSON.stringify({conEmpaque:conEmpaque})});
     var d = await r.json();
-    if (!r.ok||!d.ok) { toast('Error: '+(d.error||'no encontrado')); return; }
-    var s = d.solicitud;
-    var titulo = (SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+(s.clienteNombre?' · '+s.clienteNombre:s.ubicacionOrigen?' · '+s.ubicacionOrigen+'→'+s.ubicacionDestino:'')+(s.odooOrderRef?' · '+s.odooOrderRef:'');
-    // Marcar en proceso si estaba pendiente
-    if (s.estado==='pendiente_revision') await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso'})});
-    // Ir a WWP con los datos pre-llenados
-    var tipo = s.tipoSolicitud==='devolucion'?'general':'dispatch_order';
-    abrirNuevaTareaWWP(s.odooOrderRef||'', titulo, s.ciudadEntrega||s.ubicacionDestino||'', tipo, s.id);
-    toast('Redirigiendo a Workforce Labor para crear la tarea…');
+    if (!r.ok||!d.ok) { toast(d.error||'Error al crear la tarea'); return; }
+    toast('Tarea de despacho creada'+(conEmpaque?' (con empaque)':''));
+    sdvBandejaCargar();
+    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── H1-3/D1: Marcar despachada MANUAL (solo sin tarea activa) con motivo obligatorio ──
+function sdvMarcarDespachadaManual(id) {
+  var old=document.getElementById('sdvDespManualOverlay'); if(old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="sdvDespManualOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" style="max-width:440px;padding:22px">'+
+        '<h3 style="margin:0 0 4px;font-size:16px;color:var(--text-1)">Marcar despachada (manual)</h3>'+
+        '<p style="margin:0 0 12px;font-size:12px;color:var(--text-2);line-height:1.5">Cierre sin tarea de Workforce (despacho gestionado por fuera). Queda registrado como cierre manual. Indica el motivo:</p>'+
+        '<textarea id="sdvDespManualMotivo" rows="2" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-1);font-size:14px;resize:vertical" placeholder="Ej. despachado directamente por el vendedor / retiro en sucursal…"></textarea>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+          '<button class="btn btn-secondary" onclick="var o=document.getElementById(\'sdvDespManualOverlay\');if(o)o.remove()">Cancelar</button>'+
+          '<button class="btn btn-primary" onclick="sdvMarcarDespachadaManualConfirm(\''+id+'\')">Marcar despachada</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>');
+  setTimeout(function(){ var t=document.getElementById('sdvDespManualMotivo'); if(t) t.focus(); }, 50);
+}
+async function sdvMarcarDespachadaManualConfirm(id) {
+  var motivo = (document.getElementById('sdvDespManualMotivo').value||'').trim();
+  if (!motivo) { toast('Escribe el motivo del cierre manual'); return; }
+  try {
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'despachada',nota:'Cierre manual: '+motivo})});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al marcar despachada'); return; }
+    var ov=document.getElementById('sdvDespManualOverlay'); if(ov) ov.remove();
+    toast('Solicitud marcada como despachada (manual)');
+    sdvBandejaCargar();
+    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
   } catch(e) { toast('Error: '+e.message); }
 }
 

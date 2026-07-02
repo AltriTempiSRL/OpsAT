@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v109';
+const APP_BUILD = 'v110';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1173,8 +1173,21 @@ function wwpId(prefix) {
 // Guarda el resultado por showroomId. TTL: 10 minutos.
 // Se invalida con ?refresh=1 o automáticamente al vencer.
 
+// H1-4: prioridad derivada de la fecha deseada (promesa al cliente). Patrón análogo al de
+// Reposición. WWP puede SUBIRLA luego (ejecución), pero el default nace del criterio SDV.
+function sdvDerivePriority(fecha) {
+  if (!fecha) return 'medium';
+  const due = new Date(fecha); if (isNaN(due.getTime())) return 'medium';
+  const h = (due.getTime() - Date.now()) / 3600000;
+  if (h <= 48)  return 'urgent';   // ≤ 2 días
+  if (h <= 120) return 'high';     // ≤ 5 días
+  return 'medium';
+}
+
 // ── Helper: Crear tarea WWP desde solicitud SDV ──────────────────────────────
-// Crea una tarea de tipo 'dispatch_order' vinculada a una solicitud SDV
+// Crea una tarea de tipo 'dispatch_order' vinculada a una solicitud SDV.
+// H2-3: el snapshot lleva TODO lo que la vendedora ya capturó (receptor, GPS, transporte,
+// vendedora, folio) para que el chofer no re-capture ni despache con menos datos.
 function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
   const now = new Date().toISOString();
   const task = {
@@ -1184,7 +1197,7 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     title: 'Despacho ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente'),
     type: 'dispatch_order',
     description: 'Generado automáticamente desde solicitud SDV ' + sdv.id,
-    priority: 'medium',
+    priority: sdvDerivePriority(sdv.fechaSolicitudDeseada),
     status: 'pending',
     sdvId: sdv.id,      // Vínculo bidireccional
     assignedTo: null,
@@ -1194,13 +1207,18 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     assignees: [],
     odooRef: sdv.odooOrderRef || '',
     client: sdv.clienteNombre || '',
-    salesperson: '',
+    salesperson: sdv.vendedorNombre || sdv.creadoNombre || '',
     deliveryAddress: sdv.direccionEntrega || '',
     phone: sdv.receptorContacto || '',
     location: sdv.ubicacionDestino || '',
     dueDate: sdv.fechaSolicitudDeseada || null,
     actionNote: sdv.observaciones || '',
-    requester: '',
+    requester: sdv.creadoNombre || '',
+    // H2-3: campos del snapshot que antes se perdían (el chofer los necesita en campo)
+    sdvFolio: sdv.folio || '',
+    receptorNombre: sdv.receptorNombre || '',
+    gpsCoords: sdv.gpsCoords || null,
+    transporteIncluido: !!sdv.transporteIncluido,
     staffStart: null,
     staffEnd: null,
     staffFrom: '',
@@ -1218,6 +1236,24 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     updatedAt: now
   };
   return task;
+}
+
+// H1-2 + D3: crea la(s) tarea(s) de una SDV. Con empaque → cadena empaque→despacho
+// (mismas siblings con sdvId; solo el dispatch gobierna el cierre — D4). Un solo motor,
+// tanto para la aprobación 1-clic como para "Crear otra Tarea WWP" (recuperación).
+// Devuelve { tasks:[...], mainId } donde mainId es la tarea de despacho (puntero wwpTaskId).
+function createSdvTasks(sdv, createdBy, conEmpaque) {
+  const dispatch = createWwpTaskFromSdv(sdv, createdBy);
+  if (!conEmpaque) return { tasks:[dispatch], mainId: dispatch.id };
+  const pack = createWwpTaskFromSdv(sdv, createdBy);
+  pack.id = wwpId('wt');
+  pack.type = 'packaging';
+  pack.title = 'Empaque ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente');
+  pack.description = 'Empaque previo al despacho — solicitud SDV ' + sdv.id;
+  pack.subIndex = 0;
+  dispatch.subIndex = 1;
+  dispatch.dependsOnPrev = true;   // el despacho va después del empaque
+  return { tasks:[pack, dispatch], mainId: dispatch.id };
 }
 const _repoCache = new Map(); // showroomId → { json, ts }
 const REPO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos en ms
@@ -8264,6 +8300,22 @@ const server = http.createServer(async (req, res) => {
         } catch(e) { console.warn('[audit task_aux_changed]', e.message); }
       }
       else if (d.assignees!==undefined) tasks[idx].assignees=Array.isArray(d.assignees)?d.assignees:[];
+      // ── Homologación H2-1 + D2 (2026-07-02): frontera DURA de campos propiedad-SDV ──
+      // Para tareas con sdvId, los datos de negocio (cliente, dirección, teléfono, fecha,
+      // orden, tipo, ubicación, observaciones) los gobierna la SOLICITUD, no la tarea. Se
+      // rechaza el intento con 422 y se dirige a editar la SDV (que sí propaga — H2-2).
+      // Solo bloquea si el valor DIFIERE del actual (deja pasar echoes del formulario).
+      if (tasks[idx].sdvId) {
+        const _owned = [];
+        const _difiere = k => d[k] !== undefined && String(d[k] ?? '') !== String(tasks[idx][k] ?? '');
+        ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote'].forEach(k => { if (_difiere(k)) _owned.push(k); });
+        if (d.type !== undefined && d.type !== tasks[idx].type) _owned.push('type');
+        if (_owned.length) {
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false, error:'Estos datos pertenecen a la solicitud '+(tasks[idx].sdvFolio||tasks[idx].sdvId)+' y no se editan en la tarea: '+_owned.join(', ')+'. Corrígelos en la solicitud (Ventas) y se actualizan aquí solos.', campos:_owned}));
+          return;
+        }
+      }
       const _validTypes = ['dispatch_order','packaging','item_pickup','truck_loading','warehouse_move','general','staffing','free'];
       if (d.title!==undefined) tasks[idx].title=d.title.trim();
       if (d.type!==undefined && _validTypes.includes(d.type)) tasks[idx].type=d.type;
@@ -10721,6 +10773,39 @@ const server = http.createServer(async (req, res) => {
   // ══════════════════════════════════════════════════════════════════════════════
 
 
+  // POST /api/sdv/:id/crear-tarea — motor ÚNICO server-side para "Crear otra Tarea WWP"
+  // (H1-1). Reusa createSdvTasks (mismo snapshot que la aprobación 1-clic); ya no pasa por el
+  // wizard, que perdía observaciones/receptor/fecha y traía la dirección de Odoo, no la de la SDV.
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/crear-tarea$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (jp.role!=='admin' && jp.role!=='manager') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin/manager'})); return; }
+    const id = reqPath.split('/')[3];
+    try {
+      const d = await readBody(req);
+      const list = loadSdv();
+      const idx = list.findIndex(s => s.id === id);
+      if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
+      const sol = list[idx];
+      if (['cancelada','despachada'].includes(sol.estado)) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La solicitud está '+sol.estado+'; no se puede crear una tarea.'})); return; }
+      const conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
+      let nuevas, mainId;
+      if (sol.tipoSolicitud === 'devolucion') { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
+      else { const r = createSdvTasks(sol, jp.userId, conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
+      const now = new Date().toISOString();
+      const tasks = loadWwpTasks();
+      nuevas.forEach(t => { t.seq = nextTaskSeq(); tasks.push(t); });
+      saveWwpTasks(tasks);
+      if (!sol.wwpTaskId) sol.wwpTaskId = mainId; // primer enlace = puntero principal
+      sol.wwpTareas = sol.wwpTareas || [];
+      nuevas.forEach(t => sol.wwpTareas.push({ taskId:t.id, titulo:t.title, creadoAt:now }));
+      list[idx] = sol; saveSdv(list);
+      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${conEmpaque?'empaque + despacho':'despacho'}. Falta asignar encargado.`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, taskId:mainId, tasks:nuevas.map(t=>({id:t.id,type:t.type,titulo:t.title}))}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
   // GET /api/sdv-kpis?days=60 — métricas de tiempo para el dashboard (F4-2) [admin/manager].
   // Todo se calcula desde los datos SDV locales (statusHistory + timestamps); no llama a Odoo.
   // Ruta con guion (no /api/sdv/kpis) para no colisionar con el handler GET /api/sdv/:id.
@@ -11272,16 +11357,24 @@ const server = http.createServer(async (req, res) => {
         // a saltarse la SDV (Pit R1).
         if (d.estado === 'en_proceso' && !sol.wwpTaskId) {
           try {
-            const newTask = createWwpTaskFromSdv(sol, jp.userId);
-            if (sol.tipoSolicitud === 'devolucion') newTask.type = 'general';
-            newTask.seq = nextTaskSeq();
+            const _conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
+            let nuevas, mainId;
+            if (sol.tipoSolicitud === 'devolucion') {
+              const t = createWwpTaskFromSdv(sol, jp.userId); t.type = 'general';
+              nuevas = [t]; mainId = t.id;
+            } else {
+              const r = createSdvTasks(sol, jp.userId, _conEmpaque);
+              nuevas = r.tasks; mainId = r.mainId;
+            }
             const tasks = loadWwpTasks();
-            tasks.push(newTask);
+            nuevas.forEach(t => { t.seq = nextTaskSeq(); tasks.push(t); });
             saveWwpTasks(tasks);
-            sol.wwpTaskId = newTask.id;
+            sol.wwpTaskId = mainId;
             sol.wwpTareas = sol.wwpTareas || [];
-            sol.wwpTareas.push({ taskId: newTask.id, titulo: newTask.title, creadoAt: now });
-            console.log('[SDV→WWP] Aprobación 1-clic: tarea', newTask.id, 'creada para solicitud', sol.id);
+            nuevas.forEach(t => sol.wwpTareas.push({ taskId: t.id, titulo: t.title, creadoAt: now }));
+            // H1-4/B2: avisar a Ops que nació la tarea (antes nacía muda y sin encargado)
+            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_conEmpaque?'empaque + despacho':'despacho'}. Falta asignar encargado.`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
+            console.log('[SDV→WWP] Aprobación 1-clic:', nuevas.length, 'tarea(s) para solicitud', sol.id, _conEmpaque?'(con empaque)':'');
           } catch (e) { console.error('[SDV→WWP] Error creando tarea en aprobación 1-clic:', e.message); }
         }
       }
@@ -11304,6 +11397,30 @@ const server = http.createServer(async (req, res) => {
       
       list[idx]=sol;
       saveSdv(list);
+      // ── Homologación H2-2 (2026-07-02): la SDV es dueña → propaga a sus tareas ACTIVAS ──
+      // Al editar campos de negocio en la solicitud, se actualiza el snapshot de las tareas
+      // vivas del vínculo (antes divergían en silencio) y se avisa a su equipo. Es la otra
+      // mitad de la frontera dura (H2-1): en la tarea no se edita, se edita aquí y baja sola.
+      try {
+        const _campoMap = { clienteNombre:'client', direccionEntrega:'deliveryAddress', receptorContacto:'phone',
+          receptorNombre:'receptorNombre', ubicacionDestino:'location', observaciones:'actionNote',
+          fechaSolicitudDeseada:'dueDate', gpsCoords:'gpsCoords' };
+        const _cambiados = Object.keys(_campoMap).filter(k => d[k] !== undefined);
+        if (_cambiados.length) {
+          const _finales = ['completed','validated','cancelled'];
+          const _tasks = loadWwpTasks();
+          let _tocadas = 0;
+          _tasks.forEach(t => {
+            if (t.sdvId === sol.id && !_finales.includes(t.status)) {
+              _cambiados.forEach(k => { t[_campoMap[k]] = sol[k]; });
+              t.updatedAt = now;
+              _tocadas++;
+              try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_updated', title:'✏️ Datos actualizados desde la solicitud', message:`La solicitud ${sol.folio||sol.id} se actualizó (${_cambiados.join(', ')}). Revisa la tarea "${t.title}".`, relatedTaskId:t.id }); } catch(e){ silentCatch(e,'notifyPropagacion'); }
+            }
+          });
+          if (_tocadas) saveWwpTasks(_tasks);
+        }
+      } catch(e) { silentCatch(e,'propagacionSdvTarea'); }
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,solicitud:sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
