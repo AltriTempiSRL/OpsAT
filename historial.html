@@ -7718,7 +7718,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v111';
+var APP_BUILD = 'v112';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12605,6 +12605,21 @@ function renderDrawer(t) {
       ${t.gpsCoords?`<div class="info-cell info-cell-wide"><div class="info-cell-label">GPS</div><div class="info-cell-val"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.gpsCoords)}" target="_blank" style="color:var(--brand-primary)">${esc(t.gpsCoords)} 📍</a></div></div>`:''}
       ${t.actionNote?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Observaciones de ventas</div><div class="info-cell-val">${esc(t.actionNote)}</div></div>`:''}
     </div>` : '';
+  // H3-3: comparar lo SOLICITADO (snapshot SDV) contra lo que trae el pick de Odoo. Si el pick
+  // no cubre lo pedido, avisar ANTES de despachar (antes se descubría cuando el cliente reclamaba).
+  var sdvDiffHtml = '';
+  if (t.sdvId && Array.isArray(t.sdvArticulos) && t.sdvArticulos.length && Array.isArray(t.items) && t.items.length) {
+    var _pickBySku = {};
+    t.items.forEach(function(it){ var k=(it.sku||'').trim(); if(!k) return; _pickBySku[k]=(_pickBySku[k]||0)+(parseInt(it.quantity,10)||1); });
+    var _faltan = [];
+    t.sdvArticulos.forEach(function(a){ var got=_pickBySku[a.sku]||0; if (got < a.quantity) _faltan.push({sku:a.sku,name:a.name,req:a.quantity,got:got}); });
+    if (_faltan.length) {
+      sdvDiffHtml = '<div style="margin:0 0 12px;padding:10px 12px;background:var(--amber-bg);border:1px solid rgba(245,158,11,.35);border-radius:10px;font-size:12px;color:var(--amber-text);line-height:1.5">'+
+        '<b><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;vertical-align:-2px"></i> El pick no cubre todo lo solicitado en '+esc(t.sdvFolio||'la solicitud')+':</b>'+
+        _faltan.map(function(f){ return '<div style="margin-top:3px">• '+esc(f.name||f.sku)+' — solicitado '+f.req+', preparado '+f.got+(f.got===0?' <b>(no preparado)</b>':'')+'</div>'; }).join('')+
+        '<div style="margin-top:6px;color:var(--text-2)">Revisa con inventario/ventas antes de despachar (posible despacho parcial).</div></div>';
+    }
+  }
   var _drawerBodyEl = document.getElementById('drawer-body');
   var _savedDrawerScroll = _drawerBodyEl ? _drawerBodyEl.scrollTop : 0;
   _drawerBodyEl.innerHTML = isDispatch ? `
@@ -12624,6 +12639,7 @@ function renderDrawer(t) {
     ${pickStatusHtml}
     ${_guiaHtml}
     ${dispatchChecklistHtml}
+    ${sdvDiffHtml}
     ${_itemsHtml}
     ${devolucionRutaHtml}
     <div style="border-top:1.5px solid var(--border);margin:16px 0 12px"></div>

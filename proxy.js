@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v111';
+const APP_BUILD = 'v112';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1219,6 +1219,8 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     receptorNombre: sdv.receptorNombre || '',
     gpsCoords: sdv.gpsCoords || null,
     transporteIncluido: !!sdv.transporteIncluido,
+    // H3-3: lo SOLICITADO por la vendedora (para comparar contra lo que traiga el pick de Odoo).
+    sdvArticulos: (sdv.articulosOdoo||[]).map(function(it){ return { sku:(it.sku||'').trim(), quantity:it.quantity||1, name:it.product_name||'' }; }).filter(function(x){ return x.sku; }),
     staffStart: null,
     staffEnd: null,
     staffFrom: '',
