@@ -7729,7 +7729,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v116';
+var APP_BUILD = 'v117';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -30760,9 +30760,12 @@ async function sdvAprobarConfirm(id, conEmpaque) {
     var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso',conEmpaque:conEmpaque})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al aprobar'); return; }
-    toast('Aprobada · '+(conEmpaque?'tareas de empaque + despacho creadas':'tarea de despacho creada'));
+    toast('Aprobada · '+(conEmpaque?'cadena de empaque + despacho creada':'tarea de despacho creada')+' — asígnale el encargado','success');
     sdvBandejaCargar();
     var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    // Abrir la tarea recién creada (raíz de la cadena) para asignar encargado sin buscarla
+    var _tid = d.solicitud && d.solicitud.wwpTaskId;
+    if (_tid) sdvIrATarea(_tid);
   } catch(e) { toast('Error: '+e.message); }
 }
 
@@ -30858,9 +30861,11 @@ async function sdvCrearTareaConfirm(id, conEmpaque) {
     var r = await authFetch('/api/sdv/'+id+'/crear-tarea',{method:'POST',body:JSON.stringify({conEmpaque:conEmpaque})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al crear la tarea'); return; }
-    toast('Tarea de despacho creada'+(conEmpaque?' (con empaque)':''));
+    toast('Tarea de despacho creada'+(conEmpaque?' (con empaque)':'')+' — asígnale el encargado','success');
     sdvBandejaCargar();
     var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    // Abrir la tarea recién creada para asignar encargado sin buscarla
+    if (d.taskId) sdvIrATarea(d.taskId);
   } catch(e) { toast('Error: '+e.message); }
 }
 

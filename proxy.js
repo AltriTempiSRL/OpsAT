@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v116';
+const APP_BUILD = 'v117';
 
 // ── Caché de gzip en memoria para estáticos (perf Android 8) ─────────────────
 // Antes se re-comprimía historial.html (~1.85 MB) en CADA request. La entrada
@@ -1051,6 +1051,146 @@ function getOrderClaims(orderRef, excludeRootId) {
     c.seq = first.seq; c.title = first.title; c.taskId = first.taskId;
   });
   return claims;
+}
+
+// ── Merge pick↔tarea (v113) — extraído del endpoint GET /api/wwp/tasks/:id/pick-diff
+// para reusarlo al CREAR la cadena SDV (los items viajan solos; el banner "Sincronizar"
+// queda como respaldo). Lógica idéntica, cubierta por _test_v113.mjs. Read-only sobre `t`.
+async function buildPickMergeForTask(t) {
+  if (!t.odooRef) return { ok:true, hasChanges:false, reason:'sin orden' };
+  // v113: primera carga (tarea sin artículos seleccionados) → SOLO picks 'assigned'.
+  // Un pick 'done' es historia de otro despacho de la misma orden: incluirlo hacía que
+  // la tarea de una 2ª SDV heredara los artículos ya despachados por la 1ª (caso S09644).
+  // Con items ya cargados se mantiene el default ['assigned','done'] para poder
+  // clasificar como 'executed' las unidades propias cuando el pick se ejecuta.
+  const _firstLoad = !(t.items||[]).some(i => i.selected);
+  const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined);
+  if (pr.noPick) return { ok:true, hasChanges:false, noPick:true };
+  const sBin = b => (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
+  // Estado de cada pick (done/assigned) por nombre
+  const pickState = {}; (pr.picks||[]).forEach(p => { pickState[p.name] = p.state; });
+  // v113: si la tarea viene de una SDV con snapshot de lo solicitado (H3-3), acotar el
+  // pick a esos SKUs/cantidades — el pick es de la ORDEN completa y puede traer artículos
+  // de otras SDVs. Lo omitido se reporta (summary.omitidos) en vez de entrar en silencio.
+  const omitted = [];
+  if (t.sdvId && Array.isArray(t.sdvArticulos) && t.sdvArticulos.length) {
+    const budget = {};
+    t.sdvArticulos.forEach(a => { const k=(a.sku||'').trim(); if (k) budget[k]=(budget[k]||0)+(parseInt(a.quantity,10)||1); });
+    // El presupuesto se consume primero de picks NO ejecutados: si el mismo SKU está en
+    // un pick done (de otra SDV) y en uno assigned (de esta), se queda la unidad assigned.
+    const ordered = pr.items.slice().sort((a,b) => ((pickState[a.pickName]==='done')?1:0) - ((pickState[b.pickName]==='done')?1:0));
+    const kept = new Set();
+    ordered.forEach(it => {
+      const k = (it.sku||'').trim();
+      const disp = budget[k] || 0;
+      const units = (it.unitBins||[]).length;
+      if (disp <= 0) { omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units }); return; }
+      const take = Math.min(units, disp);
+      if (take < units) omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units: units - take });
+      budget[k] = disp - take;
+      it.unitBins = (it.unitBins||[]).slice(0, take);
+      it.quantity = take; it.units = take;
+      kept.add(it);
+    });
+    pr.items = pr.items.filter(it => kept.has(it));
+  }
+  // Unidades objetivo del pick agrupadas por producto, con el pick y su estado por unidad
+  const targByPid = {};
+  pr.items.forEach(it => { (it.unitBins||[]).forEach(bin => {
+    (targByPid[it.odoo_product_id] = targByPid[it.odoo_product_id] || []).push(
+      { pid:it.odoo_product_id, bin:sBin(bin), sku:it.sku, barcode:it.barcode, name:it.product_name, image:it.image,
+        kitId:it.kitId||null, kitRef:it.kitRef||'', kitName:it.kitName||'', kitImage:it.kitImage||'',
+        pickNameNow:it.pickName||'', pickStateNow:pickState[it.pickName]||'assigned' });
+  }); });
+  // Kits ARMADOS actuales: se preservan tal cual.
+  const armadoKitItems = (t.items||[]).filter(i => i.isKit && i.selected);
+  const armadoSet = new Set(armadoKitItems.map(k => (k.kitId||'')+'#'+(k.kitInstance||1)));
+  // Unidades actuales (selected) por producto (excluye tarjetas-kit sintéticas)
+  const current = (t.items||[]).filter(i => i.selected && !i.isKit);
+  const curByPid = {};
+  current.forEach(i => { (curByPid[i.odoo_product_id] = curByPid[i.odoo_product_id] || []).push(i); });
+  // Unidades reclamadas por OTRAS tareas activas de la misma orden (split entre encargados)
+  const _rootDiff = t.parentId || t.id;
+  const _claimsDiff = getOrderClaims(t.odooRef, _rootDiff);
+  const claimedByOthers = {};
+  Object.entries(_claimsDiff).forEach(([pid, c]) => { claimedByOthers[pid] = c.count || (c.idxList ? c.idxList.length : 0); });
+
+  // ── Sincronización NO destructiva: nunca se eliminan artículos ya cargados (preservan
+  // fotos/evidencia). Cada artículo se clasifica en grupo: executed | moved | new | current ──
+  const merged = []; const usedIds = new Set();
+  let g_executed=0, g_moved=0, g_new=0, g_current=0;
+  Object.keys(targByPid).forEach(pidKey => {
+    const arr = targByPid[pidKey]; const n = arr.length;
+    const pool = (curByPid[pidKey] || []).slice();
+    let othersBudget = claimedByOthers[pidKey] || 0;
+    arr.forEach((u, i) => {
+      let ri = pool.findIndex(c => (c.selected_location_name||'') === u.bin && !usedIds.has(c.item_id));
+      if (ri < 0) ri = pool.findIndex(c => !usedIds.has(c.item_id));
+      const reuse = ri >= 0 ? pool[ri] : null;
+      // Sin match en la tarea y todavía hay unidades de otras tareas → de otro despacho: omitir
+      if (!reuse && othersBudget > 0) { othersBudget--; return; }
+      const row = { item_id: reuse ? reuse.item_id : (n===1 ? ('oi_'+pidKey) : ('oi_'+pidKey+'_u'+(i+1))),
+        odoo_product_id:Number(pidKey), odoo_line_id:null,
+        sku:u.sku, barcode:u.barcode, product_name:u.name, image:u.image,
+        quantity:1, units:n, unit_index:i+1, unit_total:n, group_ref:'oi_'+pidKey,
+        fromPick:true, pickName:u.pickNameNow||(pr.pickNames[0]||''), pickNameNow:u.pickNameNow,
+        kitId:u.kitId||null, kitRef:u.kitRef||'', kitName:u.kitName||'', kitImage:u.kitImage||'',
+        selected:true, locations:[], selected_location:null, selected_location_name:u.bin };
+      if (reuse) {
+        // Artículo ya cargado: preservar TODO (fotos, confirmación, condición)
+        row.evidence_images=reuse.evidence_images||[]; row.confirmado=reuse.confirmado||false;
+        row.status=reuse.status||'pending'; row.condition=reuse.condition||''; row.damageType=reuse.damageType||'';
+        row.deliveryStatus=reuse.deliveryStatus||''; row.deliveryDamageType=reuse.deliveryDamageType||'';
+        usedIds.add(reuse.item_id);
+        // Clasificar según el estado del pick donde está ahora
+        if (u.pickStateNow === 'done') { row.pickGroup='executed'; g_executed++; }
+        else if (u.pickNameNow && reuse.pickName && u.pickNameNow !== reuse.pickName) { row.pickGroup='moved'; g_moved++; }
+        else { row.pickGroup='current'; g_current++; }
+      } else {
+        // Artículo NUEVO en el pick → se agrega
+        row.evidence_images=[]; row.confirmado=false; row.status='pending'; row.condition=''; row.damageType='';
+        row.pickGroup = (u.pickStateNow==='done') ? 'executed' : 'new';
+        if (row.pickGroup==='executed') g_executed++; else g_new++;
+      }
+      if (row.kitId && armadoSet.has(row.kitId+'#'+row.unit_index)) row.selected = false;
+      merged.push(row);
+    });
+  });
+  // Artículos de la tarea SIN match en ningún pick actual → NO se eliminan, se conservan
+  const orphan = current.filter(i => !usedIds.has(i.item_id));
+  orphan.forEach(i => { merged.push({ ...i, pickGroup:'current' }); g_current++; });
+  // Tarjetas-kit armadas: preservar
+  armadoKitItems.forEach(k => { merged.push({ ...k, pickGroup:'current' }); });
+  const hasChanges = g_new>0 || g_executed>0 || g_moved>0;
+  return { ok:true, hasChanges, pickNames:pr.pickNames, picks:pr.picks||[],
+    summary:{ executed:g_executed, moved:g_moved, added:g_new, current:g_current, omitidos: omitted.reduce((s,o)=>s+(o.units||0),0) },
+    omitted, merged };
+}
+
+// Puebla los items de una cadena SDV recién creada desde el pick de Odoo (primera carga
+// del merge v113: presupuesto por sdvArticulos de cada tarea → multi-localidad automático).
+// Fail-open con timeout: si Odoo no responde a tiempo, las tareas nacen sin items y el
+// banner "El pick cambió → Sincronizar" del drawer queda como respaldo manual. El cálculo
+// es puro (no toca las tareas); la asignación solo ocurre si terminó dentro del plazo.
+async function populateChainItemsFromPick(nuevas, timeoutMs = 8000) {
+  const trabajo = (async () => {
+    const out = new Map();
+    for (const t of nuevas) {
+      if (!['packaging','dispatch_order','warehouse_move'].includes(t.type)) continue;
+      try {
+        const d = await buildPickMergeForTask(t);
+        if (d && d.ok && Array.isArray(d.merged) && d.merged.length) out.set(t.id, d.merged);
+      } catch (e) { console.warn('[SDV→WWP] items del pick no disponibles para', t.id, '—', e.message); }
+    }
+    return out;
+  })();
+  let timer;
+  const raced = await Promise.race([trabajo, new Promise(r => { timer = setTimeout(() => r(null), timeoutMs); })]);
+  clearTimeout(timer);
+  if (!raced) { console.warn('[SDV→WWP] populate items: timeout de', timeoutMs, 'ms — la cadena nace sin items (Sincronizar disponible)'); return 0; }
+  let n = 0;
+  raced.forEach((merged, id) => { const t = nuevas.find(x => x.id === id); if (t) { t.items = merged; n++; } });
+  return n;
 }
 
 // Secuencia incremental de tareas (alto agua persistente; no se reutiliza al borrar)
@@ -11034,6 +11174,8 @@ const server = http.createServer(async (req, res) => {
       let nuevas, mainId;
       if (sol.tipoSolicitud === 'devolucion') { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
       else { const r = createSdvTasks(sol, jp.userId, estructura !== null ? estructura : conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
+      // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar")
+      try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (crear-tarea):', e.message); }
       const now = new Date().toISOString();
       const tasks = loadWwpTasks();
       // seq solo para la raíz (misma convención que POST /api/wwp/tasks: subtareas sin número)
@@ -11627,6 +11769,8 @@ const server = http.createServer(async (req, res) => {
               const r = createSdvTasks(sol, jp.userId, _estructura !== null ? _estructura : _conEmpaque);
               nuevas = r.tasks; mainId = r.mainId;
             }
+            // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar")
+            try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (1-clic):', e.message); }
             const tasks = loadWwpTasks();
             // seq solo para la raíz (subtareas sin número, convención de POST /api/wwp/tasks)
             nuevas.forEach(t => { if (!t.parentId) t.seq = nextTaskSeq(); tasks.push(t); });
@@ -11879,115 +12023,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const t = loadWwpTasks().find(x => x.id === id);
       if (!t) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
-      if (!t.odooRef) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,hasChanges:false,reason:'sin orden'})); return; }
-      // v113: primera carga (tarea sin artículos seleccionados) → SOLO picks 'assigned'.
-      // Un pick 'done' es historia de otro despacho de la misma orden: incluirlo hacía que
-      // la tarea de una 2ª SDV heredara los artículos ya despachados por la 1ª (caso S09644).
-      // Con items ya cargados se mantiene el default ['assigned','done'] para poder
-      // clasificar como 'executed' las unidades propias cuando el pick se ejecuta.
-      const _firstLoad = !(t.items||[]).some(i => i.selected);
-      const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined);
-      if (pr.noPick) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,hasChanges:false,noPick:true})); return; }
-      const sBin = b => (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
-      // Estado de cada pick (done/assigned) por nombre
-      const pickState = {}; (pr.picks||[]).forEach(p => { pickState[p.name] = p.state; });
-      // v113: si la tarea viene de una SDV con snapshot de lo solicitado (H3-3), acotar el
-      // pick a esos SKUs/cantidades — el pick es de la ORDEN completa y puede traer artículos
-      // de otras SDVs. Lo omitido se reporta (summary.omitidos) en vez de entrar en silencio.
-      const omitted = [];
-      if (t.sdvId && Array.isArray(t.sdvArticulos) && t.sdvArticulos.length) {
-        const budget = {};
-        t.sdvArticulos.forEach(a => { const k=(a.sku||'').trim(); if (k) budget[k]=(budget[k]||0)+(parseInt(a.quantity,10)||1); });
-        // El presupuesto se consume primero de picks NO ejecutados: si el mismo SKU está en
-        // un pick done (de otra SDV) y en uno assigned (de esta), se queda la unidad assigned.
-        const ordered = pr.items.slice().sort((a,b) => ((pickState[a.pickName]==='done')?1:0) - ((pickState[b.pickName]==='done')?1:0));
-        const kept = new Set();
-        ordered.forEach(it => {
-          const k = (it.sku||'').trim();
-          const disp = budget[k] || 0;
-          const units = (it.unitBins||[]).length;
-          if (disp <= 0) { omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units }); return; }
-          const take = Math.min(units, disp);
-          if (take < units) omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units: units - take });
-          budget[k] = disp - take;
-          it.unitBins = (it.unitBins||[]).slice(0, take);
-          it.quantity = take; it.units = take;
-          kept.add(it);
-        });
-        pr.items = pr.items.filter(it => kept.has(it));
-      }
-      // Unidades objetivo del pick agrupadas por producto, con el pick y su estado por unidad
-      const targByPid = {};
-      pr.items.forEach(it => { (it.unitBins||[]).forEach(bin => {
-        (targByPid[it.odoo_product_id] = targByPid[it.odoo_product_id] || []).push(
-          { pid:it.odoo_product_id, bin:sBin(bin), sku:it.sku, barcode:it.barcode, name:it.product_name, image:it.image,
-            kitId:it.kitId||null, kitRef:it.kitRef||'', kitName:it.kitName||'', kitImage:it.kitImage||'',
-            pickNameNow:it.pickName||'', pickStateNow:pickState[it.pickName]||'assigned' });
-      }); });
-      // Kits ARMADOS actuales: se preservan tal cual.
-      const armadoKitItems = (t.items||[]).filter(i => i.isKit && i.selected);
-      const armadoSet = new Set(armadoKitItems.map(k => (k.kitId||'')+'#'+(k.kitInstance||1)));
-      // Unidades actuales (selected) por producto (excluye tarjetas-kit sintéticas)
-      const current = (t.items||[]).filter(i => i.selected && !i.isKit);
-      const curByPid = {};
-      current.forEach(i => { (curByPid[i.odoo_product_id] = curByPid[i.odoo_product_id] || []).push(i); });
-      // Unidades reclamadas por OTRAS tareas activas de la misma orden (split entre encargados)
-      const _rootDiff = t.parentId || t.id;
-      const _claimsDiff = getOrderClaims(t.odooRef, _rootDiff);
-      const claimedByOthers = {};
-      Object.entries(_claimsDiff).forEach(([pid, c]) => { claimedByOthers[pid] = c.count || (c.idxList ? c.idxList.length : 0); });
-
-      // ── Sincronización NO destructiva: nunca se eliminan artículos ya cargados (preservan
-      // fotos/evidencia). Cada artículo se clasifica en grupo: executed | moved | new | current ──
-      const merged = []; const usedIds = new Set();
-      let g_executed=0, g_moved=0, g_new=0, g_current=0;
-      Object.keys(targByPid).forEach(pidKey => {
-        const arr = targByPid[pidKey]; const n = arr.length;
-        const pool = (curByPid[pidKey] || []).slice();
-        let othersBudget = claimedByOthers[pidKey] || 0;
-        arr.forEach((u, i) => {
-          let ri = pool.findIndex(c => (c.selected_location_name||'') === u.bin && !usedIds.has(c.item_id));
-          if (ri < 0) ri = pool.findIndex(c => !usedIds.has(c.item_id));
-          const reuse = ri >= 0 ? pool[ri] : null;
-          // Sin match en la tarea y todavía hay unidades de otras tareas → de otro despacho: omitir
-          if (!reuse && othersBudget > 0) { othersBudget--; return; }
-          const row = { item_id: reuse ? reuse.item_id : (n===1 ? ('oi_'+pidKey) : ('oi_'+pidKey+'_u'+(i+1))),
-            odoo_product_id:Number(pidKey), odoo_line_id:null,
-            sku:u.sku, barcode:u.barcode, product_name:u.name, image:u.image,
-            quantity:1, units:n, unit_index:i+1, unit_total:n, group_ref:'oi_'+pidKey,
-            fromPick:true, pickName:u.pickNameNow||(pr.pickNames[0]||''), pickNameNow:u.pickNameNow,
-            kitId:u.kitId||null, kitRef:u.kitRef||'', kitName:u.kitName||'', kitImage:u.kitImage||'',
-            selected:true, locations:[], selected_location:null, selected_location_name:u.bin };
-          if (reuse) {
-            // Artículo ya cargado: preservar TODO (fotos, confirmación, condición)
-            row.evidence_images=reuse.evidence_images||[]; row.confirmado=reuse.confirmado||false;
-            row.status=reuse.status||'pending'; row.condition=reuse.condition||''; row.damageType=reuse.damageType||'';
-            row.deliveryStatus=reuse.deliveryStatus||''; row.deliveryDamageType=reuse.deliveryDamageType||'';
-            usedIds.add(reuse.item_id);
-            // Clasificar según el estado del pick donde está ahora
-            if (u.pickStateNow === 'done') { row.pickGroup='executed'; g_executed++; }
-            else if (u.pickNameNow && reuse.pickName && u.pickNameNow !== reuse.pickName) { row.pickGroup='moved'; g_moved++; }
-            else { row.pickGroup='current'; g_current++; }
-          } else {
-            // Artículo NUEVO en el pick → se agrega
-            row.evidence_images=[]; row.confirmado=false; row.status='pending'; row.condition=''; row.damageType='';
-            row.pickGroup = (u.pickStateNow==='done') ? 'executed' : 'new';
-            if (row.pickGroup==='executed') g_executed++; else g_new++;
-          }
-          if (row.kitId && armadoSet.has(row.kitId+'#'+row.unit_index)) row.selected = false;
-          merged.push(row);
-        });
-      });
-      // Artículos de la tarea SIN match en ningún pick actual → NO se eliminan, se conservan
-      const orphan = current.filter(i => !usedIds.has(i.item_id));
-      orphan.forEach(i => { merged.push({ ...i, pickGroup:'current' }); g_current++; });
-      // Tarjetas-kit armadas: preservar
-      armadoKitItems.forEach(k => { merged.push({ ...k, pickGroup:'current' }); });
-      const hasChanges = g_new>0 || g_executed>0 || g_moved>0;
+      const out = await buildPickMergeForTask(t);
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok:true, hasChanges, pickNames:pr.pickNames, picks:pr.picks||[],
-        summary:{ executed:g_executed, moved:g_moved, added:g_new, current:g_current, omitidos: omitted.reduce((s,o)=>s+(o.units||0),0) },
-        omitted, merged }));
+      res.end(JSON.stringify(out));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
