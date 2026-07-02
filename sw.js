@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v40';
+const CACHE = 'wwp-v41';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',

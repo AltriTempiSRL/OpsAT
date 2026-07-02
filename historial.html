@@ -7683,7 +7683,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v103';
+var APP_BUILD = 'v104';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -30040,7 +30040,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
         '</div>'+
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
-        (s.wwpTaskId?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
+        (s.wwpTaskId && isOps?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
         (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+esc(t.titulo||'')+(t.status?' · <span class="eo-ops-chip">'+(STATUS_LABELS[t.status]||t.status)+'</span>':'')+'</dd></div>'; }).join('')+'</div>':'')+
         acciones+
         ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
@@ -30442,16 +30442,33 @@ async function sdvCambiarEstado(id, estado) {
   } catch(e) { toast('Error: '+e.message); }
 }
 
-// ── Rechazar solicitud (ops) — la vendedora recibe aviso con el motivo ────
-async function sdvRechazar(id) {
-  var motivo = window.prompt('Motivo del rechazo (la vendedora lo verá para corregir):');
-  if (motivo===null) return;              // canceló el prompt
-  motivo = (motivo||'').trim();
+// ── F2-4: Rechazar solicitud (ops) — modal propio con textarea (antes window.prompt) ──
+// La vendedora lee este motivo para corregir; merece un campo con contexto, no una línea.
+function sdvRechazar(id) {
+  var old = document.getElementById('sdvRejectOverlay'); if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="sdvRejectOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" style="max-width:440px;padding:22px">'+
+        '<h3 style="margin:0 0 4px;font-size:16px;color:var(--text-1)">Rechazar solicitud</h3>'+
+        '<p style="margin:0 0 12px;font-size:12px;color:var(--text-2);line-height:1.5">La vendedora verá este motivo para corregir y reenviar. Sé específico (ej. «Falta la ciudad de entrega en Odoo»).</p>'+
+        '<textarea id="sdvRejectMotivo" rows="3" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text-1);font-size:14px;resize:vertical" placeholder="Motivo del rechazo…"></textarea>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">'+
+          '<button class="btn btn-secondary" onclick="var o=document.getElementById(\'sdvRejectOverlay\');if(o)o.remove()">Cancelar</button>'+
+          '<button class="btn" style="color:var(--amber-text);border-color:var(--amber-text)" onclick="sdvRechazarConfirm(\''+id+'\')"><i data-lucide="x-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Rechazar y avisar</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>');
+  if (window.lucide) lucide.createIcons();
+  setTimeout(function(){ var t=document.getElementById('sdvRejectMotivo'); if(t) t.focus(); }, 50);
+}
+async function sdvRechazarConfirm(id) {
+  var motivo = (document.getElementById('sdvRejectMotivo').value||'').trim();
   if (!motivo) { toast('Escribe un motivo para rechazar'); return; }
   try {
     var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'rechazada',razon:motivo})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al rechazar'); return; }
+    var ov=document.getElementById('sdvRejectOverlay'); if(ov) ov.remove();
     toast('Solicitud rechazada · se avisó a la vendedora');
     sdvBandejaCargar();
     var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
