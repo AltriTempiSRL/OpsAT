@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v49';
+const CACHE = 'wwp-v50';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -40,6 +40,27 @@ self.addEventListener('message', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (url.pathname.startsWith('/api/') || url.pathname.includes('/notifications/stream')) return;
+  // HTML principal: stale-while-revalidate — sirve del caché al instante (arranque
+  // en frío rápido en equipos de poca RAM) y revalida en segundo plano. Servir
+  // "stale" no deja equipos pegados a una versión vieja: _checkVersion (en
+  // historial.html, corre a los 2s y cada 60s) borra TODOS los caches y recarga
+  // en cuanto /api/app-version (que el SW nunca intercepta) reporte build nuevo.
+  // Cache key normalizado a /historial.html: ?task= / ?reset= reciben el mismo body.
+  if (e.request.method === 'GET' && (url.pathname === '/historial.html' || url.pathname === '/historial')) {
+    e.respondWith(
+      caches.open(CACHE).then(c =>
+        c.match('/historial.html').then(cached => {
+          const net = fetch(e.request).then(res => {
+            if (res.ok) c.put('/historial.html', res.clone()).catch(() => {});
+            return res;
+          });
+          if (cached) { e.waitUntil(net.catch(() => {})); return cached; }
+          return net;
+        })
+      ).catch(() => fetch(e.request))
+    );
+    return;
+  }
   if (url.pathname.endsWith('.html') || url.pathname === '/' || !url.pathname.includes('.')) return;
   e.respondWith(
     caches.match(e.request).then(cached => {

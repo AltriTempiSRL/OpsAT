@@ -20,6 +20,17 @@
       "autoPort": false
     },
     {
+      "name": "v113-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["proxy.js"],
+      "port": 3996,
+      "autoPort": false,
+      "env": {
+        "DATA_DIR": "C:/Users/Gabriel Ramirez/AppData/Local/Temp/wwp-v113-preview",
+        "PORT": "3996"
+      }
+    },
+    {
       "name": "v31-preview",
       "runtimeExecutable": "node",
       "runtimeArgs": ["proxy.js"],

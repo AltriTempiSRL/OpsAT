@@ -73,11 +73,11 @@ Severidad: 🔴 Crítico · 🟠 Alto · 🟡 Medio · ⚪ Bajo. Esfuerzo: S/M/L
 ### FASE 3 — Datos Odoo + proceso
 | ID | Sev | Hallazgo | Ubicación | Fuente | Esf |
 |----|-----|----------|-----------|--------|-----|
-| F3-1 | 🟠 | **Fallback de Ciudad** (city → `state_id` → penúltima línea de `contact_address`). Ciudad ausente en **84%** de direcciones recientes. Sube cobertura visible sin tocar Odoo. | `proxy.js:10644` (refresh), `10459` (lookup) | Ron C1 | M |
+| ~~F3-1~~ | — | **FUERA DE ALCANCE (decisión Gabriel 2026-07-02):** NO auto-rellenar la ciudad. El dato debe ser corregido por el usuario en Odoo, no enmascarado por el sistema con un fallback. El nudge para que lo corrijan es F3-3. | — | — | — |
 | F3-2 | 🟠 | **Estado real del pick en el refresh** (hoy filtra solo `assigned` → devuelve 0 ítems si el pick está `done`/`waiting`; se lee como "sin cambios"). Distinguir listo / bloqueado por stock / despachado. | `proxy.js:10652` | Ron C2, P2 | M |
-| F3-3 | 🟡 | **Gate suave de datos al crear**: si ciudad/teléfono vacíos, avisar con link al contacto principal en Odoo. Teléfono ausente en 38%. | formulario creación | Ron C3 | S |
+| F3-3 | 🟡 | **Gate suave de datos al crear**: si ciudad/teléfono vacíos, avisar con link al contacto principal en Odoo. Teléfono ausente en 38%. **Es el mecanismo que empuja al usuario a corregir el dato en la fuente** (alineado con la decisión de sacar F3-1). | formulario creación | Ron C3 | S |
 | F3-4 | 🟡 | **Aplicar/señalar reducciones de cantidad** (el flujo "adicional" solo cubre aumentos; una baja en Odoo no tiene camino → riesgo de despachar de más). | diff `proxy.js:10566-10575` | Ron C5 | M |
-| F3-5 | 🟡 | **Estandarizar idioma a `es_DO`** en 7 cuentas en inglés (ATMOSS, Benjamín Acevedo, Filippo Bencini, Gabriela Ramírez, Lulú Pulgar, Paola Shephard, Ruth Calcaño). Distinguir `lang` de usuario vs. de cliente. | Odoo (operativo) | Ron P4 | S (proceso) |
+| ~~F3-5~~ | — | **FUERA DE ALCANCE (decisión Gabriel 2026-07-02):** el cambio de idioma de las 7 cuentas es una tarea operativa que hará el equipo directamente en Odoo, no parte de esta implementación. | Odoo (operativo) | — | — |
 
 ### FASE 4 — Proyecto de fondo (planear, no urgente)
 | ID | Sev | Hallazgo | Fuente | Esf |

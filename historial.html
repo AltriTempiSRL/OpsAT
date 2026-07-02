@@ -17,13 +17,15 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
 <meta name="description" content="Plataforma de gestión operativa — Altritempi">
-<script src="/lucide.min.js"></script>
+<!-- defer: no bloquea el parseo; ejecuta antes de DOMContentLoaded, donde corre la
+     hidratación de íconos. ?v= = hash del contenido → el server responde immutable. -->
+<script src="/lucide.min.js?v=a65241b6" defer></script>
 <!-- SheetJS — carga diferida solo cuando se exporta Excel -->
 <script>
 function _loadXlsx(cb){
   if(window.XLSX){ cb(); return; }
   var s=document.createElement('script');
-  s.src='/xlsx.min.js';
+  s.src='/xlsx.min.js?v=06b05895';
   s.onload=cb; s.onerror=function(){ alert('No se pudo cargar la librería de Excel. Verifica tu conexión.'); };
   document.head.appendChild(s);
 }
@@ -7723,7 +7725,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v114';
+var APP_BUILD = 'v116';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8088,6 +8090,37 @@ function uiSetVisible(el, visible, displayValue, className) {
 
 
 // ═══════════════════════════════════════════════════════════════════════
+// ÍCONOS LUCIDE — hidratación acotada (perf Android 8 / gama baja)
+// La copia local de lucide.min.js NO soporta acotar: createIcons() siempre
+// escanea document completo (las opciones {nodes}/{el} se ignoran). Este
+// helper replica su reemplazo (icons + createElement, ambos exportados)
+// pero solo bajo `root`, y salta los <svg> ya convertidos.
+// ═══════════════════════════════════════════════════════════════════════
+function lucideHydrate(root) {
+  var L = window.lucide;
+  if (!L || !root) return;
+  if (!L.icons || !L.createElement) { L.createIcons(); return; }  // build distinto: caer al escaneo completo
+  var els = root.querySelectorAll('[data-lucide]');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    if (el.tagName.toLowerCase() === 'svg') continue;
+    var name = el.getAttribute('data-lucide');
+    if (!name) continue;
+    var key = name.replace(/(\w)(\w*)(_|-|\s*)/g, function(_, a, b) { return a.toUpperCase() + b.toLowerCase(); });
+    var icon = L.icons[key];
+    if (!icon) { console.warn('lucideHydrate: ícono no encontrado:', name); continue; }
+    var attrs = {};
+    for (var j = 0; j < el.attributes.length; j++) attrs[el.attributes[j].name] = el.attributes[j].value;
+    var merged = Object.assign({}, icon[1], { 'data-lucide': name }, attrs);
+    var cls = ['lucide', 'lucide-' + name].concat(attrs.class ? String(attrs.class).split(' ') : []);
+    merged.class = cls.map(function(s) { return s.trim(); }).filter(Boolean)
+      .filter(function(s, k, arr) { return arr.indexOf(s) === k; }).join(' ');
+    var svg = L.createElement([icon[0], merged, icon[2]]);
+    if (el.parentNode) el.parentNode.replaceChild(svg, el);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // SCREEN MANAGEMENT (merged: 5 screens)
 // ═══════════════════════════════════════════════════════════════════════
 function showScreen(id) {
@@ -8103,11 +8136,19 @@ function showScreen(id) {
       uiSetVisible(el, s === id, 'flex', 'ui-screen-enter');
     }
   });
+  // Íconos: hidratar la pantalla la primera vez que se muestra (el boot ya no
+  // convierte pantallas que el usuario no visita — perf en gama baja)
+  var _shown = document.getElementById(id);
+  if (_shown && !_shown._lucideHydrated) { _shown._lucideHydrated = true; lucideHydrate(_shown); }
   // App-shell: el sidebar lateral fijo acompaña a ambas pantallas para TODOS los roles.
   // applyNavPerms() ya filtra los ítems: cada usuario ve solo sus secciones (un auxiliar
   // solo verá "Workforce Labor"; un encargado, eso + sus secciones de Despachos).
   var _shell = (id === 'screen-historial') || (id === 'screen-app');
   document.body.classList.toggle('app-shell', !!_shell);
+  if (_shell) {
+    var _sb = document.querySelector('nav.sidebar');
+    if (_sb && !_sb._lucideHydrated) { _sb._lucideHydrated = true; lucideHydrate(_sb); }
+  }
 }
 function showLogin() { showScreen('screen-login'); }
 function showForgot() { showScreen('screen-forgot'); document.getElementById('forgot-success').classList.remove('show'); document.getElementById('forgot-error').classList.remove('show'); }
@@ -9421,8 +9462,10 @@ function enterApp() {
   } else {
     setTimeout(maybeShowWelcome, 400);
   }
-  // Render Lucide icons (nav tabs are created dynamically above)
-  if (window.lucide) lucide.createIcons();
+  // Render Lucide icons (nav tabs are created dynamically above) — acotado a
+  // screen-app: enterApp corre 2 veces en el boot y el escaneo completo era caro
+  var _sa = document.getElementById('screen-app');
+  if (_sa) { _sa._lucideHydrated = true; lucideHydrate(_sa); }
   // Aplicar permisos de sección del historial
   applyNavPerms();
 }
@@ -17441,7 +17484,7 @@ function renderImpersonateBanner(){
     b.style.display='flex';
     const txt=document.getElementById('imp-banner-text');
     if(txt)txt.textContent='Actuando como '+( _user?_user.name:'usuario')+' · '+(p.impersonatorName||'Admin');
-    if(window.lucide)lucide.createIcons();
+    lucideHydrate(b);
   } else b.style.display='none';
 }
 async function openUserSwitcher(){
@@ -18187,7 +18230,12 @@ async function checkSheetsConnection(retries, delay){
 
 
 window.addEventListener('DOMContentLoaded',function(){
-  if (window.lucide) lucide.createIcons();
+  // Boot acotado: solo las pantallas de autenticación (2 íconos). El resto se
+  // hidrata al mostrarse cada pantalla (showScreen) — antes esto convertía los
+  // ~194 íconos estáticos de TODO el documento en cada arranque.
+  ['screen-login','screen-forgot','screen-reset'].forEach(function(s){
+    lucideHydrate(document.getElementById(s));
+  });
   var _bb = document.getElementById('app-build-badge');
   if (_bb) _bb.textContent = 'Build ' + APP_BUILD;
   renderRecentTags();

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * proxy.js — Servidor local para Dashboard Despachos
  * Sirve archivos estáticos + hace de proxy a Odoo JSON-RPC (resuelve CORS)
  */
@@ -167,7 +167,14 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v114';
+const APP_BUILD = 'v116';
+
+// ── Caché de gzip en memoria para estáticos (perf Android 8) ─────────────────
+// Antes se re-comprimía historial.html (~1.85 MB) en CADA request. La entrada
+// se invalida por mtime; ~40 archivos × <5 MB gz c/u acota la memoria.
+const _gzCache = new Map(); // filePath → { mtimeMs, gz }
+const _GZ_CACHE_MAX_ENTRIES = 40;
+const _GZ_CACHE_MAX_BYTES   = 5 * 1024 * 1024;
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1240,22 +1247,108 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
   return task;
 }
 
-// H1-2 + D3: crea la(s) tarea(s) de una SDV. Con empaque → cadena empaque→despacho
-// (mismas siblings con sdvId; solo el dispatch gobierna el cierre — D4). Un solo motor,
-// tanto para la aprobación 1-clic como para "Crear otra Tarea WWP" (recuperación).
-// Devuelve { tasks:[...], mainId } donde mainId es la tarea de despacho (puntero wwpTaskId).
-function createSdvTasks(sdv, createdBy, conEmpaque) {
-  const dispatch = createWwpTaskFromSdv(sdv, createdBy);
-  if (!conEmpaque) return { tasks:[dispatch], mainId: dispatch.id };
-  const pack = createWwpTaskFromSdv(sdv, createdBy);
-  pack.id = wwpId('wt');
-  pack.type = 'packaging';
-  pack.title = 'Empaque ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente');
-  pack.description = 'Empaque previo al despacho — solicitud SDV ' + sdv.id;
-  pack.subIndex = 0;
-  dispatch.subIndex = 1;
-  dispatch.dependsOnPrev = true;   // el despacho va después del empaque
-  return { tasks:[pack, dispatch], mainId: dispatch.id };
+// Tarea compuesta Fase 1 (2026-07-02): crea la CADENA canónica de una SDV en UN registro.
+// Raíz = empaque (packaging); hijas = despachos (dispatch_order) o almacenamiento
+// (warehouse_move) con parentId REAL, para que operen los gates de cadena y las
+// cascadas de cancelar/validar (antes nacían hermanas planas: parentId null → el
+// dependsOnPrev era letra muerta y el despacho podía iniciar con el empaque abierto).
+// `estructura` (opcional) captura el análisis del pick del encargado:
+//   { concepto: 'solo_despacho'|'empaque_despacho'|'empaque_almacen',
+//     empaque:  { encargados:[{id,name}] (máx 2: 1º manager, 2º co-encargado), due },
+//     despachos:[{ localidad?, encargados:[máx 2], due?, skus?:[{sku,quantity}] }] } // 1..N
+// Compat: tercer parámetro boolean = conEmpaque (aprobación 1-clic y botones actuales).
+// Reglas: la raíz es la única con seq (convención de POST /api/wwp/tasks — los callers
+// asignan seq solo a tareas sin parentId). Cada hija hereda el snapshot SDV completo
+// (H2-3/H3-3), pero si su grupo trae skus, su sdvArticulos se ACOTA a ellos: el
+// pick-diff v113 presupuesta por raíz y sin subset dos localidades se contarían
+// mutuamente los faltantes (el S09644 entre localidades). Los despachos NO dependen
+// entre sí (localidades en paralelo → mismo subIndex; el gate de hermanos solo mira
+// índices menores); dependen del empaque vía dependsOnPrev + gate madre-packaging.
+// Devuelve { tasks, rootId, dispatchIds, mainId } — mainId = raíz (sol.wwpTaskId → raíz).
+function createSdvTasks(sdv, createdBy, estructura) {
+  if (typeof estructura !== 'object' || estructura === null || Array.isArray(estructura)) {
+    estructura = { concepto: estructura === true ? 'empaque_despacho' : 'solo_despacho' };
+  }
+  const concepto = ['solo_despacho','empaque_despacho','empaque_almacen'].includes(estructura.concepto)
+    ? estructura.concepto : 'empaque_despacho';
+  const grupos = (Array.isArray(estructura.despachos) && estructura.despachos.length)
+    ? estructura.despachos : [{}];
+  const subTipo = concepto === 'empaque_almacen' ? 'warehouse_move' : 'dispatch_order';
+  const _users = loadAuthUsers();
+  const _nombrePorSku = new Map((sdv.articulosOdoo||[]).map(it => [(it.sku||'').trim(), it.product_name||'']));
+  const asignar = (t, encargados) => {
+    const enc = (encargados||[]).filter(e => e && e.id).slice(0, 2);
+    if (!enc.length) return;
+    const u = _users.find(x => x.id === enc[0].id);
+    t.managerId = enc[0].id;
+    t.managerName = enc[0].name || (u && u.name) || '';
+    if (u && u.odooId) t.assignedTo = 'oe_' + u.odooId;
+    if (enc[1]) t.coManagerIds = [enc[1].id];
+    t.status = 'assigned';
+    t.statusHistory.push({ status:'assigned', date:t.createdAt, by:createdBy, note:'Asignada al crear la cadena' });
+  };
+  const aplicarGrupo = (t, g) => {
+    g = g || {};
+    if (g.localidad) {
+      t.localidad = g.localidad;
+      t.title = '[' + g.localidad + '] ' + t.title;
+    }
+    if (g.due) t.dueDate = g.due;
+    if (Array.isArray(g.skus) && g.skus.length) {
+      t.sdvArticulos = g.skus
+        .map(s => { const sku=((s&&s.sku)||'').trim(); return { sku, quantity:(s&&s.quantity)||1, name:_nombrePorSku.get(sku)||'' }; })
+        .filter(x => x.sku && _nombrePorSku.has(x.sku));
+    }
+  };
+  const root = createWwpTaskFromSdv(sdv, createdBy);
+  if (concepto === 'solo_despacho') {
+    aplicarGrupo(root, grupos[0]);
+    asignar(root, (grupos[0]||{}).encargados);
+  } else {
+    root.type = 'packaging';
+    root.title = 'Empaque ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente');
+    root.description = 'Empaque previo al ' + (concepto==='empaque_almacen'?'almacenamiento':'despacho') + ' — solicitud SDV ' + sdv.id;
+    if (estructura.empaque && estructura.empaque.due) root.dueDate = estructura.empaque.due;
+    asignar(root, estructura.empaque && estructura.empaque.encargados);
+  }
+  const tasks = [root];
+  const dispatchIds = concepto === 'solo_despacho' ? [root.id] : [];
+  const hijas = concepto === 'solo_despacho' ? grupos.slice(1) : grupos;
+  hijas.forEach((g) => {
+    const t = createWwpTaskFromSdv(sdv, createdBy);
+    t.type = subTipo;
+    if (subTipo === 'warehouse_move') {
+      t.title = 'Almacenamiento ' + (sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente');
+      t.description = 'Almacenamiento posterior al empaque — solicitud SDV ' + sdv.id;
+    }
+    t.parentId = root.id;
+    t.subIndex = 2;                                   // paso 2 en paralelo (paso 1 = la raíz)
+    t.dependsOnPrev = concepto !== 'solo_despacho';   // espera el empaque, no a los otros despachos
+    aplicarGrupo(t, g);
+    asignar(t, (g||{}).encargados);
+    tasks.push(t);
+    dispatchIds.push(t.id);
+  });
+  return { tasks, rootId: root.id, dispatchIds, mainId: root.id };
+}
+
+// Valida la `estructura` recibida por API antes de crear la cadena (422 si no pasa).
+function validarEstructuraSdv(e, sdv) {
+  if (!e || typeof e !== 'object' || Array.isArray(e)) return 'estructura inválida';
+  if (!['solo_despacho','empaque_despacho','empaque_almacen'].includes(e.concepto||'')) return 'estructura.concepto inválido (solo_despacho | empaque_despacho | empaque_almacen)';
+  if (e.despachos !== undefined && (!Array.isArray(e.despachos) || !e.despachos.length)) return 'estructura.despachos debe ser una lista con al menos un grupo';
+  const grupos = Array.isArray(e.despachos) ? e.despachos : [{}];
+  if (grupos.length > 10) return 'Demasiados grupos de despacho (máx 10)';
+  if ((((e.empaque||{}).encargados)||[]).length > 2) return 'Máximo 2 encargados de empaque';
+  const skusSdv = new Set((sdv.articulosOdoo||[]).map(it => (it.sku||'').trim()).filter(Boolean));
+  for (const g of grupos) {
+    if ((((g||{}).encargados)||[]).length > 2) return 'Máximo 2 encargados por despacho';
+    for (const s of ((g||{}).skus)||[]) {
+      const sku = ((s&&s.sku)||'').trim();
+      if (!sku || !skusSdv.has(sku)) return 'SKU fuera de la solicitud: ' + (sku||'(vacío)');
+    }
+  }
+  return null;
 }
 const _repoCache = new Map(); // showroomId → { json, ts }
 const REPO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos en ms
@@ -7979,6 +8072,25 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ok:false,error:`No puedes iniciar este paso hasta completar el anterior: "${prev.title}"`}));
             return;
           }
+          // ── Tarea compuesta (2026-07-02): la MADRE es predecesora implícita ──
+          // En cadenas de empaque (madre packaging), el despacho/almacenamiento no
+          // inicia hasta que el empaque esté completo. Antes el gate solo comparaba
+          // hermanos, así que la madre nunca gateaba a sus hijas (P0: el despacho
+          // podía iniciar con el empaque abierto). Hermanas packaging paralelas
+          // (multi-empaque) también cuentan como empaque pendiente.
+          if (['dispatch_order','warehouse_move'].includes(tasks[idx].type)) {
+            const madre = tasks.find(x => x.id === tasks[idx].parentId);
+            const empaques = []
+              .concat(madre && madre.type==='packaging' ? [madre] : [])
+              .concat(sibs.filter(x => x.type==='packaging'));
+            const empaqueAbierto = empaques.find(x =>
+              x.status!=='cancelled' && !['completed','validated'].includes(x.status));
+            if (empaqueAbierto) {
+              res.writeHead(409,{'Content-Type':'application/json'});
+              res.end(JSON.stringify({ok:false,error:`No puedes iniciar este paso hasta completar el empaque: "${empaqueAbierto.title}"`}));
+              return;
+            }
+          }
         }
         // ── Cierre de la madre bloqueado si quedan subtareas abiertas ──
         if ((d.status==='completed'||d.status==='validated') && !tasks[idx].parentId) {
@@ -7989,9 +8101,18 @@ const server = http.createServer(async (req, res) => {
           // cliente. Por eso un despacho abierto NO bloquea cerrar una madre libre.
           // (No aplica al flujo Odoo empaque→despacho, donde la madre es type 'packaging'.)
           const isFreeParent = tasks[idx].type==='general' || tasks[idx].taskConcept==='free';
+          // Tarea compuesta (2026-07-02) — handoff del empaque: la madre packaging se
+          // COMPLETA al terminar el empaque (entrega el material al despachador); los
+          // despachos/almacenamientos hijos corren después y no la bloquean. Par
+          // indivisible con el gate madre-predecesora de arriba: sin esta exención,
+          // el despacho no inicia sin empaque completo y el empaque no completa con
+          // el despacho abierto = deadlock. 'validated' sigue estricto (cierre de
+          // calidad final: exige toda la cadena cerrada).
+          const isPackParent = tasks[idx].type==='packaging';
           const abiertas = children.filter(c => {
             if (['completed','validated','cancelled'].includes(c.status)) return false;
             if (isFreeParent && c.type==='dispatch_order') return false; // handoff downstream
+            if (isPackParent && d.status==='completed' && ['dispatch_order','warehouse_move'].includes(c.type)) return false;
             return true;
           });
           if (abiertas.length>0) {
@@ -8203,15 +8324,35 @@ const server = http.createServer(async (req, res) => {
               const _si = _sdvL.findIndex(s => s.id === tasks[idx].sdvId);
               if (_si >= 0 && _sdvL[_si].estado === 'en_proceso') {
                 const _sdv = _sdvL[_si];
-                const _tr2 = sdvTransition(_sdv, 'pendiente_revision', jp.userId, jp.name||'',
-                  'Tarea de despacho cancelada'+(d.note?': '+d.note:'')+' — la solicitud vuelve a la bandeja');
-                if (_tr2.ok) {
-                  _sdv.wwpTaskId = null; // liberar el puntero: re-aprobar regenera la tarea (1-clic)
-                  _sdvL[_si] = _sdv;
-                  saveSdv(_sdvL);
-                  try { notifySeller(_sdv, { type:'status_changed', title:'⚠️ Despacho en pausa', message:`La tarea de tu solicitud ${_sdv.folio||_sdv.id} fue cancelada${d.note?': '+d.note:''}. Operaciones la revisará de nuevo; te avisamos cuando se reapruebe.` }); } catch(e){ silentCatch(e,'notifySellerTaskCancel'); }
-                  try { notifyOpsNewSdv(_sdv.id, _sdv.clienteNombre || _sdv.odooOrderRef || 'N/A', (_sdv.articulosOdoo||[]).length); } catch(e){ silentCatch(e,'notifyOpsTaskCancel'); }
-                  console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'vuelve a pendiente_revision');
+                // ── Fix orden de eventos (Vera, 2026-07-02): si ya hubo despacho(s)
+                // ENTREGADOS del mismo vínculo, NO volver a la bandeja — re-aprobar
+                // regeneraría la orden completa aunque la mitad ya está en el cliente
+                // (doble envío, patrón S09644 a nivel tareas). En ese caso el vínculo
+                // cierra como despachada (parcial), igual que el cierre agregado.
+                const _entregados = tasks.filter(t => t.sdvId===tasks[idx].sdvId && t.id!==tasks[idx].id &&
+                  t.type==='dispatch_order' && ['completed','validated'].includes(t.status));
+                if (_entregados.length > 0) {
+                  const _tr3 = sdvTransition(_sdv, 'despachada', jp.userId, jp.name||'',
+                    'Cierre parcial: despacho restante cancelado'+(d.note?': '+d.note:'')+
+                    ' — '+_entregados.length+' despacho(s) del vínculo ya entregado(s)');
+                  if (_tr3.ok && !_tr3.noop) {
+                    _sdv.fechaDespacho = _sdv.fechaDespacho || now;
+                    _sdvL[_si] = _sdv;
+                    saveSdv(_sdvL);
+                    try { notifySeller(_sdv, { type:'task_completed', title:'📦 Solicitud despachada (parcial)', message:`Tu solicitud ${_sdv.folio||_sdv.id} cierra con entrega parcial: parte del pedido fue cancelada${d.note?' ('+d.note+')':''}. Revisa con Operaciones qué quedó fuera.` }); } catch(e){ silentCatch(e,'notifySellerParcial'); }
+                    console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'cierra despachada (parcial) —', _entregados.length, 'despacho(s) ya entregado(s)');
+                  }
+                } else {
+                  const _tr2 = sdvTransition(_sdv, 'pendiente_revision', jp.userId, jp.name||'',
+                    'Tarea de despacho cancelada'+(d.note?': '+d.note:'')+' — la solicitud vuelve a la bandeja');
+                  if (_tr2.ok) {
+                    _sdv.wwpTaskId = null; // liberar el puntero: re-aprobar regenera la tarea (1-clic)
+                    _sdvL[_si] = _sdv;
+                    saveSdv(_sdvL);
+                    try { notifySeller(_sdv, { type:'status_changed', title:'⚠️ Despacho en pausa', message:`La tarea de tu solicitud ${_sdv.folio||_sdv.id} fue cancelada${d.note?': '+d.note:''}. Operaciones la revisará de nuevo; te avisamos cuando se reapruebe.` }); } catch(e){ silentCatch(e,'notifySellerTaskCancel'); }
+                    try { notifyOpsNewSdv(_sdv.id, _sdv.clienteNombre || _sdv.odooOrderRef || 'N/A', (_sdv.articulosOdoo||[]).length); } catch(e){ silentCatch(e,'notifyOpsTaskCancel'); }
+                    console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'vuelve a pendiente_revision');
+                  }
                 }
               }
             }
@@ -10822,21 +10963,34 @@ const server = http.createServer(async (req, res) => {
       if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud no encontrada'})); return; }
       const sol = list[idx];
       if (['cancelada','despachada'].includes(sol.estado)) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La solicitud está '+sol.estado+'; no se puede crear una tarea.'})); return; }
+      // Tarea compuesta: `estructura` opcional (análisis del pick — concepto, grupos por
+      // localidad, encargados). Sin estructura, compat: conEmpaque boolean → cadena default.
+      let estructura = null;
+      if (d.estructura !== undefined) {
+        const _errE = validarEstructuraSdv(d.estructura, sol);
+        if (_errE) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_errE})); return; }
+        estructura = d.estructura;
+      }
       const conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
       let nuevas, mainId;
       if (sol.tipoSolicitud === 'devolucion') { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
-      else { const r = createSdvTasks(sol, jp.userId, conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
+      else { const r = createSdvTasks(sol, jp.userId, estructura !== null ? estructura : conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
       const now = new Date().toISOString();
       const tasks = loadWwpTasks();
-      nuevas.forEach(t => { t.seq = nextTaskSeq(); tasks.push(t); });
+      // seq solo para la raíz (misma convención que POST /api/wwp/tasks: subtareas sin número)
+      nuevas.forEach(t => { if (!t.parentId) t.seq = nextTaskSeq(); tasks.push(t); });
       saveWwpTasks(tasks);
-      if (!sol.wwpTaskId) sol.wwpTaskId = mainId; // primer enlace = puntero principal
+      if (!sol.wwpTaskId) sol.wwpTaskId = mainId; // primer enlace = puntero principal (la raíz de la cadena)
       sol.wwpTareas = sol.wwpTareas || [];
       nuevas.forEach(t => sol.wwpTareas.push({ taskId:t.id, titulo:t.title, creadoAt:now }));
       list[idx] = sol; saveSdv(list);
-      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${conEmpaque?'empaque + despacho':'despacho'}. Falta asignar encargado.`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
+      const _lblEstructura = nuevas.some(t=>t.type==='packaging')
+        ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
+        : 'despacho';
+      const _sinEncargado = nuevas.some(t => !t.managerId);
+      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_lblEstructura}.${_sinEncargado?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, taskId:mainId, tasks:nuevas.map(t=>({id:t.id,type:t.type,titulo:t.title}))}));
+      res.end(JSON.stringify({ok:true, taskId:mainId, tasks:nuevas.map(t=>({id:t.id,type:t.type,titulo:t.title,parentId:t.parentId||null}))}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -11398,23 +11552,36 @@ const server = http.createServer(async (req, res) => {
         if (d.estado === 'en_proceso' && !sol.wwpTaskId) {
           try {
             const _conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
+            // Tarea compuesta: estructura opcional en la aprobación. Si viene inválida NO
+            // se aborta la aprobación (ya transicionó): se cae al default con warning.
+            let _estructura = null;
+            if (d.estructura !== undefined) {
+              const _errE = validarEstructuraSdv(d.estructura, sol);
+              if (_errE) console.warn('[SDV→WWP] estructura inválida en aprobación, usando default:', _errE);
+              else _estructura = d.estructura;
+            }
             let nuevas, mainId;
             if (sol.tipoSolicitud === 'devolucion') {
               const t = createWwpTaskFromSdv(sol, jp.userId); t.type = 'general';
               nuevas = [t]; mainId = t.id;
             } else {
-              const r = createSdvTasks(sol, jp.userId, _conEmpaque);
+              const r = createSdvTasks(sol, jp.userId, _estructura !== null ? _estructura : _conEmpaque);
               nuevas = r.tasks; mainId = r.mainId;
             }
             const tasks = loadWwpTasks();
-            nuevas.forEach(t => { t.seq = nextTaskSeq(); tasks.push(t); });
+            // seq solo para la raíz (subtareas sin número, convención de POST /api/wwp/tasks)
+            nuevas.forEach(t => { if (!t.parentId) t.seq = nextTaskSeq(); tasks.push(t); });
             saveWwpTasks(tasks);
-            sol.wwpTaskId = mainId;
+            sol.wwpTaskId = mainId; // la raíz de la cadena
             sol.wwpTareas = sol.wwpTareas || [];
             nuevas.forEach(t => sol.wwpTareas.push({ taskId: t.id, titulo: t.title, creadoAt: now }));
             // H1-4/B2: avisar a Ops que nació la tarea (antes nacía muda y sin encargado)
-            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_conEmpaque?'empaque + despacho':'despacho'}. Falta asignar encargado.`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
-            console.log('[SDV→WWP] Aprobación 1-clic:', nuevas.length, 'tarea(s) para solicitud', sol.id, _conEmpaque?'(con empaque)':'');
+            const _lblE = nuevas.some(t=>t.type==='packaging')
+              ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
+              : 'despacho';
+            const _sinEnc = nuevas.some(t => !t.managerId);
+            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_lblE}.${_sinEnc?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
+            console.log('[SDV→WWP] Aprobación 1-clic:', nuevas.length, 'tarea(s) para solicitud', sol.id, '(' + _lblE + ')');
           } catch (e) { console.error('[SDV→WWP] Error creando tarea en aprobación 1-clic:', e.message); }
         }
       }
@@ -13487,8 +13654,8 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
   }
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
+  fs.stat(filePath, (errStat, stat) => {
+    if (errStat || !stat.isFile()) {
       res.writeHead(404, {'Content-Type': 'text/plain'});
       res.end('Not Found');
       return;
@@ -13499,6 +13666,10 @@ const server = http.createServer(async (req, res) => {
     if (ext === '.html' || filePath.endsWith('manifest.json') || filePath.endsWith('sw.js')) {
       headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
       headers['Pragma'] = 'no-cache';
+    } else if (parsed.query && parsed.query.v) {
+      // Libs versionadas por hash de contenido (?v=): el URL cambia si el archivo
+      // cambia, así que la respuesta es inmutable — cero revalidaciones
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
     } else if (['.png','.svg'].includes(ext) && /icon|apple-touch|favicon/.test(path.basename(filePath))) {
       // Íconos PWA: caché corta para que los cambios se propaguen
       headers['Cache-Control'] = 'public, max-age=3600';
@@ -13506,19 +13677,48 @@ const server = http.createServer(async (req, res) => {
       headers['Cache-Control'] = 'public, max-age=3600';
     }
     const acceptsGzip = (req.headers['accept-encoding'] || '').includes('gzip');
-    if (acceptsGzip && data.length > 1024) {
-      zlib.gzip(data, (err2, gz) => {
-        if (err2) { res.writeHead(200, headers); res.end(data); return; }
-        headers['Content-Encoding'] = 'gzip';
-        headers['Vary'] = 'Accept-Encoding';
-        headers['Content-Length'] = gz.length;
-        res.writeHead(200, headers);
-        res.end(gz);
+    const sendGz = (gz) => {
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      headers['Content-Length'] = gz.length;
+      res.writeHead(200, headers);
+      res.end(gz);
+    };
+    if (acceptsGzip && stat.size > 1024) {
+      const hit = _gzCache.get(filePath);
+      if (hit && hit.mtimeMs === stat.mtimeMs) { sendGz(hit.gz); return; }
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404, {'Content-Type': 'text/plain'});
+          res.end('Not Found');
+          return;
+        }
+        zlib.gzip(data, (err2, gz) => {
+          if (err2) {
+            headers['Content-Length'] = data.length;
+            res.writeHead(200, headers);
+            res.end(data);
+            return;
+          }
+          if (gz.length <= _GZ_CACHE_MAX_BYTES) {
+            _gzCache.delete(filePath);  // re-insertar al final (orden FIFO del Map)
+            _gzCache.set(filePath, { mtimeMs: stat.mtimeMs, gz });
+            while (_gzCache.size > _GZ_CACHE_MAX_ENTRIES) _gzCache.delete(_gzCache.keys().next().value);
+          }
+          sendGz(gz);
+        });
       });
     } else {
-      headers['Content-Length'] = data.length;
-      res.writeHead(200, headers);
-      res.end(data);
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404, {'Content-Type': 'text/plain'});
+          res.end('Not Found');
+          return;
+        }
+        headers['Content-Length'] = data.length;
+        res.writeHead(200, headers);
+        res.end(data);
+      });
     }
   });
 });

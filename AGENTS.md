@@ -2,7 +2,7 @@
 
 ## Agentes — cerebro canónico fuera del proyecto
 
-Los agentes (Mark, Pit, Ron, David, QA-WWP, Alpha) **no guardan conocimiento en este repositorio**.
+Los agentes (Mark, Pit, Ron, David, QA-WWP, Alpha, Carl) **no guardan conocimiento en este repositorio**.
 Su cerebro es único y compartido entre Codex y Claude, y vive fuera de cualquier proyecto:
 
 ```
@@ -20,5 +20,6 @@ Roster:
 - **Ron** — analista Odoo/ERP (inventario, picks, devoluciones, trazabilidad). Solo lectura.
 - **David** — administración de edificios.
 - **QA-WWP** — auditor de calidad (end-to-end, RBAC, gates HTTP, TDZ).
+- **Carl** — arquitecto backend y auditor estructural (Node/Express, APIs, integraciones, auditoría, seguridad).
 
 Un solo cerebro por agente, sin variación entre herramientas, imposible de perder en un proyecto.

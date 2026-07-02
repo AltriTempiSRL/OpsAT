@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Responsive — Fila de Usuario (Botones)</title>
+  <style>
+    :root {
+      --surface: #ffffff;
+      --surface-2: #f5f5f4;
+      --border: #e5e5e5;
+      --text: #1a1a1a;
+      --text-2: #666666;
+      --text-3: #999999;
+      --brand-primary: #2f6f73;
+      --radius: 8px;
+      --green-dot: #10b981;
+      --green-text: #059669;
+    }
+
+    [data-theme="dark"] {
+      --surface: #1e1e1e;
+      --surface-2: #2a2a2a;
+      --border: #444444;
+      --text: #ffffff;
+      --text-2: #aaaaaa;
+      --text-3: #888888;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+      background: var(--surface);
+      color: var(--text);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+
+    .viewport {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 24px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .viewport-header {
+      background: var(--surface-2);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .viewport-content {
+      padding: 16px;
+      overflow-x: auto;
+    }
+
+    /* DESKTOP CSS — sin cambios */
+    .user-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-row-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-row-name {
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-row-email {
+      font-size: 12px;
+      color: var(--text-3);
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .user-row-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .btn-sm:hover {
+      background: var(--surface-2);
+    }
+
+    /* MOBILE CSS — NUEVAS REGLAS */
+    @media (max-width: 720px) {
+      .user-row {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .user-row-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-top: 4px;
+      }
+
+      .user-row-actions .btn-sm {
+        min-height: 44px;
+        padding: 8px 10px;
+        font-size: 11px;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        white-space: normal;
+        text-align: center;
+      }
+
+      .user-row-actions .btn-sm i {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+
+      .user-row-actions .btn-sm:last-child {
+        grid-column: 1 / -1;
+        background: var(--brand-primary);
+        color: white;
+        border-color: var(--brand-primary);
+        font-size: 12px;
+        font-weight: 600;
+      }
+    }
+
+    .theme-toggle {
+      margin-bottom: 16px;
+    }
+
+    .theme-toggle button {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .theme-toggle button:hover {
+      background: var(--surface);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="theme-toggle">
+      <button onclick="document.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark')">
+        Cambiar a {{ theme }}
+      </button>
+    </div>
+
+    <h1>Test Responsive — Fila de Usuario (Botones)</h1>
+
+    <!-- DESKTOP 1024px -->
+    <div class="viewport">
+      <div class="viewport-header">Desktop 1024px (flex horizontal)</div>
+      <div class="viewport-content" style="width: 1024px;">
+        <div class="user-row">
+          <div class="user-avatar">AB</div>
+          <div class="user-row-info">
+            <div class="user-row-name">Albert De La Cruz</div>
+            <div class="user-row-email">albert@altri.com</div>
+          </div>
+          <span style="font-size:11px;color:var(--text-2)">Auxiliar</span>
+          <span style="font-size:11px;color:var(--text-2)">Piantini</span>
+          <div class="user-row-actions">
+            <button class="btn-sm">Resumen: OFF</button>
+            <button class="btn-sm">Inspección: OFF</button>
+            <button class="btn-sm">Encargado</button>
+            <button class="btn-sm">Examen</button>
+            <button class="btn-sm">Editar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLET 768px -->
+    <div class="viewport">
+      <div class="viewport-header">Tablet 768px (flex horizontal, apretado)</div>
+      <div class="viewport-content" style="width: 768px;">
+        <div class="user-row">
+          <div class="user-avatar">AB</div>
+          <div class="user-row-info">
+            <div class="user-row-name">Albert De La Cruz</div>
+            <div class="user-row-email">albert@altri.com</div>
+          </div>
+          <span style="font-size:11px;color:var(--text-2)">Auxiliar</span>
+          <span style="font-size:11px;color:var(--text-2)">Piantini</span>
+          <div class="user-row-actions">
+            <button class="btn-sm">Resumen: OFF</button>
+            <button class="btn-sm">Inspección: OFF</button>
+            <button class="btn-sm">Encargado</button>
+            <button class="btn-sm">Examen</button>
+            <button class="btn-sm">Editar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÓVIL 375px (NUEVO COMPORTAMIENTO) -->
+    <div class="viewport">
+      <div class="viewport-header">Móvil 375px (grid 2×2 + "Editar" a ancho completo)</div>
+      <div class="viewport-content" style="width: 375px;">
+        <div class="user-row">
+          <div class="user-avatar">AB</div>
+          <div class="user-row-info">
+            <div class="user-row-name">Albert De La Cruz</div>
+            <div class="user-row-email">albert@altri.com</div>
+          </div>
+          <span style="font-size:11px;color:var(--text-2)">Auxiliar</span>
+          <span style="font-size:11px;color:var(--text-2)">Piantini</span>
+          <div class="user-row-actions">
+            <button class="btn-sm">Resumen: OFF</button>
+            <button class="btn-sm">Inspección: OFF</button>
+            <button class="btn-sm">Encargado</button>
+            <button class="btn-sm">Examen</button>
+            <button class="btn-sm">Editar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MÓVIL PEQUEÑO 320px -->
+    <div class="viewport">
+      <div class="viewport-header">Móvil pequeño 320px (grid 2×2 con wrapping)</div>
+      <div class="viewport-content" style="width: 320px;">
+        <div class="user-row">
+          <div class="user-avatar">AB</div>
+          <div class="user-row-info">
+            <div class="user-row-name">Albert De La Cruz</div>
+            <div class="user-row-email">albert@altri.com</div>
+          </div>
+          <span style="font-size:11px;color:var(--text-2)">Auxiliar</span>
+          <span style="font-size:11px;color:var(--text-2)">Piantini</span>
+          <div class="user-row-actions">
+            <button class="btn-sm">Resumen: OFF</button>
+            <button class="btn-sm">Inspección: OFF</button>
+            <button class="btn-sm">Encargado</button>
+            <button class="btn-sm">Examen</button>
+            <button class="btn-sm">Editar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Toggle theme en el script
+    const btn = document.querySelector('.theme-toggle button');
+    function updateTheme() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      btn.textContent = isDark ? 'Cambiar a Light' : 'Cambiar a Dark';
+    }
+    updateTheme();
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  </script>
+</body>
+</html>
