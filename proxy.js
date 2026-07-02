@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v106';
+const APP_BUILD = 'v107';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -593,6 +593,27 @@ function dcComputeSummary(user, date) {
 // → un bin por unidad (unitBins), cantidad = total reservado en el pick.
 // stateFilter: estados de picking a incluir. Creación de tarea → ['assigned'] (solo pendientes).
 // Sync diff-pick → undefined (default ['assigned','done'] para detectar ejecutados).
+// F3-2: estado real del despacho (OUT) de una orden — read-only, barato (sin move.lines).
+// Consulta por sale_id (más confiable que origin, confirmado por Ron 2026-07-02) y resume el
+// estado de los OUT en una etiqueta única para la UX. Excluye picks 'cancel'.
+async function sdvComputePickStatus(soRef) {
+  const sos = await odooCall('sale.order','search_read',[[['name','ilike',soRef]]],{fields:['id','name'],limit:1});
+  if (!sos || !sos.length) return { label:'Sin orden en Odoo', severity:'muted', outs:[] };
+  const picks = await odooCall('stock.picking','search_read',
+    [[['sale_id','=',sos[0].id],['picking_type_code','=','outgoing']]],
+    {fields:['name','state'],limit:50});
+  const outs = (picks||[]).filter(p => /\/OUT\//i.test(p.name)).map(p => ({ name:p.name, state:p.state }));
+  const activos = outs.filter(o => o.state !== 'cancel');
+  let label = 'Sin despacho activo', severity = 'muted';
+  if (activos.length) {
+    if (activos.every(o => o.state === 'done'))         { label='Despachado';           severity='ok';   }
+    else if (activos.some(o => o.state === 'done'))     { label='Despacho parcial';     severity='info'; }
+    else if (activos.some(o => o.state === 'assigned')) { label='Listo para despachar'; severity='warn'; }
+    else                                                { label='Bloqueado por stock';  severity='bad';  }
+  }
+  return { label, severity, outs };
+}
+
 async function buildItemsFromPicks(orderName, stateFilter) {
   const pickStates = stateFilter || ['assigned','done'];
   // Resolver nombre real de la orden (tolera ref sin prefijo, ej. "7647" → "S07647")
@@ -10587,6 +10608,27 @@ const server = http.createServer(async (req, res) => {
   // SOLICITUDES DE DESPACHO VENTAS (SDV)
   // ══════════════════════════════════════════════════════════════════════════════
 
+
+  // GET /api/sdv/:id/pickstatus — estado real del despacho (OUT) en Odoo (F3-2). Read-only,
+  // fail-open: si Odoo no responde, devuelve pickStatus:null y la UI simplemente no muestra el badge.
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/pickstatus$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const id = reqPath.split('/')[3];
+    (async () => {
+      try {
+        const sol = loadSdv().find(s => s.id === id);
+        if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Not found'})); return; }
+        if (jp.role!=='admin' && jp.role!=='manager' && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
+        if (!sol.odooOrderRef) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null})); return; }
+        const pickStatus = await sdvComputePickStatus(sol.odooOrderRef);
+        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus}));
+      } catch(e) {
+        // fail-open: Odoo caído no rompe la vista
+        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null,odooError:true}));
+      }
+    })();
+    return;
+  }
 
   // GET /api/sdv/:id/odoo/refresh — refresh de artículos desde Odoo
   if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/odoo\/refresh$/) && req.method === 'GET') {

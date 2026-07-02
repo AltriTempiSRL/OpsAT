@@ -7692,7 +7692,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v106';
+var APP_BUILD = 'v107';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29889,18 +29889,20 @@ async function eoAbrirDetalle(sdvId) {
     if (s.observaciones)          datosRows += '<div class="eo-det-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>';
 
     // Estado operativo
-    var opsHtml = '';
+    var opsInner = '';
     if (mainTask) {
       var stLbl = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
       var stCls = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
       var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
-      opsHtml = '<div class="eo-det-ops-box">' +
-        '<div class="eo-det-sec-title">Estado operativo</div>' +
-        '<div class="eo-det-row"><dt>Tarea</dt><dd><span class="eo-ops-chip '+stCls+'">'+esc(tyLbl)+' · '+esc(stLbl)+'</span></dd></div>' +
+      opsInner += '<div class="eo-det-row"><dt>Tarea</dt><dd><span class="eo-ops-chip '+stCls+'">'+esc(tyLbl)+' · '+esc(stLbl)+'</span></dd></div>' +
         (mainTask.managerName ? '<div class="eo-det-row"><dt>Encargado</dt><dd>'+esc(mainTask.managerName)+'</dd></div>' : '') +
-        (totalEvid>0 ? '<div class="eo-det-row"><dt>Evidencias</dt><dd><span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' foto'+(totalEvid>1?'s':'')+'</span></dd></div>' : '') +
-        '</div>';
+        (totalEvid>0 ? '<div class="eo-det-row"><dt>Evidencias</dt><dd><span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' foto'+(totalEvid>1?'s':'')+'</span></dd></div>' : '');
     }
+    // F3-2: estado real del despacho (OUT) en Odoo — se carga async tras render.
+    if (s.odooOrderRef) {
+      opsInner += '<div class="eo-det-row"><dt>Despacho (Odoo)</dt><dd id="eo-pickstatus"><span style="color:var(--text-3);font-size:12px">Consultando…</span></dd></div>';
+    }
+    var opsHtml = opsInner ? '<div class="eo-det-ops-box"><div class="eo-det-sec-title">Estado operativo</div>'+opsInner+'</div>' : '';
 
     // Devolución callout
     var devHtml = '';
@@ -29943,9 +29945,26 @@ async function eoAbrirDetalle(sdvId) {
     var ov = document.getElementById('eoDetOverlay');
     if (ov) ov.outerHTML = html;
     if (window.lucide) lucide.createIcons();
+    if (s.odooOrderRef) sdvLoadPickStatus(s.id, 'eo-pickstatus'); // F3-2
   } catch(e) {
     var ov2 = document.getElementById('eoDetOverlay');
     if (ov2) ov2.innerHTML = '<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text);margin-bottom:12px">Error: '+esc(e.message)+'</div><button class="btn btn-secondary" onclick="document.getElementById(\'eoDetOverlay\').remove()">Cerrar</button></div>';
+  }
+}
+
+// F3-2: carga async el estado real del despacho (OUT) desde Odoo y lo pinta como badge.
+// Fail-open: si Odoo no responde, muestra "No disponible" sin romper la vista.
+async function sdvLoadPickStatus(id, elId) {
+  try {
+    var r = await authFetch('/api/sdv/'+id+'/pickstatus');
+    var d = await r.json();
+    var el = document.getElementById(elId); if (!el) return;
+    if (!r.ok || !d.ok || !d.pickStatus) { el.innerHTML = '<span style="color:var(--text-3);font-size:12px">No disponible</span>'; return; }
+    var sev = d.pickStatus.severity;
+    var cls = sev==='ok'?'green':sev==='warn'?'amber':sev==='bad'?'red':sev==='info'?'blue':'';
+    el.innerHTML = '<span class="eo-ops-chip '+cls+'">'+esc(d.pickStatus.label)+'</span>';
+  } catch(e) {
+    var el2 = document.getElementById(elId); if (el2) el2.innerHTML = '<span style="color:var(--text-3);font-size:12px">No disponible</span>';
   }
 }
 
