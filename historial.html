@@ -7683,7 +7683,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v102';
+var APP_BUILD = 'v103';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -28962,6 +28962,15 @@ function sdvBadge(estado) {
             estado==='rechazada'?'sdv-badge-rechazada':'sdv-badge-cancelada';
   return '<span class="sdv-badge '+cls+'">'+(SDV_ESTADO_LABEL[estado]||estado)+'</span>';
 }
+// F2-1: semáforo de fecha deseada para SDV. Reusa los tokens DUE_CARD_STYLE/DUE_DATE_COLOR
+// de WWP. Robusto ante fecha con hora (a diferencia de dueTier que asume 'YYYY-MM-DD').
+function sdvDueTier(fecha) {
+  if (!fecha) return null;
+  var due = new Date(fecha); if (isNaN(due.getTime())) return null;
+  var today = new Date(); today.setHours(0,0,0,0); due.setHours(0,0,0,0);
+  var diff = Math.round((due - today) / 864e5);
+  return diff < 0 ? 'overdue' : diff <= 3 ? 'soon' : 'ontime';
+}
 function sdvFmtDate(iso) {
   if (!iso) return '—';
   try {
@@ -29820,7 +29829,8 @@ async function eoAbrirDetalle(sdvId) {
 
     // Artículos
     var artsHtml = (s.articulosOdoo||[]).map(function(it){
-      return '<div class="eo-det-art"><i data-lucide="package" style="width:14px;height:14px;stroke:var(--text-3);flex-shrink:0"></i>' +
+      return '<div class="eo-det-art">' +
+        (it.image?'<img src="'+it.image+'" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">':'<i data-lucide="package" style="width:14px;height:14px;stroke:var(--text-3);flex-shrink:0"></i>') +
         '<div style="flex:1"><div class="eo-det-art-name">'+esc(it.product_name||'Artículo')+'</div>'+(it.sku?'<div class="eo-det-art-sku">'+esc(it.sku)+'</div>':'')+'</div>' +
         '<span class="eo-det-art-qty">×'+it.quantity+'</span></div>';
     }).join('') || '<span style="color:var(--text-3);font-size:12px">Sin artículos</span>';
@@ -29912,13 +29922,15 @@ function sdvCardHtml(s, ctx) {
   var tipoLabel = SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud;
   var ref = s.odooOrderRef ? (' · '+s.odooOrderRef) : (s.ubicacionOrigen?s.ubicacionOrigen+'→'+s.ubicacionDestino:'');
   var arts = (s.articulosOdoo||[]).length;
+  // F2-1: tinte de vencimiento solo en estados activos (no en despachada/cancelada/rechazada).
+  var _tier = (s.estado==='pendiente_revision'||s.estado==='en_proceso') ? sdvDueTier(s.fechaSolicitudDeseada) : null;
   var acciones = '';
   if (ctx==='mis' && s.estado==='pendiente_revision') {
     acciones = '<div style="display:flex;gap:6px;margin-top:8px">'+
       '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();sdvOpenEditModal(\''+s.id+'\')" style="flex:1"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-1px"></i> Editar</button>'+
     '</div>';
   }
-  return '<div class="sdv-list-card" style="cursor:pointer" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
+  return '<div class="sdv-list-card" style="cursor:pointer;'+(_tier?DUE_CARD_STYLE[_tier]:'')+'" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
     '<div class="sdv-list-card-top">'+
       '<span class="sdv-list-folio">'+s.folio+'</span>'+
       sdvBadge(s.estado)+
@@ -29929,6 +29941,7 @@ function sdvCardHtml(s, ctx) {
       (s.clienteNombre?s.clienteNombre+' · ':'')+(arts?arts+' artículo(s) · ':'')+
       (s.creadoNombre||'')+'  ·  '+sdvFmtDate(s.creadoAt)+
     '</div>'+
+    (s.fechaSolicitudDeseada?'<div class="sdv-list-meta" style="margin-top:3px;'+(_tier?DUE_DATE_COLOR[_tier]:'')+'"><i data-lucide="calendar-clock" style="width:11px;height:11px;vertical-align:-1px"></i> Entrega deseada: '+sdvFmtDate(s.fechaSolicitudDeseada)+(_tier==='overdue'?' · vencida':_tier==='soon'?' · pronto':'')+'</div>':'')+
     acciones+
   '</div>';
 }
@@ -29948,7 +29961,7 @@ async function sdvVerDetalle(id, ctx) {
     var isOps = _user&&(_user.role==='admin'||_user.role==='manager');
     var artHtml = (s.articulosOdoo||[]).map(function(it){
       return '<div class="sdv-item-row" style="background:var(--surface-2);border-radius:var(--radius);margin-bottom:6px">'+
-        '<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>'+
+        (it.image?'<img class="sdv-item-img" src="'+it.image+'" alt="">':'<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>')+
         '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
         '<span class="sdv-item-qty">×'+it.quantity+'</span></div>';
     }).join('');
