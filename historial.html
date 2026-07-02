@@ -7718,7 +7718,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v108';
+var APP_BUILD = 'v109';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15733,6 +15733,10 @@ async function _wizSave(){
         client:_wizCtx.client||undefined, salesperson:_wizCtx.salesperson||undefined,
         deliveryAddress:_wizCtx.deliveryAddress||undefined, phone:_wizCtx.phone||undefined,
         location:(parent?parent.location:'')||undefined,
+        // Homologación H0-7 (2026-07-02): la subtarea agregada a una cadena SDV hereda el
+        // sdvId del padre — sin esto no contaba en la señal de cierre y la SDV podía
+        // auto-despacharse con este paso aún abierto.
+        sdvId:(parent&&parent.sdvId)||undefined,
         parentId:_wizState.subtaskParentId, dependsOnPrev:!!_wizState.dependsOnPrev,
         createdBy:_user.id,by:_user.name,byUserId:_user.id
       };

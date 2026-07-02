@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v108';
+const APP_BUILD = 'v109';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -1141,6 +1141,29 @@ const SDV_TRANSICIONES = {
   despachada:         [],   // terminal aquí (reactivación tiene su propio flujo)
   cancelada:          [],   // terminal aquí (reactivación tiene su propio flujo)
 };
+
+// ── Homologación H0-1: helper ÚNICO de transición de estado SDV ──────────────
+// TODA escritura de sol.estado fuera del PATCH (auto-despachada, cancelación,
+// reactivación) pasa por aquí: valida contra SDV_TRANSICIONES (fin del bypass que
+// resucitaba SDVs canceladas), sella timestamps (F1-2) y registra en statusHistory.
+// opts.extra: transiciones adicionales permitidas para flujos explícitos (ej. la
+// reactivación declara cancelada→en_proceso aquí, no como bypass silencioso).
+function sdvTransition(sol, nuevo, por, nombre, nota, opts) {
+  opts = opts || {};
+  const desde = sol.estado;
+  if (!SDV_ESTADOS.includes(nuevo)) return { ok:false, error:'Estado inválido: '+nuevo };
+  if (desde === nuevo) return { ok:true, noop:true };
+  const permitidas = (SDV_TRANSICIONES[desde] || []).concat(opts.extra || []);
+  if (!permitidas.includes(nuevo)) return { ok:false, error:'Transición no permitida: '+desde+' → '+nuevo };
+  const now = new Date().toISOString();
+  sol.estado = nuevo;
+  if (nuevo==='en_proceso' && !sol.aprobadoEn) sol.aprobadoEn = now;
+  else if (nuevo==='despachada') sol.despachadaEn = now;
+  else if (nuevo==='rechazada') sol.rechazadaEn = now;
+  sol.statusHistory = sol.statusHistory || [];
+  sol.statusHistory.push({ estado:nuevo, por:por||'sistema', nombre:nombre||'Sistema', at:now, nota:nota||'' });
+  return { ok:true, at:now };
+}
 
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -7681,6 +7704,19 @@ const server = http.createServer(async (req, res) => {
       if (!_validTypes.includes(d.type)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tipo de tarea inválido'})); return; }
       if (d.priority && !_validPriorities.includes(d.priority)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Prioridad inválida'})); return; }
       if (d.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(d.dueDate)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Formato de fecha inválido (YYYY-MM-DD)'})); return; }
+      // Homologación H0-5 (2026-07-02): una tarea no puede nacer apuntando a una SDV
+      // terminal — antes el POST enlazaba tareas a SDVs canceladas/despachadas sin chistar.
+      // (La reactivación formal no pasa por aquí: tiene su propio flujo server-side.)
+      if (d.sdvId) {
+        try {
+          const _sv = loadSdv().find(s => s.id === d.sdvId);
+          if (_sv && ['cancelada','despachada'].includes(_sv.estado)) {
+            res.writeHead(409,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'La solicitud '+(_sv.folio||_sv.id)+' está '+_sv.estado+'; no se puede crear una tarea vinculada a ella.'}));
+            return;
+          }
+        } catch(e) { silentCatch(e,'guardPostSdvId'); }
+      }
       const now = new Date().toISOString();
       const isSubtask = !!(d.parentId);
       const task = {
@@ -7854,6 +7890,19 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(403,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false,error:'Solo administradores pueden validar tareas'}));
         return;
+      }
+      // Homologación H0-7 (2026-07-02): no revivir una tarea cuya SDV es terminal —
+      // reactivar la tarea de una SDV cancelada crea trabajo vivo sobre una orden muerta.
+      // El camino correcto es la reactivación formal de la SDV (crea tarea nueva).
+      if (tasks[idx].status === 'cancelled' && d.status === 'pending' && tasks[idx].sdvId) {
+        try {
+          const _sv = loadSdv().find(s => s.id === tasks[idx].sdvId);
+          if (_sv && ['cancelada','despachada'].includes(_sv.estado)) {
+            res.writeHead(409,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'La solicitud '+(_sv.folio||_sv.id)+' está '+_sv.estado+'. Usa la reactivación de la solicitud, no de la tarea.'}));
+            return;
+          }
+        } catch(e) { silentCatch(e,'guardReactivarTarea'); }
       }
       // Solo admin puede reactivar una tarea cancelada (cancelled → pending)
       if (tasks[idx].status === 'cancelled' && d.status === 'pending' && jp.role !== 'admin') {
@@ -8033,14 +8082,25 @@ const server = http.createServer(async (req, res) => {
           d.status === 'validated'
         );
         if (_esSenalDespacho) {
-          const todasListas = tasks
-            .filter(t => t.sdvId === tasks[idx].sdvId)
-            .every(t => {
-              const st = t.id === tasks[idx].id ? d.status : t.status;
-              if (st === 'cancelled') return true;
-              if (t.type === 'dispatch_order') return ['completed','validated'].includes(st);
-              return st === 'validated';
-            });
+          // Homologación H0-3 + D4 (2026-07-02): solo las tareas de DESPACHO del vínculo
+          // gobiernan el cierre (el empaque es paso intermedio encadenado — antes exigía
+          // 'validated' del empaque y la SDV creada vía wizard nunca cerraba). Además se
+          // distingue "todo entregado" de "hubo canceladas" (despacho parcial anotado).
+          const _relacionadas = tasks.filter(t => t.sdvId === tasks[idx].sdvId);
+          const _statusOf = t => t.id === tasks[idx].id ? d.status : t.status;
+          const _despachos = _relacionadas.filter(t => t.type === 'dispatch_order');
+          const _despachosActivos = _despachos.filter(t => _statusOf(t) !== 'cancelled');
+          let todasListas;
+          if (_despachos.length > 0) {
+            todasListas = _despachosActivos.length > 0 &&
+              _despachosActivos.every(t => ['completed','validated'].includes(_statusOf(t)));
+          } else {
+            // Vínculo sin tareas de despacho (ej. devolución tipo 'general'): criterio
+            // anterior — todas las no-canceladas validadas cierran.
+            const _activas = _relacionadas.filter(t => _statusOf(t) !== 'cancelled');
+            todasListas = _activas.length > 0 && _activas.every(t => _statusOf(t) === 'validated');
+          }
+          const _hayCanceladas = _despachos.some(t => _statusOf(t) === 'cancelled');
           if (!todasListas) {
             console.log('[WWP→SDV] Tarea', tasks[idx].id, 'lista pero otras del mismo sdvId aún abiertas — SDV espera');
           }
@@ -8049,19 +8109,19 @@ const server = http.createServer(async (req, res) => {
             const sdvIdx = sdvList.findIndex(s => s.id === tasks[idx].sdvId);
             if (sdvIdx >= 0) {
               const sdv = sdvList[sdvIdx];
-              sdv.estado = 'despachada';
-              sdv.fechaDespacho = now;
-              sdv.statusHistory.push({
-                estado: 'despachada',
-                por: 'sistema',
-                nombre: 'Sistema',
-                at: now,
-                nota: 'Tarea WWP ' + d.status + ': ' + tasks[idx].id
-              });
-              sdvList[sdvIdx] = sdv;
-              saveSdv(sdvList);
-              console.log('[WWP→SDV] Solicitud marcada como despachada:', sdv.id, 'desde tarea:', tasks[idx].id);
-              try { notifySeller(sdv, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sdv.folio||sdv.id} fue despachada.` }); } catch(e){ silentCatch(e,'notifySeller'); }
+              // H0-1: transición validada — una SDV cancelada NO se resucita (antes: bypass de la FSM).
+              const _tr = sdvTransition(sdv, 'despachada', 'sistema', 'Sistema',
+                'Tarea WWP ' + d.status + ': ' + tasks[idx].id +
+                (_hayCanceladas ? ' — despacho parcial (hubo tareas canceladas en el vínculo)' : ''));
+              if (_tr.ok && !_tr.noop) {
+                sdv.fechaDespacho = now;
+                sdvList[sdvIdx] = sdv;
+                saveSdv(sdvList);
+                console.log('[WWP→SDV] Solicitud marcada como despachada:', sdv.id, 'desde tarea:', tasks[idx].id, _hayCanceladas?'(parcial)':'');
+                try { notifySeller(sdv, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sdv.folio||sdv.id} fue despachada${_hayCanceladas?' (parcial: parte del pedido fue cancelada, revisa con Operaciones)':''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
+              } else if (!_tr.ok) {
+                console.warn('[WWP→SDV] Cierre omitido para', sdv.id, '—', _tr.error);
+              }
             }
           } catch (e) {
             console.error('[WWP→SDV] Error actualizando SDV:', e.message);
@@ -8081,6 +8141,35 @@ const server = http.createServer(async (req, res) => {
               s.updatedAt=now;
             }
           });
+        }
+        // ── Homologación H0-2: espejo WWP→SDV al cancelar (2026-07-02) ──────────
+        // Antes: cancelar la tarea era MUDO hacia la SDV — quedaba "en_proceso" huérfana
+        // para siempre y la vendedora seguía diciéndole al cliente "está en preparación".
+        // Ahora: si no quedan tareas activas del vínculo, la SDV vuelve a la bandeja
+        // (pendiente_revision) con nota, se libera wwpTaskId (permite re-aprobar con
+        // 1-clic) y se avisa a la vendedora y a Ops.
+        if (d.status==='cancelled' && tasks[idx].sdvId) {
+          try {
+            const _finales = ['completed','validated','cancelled'];
+            const _quedanActivas = tasks.some(t => t.sdvId===tasks[idx].sdvId && t.id!==tasks[idx].id && !_finales.includes(t.status));
+            if (!_quedanActivas) {
+              const _sdvL = loadSdv();
+              const _si = _sdvL.findIndex(s => s.id === tasks[idx].sdvId);
+              if (_si >= 0 && _sdvL[_si].estado === 'en_proceso') {
+                const _sdv = _sdvL[_si];
+                const _tr2 = sdvTransition(_sdv, 'pendiente_revision', jp.userId, jp.name||'',
+                  'Tarea de despacho cancelada'+(d.note?': '+d.note:'')+' — la solicitud vuelve a la bandeja');
+                if (_tr2.ok) {
+                  _sdv.wwpTaskId = null; // liberar el puntero: re-aprobar regenera la tarea (1-clic)
+                  _sdvL[_si] = _sdv;
+                  saveSdv(_sdvL);
+                  try { notifySeller(_sdv, { type:'status_changed', title:'⚠️ Despacho en pausa', message:`La tarea de tu solicitud ${_sdv.folio||_sdv.id} fue cancelada${d.note?': '+d.note:''}. Operaciones la revisará de nuevo; te avisamos cuando se reapruebe.` }); } catch(e){ silentCatch(e,'notifySellerTaskCancel'); }
+                  try { notifyOpsNewSdv(_sdv.id, _sdv.clienteNombre || _sdv.odooOrderRef || 'N/A', (_sdv.articulosOdoo||[]).length); } catch(e){ silentCatch(e,'notifyOpsTaskCancel'); }
+                  console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'vuelve a pendiente_revision');
+                }
+              }
+            }
+          } catch(e) { silentCatch(e,'espejoCancelSdv'); }
         }
         // Validar en cascada: al validar la madre, sus subtareas ya 'completed' pasan a
         // 'validated' (espejo de la cascada de cancelación). Evita subtareas atrapadas en
@@ -8307,13 +8396,36 @@ const server = http.createServer(async (req, res) => {
     const id = reqPath.split('/')[4];
     let tasks = loadWwpTasks();
     const before = tasks.length;
+    const _delTask = tasks.find(t=>t.id===id) || null;
     // Eliminar la tarea y todas sus subtareas
     tasks = tasks.filter(t=>t.id!==id && t.parentId!==id);
     if (tasks.length===before) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
     saveWwpTasks(tasks);
+    // Homologación H0-4 (2026-07-02): si la tarea borrada tenía sdvId, limpiar el vínculo
+    // en la SDV. Antes quedaba wwpTaskId fantasma y (por la idempotencia del 1-clic) esa
+    // SDV nunca más podía regenerar su tarea.
+    let _linkedSdv = null;
+    if (_delTask && _delTask.sdvId) {
+      try {
+        const _sdvL = loadSdv();
+        const _si = _sdvL.findIndex(s => s.id === _delTask.sdvId);
+        if (_si >= 0) {
+          const _sdv = _sdvL[_si];
+          _sdv.wwpTareas = (_sdv.wwpTareas||[]).filter(w => w.taskId !== id);
+          if (_sdv.wwpTaskId === id) {
+            const _finales = ['completed','validated','cancelled'];
+            const _otra = tasks.find(t => t.sdvId === _delTask.sdvId && !_finales.includes(t.status));
+            _sdv.wwpTaskId = _otra ? _otra.id : null; // re-apuntar a otra activa o liberar para regenerar
+          }
+          _sdvL[_si] = _sdv;
+          saveSdv(_sdvL);
+          _linkedSdv = { id:_sdv.id, folio:_sdv.folio||null, estado:_sdv.estado };
+        }
+      } catch(e) { silentCatch(e,'deleteTaskSdvClean'); }
+    }
     broadcastWwpTasks('task_deleted', null, { taskId:id });
     res.writeHead(200,{'Content-Type':'application/json'});
-    res.end(JSON.stringify({ok:true}));
+    res.end(JSON.stringify({ok:true, linkedSdv:_linkedSdv}));
     return;
   }
 
@@ -12366,13 +12478,16 @@ const server = http.createServer(async (req, res) => {
 
       const ahora = new Date().toISOString();
 
-      // Actualizar SDV
-      sdv.estado = 'cancelada';
+      // Actualizar SDV — H0-1: vía helper de transición (valida FSM + sella statusHistory)
+      const _trC = sdvTransition(sdv, 'cancelada', jp.userId, jp.name, d.motivo);
+      if (!_trC.ok) {
+        res.writeHead(422, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:_trC.error}));
+        return;
+      }
       sdv.cancelado_por = jp.userId;
       sdv.cancelado_por_nombre = jp.name;
       sdv.cancelado_at = ahora;
-      if (!sdv.statusHistory) sdv.statusHistory = [];
-      sdv.statusHistory.push({estado:'cancelada', por:jp.userId, nombre:jp.name, at:ahora, nota:d.motivo});
 
       // Auditar
       const audId = auditLogSdvEvent('cancelada', sdvId, jp.userId, jp.name, {
@@ -12565,6 +12680,26 @@ const server = http.createServer(async (req, res) => {
       nuevaTarea.seq = nextTaskSeq();
       tasks.push(nuevaTarea);
       saveWwpTasks(tasks);
+
+      // Homologación H0-6 (2026-07-02): la reactivación ahora es canónica —
+      // reverse-link completo (antes la SDV no listaba la tarea nueva y seguía
+      // 'cancelada' con una tarea viva apuntándole), transición EXPLÍCITA
+      // cancelada→en_proceso vía sdvTransition (no bypass), y el notifySeller
+      // que el docstring siempre prometió.
+      try {
+        sdv.wwpTaskId = nuevaTarea.id;
+        sdv.wwpTareas = sdv.wwpTareas || [];
+        if (!sdv.wwpTareas.some(w => w.taskId === nuevaTarea.id)) {
+          sdv.wwpTareas.push({ taskId:nuevaTarea.id, titulo:nuevaTarea.title, creadoAt:ahora });
+        }
+        const _trR = sdvTransition(sdv, 'en_proceso', jp.userId, jp.name,
+          'Reactivación procesada — nueva tarea '+nuevaTarea.id+' para el '+d.cuando_procesar,
+          { extra:['en_proceso'] });
+        if (!_trR.ok) console.warn('[SDV] Reactivación: transición no aplicada —', _trR.error);
+        const _siR = sdvList.findIndex(s => s.id === sdv.id);
+        if (_siR >= 0) { sdvList[_siR] = sdv; saveSdv(sdvList); }
+        try { notifySeller(sdv, { type:'status_changed', title:'🔄 Solicitud reactivada', message:`Tu solicitud ${sdv.folio||sdv.id} fue reactivada; se procesará el ${d.cuando_procesar}.` }); } catch(e){ silentCatch(e,'notifySellerReact'); }
+      } catch(e) { silentCatch(e,'reactSdvLink'); }
 
       // Actualizar reactivación
       reac.estado = 'procesado';
