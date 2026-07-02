@@ -7718,7 +7718,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v110';
+var APP_BUILD = 'v111';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11365,6 +11365,13 @@ async function kanbanDrop(event, newStatus) {
   if (!task || task.status===newStatus) return;
   var STATUS_LABEL = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado'};
   if (!can('tasks_edit')) { toast('Sin permiso para mover tareas'); return; }
+  // H3-5: no cerrar una tarea de DESPACHO por arrastre — el drag salta el checklist de
+  // entrega por artículo. Se obliga a completarla desde el detalle (donde está la evidencia).
+  if (newStatus==='completed' && task.type==='dispatch_order') {
+    toast('Completa el despacho desde el detalle de la tarea (checklist y evidencia de entrega).', 5000);
+    openDrawer(taskId);
+    return;
+  }
   try {
     var r = await authFetch('/api/wwp/tasks/'+taskId, {
       method: 'PATCH',
@@ -13501,6 +13508,14 @@ async function deleteFotoDespacho(taskId, cat, fotoId) {
 }
 // Entrega por artículo
 async function setRetiradoPorCliente(taskId, val) {
+  // H3-4: si la solicitud declara transporte INCLUIDO, marcar "retirado por cliente" la
+  // contradice — confirmar antes (la SDV es la fuente del acuerdo con el cliente).
+  if (val) {
+    var _t = (_tasks||[]).find(function(x){ return x.id===taskId; });
+    if (_t && _t.transporteIncluido) {
+      if (!confirm('La solicitud '+(_t.sdvFolio||'')+' indica TRANSPORTE INCLUIDO. ¿Seguro que el cliente lo retira por su cuenta? Esto contradice lo acordado con ventas.')) return;
+    }
+  }
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId, {method:'PATCH',
       body:JSON.stringify({retirado_por_cliente:val, by:_user?.name||''})});
@@ -15092,6 +15107,19 @@ async function wizFetch(){
       ${d.salesperson?`<span style="font-size:11px;color:var(--text-3)">· ${esc(d.salesperson)}</span>`:''}
     </span>`;
     if(window.lucide)lucide.createIcons();
+
+    // H1-5: avisar si esta orden YA tiene una SDV activa → evita crear una tarea "suelta"
+    // paralela al pipeline (el usuario decide, no se bloquea).
+    try {
+      var _sc = await authFetch('/api/sdv/by-order?ref='+encodeURIComponent(_wizRef||ref));
+      var _scd = await _sc.json();
+      if (_sc.ok && _scd.ok && _scd.activa && cEl) {
+        cEl.insertAdjacentHTML('beforeend',
+          '<div style="margin-top:8px;padding:8px 10px;background:var(--amber-bg);border:1px solid rgba(245,158,11,.3);border-radius:8px;font-size:11px;color:var(--amber-text);line-height:1.4">'+
+          '<i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;vertical-align:-2px"></i> Esta orden ya tiene la solicitud <b>'+esc(_scd.activa.folio||_scd.activa.id)+'</b> ('+esc(_scd.activa.estado)+') en curso. Crear una tarea aquí quedará <b>sin vincular</b> a esa solicitud. Si es el despacho de esa solicitud, gestiónalo desde Ventas › Bandeja de Solicitudes.</div>');
+        if(window.lucide)lucide.createIcons();
+      }
+    } catch(e){ /* el chequeo no debe bloquear el wizard */ }
 
     // — Picks / devoluciones: si la orden tiene varios, mostrar selector primero —
     _wizPicks = d.picks||[];

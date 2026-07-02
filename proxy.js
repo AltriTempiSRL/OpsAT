@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v110';
+const APP_BUILD = 'v111';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -8100,6 +8100,14 @@ const server = http.createServer(async (req, res) => {
         // Auto-setear timestamps para dispatch_order al cambiar de estado
         if (d.status === 'in_progress' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchStartedAt) {
           tasks[idx].dispatchStartedAt = now;
+          // H3-2: avisar a la vendedora que su pedido salió a ruta (evento intermedio que
+          // antes era invisible — solo veía aprobada/despachada). El dato ya existía.
+          if (tasks[idx].sdvId) {
+            try {
+              const _svL = loadSdv(); const _sv = _svL.find(s => s.id === tasks[idx].sdvId);
+              if (_sv) notifySeller(_sv, { type:'status_changed', title:'🚚 Tu pedido salió a ruta', message:`El despacho de tu solicitud ${_sv.folio||_sv.id} está en camino.` });
+            } catch(e){ silentCatch(e,'notifySellerEnRuta'); }
+          }
         }
         if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
           tasks[idx].dispatchCompletedAt = now;
@@ -10772,6 +10780,22 @@ const server = http.createServer(async (req, res) => {
   // SOLICITUDES DE DESPACHO VENTAS (SDV)
   // ══════════════════════════════════════════════════════════════════════════════
 
+
+  // GET /api/sdv/by-order?ref=S123 — ¿hay una SDV ACTIVA para esta orden? (H1-5)
+  // Lo usa el wizard/buscador antes de crear una tarea suelta, para no duplicar el pipeline.
+  // Ruta con guion: no colisiona con GET /api/sdv/:id (que exige [a-z0-9_]+, sin guiones).
+  if (reqPath === '/api/sdv/by-order' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const ref = ((parsed.query||{}).ref || '').trim();
+    if (!ref) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'ref requerido'})); return; }
+    try {
+      const activas = loadSdv().filter(s => (s.odooOrderRef||'').trim().toUpperCase() === ref.toUpperCase()
+        && ['pendiente_revision','en_proceso'].includes(s.estado));
+      const activa = activas.length ? { id:activas[0].id, folio:activas[0].folio||null, estado:activas[0].estado, wwpTaskId:activas[0].wwpTaskId||null } : null;
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, activa, count:activas.length}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
 
   // POST /api/sdv/:id/crear-tarea — motor ÚNICO server-side para "Crear otra Tarea WWP"
   // (H1-1). Reusa createSdvTasks (mismo snapshot que la aprobación 1-clic); ya no pasa por el
