@@ -7237,6 +7237,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
       <button class="modal-close" onclick="closeTaskModal()">✕</button>
     </div>
     <div class="modal-body">
+      <!-- H2-1 (v113): aviso al editar tareas vinculadas a una SDV -->
+      <div id="mf-sdv-note" style="display:none;margin-bottom:12px;padding:9px 12px;background:var(--blue-bg,var(--surface-2));border:1px solid var(--border);border-radius:9px;font-size:12px;color:var(--text-2);line-height:1.5">
+        <i data-lucide="link" style="width:12px;height:12px;stroke:currentColor;vertical-align:-2px"></i>
+        Tarea vinculada a <b>la solicitud</b>. Tipo, fecha, orden, dirección y observaciones se editan en la solicitud de Ventas y bajan aquí solos.
+      </div>
       <div class="form-group">
         <label class="form-label">Título *</label>
         <input id="mf-title" class="form-input" placeholder="Descripción breve de la tarea">
@@ -7718,7 +7723,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v112';
+var APP_BUILD = 'v113';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11668,12 +11673,12 @@ async function syncPickNow(taskId) {
     const r = await authFetch('/api/wwp/tasks/'+taskId+'/pick-diff');
     const d = await r.json();
     if (!d.ok) { toast(d.error||'Error'); return; }
-    if (!d.hasChanges) { toast('Sin cambios'); return; }
+    if (!d.hasChanges) { toast(d.noPick ? 'Sin pick preparado (ASSIGNED) en Odoo para esta orden' : 'Sin cambios'); return; }
     const pr = await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'PUT',body:JSON.stringify({items:d.merged})});
     const pd = await pr.json();
     if (!pd.ok) { toast(pd.error||'Error al sincronizar'); return; }
     const s=d.summary||{};
-    toast(`✓ Sincronizado · ${s.added||0} nuevos · ${s.executed||0} ejecutados · ${s.moved||0} en otro pick`);
+    toast(`✓ Sincronizado · ${s.added||0} nuevos · ${s.executed||0} ejecutados · ${s.moved||0} en otro pick`+(s.omitidos?` · ${s.omitidos} de otra SDV omitido${s.omitidos>1?'s':''}`:''));
     openDrawer(taskId);
   } catch(e){ toast('Error: '+e.message); }
 }
@@ -12618,6 +12623,26 @@ function renderDrawer(t) {
         '<b><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;vertical-align:-2px"></i> El pick no cubre todo lo solicitado en '+esc(t.sdvFolio||'la solicitud')+':</b>'+
         _faltan.map(function(f){ return '<div style="margin-top:3px">• '+esc(f.name||f.sku)+' — solicitado '+f.req+', preparado '+f.got+(f.got===0?' <b>(no preparado)</b>':'')+'</div>'; }).join('')+
         '<div style="margin-top:6px;color:var(--text-2)">Revisa con inventario/ventas antes de despachar (posible despacho parcial).</div></div>';
+    }
+    // v113: dirección contraria — la tarea trae MÁS de lo solicitado (mezcla con otra SDV de
+    // la misma orden). Antes pasaba en silencio y se despachaba de más (caso S09644).
+    var _reqBySku = {};
+    t.sdvArticulos.forEach(function(a){ var k=(a.sku||'').trim(); if(!k) return; _reqBySku[k]=(_reqBySku[k]||0)+(a.quantity||1); });
+    var _selBySku = {};
+    t.items.forEach(function(it){ if(!it.selected||it.isKit) return; var k=(it.sku||'').trim(); if(!k) return; _selBySku[k]=(_selBySku[k]||0)+(parseInt(it.quantity,10)||1); });
+    var _sobran = [];
+    Object.keys(_selBySku).forEach(function(k){
+      var req=_reqBySku[k]||0;
+      if (_selBySku[k] > req) {
+        var _it=(t.items||[]).find(function(x){ return (x.sku||'').trim()===k; })||{};
+        _sobran.push({sku:k,name:_it.product_name||k,req:req,got:_selBySku[k]});
+      }
+    });
+    if (_sobran.length) {
+      sdvDiffHtml += '<div style="margin:0 0 12px;padding:10px 12px;background:var(--red-bg,rgba(220,38,38,.07));border:1px solid rgba(220,38,38,.35);border-radius:10px;font-size:12px;color:var(--red-text,#dc2626);line-height:1.5">'+
+        '<b><i data-lucide="alert-octagon" style="width:13px;height:13px;stroke:currentColor;vertical-align:-2px"></i> La tarea trae MÁS de lo solicitado en '+esc(t.sdvFolio||'la solicitud')+':</b>'+
+        _sobran.map(function(f){ return '<div style="margin-top:3px">• '+esc(f.name||f.sku)+' — solicitado '+f.req+', en la tarea '+f.got+(f.req===0?' <b>(no está en la solicitud)</b>':'')+'</div>'; }).join('')+
+        '<div style="margin-top:6px;color:var(--text-2)">Posible mezcla con otro despacho de la misma orden. Quita lo que no corresponda (Editar tarea) antes de despachar.</div></div>';
     }
   }
   var _drawerBodyEl = document.getElementById('drawer-body');
@@ -13798,7 +13823,19 @@ function openEditTaskModal() {
   document.getElementById('mf-manager').value=_editingTask.managerId||'';
   document.getElementById('mf-location').value=_editingTask.location||'';
   document.getElementById('mf-desc').value=_editingTask.description||'';
-  document.getElementById('mf-due').value=_editingTask.dueDate||'';
+  // v113: dueDate puede venir con hora (SDV: YYYY-MM-DDTHH:MM:SS) — el input type=date solo
+  // acepta YYYY-MM-DD; sin el recorte quedaba vacío y el guardado enviaba null (falso cambio).
+  document.getElementById('mf-due').value=(_editingTask.dueDate||'').slice(0,10);
+  // v113: preservar la nota de acción existente (antes no se pre-llenaba y guardar la borraba)
+  var _mfAn = document.getElementById('mf-accion-note'); if (_mfAn) _mfAn.value=_editingTask.actionNote||'';
+  // v113: limpiar contexto de orden de un uso anterior del modal (podía filtrar
+  // cliente/dirección de OTRA orden al guardar esta edición)
+  _lastOrderCtx={ client:'', salesperson:'', deliveryAddress:'', phone:'' };
+  // H2-1 (v113): en tareas SDV los campos propiedad de la solicitud se muestran pero no se editan
+  var _sdvOwned = !!_editingTask.sdvId;
+  ['mf-type','mf-due','mf-accion-note'].forEach(function(fid){ var el=document.getElementById(fid); if (el) el.disabled=_sdvOwned; });
+  var _sdvNote=document.getElementById('mf-sdv-note');
+  if (_sdvNote) { _sdvNote.style.display=_sdvOwned?'':'none'; if(_sdvOwned){ _sdvNote.querySelector('b').textContent=_editingTask.sdvFolio||'la solicitud'; } }
   if (_editingTask.odooRef) { document.getElementById('mf-odoo-ref').value=_editingTask.odooRef; }
   // Pre-cargar artículos existentes en el carrito
   _modalItems = (_editingTask.items||[])
@@ -13835,6 +13872,9 @@ function resetTaskModal() {
   _modalCurrentRef='';
   _lastAutoTitle='';
   _lastOrderCtx={ client:'', salesperson:'', deliveryAddress:'', phone:'' };
+  // v113: re-habilitar campos que openEditTaskModal pudo deshabilitar (tarea SDV)
+  ['mf-type','mf-due','mf-accion-note'].forEach(function(fid){ var el=document.getElementById(fid); if (el) el.disabled=false; });
+  var _sdvNote=document.getElementById('mf-sdv-note'); if (_sdvNote) _sdvNote.style.display='none';
   onTypeChange();
 }
 
@@ -14282,6 +14322,12 @@ async function saveTask() {
     phone: _lastOrderCtx.phone||undefined,
     createdBy:_user.id, by:_user.name, byUserId:_user.id
   };
+  // H2-1 (v113): en tareas vinculadas a SDV estos campos los gobierna la SOLICITUD — no se
+  // envían al editar (el server los rechazaría con 422; además _lastOrderCtx puede traer la
+  // dirección de Odoo, no la de la SDV). Se editan en la solicitud y bajan solos (H2-2).
+  if (_editingTask && _editingTask.sdvId) {
+    ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote','type'].forEach(function(k){ delete body[k]; });
+  }
   try {
     let r, d;
     if (_editingTask) {
@@ -14291,7 +14337,7 @@ async function saveTask() {
       r = await authFetch('/api/wwp/tasks',{method:'POST',body:JSON.stringify(body)});
       d = await r.json();
     }
-    if (!d.ok&&!d.task) { toast('Error al guardar'); return; }
+    if (!d.ok&&!d.task) { toast(d.error||'Error al guardar'); return; }
     const taskId = d.task?.id||_editingTask?.id;
     if (taskId && _modalItems.length) {
       await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(_modalItems)})});

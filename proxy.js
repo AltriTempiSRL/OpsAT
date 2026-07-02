@@ -167,7 +167,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v112';
+const APP_BUILD = 'v113';
 
 // ── WWP Auth — sin dependencias externas ────────────────────────────────────
 const WWP_AUTH_FILE     = path.join(DATA_DIR, 'wwp-users-auth.json');
@@ -8317,8 +8317,17 @@ const server = http.createServer(async (req, res) => {
       // Solo bloquea si el valor DIFIERE del actual (deja pasar echoes del formulario).
       if (tasks[idx].sdvId) {
         const _owned = [];
-        const _difiere = k => d[k] !== undefined && String(d[k] ?? '') !== String(tasks[idx][k] ?? '');
-        ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote'].forEach(k => { if (_difiere(k)) _owned.push(k); });
+        // v113: comparar tolerando "echoes" del formulario de edición — el modal reenvía
+        // dueDate como YYYY-MM-DD mientras la SDV guarda YYYY-MM-DDTHH:MM:SS, lo que daba
+        // un falso 422 que bloqueaba TODA edición de tareas SDV ("Error al guardar").
+        // Fechas: se compara solo el día. Texto: trim. Un echo no se aplica (delete d[k])
+        // para no sobreescribir el valor de la SDV con la variante normalizada (perdería la hora).
+        const _norm = (k, v) => { const s = String(v ?? '').trim(); return k==='dueDate' ? s.slice(0,10) : s; };
+        const _difiere = k => d[k] !== undefined && _norm(k, d[k]) !== _norm(k, tasks[idx][k]);
+        ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote'].forEach(k => {
+          if (_difiere(k)) _owned.push(k);
+          else if (d[k] !== undefined) delete d[k];
+        });
         if (d.type !== undefined && d.type !== tasks[idx].type) _owned.push('type');
         if (_owned.length) {
           res.writeHead(422,{'Content-Type':'application/json'});
@@ -11640,11 +11649,42 @@ const server = http.createServer(async (req, res) => {
       const t = loadWwpTasks().find(x => x.id === id);
       if (!t) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       if (!t.odooRef) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,hasChanges:false,reason:'sin orden'})); return; }
-      const pr = await buildItemsFromPicks(t.odooRef);
+      // v113: primera carga (tarea sin artículos seleccionados) → SOLO picks 'assigned'.
+      // Un pick 'done' es historia de otro despacho de la misma orden: incluirlo hacía que
+      // la tarea de una 2ª SDV heredara los artículos ya despachados por la 1ª (caso S09644).
+      // Con items ya cargados se mantiene el default ['assigned','done'] para poder
+      // clasificar como 'executed' las unidades propias cuando el pick se ejecuta.
+      const _firstLoad = !(t.items||[]).some(i => i.selected);
+      const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined);
       if (pr.noPick) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,hasChanges:false,noPick:true})); return; }
       const sBin = b => (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
       // Estado de cada pick (done/assigned) por nombre
       const pickState = {}; (pr.picks||[]).forEach(p => { pickState[p.name] = p.state; });
+      // v113: si la tarea viene de una SDV con snapshot de lo solicitado (H3-3), acotar el
+      // pick a esos SKUs/cantidades — el pick es de la ORDEN completa y puede traer artículos
+      // de otras SDVs. Lo omitido se reporta (summary.omitidos) en vez de entrar en silencio.
+      const omitted = [];
+      if (t.sdvId && Array.isArray(t.sdvArticulos) && t.sdvArticulos.length) {
+        const budget = {};
+        t.sdvArticulos.forEach(a => { const k=(a.sku||'').trim(); if (k) budget[k]=(budget[k]||0)+(parseInt(a.quantity,10)||1); });
+        // El presupuesto se consume primero de picks NO ejecutados: si el mismo SKU está en
+        // un pick done (de otra SDV) y en uno assigned (de esta), se queda la unidad assigned.
+        const ordered = pr.items.slice().sort((a,b) => ((pickState[a.pickName]==='done')?1:0) - ((pickState[b.pickName]==='done')?1:0));
+        const kept = new Set();
+        ordered.forEach(it => {
+          const k = (it.sku||'').trim();
+          const disp = budget[k] || 0;
+          const units = (it.unitBins||[]).length;
+          if (disp <= 0) { omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units }); return; }
+          const take = Math.min(units, disp);
+          if (take < units) omitted.push({ sku:it.sku, name:it.product_name, pickName:it.pickName, units: units - take });
+          budget[k] = disp - take;
+          it.unitBins = (it.unitBins||[]).slice(0, take);
+          it.quantity = take; it.units = take;
+          kept.add(it);
+        });
+        pr.items = pr.items.filter(it => kept.has(it));
+      }
       // Unidades objetivo del pick agrupadas por producto, con el pick y su estado por unidad
       const targByPid = {};
       pr.items.forEach(it => { (it.unitBins||[]).forEach(bin => {
@@ -11715,8 +11755,8 @@ const server = http.createServer(async (req, res) => {
       const hasChanges = g_new>0 || g_executed>0 || g_moved>0;
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:true, hasChanges, pickNames:pr.pickNames, picks:pr.picks||[],
-        summary:{ executed:g_executed, moved:g_moved, added:g_new, current:g_current },
-        merged }));
+        summary:{ executed:g_executed, moved:g_moved, added:g_new, current:g_current, omitidos: omitted.reduce((s,o)=>s+(o.units||0),0) },
+        omitted, merged }));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
