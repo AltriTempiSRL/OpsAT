@@ -9,8 +9,16 @@
   --bg:#e8e9e4;--surface:#fff;--surface-2:#f4f4f0;--border:#d8dbd5;
   --text:#1f2d3d;--text-2:#4a5568;--text-3:#94a3b8;--accent:#1b3b6f;
   --radius:8px;
+  --scrollbar-thumb:rgba(31,45,61,.22);--scrollbar-thumb-hover:rgba(31,45,61,.42);
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* Scrollbars — mismo estándar fino/disimulado que historial.html (Firefox: thin+color; WebKit viejo Android 8: thumb flotante) */
+html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+::-webkit-scrollbar{width:11px;height:11px;background:transparent}
+::-webkit-scrollbar-track{background:transparent;border:none}
+::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border:3px solid transparent;background-clip:padding-box;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover);background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow:hidden;height:100vh;display:flex;flex-direction:column}
 .topbar{background:var(--accent);color:#fff;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;height:40px}
 .topbar h1{font-size:14px;font-weight:700}

@@ -49,6 +49,9 @@ function _loadXlsx(cb){
   --border:#d6d4cf;
   --border-light:#dedad5;
   --border-focus:#2b6ad4;
+  /* ── Scrollbars (finos, disimulados con la ventana) ── */
+  --scrollbar-thumb:rgba(28,36,48,.22);
+  --scrollbar-thumb-hover:rgba(28,36,48,.42);
   /* ── Textos modo claro ── */
   --text-primary:#1c2430;
   --text-secondary:#45556a;
@@ -104,6 +107,8 @@ function _loadXlsx(cb){
   --text:#e8eaed;
   --text-2:#9aa5b4;
   --text-3:#4a5568;
+  --scrollbar-thumb:rgba(232,234,237,.20);
+  --scrollbar-thumb-hover:rgba(232,234,237,.40);
   --accent:#2a5f9e;
   --accent-hover:#3370b5;
   --accent-light:#1e3252;
@@ -359,6 +364,23 @@ function _loadXlsx(cb){
 *{box-sizing:border-box;font-family:inherit}
 body{margin:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text-primary);font-size:var(--fs-base);line-height:1.5;-webkit-text-size-adjust:100%;text-size-adjust:100%;transition:background-color 0.2s,color 0.2s;scrollbar-width:none}
 body::-webkit-scrollbar{display:none}
+/* ═══ SCROLLBARS — estándar unificado, fino y disimulado (historial + WWP) ═══
+   Aplica por defecto a todo contenedor con scroll (modales, drawers, dropdowns,
+   listas, tablas). Los que ocultan la barra a propósito (body, sidebar, nav,
+   chips horizontales) usan reglas más específicas que siguen ganando.
+   WebKit: thumb "flotante" (borde transparente + background-clip) redondeado
+   sobre track invisible. Firefox: thin + color. */
+html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+::-webkit-scrollbar{width:11px;height:11px;background:transparent}
+::-webkit-scrollbar-track{background:transparent;border:none}
+::-webkit-scrollbar-thumb{
+  background:var(--scrollbar-thumb);
+  border:3px solid transparent;
+  background-clip:padding-box;
+  border-radius:999px;
+}
+::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover);background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
 
 /* ── Header ── */
 .hdr{background:var(--header-bg);color:#fff;padding:14px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.18)}
@@ -2897,18 +2919,18 @@ body{font-family:var(--font);min-height:100dvh}
 .task-person-name{font-size:13px;font-weight:700;color:var(--text);flex:1}
 .task-person-count{font-size:11px;color:var(--text-muted);font-weight:600}
 
-/* ── DRAWER ─────────────────────────────────────────────────────── */
-#wwp-drawer-overlay{
+/* ── DRAWER (WWP tareas + SDV solicitudes comparten estilo) ──────── */
+#wwp-drawer-overlay,#sdv-drawer-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;cursor:pointer;
 }
-#wwp-drawer-overlay.open{display:block}
-#wwp-drawer{
+#wwp-drawer-overlay.open,#sdv-drawer-overlay.open{display:block}
+#wwp-drawer,#sdv-drawer{
   position:fixed;right:0;top:0;bottom:0;width:min(620px,100vw);
   background:var(--surface);z-index:201;overflow-y:auto;overflow-x:hidden;
   transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
   box-shadow:-8px 0 40px rgba(0,0,0,.2);display:flex;flex-direction:column;
 }
-#wwp-drawer.open{transform:translateX(0)}
+#wwp-drawer.open,#sdv-drawer.open{transform:translateX(0)}
 .drawer-header{
   position:sticky;top:0;background:var(--surface);z-index:10;
   border-bottom:1px solid var(--border-light);padding:var(--sp-3) var(--sp-4);
@@ -3885,7 +3907,7 @@ body{font-family:var(--font);min-height:100dvh}
   }
 
   /* — Drawer: Bottom sheet — */
-  #wwp-drawer{
+  #wwp-drawer,#sdv-drawer{
     top:6dvh;
     left:0;right:0;bottom:0;
     width:100%;
@@ -3894,7 +3916,7 @@ body{font-family:var(--font);min-height:100dvh}
     transition:transform .35s cubic-bezier(.32,0,.67,0);
     box-shadow:0 -8px 40px rgba(0,0,0,.25);
   }
-  #wwp-drawer.open{
+  #wwp-drawer.open,#sdv-drawer.open{
     transform:translateY(0);
     transition:transform .35s cubic-bezier(.33,1,.68,1);
   }
@@ -6181,8 +6203,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
               <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i>
             </button>
           </div>
+          <div style="position:relative;margin-bottom:12px">
+            <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-3);pointer-events:none"></i>
+            <input id="sdv-mis-search" class="sdv-input" placeholder="Busca por tu cliente o Nº de orden…" oninput="sdvMisRender()" autocomplete="off" style="width:100%;box-sizing:border-box;padding-left:34px">
+          </div>
           <div id="sdv-mis-list" class="sdv-list-wrap"></div>
-          <div id="sdv-mis-detail" style="display:none;margin-top:16px"></div>
         </div>
       </div>
     </div><!-- /section-sdv-portal -->
@@ -6206,8 +6231,11 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
           <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'rechazada')">Rechazadas</button>
           <button class="sdv-bandeja-filter" onclick="sdvBandejaFilter(this,'cancelada')">Canceladas</button>
         </div>
+        <div style="position:relative;margin-bottom:12px">
+          <i data-lucide="search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-3);pointer-events:none"></i>
+          <input id="sdv-bandeja-search" class="sdv-input" placeholder="Folio, orden, cliente o artículo…" oninput="sdvBandejaRender()" autocomplete="off" style="width:100%;box-sizing:border-box;padding-left:34px">
+        </div>
         <div id="sdv-bandeja-list" class="sdv-list-wrap"></div>
-        <div id="sdv-bandeja-detail" style="display:none;margin-top:16px"></div>
       </div>
     </div><!-- /section-sdv-bandeja -->
 
@@ -7209,6 +7237,13 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 </div>
 
 
+<div id="sdv-drawer-overlay" onclick="sdvCloseDrawer()"></div>
+<div id="sdv-drawer" role="dialog" aria-label="Detalle de solicitud">
+  <div class="drawer-header">
+    <button class="drawer-back" onclick="sdvCloseDrawer()">← Volver</button>
+  </div>
+  <div id="sdv-drawer-body" style="padding:var(--sp-4);overflow-y:auto;flex:1"></div>
+</div>
 <div id="wwp-drawer-overlay" onclick="closeDrawer()"></div>
 <div id="wwp-drawer">
   <div class="drawer-header">
@@ -7729,7 +7764,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v117';
+var APP_BUILD = 'v118';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29801,7 +29836,26 @@ function sdvConfirmMapLocation() {
   }
 }
 
+// ── Buscador SDV (client-side): folio, orden Odoo, cliente, vendedora, artículo, estado ──
+function _sdvNorm(x){ return String(x==null?'':x).toLowerCase().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]','g'),''); }
+function sdvMatchSol(s, q){
+  var n = _sdvNorm(q).trim();
+  if (!n) return true;
+  var campos = [ s.folio, s.odooOrderRef, s.clienteNombre, s.creadoNombre, s.vendedorNombre,
+    SDV_ESTADO_LABEL[s.estado], s.estado, (s.tipoSolicitud||''),
+    (s.articulosOdoo||[]).map(function(a){ return (a.product_name||'')+' '+(a.sku||''); }).join(' ') ];
+  var hay = _sdvNorm(campos.join(' '));
+  var refDigits = _sdvNorm(s.odooOrderRef).replace(/[^0-9]/g,'');
+  // AND de tokens: cada palabra escrita debe aparecer en algún campo (o como nº de orden sin la S/ceros)
+  return n.split(/\s+/).every(function(tok){
+    if (hay.indexOf(tok) >= 0) return true;
+    var d = tok.replace(/[^0-9]/g,'');
+    return !!(d && refDigits && refDigits.indexOf(d) >= 0);
+  });
+}
+
 // ── Mis Solicitudes ───────────────────────────────────────────────────────
+var _sdvMisSols = [];
 async function sdvCargarMis() {
   var list = document.getElementById('sdv-mis-list');
   if (!list) return;
@@ -29814,18 +29868,28 @@ async function sdvCargarMis() {
     var sols = d.solicitudes||[];
     // v114: el API ahora devuelve TODAS las solicitudes al equipo de Ventas (visibilidad
     // de equipo en Estado de Órdenes); esta vista es "MIS solicitudes" → solo las propias.
-    sols = sols.filter(function(s){ return !s.creadoPor || s.creadoPor === (_user&&_user.id); });
-    if (!sols.length) { list.innerHTML='<div style="color:var(--text-2);padding:20px;text-align:center">Sin solicitudes'+((_sdvMisFiltro)?' en este estado':'')+'</div>'; return; }
-    list.innerHTML = sols.map(function(s){ return sdvCardHtml(s, 'mis'); }).join('');
-    if (window.lucide) lucide.createIcons();
+    _sdvMisSols = sols.filter(function(s){ return !s.creadoPor || s.creadoPor === (_user&&_user.id); });
+    sdvMisRender();
   } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+function sdvMisRender() {
+  var list = document.getElementById('sdv-mis-list');
+  if (!list) return;
+  var q = (document.getElementById('sdv-mis-search')||{}).value||'';
+  var sols = _sdvMisSols.filter(function(s){ return sdvMatchSol(s, q); });
+  if (!sols.length) {
+    list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">'+(q?'Sin resultados para «'+esc(q)+'»':'Sin solicitudes'+((_sdvMisFiltro)?' en este estado':''))+'</div>';
+    return;
+  }
+  list.innerHTML = sols.map(function(s){ return sdvCardHtml(s, 'mis'); }).join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 function sdvMisFilter(btn, estado) {
   _sdvMisFiltro = estado;
   document.querySelectorAll('#sdv-mis-filters .sdv-bandeja-filter').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
-  document.getElementById('sdv-mis-detail').style.display='none';
+  sdvCloseDrawer();
   sdvCargarMis();
 }
 
@@ -29840,11 +29904,20 @@ async function sdvBandejaCargar() {
     var d = await r.json();
     if (!r.ok||!d.ok) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error al cargar</div>'; return; }
     _sdvAllSols = d.solicitudes||[];
-    var sols = _sdvAllSols;
-    if (!sols.length) { list.innerHTML='<div style="color:var(--text-2);padding:20px;text-align:center">Sin solicitudes</div>'; return; }
-    list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
-    if (window.lucide) lucide.createIcons();
+    sdvBandejaRender();
   } catch(e) { list.innerHTML='<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>'; }
+}
+function sdvBandejaRender() {
+  var list = document.getElementById('sdv-bandeja-list');
+  if (!list) return;
+  var q = (document.getElementById('sdv-bandeja-search')||{}).value||'';
+  var sols = _sdvAllSols.filter(function(s){ return sdvMatchSol(s, q); });
+  if (!sols.length) {
+    list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">'+(q?'Sin resultados para «'+esc(q)+'»':'Sin solicitudes')+'</div>';
+    return;
+  }
+  list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
+  if (window.lucide) lucide.createIcons();
 }
 
 // ── KPIs de Despacho (F4-2) — dashboard admin/manager ─────────────────────
@@ -30232,14 +30305,14 @@ function sdvBandejaFilter(btn, estado) {
   _sdvBandejaFiltro = estado;
   document.querySelectorAll('#sdv-bandeja-filters .sdv-bandeja-filter').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
-  document.getElementById('sdv-bandeja-detail').style.display='none';
+  sdvCloseDrawer();
   sdvBandejaCargar();
 }
 
 // ── Card HTML (lista) ──────────────────────────────────────────────────────
 function sdvCardHtml(s, ctx) {
-  var tipoLabel = SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud;
-  var ref = s.odooOrderRef ? (' · '+s.odooOrderRef) : (s.ubicacionOrigen?s.ubicacionOrigen+'→'+s.ubicacionDestino:'');
+  var tipoLabel = esc(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud);
+  var ref = s.odooOrderRef ? (' · '+esc(s.odooOrderRef)) : (s.ubicacionOrigen?esc(s.ubicacionOrigen)+'→'+esc(s.ubicacionDestino):'');
   var arts = (s.articulosOdoo||[]).length;
   // F2-1: tinte de vencimiento solo en estados activos (no en despachada/cancelada/rechazada).
   var _tier = (s.estado==='pendiente_revision'||s.estado==='en_proceso') ? sdvDueTier(s.fechaSolicitudDeseada) : null;
@@ -30251,14 +30324,14 @@ function sdvCardHtml(s, ctx) {
   }
   return '<div class="sdv-list-card" style="cursor:pointer;'+(_tier?DUE_CARD_STYLE[_tier]:'')+'" onclick="sdvVerDetalle(\''+s.id+'\',\''+ctx+'\')">'+
     '<div class="sdv-list-card-top">'+
-      '<span class="sdv-list-folio">'+s.folio+'</span>'+
+      '<span class="sdv-list-folio">'+esc(s.folio)+'</span>'+
       sdvBadge(s.estado)+
     '</div>'+
-    (s.solicitudOrigenId?'<div style="font-size:11px;color:var(--brand-primary)">↳ Adicional de '+(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
+    (s.solicitudOrigenId?'<div style="font-size:11px;color:var(--brand-primary)">↳ Adicional de '+esc(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
     '<div class="sdv-list-meta">'+tipoLabel+ref+'</div>'+
     '<div class="sdv-list-meta" style="margin-top:3px">'+
-      (s.clienteNombre?s.clienteNombre+' · ':'')+(arts?arts+' artículo(s) · ':'')+
-      (s.creadoNombre||'')+'  ·  '+sdvFmtDate(s.creadoAt)+
+      (s.clienteNombre?esc(s.clienteNombre)+' · ':'')+(arts?arts+' artículo(s) · ':'')+
+      esc(s.creadoNombre||'')+'  ·  '+sdvFmtDate(s.creadoAt)+
     '</div>'+
     (s.fechaSolicitudDeseada?'<div class="sdv-list-meta" style="margin-top:3px;'+(_tier?DUE_DATE_COLOR[_tier]:'')+'"><i data-lucide="calendar-clock" style="width:11px;height:11px;vertical-align:-1px"></i> Entrega deseada: '+sdvFmtDate(s.fechaSolicitudDeseada)+(_tier==='overdue'?' · vencida':_tier==='soon'?' · pronto':'')+'</div>':'')+
     acciones+
@@ -30267,11 +30340,10 @@ function sdvCardHtml(s, ctx) {
 
 // ── Detalle solicitud ─────────────────────────────────────────────────────
 async function sdvVerDetalle(id, ctx) {
-  var detailEl = document.getElementById('sdv-'+(ctx==='bandeja'?'bandeja':'mis')+'-detail');
+  var detailEl = document.getElementById('sdv-drawer-body');
   if (!detailEl) return;
+  sdvOpenDrawer();
   detailEl.innerHTML = '<div style="color:var(--text-2);padding:16px">Cargando…</div>';
-  detailEl.style.display = '';
-  detailEl.scrollIntoView({behavior:'smooth',block:'nearest'});
   try {
     var r = await authFetch('/api/sdv/'+id);
     var d = await r.json();
@@ -30280,9 +30352,9 @@ async function sdvVerDetalle(id, ctx) {
     var isOps = _user&&(_user.role==='admin'||_user.role==='manager');
     var artHtml = (s.articulosOdoo||[]).map(function(it){
       return '<div class="sdv-item-row" style="background:var(--surface-2);border-radius:var(--radius);margin-bottom:6px">'+
-        (it.image?'<img class="sdv-item-img" src="'+it.image+'" alt="">':'<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>')+
-        '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
-        '<span class="sdv-item-qty">×'+it.quantity+'</span></div>';
+        (it.image?'<img class="sdv-item-img" src="'+esc(it.image)+'" alt="">':'<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>')+
+        '<div><div class="sdv-item-name">'+esc(it.product_name)+'</div>'+(it.sku?'<div class="sdv-item-sku">'+esc(it.sku)+'</div>':'')+'</div>'+
+        '<span class="sdv-item-qty">×'+esc(it.quantity)+'</span></div>';
     }).join('');
     var acciones = '';
     // Contexto Bandeja (Ops)
@@ -30339,36 +30411,99 @@ async function sdvVerDetalle(id, ctx) {
     detailEl.innerHTML =
       '<div class="sdv-detail">'+
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">'+
-          '<div class="sdv-detail-title">'+s.folio+'</div>'+
+          '<div class="sdv-detail-title">'+esc(s.folio)+'</div>'+
           sdvBadge(s.estado)+
-          '<button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="document.getElementById(\'sdv-'+(ctx==='bandeja'?'bandeja':'mis')+'-detail\').style.display=\'none\'">✕</button>'+
+          (isOps && s.estado==='despachada' ? ' <span id="sdv-badge-sinev" style="display:none;font-size:10px;font-weight:800;color:var(--red-text);background:var(--red-bg);padding:2px 7px;border-radius:20px">⚠ sin evidencia</span>' : '')+
         '</div>'+
-        '<div class="sdv-detail-sub">'+(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+s.creadoNombre+'</div>'+
-        (s.solicitudOrigenId?'<div style="font-size:var(--fs-sm);color:var(--brand-primary);margin-bottom:4px">↳ Adicional de '+(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
-        (s.solicitudesAdicionales&&s.solicitudesAdicionales.length?'<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:4px">Adicionales vinculadas: '+s.solicitudesAdicionales.map(function(a){return a.folio+' ('+(SDV_ESTADO_LABEL[a.estado]||a.estado)+')';}).join(', ')+'</div>':'')+
+        '<div class="sdv-detail-sub">'+esc(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+esc(s.creadoNombre)+'</div>'+
+        (s.solicitudOrigenId?'<div style="font-size:var(--fs-sm);color:var(--brand-primary);margin-bottom:4px">↳ Adicional de '+esc(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
+        (s.solicitudesAdicionales&&s.solicitudesAdicionales.length?'<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:4px">Adicionales vinculadas: '+s.solicitudesAdicionales.map(function(a){return esc(a.folio)+' ('+esc(SDV_ESTADO_LABEL[a.estado]||a.estado)+')';}).join(', ')+'</div>':'')+
         '<div class="sdv-detail-section"><h4>Artículos</h4>'+(artHtml||'<span style="color:var(--text-2)">Sin artículos</span>')+'</div>'+
         '<div class="sdv-detail-section"><h4>Datos</h4>'+
-          (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+s.clienteNombre+'</dd></div>':'')+
-          (s.ciudadEntrega?'<div class="sdv-detail-row"><dt>Ciudad</dt><dd>'+s.ciudadEntrega+'</dd></div>':'')+
-          (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+s.direccionEntrega+'</dd></div>':'')+
-          (s.receptorNombre?'<div class="sdv-detail-row"><dt>Receptor</dt><dd>'+s.receptorNombre+'</dd></div>':'')+
-          (s.receptorContacto?'<div class="sdv-detail-row"><dt>Contacto</dt><dd>'+s.receptorContacto+'</dd></div>':'')+
-          (s.ubicacionOrigen?'<div class="sdv-detail-row"><dt>Desde</dt><dd>'+s.ubicacionOrigen+'</dd></div>':'')+
-          (s.ubicacionDestino?'<div class="sdv-detail-row"><dt>Hasta</dt><dd>'+s.ubicacionDestino+'</dd></div>':'')+
+          (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+esc(s.clienteNombre)+'</dd></div>':'')+
+          (s.ciudadEntrega?'<div class="sdv-detail-row"><dt>Ciudad</dt><dd>'+esc(s.ciudadEntrega)+'</dd></div>':'')+
+          (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+'</dd></div>':'')+
+          (s.receptorNombre?'<div class="sdv-detail-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>':'')+
+          (s.receptorContacto?'<div class="sdv-detail-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>':'')+
+          (s.ubicacionOrigen?'<div class="sdv-detail-row"><dt>Desde</dt><dd>'+esc(s.ubicacionOrigen)+'</dd></div>':'')+
+          (s.ubicacionDestino?'<div class="sdv-detail-row"><dt>Hasta</dt><dd>'+esc(s.ubicacionDestino)+'</dd></div>':'')+
           '<div class="sdv-detail-row"><dt>Transporte incluido</dt><dd>'+(s.transporteIncluido?'Sí':'No')+'</dd></div>'+
           (s.fechaSolicitudDeseada?'<div class="sdv-detail-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>':'')+
-          (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+s.gpsCoords+' 🗺</a></dd></div>':'')+
-          (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+s.observaciones+'</dd></div>':'')+
+          (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+esc(s.gpsCoords)+' 🗺</a></dd></div>':'')+
+          (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
         '</div>'+
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.wwpTaskId && isOps?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
         (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+esc(t.titulo||'')+(t.status?' · <span class="eo-ops-chip">'+(STATUS_LABELS[t.status]||t.status)+'</span>':'')+'</dd></div>'; }).join('')+'</div>':'')+
+        '<div class="sdv-detail-section" id="sdv-fotos-section"><h4>Fotos del despacho</h4><div id="sdv-drawer-fotos"><div style="color:var(--text-2);font-size:12px;padding:4px 0">Cargando evidencias…</div></div></div>'+
         acciones+
         ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
       '</div>';
     if (window.lucide) lucide.createIcons();
+    sdvCargarFotos(id);   // galería de evidencias de las tareas del vínculo (async, no bloquea)
   } catch(e) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+e.message+'</div>'; }
+}
+
+// ── Drawer SDV: abrir/cerrar (reusa el patrón visual del drawer WWP) ──────
+function sdvOpenDrawer() {
+  var dr = document.getElementById('sdv-drawer'), ov = document.getElementById('sdv-drawer-overlay');
+  if (ov) ov.classList.add('open');
+  if (dr) { dr.classList.add('open'); var b = document.getElementById('sdv-drawer-body'); if (b) b.scrollTop = 0; }
+}
+function sdvCloseDrawer() {
+  var dr = document.getElementById('sdv-drawer'), ov = document.getElementById('sdv-drawer-overlay');
+  if (dr) dr.classList.remove('open');
+  if (ov) ov.classList.remove('open');
+}
+
+// ── Galería de evidencias de la SDV (fotos de todas las tareas del vínculo) ──
+// Ventas ve solo entrega+vehículo (RBAC en el server); Ops ve todo. Miniaturas → lightbox.
+async function sdvCargarFotos(id) {
+  var box = document.getElementById('sdv-drawer-fotos');
+  if (!box) return;
+  try {
+    var r = await authFetch('/api/sdv/'+id+'/fotos');
+    var d = await r.json();
+    if (!r.ok || !d.ok) { box.innerHTML = '<div style="color:var(--text-3);font-size:12px">No se pudieron cargar las evidencias.</div>'; return; }
+    // Badge "despachada sin evidencia" (Ops)
+    var badge = document.getElementById('sdv-badge-sinev');
+    if (badge) badge.style.display = d.entregaSinEvidencia ? '' : 'none';
+    if (!d.grupos || !d.grupos.length) {
+      box.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:2px 0">'+(d.entregaSinEvidencia?'⚠ Despachada sin foto de entrega registrada.':'Aún sin evidencia de despacho.')+'</div>';
+      return;
+    }
+    _sdvFotoItems = [];   // orden plano para el lightbox: [{url,cap}]
+    var html = (d.soloEntregaVehiculo ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Evidencia de entrega de tu pedido.</div>' : '');
+    d.grupos.forEach(function(g){
+      var cab = esc(g.titulo||'Tarea') + (g.localidad?' · '+esc(g.localidad):'') + (g.cancelada?' · <span style="color:var(--red-text)">cancelada</span>':'');
+      html += '<div style="margin-bottom:12px'+(g.cancelada?';opacity:.55':'')+'">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:6px">'+cab+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+        g.fotos.map(function(f){
+          var cap = f.tipoLabel + (f.productName?': '+f.productName:'');
+          var gi = _sdvFotoItems.length; _sdvFotoItems.push({ url:f.url, cap:cap });
+          return '<button type="button" class="sdv-foto-thumb" title="'+esc(cap)+'" data-idx="'+gi+'" '+
+            'style="width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;padding:0;cursor:pointer;background:var(--surface-2);position:relative">'+
+            '<img loading="lazy" src="'+esc(f.url)+'" alt="'+esc(cap)+'" style="width:100%;height:100%;object-fit:cover;display:block">'+
+            '</button>';
+        }).join('')+
+        '</div></div>';
+    });
+    box.innerHTML = html;
+    // Delegación de click → lightbox (evita onclick con strings interpolados)
+    box.querySelectorAll('.sdv-foto-thumb').forEach(function(btn){
+      btn.addEventListener('click', function(){ sdvFotoLightbox(parseInt(btn.dataset.idx,10)||0); });
+    });
+  } catch(e) { box.innerHTML = '<div style="color:var(--text-3);font-size:12px">No se pudieron cargar las evidencias.</div>'; }
+}
+var _sdvFotoItems = [];
+// Reusa el visor de imágenes con zoom del módulo de averías (avLightbox) si existe;
+// si no, abre la imagen en una pestaña como fallback. Firma: avLightboxOpen(src,cap,items,idx).
+function sdvFotoLightbox(idx) {
+  var it = _sdvFotoItems[idx]; if (!it) return;
+  if (typeof avLightboxOpen === 'function') { avLightboxOpen(null, null, _sdvFotoItems, idx); return; }
+  window.open(it.url, '_blank');
 }
 
 // ── Editar Solicitud (NUEVO) ──────────────────────────────────────────────
@@ -30762,7 +30897,7 @@ async function sdvAprobarConfirm(id, conEmpaque) {
     if (!r.ok||!d.ok) { toast(d.error||'Error al aprobar'); return; }
     toast('Aprobada · '+(conEmpaque?'cadena de empaque + despacho creada':'tarea de despacho creada')+' — asígnale el encargado','success');
     sdvBandejaCargar();
-    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvCloseDrawer();
     // Abrir la tarea recién creada (raíz de la cadena) para asignar encargado sin buscarla
     var _tid = d.solicitud && d.solicitud.wwpTaskId;
     if (_tid) sdvIrATarea(_tid);
@@ -30778,7 +30913,7 @@ async function sdvCambiarEstado(id, estado) {
     if (!r.ok||!d.ok) { toast(d.error||'Error al actualizar'); return; }
     toast('Estado actualizado a: '+(labels[estado]||estado));
     sdvBandejaCargar();
-    document.getElementById('sdv-bandeja-detail').style.display='none';
+    sdvCloseDrawer();
   } catch(e) { toast('Error: '+e.message); }
 }
 
@@ -30811,7 +30946,7 @@ async function sdvRechazarConfirm(id) {
     var ov=document.getElementById('sdvRejectOverlay'); if(ov) ov.remove();
     toast('Solicitud rechazada · se avisó a la vendedora');
     sdvBandejaCargar();
-    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvCloseDrawer();
   } catch(e) { toast('Error: '+e.message); }
 }
 
@@ -30830,7 +30965,7 @@ async function sdvEliminar(id, folio){
     var d = await r.json();
     if(!r.ok||!d.ok){ toast(d.error||'No se pudo eliminar'); return; }
     toast('Solicitud '+(folio||id)+' eliminada'+(d.linkedTask?' · la tarea ligada '+d.linkedTask+' quedó (cancélala si aplica)':''));
-    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvCloseDrawer();
     sdvBandejaCargar();
   } catch(e){ toast('Error: '+e.message); }
 }
@@ -30863,7 +30998,7 @@ async function sdvCrearTareaConfirm(id, conEmpaque) {
     if (!r.ok||!d.ok) { toast(d.error||'Error al crear la tarea'); return; }
     toast('Tarea de despacho creada'+(conEmpaque?' (con empaque)':'')+' — asígnale el encargado','success');
     sdvBandejaCargar();
-    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvCloseDrawer();
     // Abrir la tarea recién creada para asignar encargado sin buscarla
     if (d.taskId) sdvIrATarea(d.taskId);
   } catch(e) { toast('Error: '+e.message); }
@@ -30896,7 +31031,7 @@ async function sdvMarcarDespachadaManualConfirm(id) {
     var ov=document.getElementById('sdvDespManualOverlay'); if(ov) ov.remove();
     toast('Solicitud marcada como despachada (manual)');
     sdvBandejaCargar();
-    var det=document.getElementById('sdv-bandeja-detail'); if(det) det.style.display='none';
+    sdvCloseDrawer();
   } catch(e) { toast('Error: '+e.message); }
 }
 

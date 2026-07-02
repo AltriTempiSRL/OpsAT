@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v117';
+const APP_BUILD = 'v118';
 
 // ── Caché de gzip en memoria para estáticos (perf Android 8) ─────────────────
 // Antes se re-comprimía historial.html (~1.85 MB) en CADA request. La entrada
@@ -11608,6 +11608,58 @@ const server = http.createServer(async (req, res) => {
       const full = loadSdv();
       const outList = list.map(s => s.solicitudOrigenId ? { ...s, solicitudOrigenFolio: (full.find(o=>o.id===s.solicitudOrigenId)||{}).folio || null } : s);
       sendGzipJson(req, res, 200, {ok:true,solicitudes:outList});
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/sdv/:id/fotos — evidencias de TODAS las tareas del vínculo (multi-despacho v117),
+  // agrupadas por tarea y clasificadas por tipo. Sirve URLs /wwp-fotos/… (nunca base64).
+  // RBAC: admin/manager ven todo; 'ventas' (dueña) solo entrega + vehículo — la evidencia de
+  // empaque/recepción es interna de operaciones (Vera, 2026-07-02).
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/fotos$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const sol = loadSdv().find(s => s.id === id);
+      if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      const isOps = ['admin','manager'].includes(jp.role);
+      if (!isOps && sol.creadoPor !== jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      const TIPO_LABEL = { articulo:'Evidencia de artículo', entrega:'Documentos firmados (entrega)', recepcion:'Documentos recibidos', vehiculo:'Vehículo cargado', guia:'Guía visual', kit:'Kit armado', chat:'Chat', otro:'Otra' };
+      const VENTAS_TIPOS = new Set(['entrega','vehiculo']); // lo que la vendedora puede mostrar al cliente
+      const clasifTipo = rest => {
+        if (rest.indexOf('oi_') === 0) return 'articulo';
+        const p = rest.split('_')[0];
+        return ({ ent:'entrega', rec:'recepcion', veh:'vehiculo', fg:'guia', kit:'kit', chat:'chat' })[p] || 'otro';
+      };
+      // Tareas del vínculo (multi-despacho: escanear por sdvId, no por wwpTaskId)
+      const tareas = loadWwpTasks().filter(t => t.sdvId === id);
+      const byId = {}; tareas.forEach(t => { byId[t.id] = t; });
+      let files = []; try { files = fs.readdirSync(WWP_FOTOS_DIR); } catch(e) { files = []; }
+      const grupos = []; let totalFotos = 0, hayEntrega = false;
+      tareas.forEach(t => {
+        const pidName = {}; (t.items||[]).forEach(it => { const p=String(it.odoo_product_id||''); if (p && it.product_name) pidName[p]=it.product_name; });
+        const prefix = t.id + '_';
+        const fotos = files.filter(f => f.indexOf(prefix) === 0).map(f => {
+          const rest = f.slice(prefix.length);
+          const tipo = clasifTipo(rest);
+          let productName = '';
+          if (tipo === 'articulo') { const pm = rest.match(/^oi_(\d+)/); if (pm) productName = pidName[pm[1]] || ''; }
+          const tm = f.match(/_(\d{13})(?:_\d+)?\.[A-Za-z]+$/) || f.match(/_(\d{13})\b/);
+          return { url:'/wwp-fotos/'+f, tipo, tipoLabel:TIPO_LABEL[tipo]||'Otra', productName,
+            date: tm ? new Date(Number(tm[1])).toISOString() : null };
+        }).filter(x => isOps || VENTAS_TIPOS.has(x.tipo)); // filtro RBAC por tipo para ventas
+        fotos.sort((a,b) => String(a.tipo).localeCompare(String(b.tipo)) || String(a.date||'').localeCompare(String(b.date||'')));
+        if (fotos.some(x => x.tipo === 'entrega')) hayEntrega = true;
+        if (fotos.length) {
+          totalFotos += fotos.length;
+          grupos.push({ taskId:t.id, titulo:t.title||'', tipoTarea:t.type||'',
+            localidad:t.localidad||'', estado:t.status||'', cancelada:t.status==='cancelled', fotos });
+        }
+      });
+      // Badge "despachada sin evidencia" (Ops): la SDV cerró pero no hay foto de entrega firmada.
+      const entregaSinEvidencia = sol.estado === 'despachada' && !hayEntrega;
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, totalFotos, grupos, entregaSinEvidencia, soloEntregaVehiculo: !isOps }));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

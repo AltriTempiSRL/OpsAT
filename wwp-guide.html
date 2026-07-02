@@ -15,8 +15,16 @@
   --border:#e2e8f0;--text:#0f172a;--text-2:#475569;--text-3:#94a3b8;
   --radius:10px;
   --font:'Inter',system-ui,-apple-system,sans-serif;
+  --scrollbar-thumb:rgba(15,23,42,.22);--scrollbar-thumb-hover:rgba(15,23,42,.42);
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* Scrollbars — mismo estándar fino/disimulado que historial.html */
+html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+::-webkit-scrollbar{width:11px;height:11px;background:transparent}
+::-webkit-scrollbar-track{background:transparent;border:none}
+::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border:3px solid transparent;background-clip:padding-box;border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover);background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
 body{font-family:var(--font);background:var(--surface-2);color:var(--text);line-height:1.6}
 
 /* ── HEADER ── */
