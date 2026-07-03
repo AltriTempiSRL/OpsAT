@@ -7757,7 +7757,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v120';
+var APP_BUILD = 'v121';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -30101,6 +30101,19 @@ function renderEstadoOrdenes() {
   if (window.lucide) lucide.createIcons();
 }
 
+// Cuenta TODAS las fotos reales de un grupo de tareas: evidencia por artículo +
+// checklist de despacho (entrega/vehículo/recepción) + guía + el campo genérico
+// `evidence` (tareas libres). Antes el badge de Estado de Órdenes solo miraba
+// `evidence`+`fotos_guia`, así que despachos con evidencia real (items/checklist)
+// se mostraban como "Sin evidencias" — contradicción visible al abrir el mini-preview
+// de fotos (Gabriel, 2026-07-03). Misma fuente que GET /api/sdv/:id/fotos.
+function sdvContarEvidencias(linked) {
+  return (linked||[]).reduce(function(n, t) {
+    var itemsEv = (t.items||[]).reduce(function(m, it){ return m + (it.evidence_images||[]).length; }, 0);
+    return n + (t.evidence||[]).length + (t.fotos_guia||[]).length + itemsEv +
+      (t.fotos_entrega||[]).length + (t.fotos_vehiculo||[]).length + (t.fotos_recepcion||[]).length;
+  }, 0);
+}
 function eoCardHtml(s, tasks) {
   // Soporte dual: datos mock (_mock:true) o datos reales (SDV + tasks)
   var mainTask, totalEvid, anyDone, demoPend, sinOut, devolucion;
@@ -30119,7 +30132,7 @@ function eoCardHtml(s, tasks) {
     // el detalle mostraba "Despacho" para la misma SDV.
     mainTask   = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
                  linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
-    totalEvid  = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; }, 0);
+    totalEvid  = sdvContarEvidencias(linked);
     anyDone    = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
     demoPend   = 0;
     linked.forEach(function(t){ demoPend += (t.items||[]).filter(function(it){ return it.esDemo&&(!it.demoStatus||it.demoStatus==='en_demo'); }).length; });
@@ -30138,9 +30151,9 @@ function eoCardHtml(s, tasks) {
     if (mainTask.managerName) chips += ' <span class="eo-ops-chip"><i data-lucide="user" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(mainTask.managerName.split(' ')[0])+'</span>';
   }
   if (anyDone && totalEvid>0) {
-    chips += ' <span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' evidencia'+(totalEvid>1?'s':'')+'</span>';
+    chips += ' <span class="eo-ops-chip green" style="cursor:zoom-in" title="Ver fotos" onclick="event.stopPropagation();eoAbrirFotos(\''+esc(s.id)+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' evidencia'+(totalEvid>1?'s':'')+'</span>';
   } else if (anyDone && totalEvid===0) {
-    chips += ' <span class="eo-ops-chip amber"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
+    chips += ' <span class="eo-ops-chip amber" style="cursor:zoom-in" title="Ver fotos" onclick="event.stopPropagation();eoAbrirFotos(\''+esc(s.id)+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
   }
   if (mainTask && mainTask.type==='dispatch_order' && mainTask.status==='in_progress') {
     chips += ' <span class="eo-ops-chip" style="color:#0891b2;background:rgba(8,145,178,.1)"><i data-lucide="truck" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> En ruta</span>';
@@ -30189,7 +30202,7 @@ async function eoAbrirDetalle(sdvId) {
     var linked = (_tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
     var mainTask = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
                   linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
-    var totalEvid = linked.reduce(function(n,t){ return n+(t.evidence||[]).length+(t.fotos_guia||[]).length; },0);
+    var totalEvid = sdvContarEvidencias(linked);
     var devTask = linked.find(function(t){ return t.devolucionRuta; });
     var hasDevolucion = !!(devTask && devTask.devolucionRuta.estado==='abierta');
 
@@ -30222,7 +30235,7 @@ async function eoAbrirDetalle(sdvId) {
       var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
       opsInner += '<div class="eo-det-row"><dt>Tarea</dt><dd><span class="eo-ops-chip '+stCls+'">'+esc(tyLbl)+' · '+esc(stLbl)+'</span></dd></div>' +
         (mainTask.managerName ? '<div class="eo-det-row"><dt>Encargado</dt><dd>'+esc(mainTask.managerName)+'</dd></div>' : '') +
-        (totalEvid>0 ? '<div class="eo-det-row"><dt>Evidencias</dt><dd><span class="eo-ops-chip green"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' foto'+(totalEvid>1?'s':'')+'</span></dd></div>' : '');
+        (totalEvid>0 ? '<div class="eo-det-row"><dt>Evidencias</dt><dd><span class="eo-ops-chip green" style="cursor:zoom-in" title="Ver fotos" onclick="eoAbrirFotos(\''+esc(s.id)+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' foto'+(totalEvid>1?'s':'')+'</span></dd></div>' : '');
     }
     // F3-2: estado real del despacho (OUT) en Odoo — se carga async tras render.
     if (s.odooOrderRef) {
@@ -30456,6 +30469,41 @@ function sdvCloseDrawer() {
 
 // ── Galería de evidencias de la SDV (fotos de todas las tareas del vínculo) ──
 // Ventas ve solo entrega+vehículo (RBAC en el server); Ops ve todo. Miniaturas → lightbox.
+// Construye la galería (miniaturas + botón compartir) dentro de `box` a partir de la
+// respuesta de GET /api/sdv/:id/fotos. Compartido por el detalle completo de la SDV
+// (sdvCargarFotos) y por el mini-preview rápido desde Estado de Órdenes (eoAbrirFotos).
+function sdvRenderFotosInto(box, d) {
+  // Badge "despachada sin evidencia" (Ops) — solo existe en el detalle completo; no-op si no aplica
+  var badge = document.getElementById('sdv-badge-sinev');
+  if (badge) badge.style.display = d.entregaSinEvidencia ? '' : 'none';
+  if (!d.grupos || !d.grupos.length) {
+    box.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:2px 0">'+(d.entregaSinEvidencia?'⚠ Despachada sin foto de entrega registrada.':'Aún sin evidencia de despacho.')+'</div>';
+    return;
+  }
+  _sdvFotoItems = [];   // orden plano para el lightbox: [{url,cap}]
+  var html = (d.soloEntregaVehiculo ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Evidencia de entrega de tu pedido.</div>' : '');
+  d.grupos.forEach(function(g){
+    var cab = esc(g.titulo||'Tarea') + (g.localidad?' · '+esc(g.localidad):'') + (g.cancelada?' · <span style="color:var(--red-text)">cancelada</span>':'');
+    html += '<div style="margin-bottom:12px'+(g.cancelada?';opacity:.55':'')+'">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:6px">'+cab+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
+      g.fotos.map(function(f){
+        var cap = f.tipoLabel + (f.productName?': '+f.productName:'');
+        var gi = _sdvFotoItems.length; _sdvFotoItems.push({ url:f.url, cap:cap });
+        return '<button type="button" class="sdv-foto-thumb" title="'+esc(cap)+'" data-idx="'+gi+'" '+
+          'style="width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;padding:0;cursor:pointer;background:var(--surface-2);position:relative">'+
+          '<img loading="lazy" src="'+esc(f.url)+'" alt="'+esc(cap)+'" style="width:100%;height:100%;object-fit:cover;display:block">'+
+          '</button>';
+      }).join('')+
+      '</div></div>';
+  });
+  box.innerHTML = html;
+  if (window.lucide) lucide.createIcons({el:box});
+  // Delegación de click → lightbox (evita onclick con strings interpolados)
+  box.querySelectorAll('.sdv-foto-thumb').forEach(function(btn){
+    btn.addEventListener('click', function(){ sdvFotoLightbox(parseInt(btn.dataset.idx,10)||0); });
+  });
+}
 async function sdvCargarFotos(id) {
   var box = document.getElementById('sdv-drawer-fotos');
   if (!box) return;
@@ -30463,80 +30511,35 @@ async function sdvCargarFotos(id) {
     var r = await authFetch('/api/sdv/'+id+'/fotos');
     var d = await r.json();
     if (!r.ok || !d.ok) { box.innerHTML = '<div style="color:var(--text-3);font-size:12px">No se pudieron cargar las evidencias.</div>'; return; }
-    // Badge "despachada sin evidencia" (Ops)
-    var badge = document.getElementById('sdv-badge-sinev');
-    if (badge) badge.style.display = d.entregaSinEvidencia ? '' : 'none';
-    if (!d.grupos || !d.grupos.length) {
-      box.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:2px 0">'+(d.entregaSinEvidencia?'⚠ Despachada sin foto de entrega registrada.':'Aún sin evidencia de despacho.')+'</div>';
-      return;
-    }
-    _sdvFotoItems = [];   // orden plano para el lightbox: [{url,cap}]
-    _sdvShareItems = [];  // solo entrega+vehículo: la prueba que se comparte al cliente
-    var html = (d.soloEntregaVehiculo ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Evidencia de entrega de tu pedido.</div>' : '');
-    d.grupos.forEach(function(g){
-      var cab = esc(g.titulo||'Tarea') + (g.localidad?' · '+esc(g.localidad):'') + (g.cancelada?' · <span style="color:var(--red-text)">cancelada</span>':'');
-      html += '<div style="margin-bottom:12px'+(g.cancelada?';opacity:.55':'')+'">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:6px">'+cab+'</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:8px">'+
-        g.fotos.map(function(f){
-          var cap = f.tipoLabel + (f.productName?': '+f.productName:'');
-          var gi = _sdvFotoItems.length; _sdvFotoItems.push({ url:f.url, cap:cap });
-          if (!g.cancelada && (f.tipo==='entrega' || f.tipo==='vehiculo')) _sdvShareItems.push({ url:f.url, cap:cap });
-          return '<button type="button" class="sdv-foto-thumb" title="'+esc(cap)+'" data-idx="'+gi+'" '+
-            'style="width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;padding:0;cursor:pointer;background:var(--surface-2);position:relative">'+
-            '<img loading="lazy" src="'+esc(f.url)+'" alt="'+esc(cap)+'" style="width:100%;height:100%;object-fit:cover;display:block">'+
-            '</button>';
-        }).join('')+
-        '</div></div>';
-    });
-    // Botón compartir: solo si hay evidencia de entrega/vehículo (prueba ante el cliente)
-    var shareBtn = _sdvShareItems.length
-      ? '<button type="button" id="sdv-share-btn" class="btn btn-secondary" style="margin-bottom:12px;display:inline-flex;align-items:center;gap:6px"><i data-lucide="share-2" style="width:14px;height:14px"></i> Compartir evidencia de entrega</button>'
-      : '';
-    box.innerHTML = shareBtn + html;
-    if (window.lucide) lucide.createIcons({el:box});
-    // Delegación de click → lightbox (evita onclick con strings interpolados)
-    box.querySelectorAll('.sdv-foto-thumb').forEach(function(btn){
-      btn.addEventListener('click', function(){ sdvFotoLightbox(parseInt(btn.dataset.idx,10)||0); });
-    });
-    var sb = document.getElementById('sdv-share-btn');
-    if (sb) sb.addEventListener('click', sdvCompartirEvidencia);
+    sdvRenderFotosInto(box, d);
   } catch(e) { box.innerHTML = '<div style="color:var(--text-3);font-size:12px">No se pudieron cargar las evidencias.</div>'; }
 }
-var _sdvFotoItems = [];
-var _sdvShareItems = [];
-// Comparte la evidencia de entrega firmada con el cliente. Prioriza compartir los
-// ARCHIVOS de imagen (Web Share nivel 2, ideal para WhatsApp); si no, comparte los
-// enlaces; si tampoco, los copia al portapapeles. Requiere https + gesto del usuario.
-async function sdvCompartirEvidencia() {
-  var items = _sdvShareItems || [];
-  if (!items.length) { toast('No hay evidencia de entrega para compartir'); return; }
-  var abs = items.map(function(it){ return location.origin + it.url; });
-  var titulo = 'Evidencia de entrega';
-  var btn = document.getElementById('sdv-share-btn');
-  if (btn) { btn.disabled = true; }
+
+// ── Mini-preview de evidencias desde Estado de Órdenes ────────────────────
+// Click en el chip "N evidencias"/"Sin evidencias" abre directo la galería, sin pasar
+// por el detalle completo de la solicitud (Gabriel, 2026-07-03).
+async function eoAbrirFotos(sdvId, folio) {
+  var old = document.getElementById('eoFotosOverlay'); if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="eoFotosOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" style="max-width:520px">'+
+        '<div class="eo-det-hdr">'+
+          '<div class="eo-det-folio"><i data-lucide="image" style="width:15px;height:15px;vertical-align:-3px;margin-right:4px;stroke:currentColor;display:inline-block"></i>Evidencias — '+esc(folio||sdvId)+'</div>'+
+          '<button onclick="document.getElementById(\'eoFotosOverlay\').remove()" aria-label="Cerrar" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-2);font-size:22px;line-height:1">&times;</button>'+
+        '</div>'+
+        '<div class="eo-det-body" id="eo-fotos-body"><div style="color:var(--text-2);font-size:12px;padding:10px 0">Cargando…</div></div>'+
+      '</div>'+
+    '</div>');
+  if (window.lucide) lucide.createIcons();
+  var box = document.getElementById('eo-fotos-body');
   try {
-    // 1) Compartir los archivos de imagen (mejor experiencia en móvil)
-    if (navigator.canShare) {
-      var files = [];
-      for (var i=0;i<items.length;i++) {
-        try { var resp = await fetch(items[i].url); var blob = await resp.blob();
-          var ext = ((blob.type.split('/')[1])||'jpg').replace('jpeg','jpg');
-          files.push(new File([blob], 'evidencia-'+(i+1)+'.'+ext, {type:blob.type||'image/jpeg'})); } catch(e){}
-      }
-      if (files.length && navigator.canShare({files:files})) { await navigator.share({files:files, title:titulo, text:titulo}); return; }
-    }
-    // 2) Compartir los enlaces (texto)
-    if (navigator.share) { await navigator.share({title:titulo, text:titulo+':\n'+abs.join('\n')}); return; }
-    // 3) Copiar al portapapeles
-    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(abs.join('\n')); toast('Enlaces de evidencia copiados al portapapeles','success'); return; }
-    // 4) Último recurso
-    window.open(abs[0], '_blank');
-  } catch(e) {
-    if (e && e.name === 'AbortError') return; // el usuario canceló el diálogo de compartir
-    toast('No se pudo compartir: '+((e&&e.message)||e), 'error');
-  } finally { if (btn) btn.disabled = false; }
+    var r = await authFetch('/api/sdv/'+sdvId+'/fotos');
+    var d = await r.json();
+    if (!r.ok || !d.ok) { box.innerHTML = '<div style="color:var(--red-text);font-size:12px">'+esc(d.error||'No se pudieron cargar las evidencias.')+'</div>'; return; }
+    sdvRenderFotosInto(box, d);
+  } catch(e) { box.innerHTML = '<div style="color:var(--red-text);font-size:12px">Error: '+esc(e.message)+'</div>'; }
 }
+var _sdvFotoItems = [];
 // Reusa el visor de imágenes con zoom del módulo de averías (avLightbox) si existe;
 // si no, abre la imagen en una pestaña como fallback. Firma: avLightboxOpen(src,cap,items,idx).
 function sdvFotoLightbox(idx) {
