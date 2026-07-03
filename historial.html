@@ -59,6 +59,8 @@ function _loadXlsx(cb){
   --text:#1c2430;
   --text-2:#45556a;
   --text-3:#a8b5c2;
+  /* Aliases usados en la CSS de Estado de Órdenes que faltaban en :root (resolvían a vacío) */
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
   /* ── Brand / acento ── */
   --accent:#1b3b6f;
   --accent-hover:#142d56;
@@ -109,6 +111,7 @@ function _loadXlsx(cb){
   --text:#e8eaed;
   --text-2:#9aa5b4;
   --text-3:#4a5568;
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
   --scrollbar-thumb:rgba(232,234,237,.20);
   --scrollbar-thumb-hover:rgba(232,234,237,.40);
   --accent:#2a5f9e;
@@ -4499,9 +4502,67 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-ops-chip.amber{background:rgba(245,158,11,.1);border-color:var(--amber-dot);color:var(--amber-text)}
 .eo-ops-chip.blue{background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.3);color:var(--accent)}
 .eo-ops-chip.red{background:rgba(220,38,38,.1);border-color:var(--red-dot);color:var(--red-text)}
-.eo-ops-chip.purple{background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.4);color:#9333ea}
+.eo-ops-chip.purple{background:var(--purple-bg);border-color:var(--purple-dot);color:var(--purple-text)}
 .eo-dev-chip{cursor:pointer;transition:opacity .15s}
 .eo-dev-chip:hover{opacity:.75}
+/* ── Banda de alertas accionables ("Acción HOY") ──────────────────────────
+   Discreta pero visible: fila de chips clickeables que filtran la lista. Rojo =
+   acción urgente, ámbar = advertencia. Tokens semánticos, dark mode gratis. */
+.eo-alert-band{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;border:1px solid var(--amber-dot);border-left:3px solid var(--amber-dot);border-radius:10px;background:var(--amber-bg)}
+.eo-alert-band.urgent{border-color:var(--red-dot);border-left-color:var(--red-dot);background:var(--red-bg)}
+.eo-alert-band-lbl{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--amber-text)}
+.eo-alert-band.urgent .eo-alert-band-lbl{color:var(--red-text)}
+.eo-alert-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid var(--amber-dot);background:var(--surface);color:var(--amber-text);transition:box-shadow .15s,transform .06s;font-family:inherit}
+.eo-alert-chip:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.eo-alert-chip:active{transform:translateY(1px)}
+.eo-alert-chip.active{box-shadow:0 0 0 2px var(--amber-dot)}
+.eo-alert-chip.red{border-color:var(--red-dot);color:var(--red-text)}
+.eo-alert-chip.red.active{box-shadow:0 0 0 2px var(--red-dot)}
+.eo-alert-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.eo-alert-chip .eo-alert-n{font-weight:800}
+/* ── Toolbar: buscador + toggle "mío/equipo" ──────────────────────────────── */
+.eo-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.eo-search-wrap{position:relative;flex:1;min-width:180px}
+.eo-search-wrap i{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-3);pointer-events:none}
+.eo-search-wrap .sdv-input{padding-left:34px}
+.eo-search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;color:var(--text-3);padding:4px;line-height:1;font-size:16px;border-radius:6px}
+.eo-search-clear:hover{color:var(--text-1);background:var(--surface-2)}
+.eo-seg{display:inline-flex;border:1.5px solid var(--border);border-radius:20px;overflow:hidden;flex-shrink:0}
+.eo-seg button{border:none;background:var(--surface-2);color:var(--text-2);font-size:11px;font-weight:700;padding:6px 14px;cursor:pointer;font-family:inherit;transition:all .15s;min-height:32px}
+.eo-seg button+button{border-left:1.5px solid var(--border)}
+.eo-seg button.active{background:var(--accent);color:#fff}
+.eo-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* ── Fila de agregados de volumen ─────────────────────────────────────────── */
+.eo-agg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:var(--text-2)}
+.eo-agg-total{font-weight:800;color:var(--text-1);font-size:12px}
+.eo-agg-item{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);white-space:nowrap}
+.eo-agg-item b{color:var(--text-1);font-weight:800}
+.eo-agg-item.otif{background:var(--green-bg);border-color:var(--green-dot);color:var(--green-text)}
+.eo-agg-item.otif.warn{background:var(--amber-bg);border-color:var(--amber-dot);color:var(--amber-text)}
+.eo-agg-item.otif.bad{background:var(--red-bg);border-color:var(--red-dot);color:var(--red-text)}
+/* ── Gráficos (motor propio rptDonut, canvas tematizado por tokens) ───────── */
+.eo-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px}
+.eo-chart-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px 6px;background:var(--surface-1)}
+.eo-chart-title{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.eo-chart-card canvas{width:100%;height:150px;display:block}
+/* Tarjeta de tendencia (SVG líneas propias, estilo dash-trend — sin Chart.js) */
+.eo-chart-card.eo-trend-card{grid-column:1 / -1}
+.eo-trend-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.eo-trend-now{font-size:22px;font-weight:800;color:var(--text-primary);line-height:1}
+.eo-trend-now-lbl{font-size:11px;color:var(--text-2)}
+.eo-trend-delta{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:800;padding:2px 8px;border-radius:14px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+.eo-trend-delta.up{background:var(--green-bg);border-color:var(--green-dot);color:var(--green-text)}
+.eo-trend-delta.down{background:var(--red-bg);border-color:var(--red-dot);color:var(--red-text)}
+.eo-trend-delta i{width:12px;height:12px;stroke:currentColor}
+.eo-trend-svg{width:100%;height:auto;display:block;overflow:visible}
+.eo-trend-empty{text-align:center;padding:20px;color:var(--text-3);font-size:12px}
+.eo-charts-toggle{display:inline-flex;align-items:center;gap:5px;margin-bottom:12px;font-size:11px;font-weight:700;color:var(--text-2);background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;cursor:pointer;font-family:inherit}
+.eo-charts-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.eo-charts-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* ── Chip de aging (tiempo en el estado actual) en la card ────────────────── */
+.eo-age-chip{color:var(--text-3);border-color:var(--border)}
+.eo-age-chip.warn{background:var(--amber-bg);border-color:var(--amber-dot);color:var(--amber-text)}
+.eo-age-chip.bad{background:var(--red-bg);border-color:var(--red-dot);color:var(--red-text)}
 /* ── Tooltip reutilizable (data-tip) — hover + focus, CSS puro ─────────────
    Uso: cualquier elemento con  data-tip="texto corto"  muestra una burbuja
    explicativa al pasar el cursor O al enfocarlo con teclado. El elemento debe
@@ -4577,6 +4638,375 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-det-art-sku{color:var(--text-3);font-size:10px}
 .eo-det-art-qty{font-weight:700;color:var(--text-2);flex-shrink:0}
 .eo-det-ops-box{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+
+/* ══════════ Estado de Órdenes — REDISEÑO por zonas (eo2) ══════════
+   Rediseño en zonas espaciales (no pila): Z0 header · Z1 pulso de UNA línea ·
+   Z2 lista central (Lista/Kanban/Calendario/Gráficos) · Z3 rail "Acción hoy" ·
+   Z4 analítica lateral. Portado de la maqueta aprobada _mockup_estado_ordenes.html.
+   Regla defensiva: [hidden] gana sobre las clases de vista que declaran display. */
+.eo2{padding:18px 22px 44px;max-width:1480px;margin:0 auto}
+.eo2 [hidden]{display:none!important}
+/* Z0 · Encabezado */
+.eo2-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:4px 2px 16px}
+.eo2-eyebrow{font-size:10px;letter-spacing:1.6px;font-weight:700;color:var(--text-muted);text-transform:uppercase}
+.eo2-title{font-size:24px;font-weight:800;letter-spacing:-.3px;margin:2px 0 0;color:var(--text-1)}
+.eo2-live{display:flex;gap:7px;align-items:center;font-size:11px;color:var(--text-2);margin-top:5px}
+.eo2-live-dot{width:7px;height:7px;border-radius:50%;background:var(--green-dot);box-shadow:0 0 0 3px var(--green-bg);flex-shrink:0}
+.eo2-hd-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.eo2-refresh{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;color:var(--text-2);cursor:pointer}
+.eo2-refresh:hover{background:var(--surface-3)}
+.eo2-refresh i{width:16px;height:16px;stroke:currentColor}
+/* Z1 · Pulso (KPIs + agregados fusionados en una línea) */
+.eo2-pulse{display:flex;background:var(--surface-2);border:1px solid var(--border-light,var(--border));border-radius:12px;margin-bottom:18px}
+.eo2-pi{flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:12px 16px 11px;background:transparent;border:none;border-left:1px solid var(--border-light,var(--border));text-align:left;position:relative;min-width:0;font-family:inherit;cursor:default}
+.eo2-pi:first-child{border-left:none;border-radius:12px 0 0 12px}
+.eo2-pi:last-child{border-radius:0 12px 12px 0}
+.eo2-pi-n{font-size:21px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.eo2-pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.eo2-pi-s{font-size:10px;color:var(--text-3);white-space:nowrap}
+.eo2-pi[data-f]{cursor:pointer}
+.eo2-pi[data-f]:hover{background:var(--surface-3)}
+.eo2-pi.active{background:var(--accent-light,var(--surface-3))}
+.eo2-pi.active::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent)}
+/* Rejilla de zonas */
+.eo2-layout{display:grid;grid-template-columns:minmax(0,1fr) 318px;grid-template-rows:auto 1fr;gap:18px;align-items:start}
+.eo2-main{grid-column:1;grid-row:1/3;min-width:0}
+.eo2-alerts{grid-column:2;grid-row:1}
+.eo2-analytics{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:16px}
+.eo2-card{background:var(--surface-2);border:1px solid var(--border-light,var(--border));border-radius:12px}
+/* Z2 · Barra de herramientas unificada */
+.eo2-toolbar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border-light,var(--border));flex-wrap:wrap;position:relative}
+.eo2-view-seg{display:inline-flex;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:2px;flex-shrink:0}
+.eo2-view-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;font-size:12px;font-weight:700;color:var(--text-2);border:none;background:transparent;border-radius:7px;min-height:32px;font-family:inherit;cursor:pointer}
+.eo2-view-btn i{width:14px;height:14px;stroke:currentColor}
+.eo2-view-btn.active{background:var(--surface);color:var(--text-1);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.eo2-vb-txt{white-space:nowrap}
+.eo2-search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;color:var(--text-muted);position:relative}
+.eo2-search i{width:15px;height:15px;stroke:currentColor;flex-shrink:0}
+.eo2-search input{flex:1;border:none;background:transparent;font:inherit;font-size:13px;color:var(--text-1);outline:none;min-width:40px}
+.eo2-search input::placeholder{color:var(--text-3)}
+.eo2-search-clear{border:none;background:none;cursor:pointer;color:var(--text-3);padding:2px 4px;line-height:1;font-size:16px;border-radius:6px;flex-shrink:0}
+.eo2-search-clear:hover{color:var(--text-1)}
+.eo2-tb-ctrl{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:12px;font-weight:700;color:var(--text-2);min-height:36px;white-space:nowrap;flex-shrink:0;font-family:inherit;cursor:pointer}
+.eo2-tb-ctrl:hover{background:var(--surface-3)}
+.eo2-tb-ctrl i{width:14px;height:14px;stroke:currentColor}
+.eo2-tb-ctrl.on{background:var(--accent-light,var(--surface-3));border-color:var(--accent);color:var(--accent)}
+[data-theme='dark'] .eo2-tb-ctrl.on{color:var(--text-1)}
+.eo2-tb-badge{min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.eo2-tb-ctrl .eo2-cv{color:var(--text-3);transition:transform .15s}
+.eo2-tb-ctrl.open-pop .eo2-cv{transform:rotate(90deg)}
+.eo2-tb-count{font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:auto}
+/* Chips de filtros activos */
+.eo2-chips-bar{display:none;flex-wrap:wrap;gap:6px;padding:9px 14px 2px;border-bottom:1px solid var(--border-light,var(--border))}
+.eo2-chips-bar.on{display:flex}
+.eo2-fchip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-light,var(--surface-3));color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:3px 5px 3px 11px;font-size:11px;font-weight:700}
+[data-theme='dark'] .eo2-fchip{color:var(--text-1)}
+.eo2-fchip .eo2-fk{font-weight:600;opacity:.7}
+.eo2-fchip button{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:none;background:transparent;border-radius:50%;color:inherit;cursor:pointer}
+.eo2-fchip button:hover{background:rgba(0,0,0,.12)}
+.eo2-fchip button i{width:11px;height:11px;stroke:currentColor}
+.eo2-chip-clear{background:transparent;border:none;color:var(--text-muted);font-size:11px;font-weight:600;text-decoration:underline;padding:3px 6px;cursor:pointer;font-family:inherit}
+.eo2-chip-clear:hover{color:var(--text-1)}
+/* Popover de filtros / agrupar */
+.eo2-pop{display:none;position:absolute;top:calc(100% - 4px);z-index:40;width:min(560px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.22);padding:14px}
+.eo2-pop.on{display:block}
+.eo2-pop-fil{left:14px}
+.eo2-pop-grp{right:14px;width:min(230px,calc(100vw - 32px))}
+.eo2-pop-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.eo2-pop-f{display:flex;flex-direction:column;gap:5px}
+.eo2-pop-f.wide{grid-column:1/3}
+.eo2-pop-lbl{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.eo2-pop-sel,.eo2-pop-in{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;color:var(--text-1);min-height:38px}
+.eo2-pop-sel:focus,.eo2-pop-in:focus{outline:none;border-color:var(--border-focus,var(--accent))}
+.eo2-pop-range{display:flex;align-items:center;gap:8px}
+.eo2-pop-range .eo2-pop-in{flex:1}
+.eo2-pop-range span{font-size:11px;color:var(--text-muted)}
+.eo2-pop-seg{display:flex;flex-wrap:wrap;gap:6px}
+.eo2-pop-seg button{background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--text-2);min-height:34px;cursor:pointer;font-family:inherit}
+.eo2-pop-seg button:hover{background:var(--surface-3)}
+.eo2-pop-seg button.on{background:var(--accent-light,var(--surface-3));border-color:var(--accent);color:var(--accent)}
+[data-theme='dark'] .eo2-pop-seg button.on{color:var(--text-1)}
+.eo2-pop-ft{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-light,var(--border))}
+.eo2-pop-opt{display:flex;flex-direction:column;gap:5px}
+.eo2-pop-opt button{text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;padding:9px 11px;font-size:12.5px;font-weight:600;color:var(--text-1);min-height:38px;cursor:pointer;font-family:inherit}
+.eo2-pop-opt button:hover{background:var(--surface-3)}
+.eo2-pop-opt button.on{background:var(--accent-light,var(--surface-3));color:var(--accent)}
+[data-theme='dark'] .eo2-pop-opt button.on{color:var(--text-1)}
+.eo2-pop-opt button.on::after{content:'✓';float:right;font-weight:800}
+.eo2-btn-apply{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;min-height:38px;cursor:pointer;font-family:inherit}
+.eo2-btn-apply:hover{background:var(--accent-hover,var(--accent))}
+.eo2-btn-reset{background:transparent;border:none;color:var(--text-muted);font-size:12px;font-weight:600;text-decoration:underline;padding:8px 4px;cursor:pointer;font-family:inherit}
+.eo2-btn-reset:hover{color:var(--text-1)}
+.eo2-tbl-wrap{overflow-x:auto}
+/* Encabezado de grupo (agrupar por, en Lista) */
+.eo2-grp-h td{background:var(--surface-3);border-bottom:1px solid var(--border);padding:8px 12px}
+.eo2-grp-t{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-2)}
+.eo2-grp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.eo2-grp-n{font-weight:700;color:var(--text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+/* Tabla */
+.eo2-tbl{width:100%;border-collapse:collapse}
+.eo2-tbl th{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.eo2-tbl td{padding:9px 10px;border-bottom:1px solid var(--border-light,var(--border));font-size:12.5px;vertical-align:middle}
+tr.eo2-rw{cursor:pointer}
+@media(hover:hover){tr.eo2-rw:hover td{background:var(--surface-3)}}
+tr.eo2-rw:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+tr.eo2-due-red td{background:var(--red-bg)}
+tr.eo2-due-red td:first-child{box-shadow:inset 3px 0 0 var(--red-dot)}
+tr.eo2-due-amber td{background:var(--amber-bg)}
+tr.eo2-due-amber td:first-child{box-shadow:inset 3px 0 0 var(--amber-dot)}
+.eo2-ord{font-weight:800;font-size:12.5px;white-space:nowrap;color:var(--text-1)}
+.eo2-fol{font-size:10.5px;color:var(--text-muted);margin-top:1px;white-space:nowrap}
+.eo2-cli{font-weight:700;color:var(--text-1)}
+.eo2-ciu{font-size:10.5px;color:var(--text-muted);display:flex;align-items:center;gap:4px;margin-top:1px}
+.eo2-ciu i{width:10px;height:10px;stroke:currentColor}
+.eo2-vend{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.eo2-av{width:22px;height:22px;border-radius:50%;background:var(--accent-light,var(--surface-3));color:var(--accent);font-size:9px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;letter-spacing:.3px;flex-shrink:0}
+[data-theme='dark'] .eo2-av{color:var(--text-1)}
+.eo2-est-w{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due-amber .sdv-badge-pendiente,tr.eo2-due-amber .sdv-badge-proceso{background:var(--surface)}
+.eo2-subchip{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:5px;font-size:10px;font-weight:700;border:1px solid var(--border);background:var(--surface);color:var(--text-2);white-space:nowrap}
+.eo2-subchip i{width:10px;height:10px;stroke:currentColor}
+.eo2-subchip.red{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+.eo2-subchip.amber{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
+.eo2-subchip.sky{background:var(--sky-bg);color:var(--sky-text);border-color:var(--sky-dot)}
+.eo2-subchip.green{background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)}
+.eo2-subchip.purple{background:var(--purple-bg);color:var(--purple-text);border-color:var(--purple-dot)}
+.eo2-pd{font-weight:600;font-size:12px;white-space:nowrap;color:var(--text-1)}
+.eo2-pr{font-size:10.5px;font-weight:700;margin-top:1px;white-space:nowrap}
+.eo2-pr.red{color:var(--red-text)}.eo2-pr.amber{color:var(--amber-text)}.eo2-pr.green{color:var(--green-text)}.eo2-pr.mut{color:var(--text-muted)}
+.eo2-evd{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--green-text);white-space:nowrap}
+.eo2-evd i{width:12px;height:12px;stroke:currentColor}
+.eo2-evd.warn{color:var(--amber-text)}
+.eo2-evd.na{color:var(--text-3);font-weight:500}
+.eo2-loc{font-size:11.5px;color:var(--text-2);white-space:nowrap}
+.eo2-empty{display:none;padding:44px 20px;text-align:center;color:var(--text-muted)}
+.eo2-empty.on{display:block}
+.eo2-empty i{width:26px;height:26px;color:var(--text-3);stroke:currentColor}
+.eo2-empty p{margin:10px 0 14px;font-size:13px}
+.eo2-btn-ghost{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;font-family:inherit}
+.eo2-btn-ghost:hover{background:var(--surface-3)}
+/* Vista Kanban */
+.eo2-kanban{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start}
+.eo2-kb-col{flex:0 0 262px;background:var(--surface);border:1px solid var(--border-light,var(--border));border-radius:12px;display:flex;flex-direction:column}
+.eo2-kb-h{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border-light,var(--border))}
+.eo2-kb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.eo2-kb-t{font-size:12px;font-weight:800;color:var(--text-1);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eo2-kb-n{min-width:22px;height:20px;padding:0 6px;border-radius:6px;background:var(--surface-3);color:var(--text-2);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.eo2-kb-body{padding:9px;display:flex;flex-direction:column;gap:9px;min-height:60px}
+.eo2-kb-card{background:var(--surface-2);border:1px solid var(--border-light,var(--border));border-radius:10px;padding:10px 11px;cursor:pointer;text-align:left;width:100%;display:block;position:relative;font-family:inherit}
+.eo2-kb-card:hover{border-color:var(--border);background:var(--surface-3)}
+.eo2-kb-card:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.eo2-kb-card.eo2-due-red{box-shadow:inset 3px 0 0 var(--red-dot)}
+.eo2-kb-card.eo2-due-amber{box-shadow:inset 3px 0 0 var(--amber-dot)}
+.eo2-kb-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.eo2-kb-ord{font-size:12px;font-weight:800;color:var(--text-1)}
+.eo2-kb-prom{font-weight:700;font-size:10.5px;margin-left:auto}
+.eo2-kb-prom.red{color:var(--red-text)}.eo2-kb-prom.amber{color:var(--amber-text)}.eo2-kb-prom.green{color:var(--green-text)}.eo2-kb-prom.mut{color:var(--text-muted)}
+.eo2-kb-cli{font-size:12.5px;font-weight:700;line-height:1.3;margin-bottom:4px;color:var(--text-1)}
+.eo2-kb-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:10.5px;color:var(--text-muted)}
+.eo2-kb-av{width:18px;height:18px;border-radius:50%;background:var(--accent-light,var(--surface-3));color:var(--accent);font-size:8px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+[data-theme='dark'] .eo2-kb-av{color:var(--text-1)}
+.eo2-kb-sub{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.eo2-kb-empty{font-size:11px;color:var(--text-3);padding:14px 4px;text-align:center}
+/* Vista Gráficos */
+.eo2-charts2{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.eo2-ch-card{background:var(--surface);border:1px solid var(--border-light,var(--border));border-radius:12px;padding:15px 16px}
+.eo2-ch-card.full{grid-column:1/3}
+.eo2-ch-title{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px}
+.eo2-ch-card canvas{width:100%;height:170px;display:block}
+.eo2-ch-empty{font-size:12px;color:var(--text-muted);padding:24px 4px;text-align:center}
+.eo2-ch-bars .eo2-bar-row{grid-template-columns:120px 1fr 30px}
+.eo2-ch-month-svg{width:100%;height:150px;display:block}
+.eo2-ch-month-x{display:grid;margin-top:3px}
+.eo2-ch-month-x span{font-size:9px;color:var(--text-3);text-align:center;font-variant-numeric:tabular-nums}
+.eo2-ch-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.eo2-ch-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
+.eo2-ch-lg-sw{width:9px;height:9px;border-radius:2px}
+/* Vista Calendario */
+.eo2-cal{padding:14px 16px 16px}
+.eo2-cal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.eo2-cal-nav{display:flex;align-items:center;gap:10px}
+.eo2-cal-arrow{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text-2);cursor:pointer}
+.eo2-cal-arrow:hover{background:var(--surface-3)}
+.eo2-cal-arrow i{width:14px;height:14px;stroke:currentColor}
+.eo2-cal-month{font-size:14px;font-weight:800;min-width:130px;text-align:center;color:var(--text-1)}
+.eo2-cal-dim{display:inline-flex;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:2px}
+.eo2-cal-dim button{padding:6px 12px;font-size:12px;font-weight:700;color:var(--text-2);border:none;background:transparent;border-radius:7px;min-height:30px;cursor:pointer;font-family:inherit}
+.eo2-cal-dim button.active{background:var(--surface);color:var(--text-1);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.eo2-cal-hint{font-size:11px;color:var(--text-muted);margin:2px 0 12px;line-height:1.4}
+.eo2-cal-grid{display:block}
+.eo2-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.eo2-cal-dow span{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);text-align:center}
+.eo2-cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.eo2-cal-cell{position:relative;min-height:70px;background:var(--surface);border:1px solid var(--border-light,var(--border));border-radius:9px;padding:6px 7px;text-align:left;display:flex;flex-direction:column;gap:3px;color:inherit;font-family:inherit}
+.eo2-cal-cell.empty{background:transparent;border:none}
+.eo2-cal-cell.has{cursor:pointer}
+.eo2-cal-cell.has:hover{border-color:var(--border);background:var(--surface-3)}
+.eo2-cal-cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.eo2-cal-cell[disabled]{cursor:default}
+.eo2-cal-num{font-size:11.5px;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums}
+.eo2-cal-cell.today .eo2-cal-num{background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.eo2-cal-cell.overdue{background:var(--red-bg);border-color:var(--red-dot)}
+.eo2-cal-cell.overdue .eo2-cal-num{color:var(--red-text)}
+.eo2-cal-cell.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.eo2-cal-cnt{font-size:15px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:var(--text-1)}
+.eo2-cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto}
+.eo2-cal-dot{width:6px;height:6px;border-radius:50%}
+/* Panel del día (recompensa visible del clic; va DEBAJO, con auto-scroll) */
+.eo2-cal-day-panel{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;animation:eo2-cdp-in .18s ease-out}
+@keyframes eo2-cdp-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.eo2-cal-day-panel{animation:none}}
+.eo2-cdp-h{display:flex;align-items:center;gap:10px;padding:11px 14px 3px}
+.eo2-cdp-title{font-size:13px;font-weight:800;color:var(--text-1)}
+.eo2-cdp-count{font-size:11px;color:var(--text-muted);font-weight:600}
+.eo2-cdp-x{margin-left:auto;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:7px;color:var(--text-muted);cursor:pointer}
+.eo2-cdp-x:hover{background:var(--surface-3)}
+.eo2-cdp-x i{width:13px;height:13px;stroke:currentColor}
+.eo2-cdp-sum{font-size:11px;color:var(--text-2);padding:0 14px 10px;border-bottom:1px solid var(--border-light,var(--border))}
+.eo2-cdp-ov{color:var(--red-text);font-weight:700}
+.eo2-cdp-rows{display:flex;flex-direction:column}
+.eo2-cdp-row{display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;background:transparent;border:none;border-top:1px solid var(--border-light,var(--border));text-align:left;min-height:42px;color:inherit;cursor:pointer;font-family:inherit}
+.eo2-cdp-rows .eo2-cdp-row:first-child{border-top:none}
+.eo2-cdp-row:hover{background:var(--surface-3)}
+.eo2-cdp-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.eo2-cdp-ord{font-size:12px;font-weight:800;white-space:nowrap;color:var(--text-1)}
+.eo2-cdp-cli{font-size:12.5px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-1)}
+.eo2-cdp-extra{font-size:10.5px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)}
+.eo2-cdp-extra i{width:11px;height:11px;stroke:currentColor}
+.eo2-cdp-extra.red{color:var(--red-text)}.eo2-cdp-extra.amber{color:var(--amber-text)}.eo2-cdp-extra.green{color:var(--green-text)}.eo2-cdp-extra.mut{color:var(--text-muted)}
+/* Vista Agenda (degradación móvil del calendario) */
+.eo2-cal-agenda{display:none}
+.eo2-ag-group{margin-bottom:12px}
+.eo2-ag-day{display:flex;align-items:center;gap:10px;width:100%;background:var(--surface-3);border-radius:8px;padding:8px 11px;margin-bottom:6px}
+.eo2-ag-day.overdue{background:var(--red-bg)}
+.eo2-ag-dow{font-size:12px;font-weight:800;text-transform:capitalize;color:var(--text-1)}
+.eo2-ag-day.overdue .eo2-ag-dow{color:var(--red-text)}
+.eo2-ag-n{margin-left:auto;font-size:11px;font-weight:800;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.eo2-ag-item{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:none;border-bottom:1px solid var(--border-light,var(--border));padding:9px 6px;text-align:left;color:inherit;min-height:44px;cursor:pointer;font-family:inherit}
+.eo2-ag-item:hover{background:var(--surface-2)}
+.eo2-ag-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.eo2-ag-cli{font-size:12.5px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-1)}
+.eo2-ag-ord{font-size:11px;color:var(--text-muted);font-weight:700}
+.eo2-ag-prom{font-size:10.5px;font-weight:700;white-space:nowrap}
+.eo2-ag-prom.red{color:var(--red-text)}.eo2-ag-prom.amber{color:var(--amber-text)}.eo2-ag-prom.green{color:var(--green-text)}.eo2-ag-prom.mut{color:var(--text-muted)}
+/* Z3 · Acción hoy */
+.eo2-alert-card{border-left:3px solid var(--red-dot)}
+.eo2-rc-h{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;font-size:12px;font-weight:800;color:var(--text-1)}
+.eo2-rc-h i{color:var(--red-dot);width:14px;height:14px;stroke:currentColor}
+.eo2-rc-sub{font-size:10.5px;color:var(--text-muted);font-weight:500;margin-left:auto}
+.eo2-al-row{display:flex;align-items:center;gap:9px;width:100%;padding:9px 14px;background:transparent;border:none;border-top:1px solid var(--border-light,var(--border));font-size:12px;color:var(--text-1);text-align:left;min-height:38px;cursor:pointer;font-family:inherit}
+.eo2-al-row:hover{background:var(--surface-3)}
+.eo2-al-row.active{background:var(--accent-light,var(--surface-3))}
+.eo2-al-n{min-width:23px;height:22px;padding:0 5px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11.5px;font-variant-numeric:tabular-nums}
+.eo2-al-n.red{background:var(--red-bg);color:var(--red-text)}
+.eo2-al-n.amber{background:var(--amber-bg);color:var(--amber-text)}
+.eo2-al-n.purple{background:var(--purple-bg);color:var(--purple-text)}
+.eo2-al-lbl{flex:1;font-weight:600}
+.eo2-al-row .eo2-chev{color:var(--text-3);width:12px;height:12px;stroke:currentColor}
+.eo2-al-div{padding:8px 14px 3px;font-size:9.5px;letter-spacing:1px;font-weight:700;text-transform:uppercase;color:var(--text-3);border-top:1px solid var(--border-light,var(--border))}
+.eo2-al-clear{display:none;padding:16px 14px;border-top:1px solid var(--border-light,var(--border));font-size:12px;color:var(--green-text);align-items:center;gap:8px}
+.eo2-al-clear.on{display:flex}
+.eo2-al-clear i{width:14px;height:14px;stroke:currentColor}
+/* Z4 · Analítica (lateral, secundaria) */
+.eo2-an-card{padding:13px 14px 12px}
+.eo2-an-title{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:9px}
+.eo2-an-card canvas{width:100%;height:160px;display:block}
+.eo2-bar-row{display:grid;grid-template-columns:70px 1fr 24px;gap:9px;align-items:center;margin:8px 0;font-size:11.5px}
+.eo2-bar-name{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eo2-bar-track{height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.eo2-bar{height:100%;border-radius:4px;background:var(--accent)}
+.eo2-bar-n{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-1)}
+.eo2-an-note{font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.4}
+/* Pie: fuentes de datos */
+.eo2-src{margin-top:22px}
+.eo2-src summary{cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;list-style:none;color:var(--text-2)}
+.eo2-src summary::-webkit-details-marker{display:none}
+.eo2-src summary i:first-child{width:14px;height:14px;stroke:currentColor}
+.eo2-src summary .eo2-chev{margin-left:auto;transition:transform .15s;color:var(--text-3);width:14px;height:14px;stroke:currentColor}
+.eo2-src[open] summary .eo2-chev{transform:rotate(90deg)}
+.eo2-src-body{padding:2px 16px 16px}
+.eo2-src-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.eo2-src-tbl th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding:6px 8px;border-bottom:1px solid var(--border)}
+.eo2-src-tbl td{padding:5px 8px;border-bottom:1px dashed var(--border-light,var(--border));color:var(--text-2)}
+.eo2-src-tbl td:first-child{font-weight:600;color:var(--text-1)}
+.eo2-ok-chip,.eo2-gap-chip{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:1px 7px;border-radius:4px;white-space:nowrap}
+.eo2-ok-chip{background:var(--green-bg);color:var(--green-text)}
+.eo2-gap-chip{background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot)}
+.eo2-src-dec{margin:14px 0 0;padding:12px 14px;background:var(--amber-bg);border:1px dashed var(--amber-dot);border-radius:10px;font-size:12px;color:var(--amber-text)}
+.eo2-src-dec strong{display:block;margin-bottom:6px}
+.eo2-src-dec ol{margin-left:18px}
+.eo2-src-dec li{margin:3px 0;line-height:1.45}
+/* Detalle modal: callout "Para el cliente" (reusa eo-det-*) */
+.eo2-say{display:flex;gap:9px;background:var(--blue-bg);color:var(--blue-text);border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.5;margin-bottom:4px}
+.eo2-say i{width:15px;height:15px;margin-top:1px;stroke:currentColor;flex-shrink:0}
+.eo2-say strong{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.eo2-gapbox{border:1px dashed var(--amber-dot);border-radius:10px;padding:12px 14px}
+.eo2-gapbox h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--amber-text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.eo2-gapbox h4 i{width:12px;height:12px;stroke:currentColor}
+.eo2-gap-row{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
+.eo2-gap-row .eo2-g-l{width:150px;color:var(--text-muted);flex-shrink:0}
+.eo2-gap-row .eo2-g-v{color:var(--text-3)}
+.eo2-gap-row .eo2-gap-chip{margin-left:auto}
+.eo2-gap-note{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5}
+/* Responsive */
+@media(max-width:1100px){
+  .eo2-layout{display:flex;flex-direction:column;align-items:stretch}
+  .eo2-alerts{order:-1;width:100%}
+  .eo2-analytics{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .eo2-pop-fil{width:min(560px,calc(100vw - 32px))}
+}
+@media(max-width:820px){
+  .eo2-charts2{grid-template-columns:1fr}
+  .eo2-ch-card.full{grid-column:auto}
+}
+@media(max-width:720px){
+  .eo2{padding:14px 12px 36px}
+  .eo2-pulse{flex-wrap:wrap;overflow:hidden}
+  .eo2-pi{flex:1 1 32%;border-top:1px solid var(--border-light,var(--border));padding:10px 12px}
+  .eo2-pi:nth-child(-n+3){border-top:none}
+  .eo2-pi-n{font-size:18px}
+  .eo2-toolbar{padding:10px 12px;gap:8px}
+  .eo2-view-seg{order:1}
+  .eo2-search{order:3;flex:1 1 100%;min-width:0}
+  .eo2-tb-ctrl.f-btn{order:2;margin-left:auto}
+  .eo2-tb-ctrl.g-btn{order:2}
+  .eo2-vb-txt{display:none}
+  .eo2-view-btn{padding:7px 10px}
+  .eo2-tb-count{order:4;flex:1 1 100%;margin-left:0;text-align:right}
+  .eo2-pop{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:80vh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.28)}
+  .eo2-pop-grid{grid-template-columns:1fr}
+  .eo2-pop-f.wide{grid-column:auto}
+  .eo2-tbl{min-width:0}
+  .eo2-tbl thead{display:none}
+  .eo2-tbl,.eo2-tbl tbody{display:block}
+  .eo2-tbl tr.eo2-rw{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:13px 14px;border-bottom:1px solid var(--border-light,var(--border));border-radius:0}
+  .eo2-tbl td{display:block;padding:0;border:none;background:none!important;box-shadow:none!important;min-width:0}
+  tr.eo2-due-red{background:var(--red-bg);box-shadow:inset 3px 0 0 var(--red-dot)}
+  tr.eo2-due-amber{background:var(--amber-bg);box-shadow:inset 3px 0 0 var(--amber-dot)}
+  .eo2-c-orden{grid-column:1;grid-row:1;align-self:center}
+  .eo2-c-orden .eo2-ord{font-size:13.5px}
+  .eo2-c-est{grid-column:2;grid-row:1;justify-self:end}
+  .eo2-c-est .eo2-est-w{align-items:flex-end;gap:5px}
+  .eo2-c-cli{grid-column:1/3;grid-row:2;margin-top:2px}
+  .eo2-c-cli .eo2-cli{font-size:13px}
+  .eo2-c-prom{grid-column:1;grid-row:3;margin-top:6px}
+  .eo2-c-prom .eo2-pd{font-size:12px}.eo2-c-prom .eo2-pr{display:block;margin-top:1px}
+  .eo2-c-vend{grid-column:2;grid-row:3;justify-self:end;align-self:end;margin-top:6px}
+  .eo2-c-evid{grid-column:1;grid-row:4;margin-top:6px;padding-top:8px;border-top:1px dashed var(--border-light,var(--border))!important;width:100%}
+  .eo2-c-loc{grid-column:2;grid-row:4;justify-self:end;align-self:center;margin-top:6px;padding-top:8px}
+  .eo2-kb-col{flex-basis:78vw}
+  .eo2-grp-h td{grid-column:1/3!important;padding:9px 14px}
+  .eo2-grp-h.eo2-rw{display:block!important;padding:0!important;background:none}
+  .eo2-cal-grid{display:none}
+  .eo2-cal-agenda{display:block}
+  .eo2-cal-toolbar{gap:8px}
+  .eo2-cal-month{min-width:0;flex:1;text-align:center}
+  .eo2-gap-row .eo2-g-l{width:118px}
+}
+@media(max-width:400px){
+  .eo2-pi{flex:1 1 48%}
+}
+
 /* Lista mis solicitudes */
 .sdv-list-wrap{display:flex;flex-direction:column;gap:10px}
 .sdv-list-card{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);padding:14px 16px;cursor:pointer;transition:border-color .15s}
@@ -6396,19 +6826,202 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
     </div><!-- /section-dashboard-ventas -->
 
     <!-- ── ESTADO DE ÓRDENES (Panel Ventas) ──────────────────────── -->
-    <div id="section-estado-ordenes" class="page-section" style="display:none;padding:20px;max-width:900px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div id="section-estado-ordenes" class="page-section eo2" style="display:none">
+      <!-- ZONA 0 · Encabezado: identidad + alcance + actualizar -->
+      <header class="eo2-hd">
         <div>
-          <h2 style="font-size:18px;font-weight:800;margin:0 0 2px;color:var(--text-1)">Estado de Órdenes</h2>
-          <div style="font-size:11px;color:var(--text-2)">Últimas 60 días · <span id="eo-last-update" style="color:var(--text-3)">—</span></div>
+          <div class="eo2-eyebrow">Altri Tempi · Ventas</div>
+          <h2 class="eo2-title">Estado de Órdenes</h2>
+          <div class="eo2-live"><span class="eo2-live-dot"></span>En vivo — SDV · Operaciones (WWP) · Odoo &nbsp;·&nbsp; <span id="eo-last-update">—</span></div>
         </div>
-        <button class="btn btn-sm btn-secondary" onclick="estadoOrdenesCargar()" style="white-space:nowrap">
-          <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Actualizar
-        </button>
+        <div class="eo2-hd-right">
+          <div class="eo-seg" id="eo-scope-seg" role="group" aria-label="Alcance de las órdenes">
+            <button id="eo-scope-mine" type="button" onclick="eoSetScope('mine')">Solo lo mío</button>
+            <button id="eo-scope-all" type="button" onclick="eoSetScope('all')">Todo el equipo</button>
+          </div>
+          <button class="eo2-refresh has-tip tip-end" type="button" onclick="estadoOrdenesCargar()" data-tip="Volver a cargar los datos vivos" aria-label="Actualizar datos">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- ZONA 1 · Pulso: una sola línea (fusiona KPIs + agregados + OTIF) -->
+      <section class="eo2-pulse" id="eo-pulse" aria-label="Pulso de órdenes"></section>
+
+      <div class="eo2-layout">
+        <!-- ZONA 2 · Centro: la lista de órdenes (el corazón para Ventas) -->
+        <main class="eo2-main eo2-card">
+          <!-- Barra de herramientas ÚNICA: vistas + búsqueda + filtros + agrupar -->
+          <div class="eo2-toolbar">
+            <div class="eo2-view-seg" role="group" aria-label="Vista">
+              <button type="button" class="eo2-view-btn active" data-view="list" aria-pressed="true"><i data-lucide="list"></i><span class="eo2-vb-txt">Lista</span></button>
+              <button type="button" class="eo2-view-btn" data-view="kanban" aria-pressed="false"><i data-lucide="columns-3"></i><span class="eo2-vb-txt">Kanban</span></button>
+              <button type="button" class="eo2-view-btn" data-view="cal" aria-pressed="false"><i data-lucide="calendar"></i><span class="eo2-vb-txt">Calendario</span></button>
+              <button type="button" class="eo2-view-btn" data-view="charts" aria-pressed="false"><i data-lucide="bar-chart-3"></i><span class="eo2-vb-txt">Gráficos</span></button>
+            </div>
+            <label class="eo2-search" for="eo-search">
+              <i data-lucide="search"></i>
+              <input id="eo-search" type="text" placeholder="Cliente, orden (S07…), folio o vendedora" autocomplete="off" oninput="eoOnSearch()">
+              <button id="eo-search-clear" class="eo2-search-clear" type="button" style="display:none" onclick="eoClearSearch()" aria-label="Limpiar búsqueda">&times;</button>
+            </label>
+            <button type="button" class="eo2-tb-ctrl f-btn" id="eo-fil-btn" aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="filter"></i>Filtros<span class="eo2-tb-badge" id="eo-fil-badge" hidden>0</span><i data-lucide="chevron-right" class="eo2-cv"></i>
+            </button>
+            <button type="button" class="eo2-tb-ctrl g-btn" id="eo-grp-btn" aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="rows-3"></i><span id="eo-grp-lbl">Agrupar</span><i data-lucide="chevron-right" class="eo2-cv"></i>
+            </button>
+            <span class="eo2-tb-count" id="eo-tb-count"></span>
+
+            <!-- Popover de FILTROS (multi-parámetro, combinables) -->
+            <div class="eo2-pop eo2-pop-fil" id="eo-pop-fil" role="dialog" aria-label="Filtros">
+              <div class="eo2-pop-grid">
+                <div class="eo2-pop-f">
+                  <label class="eo2-pop-lbl" for="eo-f-loc">Almacén (despacho desde)</label>
+                  <select class="eo2-pop-sel" id="eo-f-loc"><option value="">Todos</option></select>
+                </div>
+                <div class="eo2-pop-f">
+                  <label class="eo2-pop-lbl" for="eo-f-vend">Vendedora</label>
+                  <select class="eo2-pop-sel" id="eo-f-vend"><option value="">Todas</option></select>
+                </div>
+                <div class="eo2-pop-f">
+                  <label class="eo2-pop-lbl" for="eo-f-est">Estado</label>
+                  <select class="eo2-pop-sel" id="eo-f-est">
+                    <option value="">Todos</option>
+                    <option value="pend">Pendiente revisión</option>
+                    <option value="ops">En operaciones</option>
+                    <option value="ruta">En ruta</option>
+                    <option value="desp">Despachada</option>
+                    <option value="rech">Rechazada / Cancelada</option>
+                  </select>
+                </div>
+                <div class="eo2-pop-f">
+                  <label class="eo2-pop-lbl" for="eo-f-ord">Nº de orden</label>
+                  <input class="eo2-pop-in" id="eo-f-ord" type="text" placeholder="Ej. 07231 o S07231" autocomplete="off">
+                </div>
+                <div class="eo2-pop-f wide">
+                  <span class="eo2-pop-lbl">Promesa de entrega</span>
+                  <div class="eo2-pop-seg" id="eo-f-prom" role="group" aria-label="Filtro de promesa">
+                    <button type="button" data-p="venc">Vencidas</button>
+                    <button type="button" data-p="hoy">Hoy</button>
+                    <button type="button" data-p="sem">Esta semana</button>
+                    <button type="button" data-p="rango">Rango…</button>
+                  </div>
+                  <div class="eo2-pop-range" id="eo-f-range" hidden style="margin-top:4px">
+                    <input class="eo2-pop-in" id="eo-f-d1" type="date" aria-label="Fecha desde">
+                    <span>a</span>
+                    <input class="eo2-pop-in" id="eo-f-d2" type="date" aria-label="Fecha hasta">
+                  </div>
+                </div>
+              </div>
+              <div class="eo2-pop-ft">
+                <button type="button" class="eo2-btn-reset" id="eo-fil-reset">Limpiar filtros</button>
+                <button type="button" class="eo2-btn-apply" id="eo-fil-apply">Aplicar</button>
+              </div>
+            </div>
+
+            <!-- Popover de AGRUPAR POR -->
+            <div class="eo2-pop eo2-pop-grp" id="eo-pop-grp" role="dialog" aria-label="Agrupar por">
+              <div class="eo2-pop-opt" id="eo-grp-opts">
+                <button type="button" data-g="none" class="on">Ninguno</button>
+                <button type="button" data-g="vend">Vendedora</button>
+                <button type="button" data-g="est">Estado</button>
+                <button type="button" data-g="loc">Almacén</button>
+                <button type="button" data-g="fecha">Fecha (promesa)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chips de filtros activos -->
+          <div class="eo2-chips-bar" id="eo-chips-bar"></div>
+
+          <!-- VISTA LISTA -->
+          <div class="eo2-tbl-wrap" id="eo-view-list">
+            <table class="eo2-tbl">
+              <thead>
+                <tr>
+                  <th>Orden</th><th>Cliente</th><th>Vendedora</th><th>Estado</th>
+                  <th>Promesa</th><th>Evid.</th><th>Despacho desde</th>
+                </tr>
+              </thead>
+              <tbody id="eo-rows"></tbody>
+            </table>
+          </div>
+
+          <!-- VISTA KANBAN -->
+          <div class="eo2-kanban" id="eo-view-kanban" hidden></div>
+
+          <!-- VISTA CALENDARIO (grid en desktop, agenda en móvil) -->
+          <div class="eo2-cal" id="eo-view-cal" hidden></div>
+
+          <!-- VISTA GRÁFICOS -->
+          <div class="eo2-charts2" id="eo-view-charts" hidden></div>
+
+          <div class="eo2-empty" id="eo-empty">
+            <i data-lucide="search-x"></i>
+            <p id="eo-empty-msg">Ninguna orden coincide con ese filtro o búsqueda.</p>
+            <button class="eo2-btn-ghost" type="button" id="eo-empty-clear" onclick="eoReset()">Limpiar todo</button>
+          </div>
+        </main>
+
+        <!-- ZONA 3 · Acción hoy: solo lo que exige acción (excepciones, no estados) -->
+        <aside class="eo2-alerts eo2-card eo2-alert-card" aria-label="Acción hoy">
+          <div class="eo2-rc-h"><i data-lucide="siren"></i>Acción hoy<span class="eo2-rc-sub">solo lo que exige acción</span></div>
+          <div id="eo-al-rows"></div>
+          <div class="eo2-al-clear" id="eo-al-clear"><i data-lucide="check"></i>Sin pendientes que exijan acción.</div>
+        </aside>
+
+        <!-- ZONA 4 · Analítica: contexto de gerencia, al costado -->
+        <aside class="eo2-analytics" aria-label="Analítica">
+          <div class="eo2-card eo2-an-card">
+            <div class="eo2-an-title">Tendencia · 8 semanas</div>
+            <div id="eo-trend-head" class="eo-trend-head"></div>
+            <svg id="eo-trend-svg" class="eo-trend-svg" preserveAspectRatio="none" aria-hidden="true"></svg>
+          </div>
+          <div class="eo2-card eo2-an-card">
+            <div class="eo2-an-title">Por estado</div>
+            <canvas id="eo-an-donut"></canvas>
+          </div>
+          <div class="eo2-card eo2-an-card">
+            <div class="eo2-an-title">Órdenes por vendedora</div>
+            <div id="eo-an-bars"></div>
+            <div class="eo2-an-note">Panorama del alcance y la búsqueda activos. La vista <b>Gráficos</b> refleja además los filtros aplicados.</div>
+          </div>
+        </aside>
       </div>
-      <div id="eo-kpi-row" class="eo-kpi-row"></div>
-      <div id="eo-filter-pills" class="eo-filter-pills"></div>
-      <div id="eo-list"></div>
+
+      <!-- Pie · Mapa de fuentes (para decidir el reemplazo de la hoja de Ventas) -->
+      <details class="eo2-src eo2-card">
+        <summary><i data-lucide="info"></i>¿De dónde sale cada dato? — mapa hoja de Ventas → fuentes vivas<i data-lucide="chevron-right" class="eo2-chev"></i></summary>
+        <div class="eo2-src-body">
+          <table class="eo2-src-tbl">
+            <thead><tr><th>Concepto (hoja de Ventas)</th><th>Fuente viva</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td>No. Orden</td><td>SDV · odooOrderRef (Odoo)</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Nombre Cliente</td><td>SDV · clienteNombre (Odoo)</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Ciudad / Lugar de Entrega</td><td>SDV · ciudadEntrega / direccionEntrega</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Fecha Solicitada</td><td>SDV · creadoAt</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Fecha de Entrega (promesa)</td><td>SDV · fechaSolicitudDeseada</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Fecha de Entrega (real)</td><td>despachadaEn / fechaEntrega / statusHistory</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Vendedor</td><td>SDV · vendedorNombre</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Cantidad de Artículos</td><td>SDV · articulosOdoo (Odoo)</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Lugar de Despacho</td><td>Localidad de la tarea (WWP) / pick Odoo</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Estatus</td><td>Estado SDV + pickStatus Odoo</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Comentario</td><td>SDV · observaciones</td><td><span class="eo2-ok-chip">Vivo</span></td></tr>
+              <tr><td>Vehículo · Tipo de Transporte</td><td>—</td><td><span class="eo2-gap-chip">Requiere captura nueva</span></td></tr>
+              <tr><td>¿Lleva instalación? · Horario de Entrega</td><td>—</td><td><span class="eo2-gap-chip">Requiere captura nueva</span></td></tr>
+              <tr><td>Días de preparación</td><td>— (posible derivar de statusHistory)</td><td><span class="eo2-gap-chip">Requiere captura nueva</span></td></tr>
+            </tbody>
+          </table>
+          <div class="eo2-src-dec">
+            <strong>Decisiones pendientes antes de jubilar la hoja</strong>
+            <ol>
+              <li>¿Capturar <b>Vehículo</b> y <b>Tipo de transporte</b> al asignar la ruta en WWP?</li>
+              <li>¿Capturar <b>Horario de entrega</b> y <b>¿Lleva instalación?</b> en el formulario SDV?</li>
+              <li>¿<b>Días de preparación</b> se deriva del historial (aprobada → despachada) o se captura a mano?</li>
+            </ol>
+          </div>
+        </div>
+      </details>
     </div><!-- /section-estado-ordenes -->
 
     <!-- ── KPIs DE DESPACHO (admin/manager) ──────────────────────── -->
@@ -7809,7 +8422,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v122';
+var APP_BUILD = 'v125';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8124,6 +8737,62 @@ function hydrateOdooAvatars(root) {
     const uid = el.getAttribute('data-oavatar-uid');
     const oid = el.getAttribute('data-oavatar-oid');
     applyOdooAvatarFor(el, uid ? { userId: uid } : { odooId: oid });
+  });
+}
+
+// ── Fotos de PRODUCTO desde Odoo — mismo patrón que los avatares ─────────────
+// Las SDV guardan artículos SIN imagen (solo odoo_product_id; guardar el base64 en
+// sdv-solicitudes.json inflaría el archivo crítico y el payload de lista). Los renders
+// de articulosOdoo emiten su placeholder con data-oprodimg="<pid>" y hydrateProductImgs
+// pide la foto on-demand a GET /api/wwp/product-photo/:pid. authFetch → blob → dataURL
+// (JWT va en header: un <img src="/api/..."> directo daría 401). Caché de cliente:
+// Map<pid, Promise<dataURL|null>>; null = sin foto → queda el placeholder (package).
+var _prodImgCache = new Map();
+function getProductImgDataURL(pid) {
+  pid = String(pid == null ? '' : pid).trim();
+  if (!pid || !_token) return Promise.resolve(null);
+  if (_prodImgCache.has(pid)) return _prodImgCache.get(pid);
+  const p = (async () => {
+    try {
+      const r = await authFetch('/api/wwp/product-photo/' + encodeURIComponent(pid));
+      if (!r.ok) return null;            // 404 (sin imagen) o 502 (Odoo caído) → placeholder
+      const blob = await r.blob();
+      if (!blob || !blob.size) return null;
+      return await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result || null);
+        fr.onerror = () => resolve(null);
+        fr.readAsDataURL(blob);
+      });
+    } catch (e) { return null; }
+  })();
+  _prodImgCache.set(pid, p);
+  // Si falló (red/Odoo caído), permitir reintento en el próximo render.
+  p.then(v => { if (v == null) _prodImgCache.delete(pid); }).catch(() => _prodImgCache.delete(pid));
+  return p;
+}
+// Inyecta la foto del producto DENTRO del placeholder marcado (conserva el tamaño y
+// border-radius del contenedor). Si no hay foto o falla, el placeholder queda intacto.
+// Idempotente: marca el elemento hidratado para no re-procesarlo (igual que avatares).
+async function applyProductImgFor(el, pid) {
+  if (!el || !pid || !_token) return;
+  if (el.dataset.oprodimgDone === '1') return;
+  el.dataset.oprodimgDone = '1';
+  const dataUrl = await getProductImgDataURL(pid);
+  if (!dataUrl) { delete el.dataset.oprodimgDone; return; }  // sin foto → placeholder (permite reintento)
+  if (!el.isConnected) return;                               // el DOM ya cambió (re-render)
+  const img = document.createElement('img');
+  img.alt = '';
+  img.src = dataUrl;
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block';
+  el.textContent = '';
+  el.appendChild(img);
+}
+// Recorre un contenedor recién pintado y resuelve todos los [data-oprodimg].
+function hydrateProductImgs(root) {
+  if (!root || !_token) return;
+  root.querySelectorAll('[data-oprodimg]').forEach(function(el){
+    applyProductImgFor(el, el.getAttribute('data-oprodimg'));
   });
 }
 // Compat: aplica la foto por userId WWP a un .user-avatar concreto (semáforo admin).
@@ -9179,6 +9848,18 @@ function connectWwpRealtime() {
       .then(function(r) { return r.json(); })
       .then(function(d) {
         if (d && d.build && d.build !== APP_BUILD) {
+          // ANTI-LOOP: recargar UNA sola vez por build del server. Si tras recargar el
+          // desajuste persiste (server y HTML fuera de sync — no se arregla recargando),
+          // NO ciclar: sin este guard, el tab recargaba cada 2 s indefinidamente
+          // (visto en local 2026-07-03 con proceso viejo + HTML nuevo en disco).
+          var gateKey = 'wwp_vgate_' + d.build;
+          try {
+            if (sessionStorage.getItem(gateKey)) {
+              console.warn('[version-gate] build server (' + d.build + ') ≠ cliente (' + APP_BUILD + ') tras recargar — no se reintenta para evitar loop.');
+              return;
+            }
+            sessionStorage.setItem(gateKey, '1');
+          } catch (e) {}
           _versionReloading = true;
           // Limpiar caches del SW para garantizar HTML fresco, luego recargar duro
           if (window.caches && caches.keys) {
@@ -13869,7 +14550,7 @@ async function cerrarDevolucionRuta(taskId) {
     toast('✓ Devolución marcada como resuelta');
     var drawerOpen = document.getElementById('drawer-body') && document.getElementById('task-drawer') && document.getElementById('task-drawer').classList.contains('open');
     if (drawerOpen) { try { openDrawer(taskId); } catch(e) {} }
-    if (typeof estadoOrdenesCargar === 'function' && document.getElementById('eo-list')) estadoOrdenesCargar();
+    if (typeof estadoOrdenesCargar === 'function' && document.getElementById('eo-rows')) estadoOrdenesCargar();
   } catch(e) { toast('Error: '+e.message); }
 }
 
@@ -18045,13 +18726,19 @@ if ('serviceWorker' in navigator) {
   });
   // Cuando el SW nuevo toma control (después de skipWaiting), recargar la página
   // para que el nuevo JS (polling, fixes) entre en efecto sin que el usuario haga nada.
+  // GUARD anti-loop: sin este flag, recargar re-registra el SW → skipWaiting →
+  // controllerchange → recarga… bucle infinito (~cada 2 s) cuando el build cambia
+  // varias veces seguidas (dev). Recargar UNA sola vez por vida de la página.
+  var _swRefreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (_swRefreshing) return;
+    _swRefreshing = true;
     toast('Actualizando app…');
     setTimeout(function() { window.location.reload(); }, 1500);
   });
   // Fallback: el SW pide reload por postMessage si navigate() no está soportado
   navigator.serviceWorker.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'SW_RELOAD') window.location.reload();
+    if (e.data && e.data.type === 'SW_RELOAD' && !_swRefreshing) { _swRefreshing = true; window.location.reload(); }
   });
 }
 
@@ -30024,141 +30711,983 @@ async function kpisDespachoCargar() {
   } catch(e) { if (cards) cards.innerHTML = '<div style="color:var(--red-text);padding:16px">Error: '+esc(e.message)+'</div>'; }
 }
 
-// ── Estado de Órdenes — Panel Ventas ──────────────────────────────────────
-var _eoFiltro = '';
+// ══════════ Estado de Órdenes — REDISEÑO por zonas (datos vivos) ══════════
+// Portado de la maqueta aprobada _mockup_estado_ordenes.html. UN solo modelo de
+// filtros COMBINABLES (AND); el pulso y las alertas son atajos que escriben en él
+// (cero duplicación de verdad). Datos vivos: /api/sdv + _tasks + pickstatus Odoo.
 var _eoData   = [];
+var _eoScope  = null;   // 'mine' | 'all'  (se resuelve por rol la 1ª vez)
+var _eoQuery  = '';     // texto del buscador (normalizado en el match)
+var _eoSearchT = null;  // timer de debounce del buscador
+var _eoBloqStock = null;   // conteo "bloqueado por stock" (Odoo, async fail-open)
+var _eoTrendWeeks = 8;     // ventana de la miniserie de tendencia (semanas)
+// Modelo único de vista: vista activa + agrupar + filtros combinables.
+var _eoState = { view:'list', group:'none', f:{ loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' } };
+// Estado LOCAL del calendario (mes/dimensión/día seleccionado). Se inicializa al mes actual.
+var _eoCalState = { y:new Date().getFullYear(), mo:new Date().getMonth(), dim:'prom', sel:null };
 
-// ── DEMO FLAG ── cambiar a false después de la reunión para quitar el mock ──
+// ── DEMO FLAG ── cambiar a true para inyectar mock (no usado con datos vivos) ──
 var _EO_MOCK = false;
 // ── FIN DEMO FLAG ────────────────────────────────────────────────────────────
 
 async function estadoOrdenesCargar() {
-  var listEl = document.getElementById('eo-list');
-  var kpiEl  = document.getElementById('eo-kpi-row');
-  if (!listEl) return;
-  listEl.innerHTML = '<div style="color:var(--text-2);padding:30px;text-align:center">Cargando…</div>';
-  if (kpiEl) kpiEl.innerHTML = '';
+  var rowsEl = document.getElementById('eo-rows');
+  if (!rowsEl) return;
+  eoInitEvents();
+  rowsEl.innerHTML = '<tr><td colspan="7" style="color:var(--text-2);padding:30px;text-align:center">Cargando…</td></tr>';
   try {
     if (_EO_MOCK) {
       _eoData = _EO_MOCK_DATA;
     } else {
       var r = await authFetch('/api/sdv');
       var d = await r.json();
-      if (!r.ok || !d.ok) { listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error al cargar solicitudes</div>'; return; }
+      if (!r.ok || !d.ok) { rowsEl.innerHTML = '<tr><td colspan="7" style="color:var(--red-text);padding:20px">Error al cargar solicitudes</td></tr>'; return; }
       var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
       _eoData = (d.solicitudes||[]).filter(function(s){ return !s.creadoAt || new Date(s.creadoAt) >= cutoff; });
     }
     var upEl = document.getElementById('eo-last-update');
     if (upEl) upEl.textContent = 'actualizado ' + new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',hour12:true});
+    // Sincroniza el input con el estado (por si viene de un refresh manual con texto ya escrito).
+    var inp = document.getElementById('eo-search');
+    if (inp) { inp.value = _eoQuery || ''; var clr = document.getElementById('eo-search-clear'); if (clr) clr.style.display = inp.value ? '' : 'none'; }
+    _eoPopulateFilterSelects();
+    _eoBloqStock = null; // se recalcula async; entretanto la alerta degrada (no aparece en local)
     renderEstadoOrdenes();
+    // F3-2: conteo bloqueado-por-stock desde Odoo (fail-open). Al resolver, re-render para
+    // pintar la alerta si aplica. En LOCAL sin Odoo queda null y no aparece la alerta.
+    if (!_EO_MOCK) eoCargarBloqStock(_eoData).then(function(){ renderEstadoOrdenes(); });
   } catch(e) {
-    if (listEl) listEl.innerHTML = '<div style="color:var(--red-text);padding:20px">Error: '+e.message+'</div>';
+    if (rowsEl) rowsEl.innerHTML = '<tr><td colspan="7" style="color:var(--red-text);padding:20px">Error: '+esc(e.message)+'</td></tr>';
   }
 }
 
-function estadoOrdenesFiltrar(filt) {
-  _eoFiltro = (_eoFiltro === filt) ? '' : filt;
+// Alcance por defecto: la vendedora arranca en "solo lo mío"; admin/manager en "todo".
+function eoDefaultScope() {
+  return (_user && _user.role === 'ventas') ? 'mine' : 'all';
+}
+// ¿La SDV es "mía"? (por creador o por vendedor asignado). Fail-open: sin _user, todo es mío.
+function eoIsMine(s) {
+  var uid = _user && _user.id;
+  if (!uid) return true;
+  if (s.creadoPor && s.creadoPor === uid) return true;
+  if (s.vendedorId && s.vendedorId === uid) return true;
+  return false;
+}
+function eoSetScope(scope) {
+  _eoScope = scope;
+  renderEstadoOrdenes();
+}
+function eoOnSearch() {
+  if (_eoSearchT) clearTimeout(_eoSearchT);
+  _eoSearchT = setTimeout(function(){
+    var inp = document.getElementById('eo-search');
+    _eoQuery = inp ? inp.value : '';
+    var clr = document.getElementById('eo-search-clear');
+    if (clr) clr.style.display = (inp && inp.value) ? '' : 'none';
+    renderEstadoOrdenes();
+  }, 200);
+}
+function eoClearSearch() {
+  var inp = document.getElementById('eo-search'); if (inp) inp.value = '';
+  _eoQuery = '';
+  var clr = document.getElementById('eo-search-clear'); if (clr) clr.style.display = 'none';
+  renderEstadoOrdenes();
+  if (inp) inp.focus();
+}
+// Match de texto (reusa el normalizador de acentos del buscador SDV). Cliente / folio /
+// nº de orden Odoo (con o sin la S y ceros) / vendedor.
+function eoMatch(s, q) {
+  var n = _sdvNorm(q).trim();
+  if (!n) return true;
+  var hay = _sdvNorm([ s.folio, s.odooOrderRef, s.clienteNombre, s.vendedorNombre,
+    s.creadoNombre ].filter(Boolean).join(' '));
+  var refDigits = _sdvNorm(s.odooOrderRef).replace(/[^0-9]/g,'');
+  return n.split(/\s+/).every(function(tok){
+    if (hay.indexOf(tok) >= 0) return true;
+    var d = tok.replace(/[^0-9]/g,'');
+    return !!(d && refDigits && refDigits.indexOf(d) >= 0);
+  });
+}
+// Aging: cuánto lleva la SDV en su estado actual, desde el último statusHistory[].at
+// (fallback: creadoAt). Devuelve {h, tier} o null. Solo tiñe estados ACTIVOS
+// (pendiente/en_proceso) — una despachada o cancelada "vieja" no es alerta.
+function eoAging(s) {
+  if (!s || s._mock) return null;
+  var active = (s.estado==='pendiente_revision' || s.estado==='en_proceso');
+  var since = null;
+  var hist = s.statusHistory || [];
+  for (var i=hist.length-1; i>=0; i--) { if (hist[i].estado===s.estado && hist[i].at) { since = hist[i].at; break; } }
+  if (!since) since = s.creadoAt;
+  if (!since) return null;
+  var d = new Date(since); if (isNaN(d.getTime())) return null;
+  var h = Math.floor((Date.now() - d.getTime()) / 36e5);
+  if (h < 0) h = 0;
+  var tier = '';
+  if (active) tier = h >= 72 ? 'bad' : h >= 24 ? 'warn' : '';
+  return { h: h, tier: tier };
+}
+function eoAgeLabel(h) {
+  if (h < 24) return h + 'h';
+  var days = Math.floor(h / 24);
+  return days + 'd';
+}
+// F3-2: conteo "bloqueado por stock" agregado (Odoo). Fail-open: sin Odoo (local) o error,
+// deja _eoBloqStock en null y el KPI muestra "—" sin romper. Consulta acotada a despachadas/
+// en proceso con orden Odoo para no barrer todo el histórico.
+async function eoCargarBloqStock(sols) {
+  try {
+    var cand = (sols||[]).filter(function(s){ return s.odooOrderRef && (s.estado==='en_proceso'||s.estado==='pendiente_revision'); }).slice(0, 40);
+    if (!cand.length) { _eoBloqStock = 0; return; }
+    var n = 0, any = false;
+    for (var i=0;i<cand.length;i++) {
+      try {
+        var r = await authFetch('/api/sdv/'+cand[i].id+'/pickstatus');
+        var d = await r.json();
+        if (r.ok && d.ok && d.pickStatus) { any = true; if (d.pickStatus.label==='Bloqueado por stock') n++; }
+      } catch(e) {}
+    }
+    _eoBloqStock = any ? n : null;
+  } catch(e) { _eoBloqStock = null; }
+}
+
+// ── B3: Tendencia semana-vs-semana (motor SVG propio, estilo dash-trend — NUNCA Chart.js) ──
+// Serie temporal desde el creadoAt/fechaSolicitud del subconjunto YA FILTRADO (respeta scope
+// mío/equipo + búsqueda, igual que las dos donas). Responde "¿subió o bajó el flujo?": muestra
+// el conteo de ESTA semana, el delta % vs la semana ANTERIOR (color semántico por token) y una
+// miniserie de las últimas ~8 semanas. Reusa el patrón de eqpDrawLines: var() en STYLE (no en
+// atributos SVG, que Safari/iOS no resuelve), grid + ejes + polyline.
+function eoTrendDate(s) {
+  var raw = s && (s.creadoAt || s.fechaSolicitud || s.fechaSolicitudDeseada);
+  if (!raw) return null;
+  var d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+}
+// Inicio de la semana (lunes 00:00) que contiene a `d`.
+function eoWeekStart(d) {
+  var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var dow = (x.getDay() + 6) % 7; // lunes=0 … domingo=6
+  x.setDate(x.getDate() - dow);
+  x.setHours(0,0,0,0);
+  return x;
+}
+function eoDrawTrend(sols) {
+  var headEl = document.getElementById('eo-trend-head');
+  var svg    = document.getElementById('eo-trend-svg');
+  if (!svg) return;
+  var weeks = _eoTrendWeeks;
+  // Buckets de semanas terminando en la semana actual.
+  var thisWeekStart = eoWeekStart(new Date());
+  var starts = [];
+  for (var w = weeks - 1; w >= 0; w--) {
+    var st = new Date(thisWeekStart); st.setDate(st.getDate() - w*7);
+    starts.push(st);
+  }
+  var counts = starts.map(function(){ return 0; });
+  (sols||[]).forEach(function(s){
+    var d = eoTrendDate(s); if (!d) return;
+    var ws = eoWeekStart(d).getTime();
+    for (var i=0;i<starts.length;i++){ if (starts[i].getTime() === ws) { counts[i]++; break; } }
+  });
+  var cur  = counts[counts.length-1] || 0;
+  var prev = counts.length >= 2 ? (counts[counts.length-2] || 0) : 0;
+  // Delta %: si la semana previa fue 0, no hay base para un porcentaje honesto → mostramos el
+  // conteo absoluto (+N) en vez de un "∞%" engañoso.
+  var deltaCls = '', deltaTxt = '', deltaIcon = 'minus';
+  if (prev === 0 && cur === 0) { deltaTxt = 'Sin actividad'; }
+  else if (prev === 0)         { deltaCls = 'up';   deltaIcon = 'trending-up';   deltaTxt = '+' + cur + ' vs. 0'; }
+  else {
+    var pct = Math.round((cur - prev) / prev * 100);
+    if (pct > 0)      { deltaCls = 'up';   deltaIcon = 'trending-up';   deltaTxt = '+' + pct + '%'; }
+    else if (pct < 0) { deltaCls = 'down'; deltaIcon = 'trending-down'; deltaTxt = pct + '%'; }
+    else              { deltaCls = '';     deltaIcon = 'minus';         deltaTxt = '0%'; }
+  }
+  if (headEl) {
+    headEl.innerHTML =
+      '<span class="eo-trend-now">' + cur + '</span>' +
+      '<span class="eo-trend-now-lbl">esta semana · ' + prev + ' la anterior</span>' +
+      '<span class="eo-trend-delta ' + deltaCls + '"><i data-lucide="' + deltaIcon + '"></i>' + esc(deltaTxt) + '</span>';
+  }
+  // Sin ningún dato en la ventana: vaciar y salir.
+  var total = counts.reduce(function(a,b){ return a+b; }, 0);
+  if (!total) {
+    svg.innerHTML = '';
+    svg.style.display = 'none';
+    return;
+  }
+  svg.style.display = '';
+  var W = 720, H = 150, padL = 24, padR = 10, padT = 12, padB = 20;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var maxY = Math.max(1, Math.max.apply(null, counts));
+  var n = counts.length;
+  var xAt = function(i){ return padL + (n <= 1 ? plotW/2 : (i/(n-1)) * plotW); };
+  var yAt = function(v){ return padT + plotH - (v/maxY) * plotH; };
+  var parts = [];
+  // Grid horizontal (3 líneas) + eje Y (máx / 0). var() en STYLE, no en atributos (Safari).
+  for (var g = 0; g <= 2; g++) {
+    var gy = padT + (g/2) * plotH;
+    parts.push('<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W-padR) + '" y2="' + gy.toFixed(1) + '" style="stroke:var(--border-light)" stroke-width="1"/>');
+  }
+  parts.push('<text x="' + (padL-4) + '" y="' + (padT+4) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">' + maxY + '</text>');
+  parts.push('<text x="' + (padL-4) + '" y="' + (padT+plotH) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">0</text>');
+  // Área bajo la línea (suave) + polyline + puntos.
+  var linePts = counts.map(function(v,i){ return xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
+  var areaPts = padL.toFixed(1) + ',' + (padT+plotH).toFixed(1) + ' ' + linePts + ' ' + (W-padR).toFixed(1) + ',' + (padT+plotH).toFixed(1);
+  parts.push('<polygon points="' + areaPts + '" style="fill:var(--accent);opacity:.10;stroke:none"/>');
+  parts.push('<polyline points="' + linePts + '" style="fill:none;stroke:var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+  counts.forEach(function(v,i){
+    var last = i === n-1;
+    parts.push('<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(v).toFixed(1) + '" r="' + (last?3.5:2.5) + '" style="fill:var(--accent)"/>');
+  });
+  // Etiquetas X: primera y última semana (fecha de inicio del bucket, dd/mm).
+  var fmt = function(dt){ return ('0'+dt.getDate()).slice(-2) + '/' + ('0'+(dt.getMonth()+1)).slice(-2); };
+  parts.push('<text x="' + padL + '" y="' + (H-5) + '" text-anchor="start" font-size="9" style="fill:var(--text-muted)">' + fmt(starts[0]) + '</text>');
+  parts.push('<text x="' + (W-padR) + '" y="' + (H-5) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">esta sem.</text>');
+  svg.innerHTML = parts.join('');
+}
+
+// ══════════ Estado de Órdenes — motor de vistas (zonas) ══════════
+// Deriva de DATOS VIVOS. El estado enum de la maqueta (pend/ops/ruta/desp/rech) se
+// computa desde s.estado + hasEnRuta; la promesa/semáforo desde fechaSolicitudDeseada;
+// la fecha real de despacho desde despachadaEn/fechaEntrega/statusHistory.
+
+var EO_VEND_INI = function(nombre){
+  var n = String(nombre||'').trim(); if(!n) return '—';
+  var p = n.split(/\s+/);
+  return ((p[0]||'')[0]||'').toUpperCase() + ((p[1]||'')[0]||'').toUpperCase() || (p[0]||'').slice(0,2).toUpperCase();
+};
+// Etiquetas y clases de badge por estado enum de la vista.
+var EO_EST = {
+  pend:{lbl:'Pendiente revisión', cls:'sdv-badge-pendiente'},
+  ops: {lbl:'En proceso',         cls:'sdv-badge-proceso'},
+  ruta:{lbl:'En proceso',         cls:'sdv-badge-proceso'},
+  desp:{lbl:'Despachada',         cls:'sdv-badge-despachada'},
+  rech:{lbl:'Rechazada',          cls:'sdv-badge-rechazada'}
+};
+var EO_EST_ORDER = ['pend','ops','ruta','desp','rech'];
+var EO_EST_GRP = {pend:{l:'Pendiente revisión', t:'--amber-dot'}, ops:{l:'En operaciones', t:'--blue-dot'},
+  ruta:{l:'En ruta', t:'--sky-dot'}, desp:{l:'Despachadas', t:'--green-dot'}, rech:{l:'Rechazadas', t:'--red-dot'}};
+var EO_MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var EO_MESES_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+var EO_DOW = ['L','M','M','J','V','S','D'];
+var EO_DOW_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+var EO_DOW_ABBR = ['dom','lun','mar','mié','jue','vie','sáb'];
+
+// ── Fechas: parse ISO/fecha seguro (sin desfase de zona) + helpers ─────────
+// Un "YYYY-MM-DD" sin hora lo parsea new Date() como UTC-medianoche → en zonas detrás
+// de UTC (RD, UTC-4) se corre un día. Para date-only extraemos los componentes a mano;
+// para datetime completos (con 'T') usamos new Date normalizado a medianoche local.
+function eoToD(v){
+  if(!v) return null;
+  if(typeof v==='string'){
+    var mm = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(mm) return new Date(+mm[1], +mm[2]-1, +mm[3]);
+  }
+  var d = new Date(v); if(isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function eoDaysBetween(a,b){ return Math.round((b-a)/86400000); }
+function eoFmtD(v){ var d = eoToD(v); return d ? (d.getDate()+' '+EO_MES[d.getMonth()]) : '—'; }
+function eoIsoDay(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+// Fecha REAL de despacho: despachadaEn (SDV) → fechaEntrega (ops) → último statusHistory 'despachada'.
+function eoDispatchDate(s){
+  if(!s) return null;
+  if(s.despachadaEn) return s.despachadaEn;
+  if(s.fechaEntrega) return s.fechaEntrega;
+  var hh = s.statusHistory || [];
+  for(var i=hh.length-1;i>=0;i--){ if(hh[i].estado==='despachada' && hh[i].at) return hh[i].at; }
+  return null;
+}
+// Localidad "despacho desde": tarea del vínculo (t.localidad, v116) → ubicacionOrigen SDV → '—'.
+function eoLocOf(s, tasks){
+  if(s._mock) return s.loc || '—';
+  var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+  var withLoc = linked.find(function(t){ return t.localidad; });
+  if(withLoc) return withLoc.localidad;
+  // Fallback: parsear prefijo [Localidad] del título de una tarea del vínculo.
+  var withTitle = linked.find(function(t){ return /^\[[^\]]+\]/.test(t.title||''); });
+  if(withTitle){ var m = (withTitle.title||'').match(/^\[([^\]]+)\]/); if(m) return m[1]; }
+  if(s.ubicacionOrigen) return s.ubicacionOrigen;
+  return '—';
+}
+// Estado enum de la vista desde el estado FSM + si la tarea de despacho ya salió a ruta.
+function eoEnumEstado(s, tasks){
+  if(s._mock) return s.e;
+  if(s.estado==='pendiente_revision') return 'pend';
+  if(s.estado==='rechazada' || s.estado==='cancelada') return 'rech';
+  if(s.estado==='despachada') return 'desp';
+  if(s.estado==='en_proceso'){
+    var enRuta = (tasks||[]).some(function(t){ return t.sdvId===s.id && t.type==='dispatch_order' && t.status==='in_progress'; });
+    return enRuta ? 'ruta' : 'ops';
+  }
+  return 'ops';
+}
+// Flags ortogonales (excepciones) de la SDV — para alertas y filtro de alerta.
+function eoFlagsOf(s, tasks){
+  var flags = [];
+  var e = eoEnumEstado(s, tasks);
+  // vencida: activa + fecha deseada pasada (mismo cómputo de fecha que la promesa mostrada,
+  // sin desfase de zona vía eoToD → el flag y el tinte de la fila siempre coinciden).
+  if(e!=='desp' && e!=='rech'){
+    var _due = eoToD(s.fechaSolicitudDeseada), _t = new Date(); _t.setHours(0,0,0,0);
+    if(_due && _due.getTime() < _t.getTime()) flags.push('venc');
+  }
+  if(s._mock){ return (s.flags||[]); }
+  var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+  var anyDone = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
+  // sin evidencia de entrega
+  if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return (t.fotos_entrega||[]).length>0; })) flags.push('sinevid');
+  // sin OUT en Odoo
+  if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); })) flags.push('sinout');
+  // devolución en ruta abierta
+  if(linked.some(function(t){ return t.devolucionRuta && t.devolucionRuta.estado==='abierta'; })) flags.push('dev');
+  // demo pendiente
+  if(linked.some(function(t){ return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); }); })) flags.push('demo');
+  return flags;
+}
+// Nº de evidencias (o null si no aplica: no despachada).
+function eoEvidOf(s, tasks){
+  if(s._mock) return (s.evid===undefined?null:s.evid);
+  if(s.estado!=='despachada') return null;
+  var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
+  return sdvContarEvidencias(linked);
+}
+// Vista normalizada de una SDV (calculada una vez por render).
+function eoView(s, tasks){
+  var e = eoEnumEstado(s, tasks);
+  return {
+    s:s,
+    id: s._mock ? s.id : (s.odooOrderRef || s.folio || s.id),
+    sdvId: s.id,
+    folio: s.folio || s.id,
+    cliente: s.clienteNombre || '(sin cliente)',
+    vendNom: s.vendedorNombre || s.creadoNombre || '—',
+    ciudad: s.ciudadEntrega || '',
+    e: e,
+    loc: eoLocOf(s, tasks),
+    nArts: (s.articulosOdoo||[]).length || (s._mock?s.nArts:0) || 0,
+    fdes: s.fechaSolicitudDeseada,
+    ent: s._mock ? s.ent : eoDispatchDate(s),
+    evid: eoEvidOf(s, tasks),
+    flags: eoFlagsOf(s, tasks)
+  };
+}
+
+// Promesa dinámica: texto/color/tinte de fila desde la vista.
+function eoProm(v){
+  if(v.e==='desp'){
+    var late = v.ent && v.fdes && eoDaysBetween(eoToD(v.fdes), eoToD(v.ent)) > 0;
+    return { d:'Entregada '+eoFmtD(v.ent||v.fdes), r: late?'entregada tarde':'a tiempo',
+             c: late?'amber':'green', tint:'', overdue:false, today:false };
+  }
+  if(v.e==='rech') return { d:eoFmtD(v.fdes), r:'rechazada', c:'mut', tint:'', overdue:false, today:false };
+  var due = eoToD(v.fdes);
+  if(!due) return { d:'—', r:'sin fecha', c:'mut', tint:'', overdue:false, today:false };
+  var today = new Date(); today.setHours(0,0,0,0);
+  var diff = eoDaysBetween(today, due);
+  if(diff < 0)  return { d:eoFmtD(v.fdes), r:'vencida · hace '+(-diff)+(diff===-1?' día':' días'), c:'red', tint:'red', overdue:true, today:false };
+  if(diff===0)  return { d:eoFmtD(v.fdes), r:'hoy',      c:'amber', tint:'amber', overdue:false, today:true };
+  if(diff===1)  return { d:eoFmtD(v.fdes), r:'mañana',   c:'amber', tint:'amber', overdue:false, today:false };
+  return { d:eoFmtD(v.fdes), r:'en '+diff+' días', c:'mut', tint:'', overdue:false, today:false };
+}
+function eoIsOverdue(v){ return eoProm(v).overdue; }
+
+// ── Predicados de filtro (combinables con AND) ──────────────────────────────
+function eoScopeOk(s){ return _eoScope==='all' || eoIsMine(s); }
+function eoPromOk(v){
+  var p = _eoState.f.prom; if(!p) return true;
+  if(p==='venc') return eoIsOverdue(v);
+  var d = eoToD(v.fdes); if(!d) return false;
+  var today = new Date(); today.setHours(0,0,0,0);
+  if(p==='hoy') return eoDaysBetween(today, d)===0;
+  if(p==='sem'){ var ws=eoWeekStart(today), we=new Date(ws.getTime()); we.setDate(we.getDate()+6); we.setHours(23,59,59,999); return d>=ws && d<=we; }
+  if(p==='rango'){
+    var a = _eoState.f.d1 ? eoToD(_eoState.f.d1) : null, b = _eoState.f.d2 ? eoToD(_eoState.f.d2) : null;
+    if(a && d < a) return false;
+    if(b && d > b) return false;
+    return true;
+  }
+  return true;
+}
+function eoFiltOk(v){
+  var f = _eoState.f;
+  if(f.loc && v.loc !== f.loc) return false;
+  if(f.vend && v.vendNom !== f.vend) return false;
+  if(f.est){
+    if(f.est==='activas'){ if(!(v.e==='pend'||v.e==='ops'||v.e==='ruta')) return false; }
+    else if(v.e !== f.est) return false;
+  }
+  if(f.flag && v.flags.indexOf(f.flag) === -1) return false;
+  if(f.ord){
+    var q = _sdvNorm(f.ord).replace(/^s0*/,'').replace(/^s/,'');
+    var hay = _sdvNorm(v.id);
+    if(hay.indexOf(q) === -1 && hay.indexOf(_sdvNorm(f.ord)) === -1) return false;
+  }
+  if(!eoPromOk(v)) return false;
+  return true;
+}
+// subset = scope + búsqueda (universo de pulso/alertas/analítica)
+function eoSubset(tasks){
+  return _eoData
+    .filter(function(s){ return eoScopeOk(s) && eoMatch(s, _eoQuery); })
+    .map(function(s){ return eoView(s, tasks); });
+}
+function eoVisibleFrom(sub){ return sub.filter(eoFiltOk); }
+
+function eoActiveFilterCount(){
+  var f = _eoState.f, n = 0;
+  ['loc','vend','est','flag','ord','prom'].forEach(function(k){ if(f[k]) n++; });
+  return n;
+}
+var EO_EST_LBL = {activas:'Activas', pend:'Pendiente revisión', ops:'En operaciones', ruta:'En ruta', desp:'Despachada', rech:'Rechazada/Canc.'};
+var EO_FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin OUT Odoo', dev:'Devolución en ruta', bloq:'Bloqueado por stock', demo:'En demo'};
+var EO_PROM_LBL = {venc:'Vencidas', hoy:'Hoy', sem:'Esta semana', rango:'Rango'};
+function eoPromChipText(){
+  if(_eoState.f.prom!=='rango') return EO_PROM_LBL[_eoState.f.prom];
+  var a = _eoState.f.d1 ? eoFmtD(_eoState.f.d1) : '…', b = _eoState.f.d2 ? eoFmtD(_eoState.f.d2) : '…';
+  return a + ' → ' + b;
+}
+// Setear un filtro (toggle) — usado por pulso y alertas como ATAJOS.
+function eoSetF(k, v){ _eoState.f[k] = (_eoState.f[k]===v ? '' : v); renderEstadoOrdenes(); }
+function eoClearF(k){ _eoState.f[k]=''; if(k==='prom'){ _eoState.f.d1=''; _eoState.f.d2=''; } renderEstadoOrdenes(); }
+function eoClearAllFilters(){ _eoState.f = { loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' }; renderEstadoOrdenes(); }
+// Reset total (empty state) — no altera el alcance por rol default.
+function eoReset(){
+  eoClearAllFilters();
+  _eoQuery = '';
+  _eoScope = eoDefaultScope();
+  var inp = document.getElementById('eo-search'); if(inp) inp.value='';
+  var clr = document.getElementById('eo-search-clear'); if(clr) clr.style.display='none';
   renderEstadoOrdenes();
 }
 
-function renderEstadoOrdenes() {
-  var kpiEl   = document.getElementById('eo-kpi-row');
-  var pillsEl = document.getElementById('eo-filter-pills');
-  var listEl  = document.getElementById('eo-list');
-  if (!listEl) return;
-  var sols  = _eoData;
+// ── Poblar selects de filtro (almacén / vendedora) desde los datos vivos ─────
+function _eoPopulateFilterSelects(){
   var tasks = _tasks || [];
+  var locs = {}, vends = {};
+  _eoData.forEach(function(s){
+    var v = eoView(s, tasks);
+    if(v.loc && v.loc!=='—') locs[v.loc] = true;
+    if(v.vendNom && v.vendNom!=='—') vends[v.vendNom] = true;
+  });
+  var locSel = document.getElementById('eo-f-loc');
+  if(locSel){
+    var cur = _eoState.f.loc;
+    locSel.innerHTML = '<option value="">Todos</option>' +
+      Object.keys(locs).sort().map(function(l){ return '<option value="'+esc(l)+'">'+esc(l)+'</option>'; }).join('');
+    locSel.value = cur;
+  }
+  var vSel = document.getElementById('eo-f-vend');
+  if(vSel){
+    var curv = _eoState.f.vend;
+    vSel.innerHTML = '<option value="">Todas</option>' +
+      Object.keys(vends).sort().map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
+    vSel.value = curv;
+  }
+}
 
-  function hasDemoPend(s) {
-    if (s._mock) return (s._demoPend||0) > 0;
-    return tasks.filter(function(t){ return t.sdvId===s.id; }).some(function(t){
-      return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); });
+// ══════════ Agrupamiento (compartido: Lista · Kanban · Gráficos) ══════════
+function eoGroupKeyLabel(v, g){
+  if(g==='vend') return {k:v.vendNom, l:v.vendNom, t:'--accent'};
+  if(g==='est')  return {k:v.e, l:EO_EST_GRP[v.e].l, t:EO_EST_GRP[v.e].t};
+  if(g==='loc')  return {k:v.loc, l:v.loc, t:'--text-3'};
+  if(g==='fecha'){ var d=eoToD(v.fdes); return d ? {k:v.fdes, l:d.getDate()+' '+EO_MES[d.getMonth()]+' '+d.getFullYear(), t:'--accent'} : {k:'zz-sinfecha', l:'Sin fecha', t:'--text-3'}; }
+  return {k:'all', l:'', t:'--accent'};
+}
+function eoBuildGroups(list, g){
+  if(g==='none') return [{key:'all', label:'', dot:'', items:list}];
+  var map = {}, order = [];
+  list.forEach(function(v){
+    var gl = eoGroupKeyLabel(v, g);
+    if(!map[gl.k]){ map[gl.k] = {key:gl.k, label:gl.l, dot:gl.t, items:[]}; order.push(gl.k); }
+    map[gl.k].items.push(v);
+  });
+  if(g==='est') order.sort(function(a,b){ return EO_EST_ORDER.indexOf(a)-EO_EST_ORDER.indexOf(b); });
+  else if(g==='fecha') order.sort();
+  else order.sort(function(a,b){ return map[b].items.length - map[a].items.length; });
+  return order.map(function(k){ return map[k]; });
+}
+
+// ══════════ Render: ZONA 1 · Pulso ══════════
+function eoRenderPulse(sub){
+  var nPend=0,nOps=0,nRuta=0,nDesp=0,arts=0, despWithDue=0,onTime=0;
+  sub.forEach(function(v){
+    if(v.e==='pend') nPend++;
+    else if(v.e==='ops') nOps++;
+    else if(v.e==='ruta') nRuta++;
+    else if(v.e==='desp') nDesp++;
+    if(v.e==='pend'||v.e==='ops'||v.e==='ruta') arts += v.nArts;
+    if(v.e==='desp' && v.fdes){
+      var ent = v.ent;
+      if(ent){
+        var cd=eoToD(ent), dd=eoToD(v.fdes);
+        if(cd && dd){ despWithDue++; if(cd.getTime()<=dd.getTime()) onTime++; }
+      }
+    }
+  });
+  var otif = despWithDue ? Math.round(onTime/despWithDue*100) : null;
+  var otifCol = otif==null ? 'var(--text-3)' : otif>=90 ? 'var(--green-text)' : otif>=75 ? 'var(--amber-text)' : 'var(--red-text)';
+  var items = [
+    {k:'activas', n:nPend+nOps+nRuta, lbl:'Activas', col:'var(--accent)',
+     tip:'Pendientes + en operaciones + en ruta: todo lo que aún no se entrega. Clic para filtrar.'},
+    {k:'pend', n:nPend, lbl:'Pend. revisión', col:'var(--amber-text)',
+     tip:'Esperando que Operaciones apruebe o rechace. Clic para filtrar.'},
+    {k:'ops', n:nOps, lbl:'En operaciones', col:'var(--blue-text)',
+     tip:'Aprobadas y en preparación en almacén. Clic para filtrar.'},
+    {k:'ruta', n:nRuta, lbl:'En ruta', col:'var(--sky-text)',
+     tip:'Salieron a ruta y van hacia el cliente. Clic para filtrar.'},
+    {k:'desp', n:nDesp, lbl:'Despachadas', col:'var(--green-text)',
+     tip:'Entregadas y cerradas con su evidencia. Clic para filtrar.'},
+    {k:null, n:(otif==null?'—':otif+'%'), lbl:'OTIF · 30 días', col:otifCol, sub:(despWithDue?onTime+'/'+despWithDue+' a tiempo':'sin datos'),
+     tip:'De las despachadas con fecha deseada, % cerradas a tiempo.'},
+    {k:null, n:String(arts), lbl:'Artículos en flujo', col:'var(--text-1)',
+     tip:'Piezas dentro de las solicitudes activas del subconjunto visible.'}
+  ];
+  var html = items.map(function(it,i){
+    var tipPos = i===0 ? ' tip-start' : (i===items.length-1 ? ' tip-end' : '');
+    var active = it.k && _eoState.f.est===it.k;
+    return '<button type="button" class="eo2-pi has-tip'+tipPos+(active?' active':'')+'"'+
+      (it.k ? ' data-f="'+it.k+'"' : ' tabindex="0"')+
+      ' data-tip="'+esc(it.tip)+'" aria-label="'+esc(it.lbl+': '+it.n+'. '+it.tip)+'"'+
+      (active ? ' aria-pressed="true"' : (it.k ? ' aria-pressed="false"' : ''))+'>'+
+      '<span class="eo2-pi-n" style="color:'+it.col+'">'+it.n+'</span>'+
+      '<span class="eo2-pi-l">'+esc(it.lbl)+'</span>'+
+      (it.sub ? '<span class="eo2-pi-s">'+esc(it.sub)+'</span>' : '')+
+    '</button>';
+  }).join('');
+  var el = document.getElementById('eo-pulse'); if(el) el.innerHTML = html;
+}
+
+// ══════════ Render: VISTA LISTA ══════════
+function eoRowHtml(v){
+  var est = EO_EST[v.e], p = eoProm(v);
+  var subchips = eoSubchips(v).map(function(c){
+    return '<span class="eo2-subchip'+(c.c?' '+c.c:'')+'"><i data-lucide="'+c.i+'"></i>'+esc(c.t)+'</span>';
+  }).join('');
+  var evid;
+  if(v.evid===null) evid = '<span class="eo2-evd na">—</span>';
+  else if(v.evid===0) evid = '<span class="eo2-evd warn"><i data-lucide="image"></i>0</span>';
+  else evid = '<span class="eo2-evd"><i data-lucide="image"></i>'+v.evid+'</span>';
+  return '<tr class="eo2-rw'+(p.tint?' eo2-due-'+p.tint:'')+'" data-id="'+esc(v.sdvId)+'" tabindex="0" role="button" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
+    '<td class="eo2-c-orden"><div class="eo2-ord">'+esc(v.id)+'</div><div class="eo2-fol">'+esc(v.folio)+'</div></td>'+
+    '<td class="eo2-c-cli"><div class="eo2-cli">'+esc(v.cliente)+'</div>'+(v.ciudad?'<div class="eo2-ciu"><i data-lucide="map-pin"></i>'+esc(v.ciudad)+'</div>':'')+'</td>'+
+    '<td class="eo2-c-vend"><span class="eo2-vend"><span class="eo2-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+'</span></td>'+
+    '<td class="eo2-c-est"><div class="eo2-est-w"><span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+subchips+'</div></td>'+
+    '<td class="eo2-c-prom"><div class="eo2-pd">'+esc(p.d)+'</div><div class="eo2-pr '+p.c+'">'+esc(p.r)+'</div></td>'+
+    '<td class="eo2-c-evid">'+evid+'</td>'+
+    '<td class="eo2-c-loc"><span class="eo2-loc">'+esc(v.loc)+'</span></td>'+
+  '</tr>';
+}
+// Subchips de estado/excepción por fila y tarjeta.
+function eoSubchips(v){
+  var out = [];
+  if(v.flags.indexOf('bloq')!==-1) out.push({t:'Bloqueado por stock', c:'red', i:'ban'});
+  if(v.e==='ruta') out.push({t:'En ruta', c:'sky', i:'truck'});
+  if(v.e==='rech') out.push({t:'Corregir y reenviar', c:'red', i:'x-circle'});
+  if(v.flags.indexOf('dev')!==-1) out.push({t:'Devolución en ruta', c:'red', i:'package-open'});
+  if(v.flags.indexOf('sinevid')!==-1) out.push({t:'Sin evidencia', c:'amber', i:'image'});
+  if(v.flags.indexOf('sinout')!==-1) out.push({t:'Sin OUT Odoo', c:'red', i:'alert-triangle'});
+  if(v.flags.indexOf('demo')!==-1) out.push({t:'En demo', c:'purple', i:'eye'});
+  return out.slice(0,3);
+}
+function eoGrpHeadRow(gr){
+  return '<tr class="eo2-rw eo2-grp-h"><td colspan="7"><span class="eo2-grp-t">'+
+    (gr.dot ? '<span class="eo2-grp-dot" style="background:var('+gr.dot+')"></span>' : '')+
+    esc(gr.label)+' <span class="eo2-grp-n">· '+gr.items.length+'</span></span></td></tr>';
+}
+function eoRenderRows(vis){
+  var html;
+  if(_eoState.group==='none'){ html = vis.map(eoRowHtml).join(''); }
+  else {
+    html = eoBuildGroups(vis, _eoState.group).map(function(gr){
+      return eoGrpHeadRow(gr) + gr.items.map(eoRowHtml).join('');
+    }).join('');
+  }
+  var el = document.getElementById('eo-rows'); if(el) el.innerHTML = html;
+}
+
+// ══════════ Render: VISTA KANBAN ══════════
+function eoKbCard(v){
+  var p = eoProm(v);
+  var subchips = eoSubchips(v).slice(0,2).map(function(c){
+    return '<span class="eo2-subchip'+(c.c?' '+c.c:'')+'"><i data-lucide="'+c.i+'"></i>'+esc(c.t)+'</span>';
+  }).join('');
+  return '<button type="button" class="eo2-kb-card'+(p.tint?' eo2-due-'+p.tint:'')+'" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
+    '<div class="eo2-kb-top"><span class="eo2-kb-ord">'+esc(v.id)+'</span>'+
+      '<span class="eo2-kb-prom '+p.c+'">'+esc(p.r)+'</span></div>'+
+    '<div class="eo2-kb-cli">'+esc(v.cliente)+'</div>'+
+    '<div class="eo2-kb-meta"><span class="eo2-kb-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+' · '+esc(v.loc)+' · '+v.nArts+' art.</div>'+
+    (subchips ? '<div class="eo2-kb-sub">'+subchips+'</div>' : '')+
+  '</button>';
+}
+function eoRenderKanban(vis){
+  var host = document.getElementById('eo-view-kanban'); if(!host) return;
+  var g = _eoState.group==='none' ? 'est' : _eoState.group;
+  var groups = eoBuildGroups(vis, g);
+  if(!vis.length){ host.innerHTML = ''; return; }
+  host.innerHTML = groups.map(function(gr){
+    var body = gr.items.length ? gr.items.map(eoKbCard).join('') : '<div class="eo2-kb-empty">Sin órdenes</div>';
+    return '<div class="eo2-kb-col"><div class="eo2-kb-h">'+
+      (gr.dot ? '<span class="eo2-kb-dot" style="background:var('+gr.dot+')"></span>' : '')+
+      '<span class="eo2-kb-t">'+esc(gr.label||'Órdenes')+'</span><span class="eo2-kb-n">'+gr.items.length+'</span></div>'+
+      '<div class="eo2-kb-body">'+body+'</div></div>';
+  }).join('');
+}
+
+// ══════════ Render: VISTA GRÁFICOS (motor propio por tokens) ══════════
+function eoChartDimBars(vis){
+  var g = _eoState.group==='none' ? 'est' : _eoState.group;
+  var groups = eoBuildGroups(vis, g);
+  var dimName = {vend:'Órdenes por vendedora', est:'Órdenes por estado', loc:'Órdenes por almacén', fecha:'Órdenes por fecha de promesa'}[g];
+  var max = groups.reduce(function(m,x){ return Math.max(m, x.items.length); }, 1);
+  var bars = groups.map(function(gr){
+    return '<div class="eo2-bar-row eo2-ch-bar"><span class="eo2-bar-name" title="'+esc(gr.label||'')+'">'+esc(gr.label||'—')+'</span>'+
+      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(gr.items.length/max*100)+'%'+
+        (gr.dot?';background:var('+gr.dot+')':'')+'"></span></span>'+
+      '<span class="eo2-bar-n">'+gr.items.length+'</span></div>';
+  }).join('');
+  return '<div class="eo2-ch-card eo2-ch-bars"><div class="eo2-ch-title">'+esc(dimName)+'</div>'+(bars||'<div class="eo2-ch-empty">Sin datos.</div>')+'</div>';
+}
+// Barras apiladas: despachos por día del mes visible (SVG rects, tokens en style).
+function eoChartMonthStacked(vis){
+  var y = _eoCalState.y, m = _eoCalState.mo, dim = _eoCalState.dim;
+  var days = new Date(y, m+1, 0).getDate();
+  var buckets = [];
+  for(var i=0;i<days;i++) buckets.push({pend:0,ops:0,ruta:0,desp:0,rech:0,total:0});
+  vis.forEach(function(v){
+    var iso = dim==='desp' ? (v.ent||null) : v.fdes;
+    if(!iso) return;
+    var d = eoToD(iso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
+    var b = buckets[d.getDate()-1]; b[v.e]++; b.total++;
+  });
+  var max = buckets.reduce(function(mx,b){ return Math.max(mx, b.total); }, 1);
+  var order = [['desp','--green-dot'],['ruta','--sky-dot'],['ops','--blue-dot'],['pend','--amber-dot'],['rech','--red-dot']];
+  var colW = 100/days, H = 100, cols = '';
+  [0.25,0.5,0.75].forEach(function(f){ cols += '<line x1="0" y1="'+(H*f).toFixed(1)+'" x2="100" y2="'+(H*f).toFixed(1)+'" style="stroke:var(--border-light,var(--border))" stroke-width=".4"></line>'; });
+  for(var di=0; di<days; di++){
+    var b = buckets[di], x = (di*colW + colW*0.14).toFixed(3), acc2 = 0;
+    order.forEach(function(pair){
+      var val = b[pair[0]]; if(!val) return;
+      var hh = val/max*H, yy = (H - acc2 - hh).toFixed(2);
+      cols += '<rect x="'+x+'" y="'+yy+'" width="'+(colW*0.72).toFixed(3)+'" height="'+hh.toFixed(2)+'" style="fill:var('+pair[1]+')"></rect>';
+      acc2 += hh;
     });
   }
-  function hasEnRuta(s) {
-    if (s._mock) return false;
-    return tasks.some(function(t){ return t.sdvId===s.id && t.type==='dispatch_order' && t.status==='in_progress'; });
-  }
-  function hasDev(s) {
-    if (s._mock) return !!s._devolucion;
-    return tasks.some(function(t){ return t.sdvId===s.id && t.devolucionRuta && t.devolucionRuta.estado==='abierta'; });
-  }
-
-  // KPIs
-  var nPend = sols.filter(function(s){ return s.estado==='pendiente_revision'; }).length;
-  // "En operaciones" y "En ruta" son excluyentes: en ruta es la sub-fase posterior (la tarea de
-  // despacho ya arrancó). Sin este !hasEnRuta, la misma SDV se contaba en ambos KPI.
-  var nProc = sols.filter(function(s){ return s.estado==='en_proceso' && !hasEnRuta(s); }).length;
-  var nRuta = sols.filter(hasEnRuta).length;
-  var nDesp = sols.filter(function(s){ return s.estado==='despachada'; }).length;
-  var nDemo = sols.filter(hasDemoPend).length;
-  var nDev  = sols.filter(hasDev).length;
-  var nCanc = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
-
-  var kpis = [
-    {n:nPend, lbl:'Pendiente revisión',  color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision', tip:'Solicitudes esperando que Operaciones las apruebe o rechace.'},
-    {n:nProc, lbl:'En operaciones',      color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso',         tip:'Aprobadas y en preparación; el despacho aún no sale a ruta.'},
-    {n:nRuta, lbl:'En ruta',             color:'#0891b2',            bg:'rgba(8,145,178,.08)',  filt:'en_ruta',            tip:'El despacho ya arrancó y va en camino al cliente.'},
-    {n:nDesp, lbl:'Despachadas',         color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada',         tip:'Entregadas y cerradas con su evidencia.'},
-    {n:nDemo, lbl:'Con demo activo',     color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo',               tip:'Piezas en préstamo o demostración con el cliente, pendientes de decisión.'},
-    {n:nDev,  lbl:'Devoluciones en ruta',color:'var(--red-text)',    bg:'rgba(220,38,38,.08)',  filt:'devolucion',         tip:'Con una devolución de artículos abierta por procesar.'},
-    {n:nCanc, lbl:'Rechazadas/Canel.',  color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada',          tip:'Devueltas a la vendedora o canceladas; fuera del flujo.'},
-  ];
-  if (kpiEl) kpiEl.innerHTML = kpis.map(function(k,i){
-    var tipPos = i===0 ? ' tip-start' : (i===kpis.length-1 ? ' tip-end' : '');
-    return '<div class="eo-kpi-card has-tip'+tipPos+((_eoFiltro===k.filt)?' active':'')+'" role="button" tabindex="0"'+
-      ' data-tip="'+esc(k.tip)+'" aria-label="'+esc(k.lbl+'. '+k.tip+' Clic para filtrar.')+'"'+
-      ' onclick="estadoOrdenesFiltrar(\''+k.filt+'\')"'+
-      ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();estadoOrdenesFiltrar(\''+k.filt+'\');}"'+
-      ' style="border-left:3px solid '+k.color+';background:'+k.bg+'">'+
-      '<div class="eo-kpi-n" style="color:'+k.color+'">'+k.n+'</div>'+
-      '<div class="eo-kpi-lbl">'+k.lbl+'</div>'+
-    '</div>';
-  }).join('');
-
-  // Filtros pill
-  var filtros = [
-    {k:'',                  lbl:'Todas ('+sols.length+')'},
-    {k:'pendiente_revision',lbl:'Pendiente revisión'},
-    {k:'en_proceso',        lbl:'En operaciones'},
-    {k:'en_ruta',           lbl:'En ruta ('+nRuta+')'},
-    {k:'despachada',        lbl:'Despachadas'},
-    {k:'demo',              lbl:'Con demo'},
-    {k:'devolucion',        lbl:'Devoluciones ('+nDev+')'},
-    {k:'cancelada',         lbl:'Rechazadas'},
-  ];
-  if (pillsEl) pillsEl.innerHTML = filtros.map(function(f){
-    return '<button class="eo-pill'+((_eoFiltro===f.k)?' active':'')+'" onclick="estadoOrdenesFiltrar(\''+f.k+'\')">'+f.lbl+'</button>';
-  }).join('');
-
-  // Filtrar lista
-  var visible = sols;
-  if (_eoFiltro === 'en_ruta') {
-    visible = sols.filter(hasEnRuta);
-  } else if (_eoFiltro === 'en_proceso') {
-    visible = sols.filter(function(s){ return s.estado==='en_proceso' && !hasEnRuta(s); });
-  } else if (_eoFiltro === 'demo') {
-    visible = sols.filter(hasDemoPend);
-  } else if (_eoFiltro === 'devolucion') {
-    visible = sols.filter(hasDev);
-  } else if (_eoFiltro === 'cancelada') {
-    visible = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; });
-  } else if (_eoFiltro) {
-    visible = sols.filter(function(s){ return s.estado===_eoFiltro; });
-  }
-
-  var demoBanner = _EO_MOCK
-    ? '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:12px;background:rgba(37,99,235,.07);border:1.5px dashed rgba(37,99,235,.3);border-radius:8px;font-size:11px;color:var(--accent)"><i data-lucide="flask-conical" style="width:13px;height:13px;stroke:currentColor;display:inline-block;flex-shrink:0"></i><strong>MODO DEMO</strong> — Datos de ejemplo para presentación. Estos no son datos reales de producción.</div>'
-    : '';
-
-  if (!visible.length) {
-    listEl.innerHTML = demoBanner + '<div style="color:var(--text-2);padding:30px;text-align:center;font-size:13px">Sin solicitudes en este período</div>';
-    if (window.lucide) lucide.createIcons();
-    return;
-  }
-  listEl.innerHTML = demoBanner + visible.map(function(s){ return eoCardHtml(s, tasks); }).join('');
-  if (window.lucide) lucide.createIcons();
+  var dayLbls = '';
+  for(var dl=1; dl<=days; dl++) dayLbls += '<span>'+((dl===1 || dl%5===0) ? dl : '')+'</span>';
+  var legend = order.map(function(p){ return '<span class="eo2-ch-lg"><span class="eo2-ch-lg-sw" style="background:var('+p[1]+')"></span>'+esc(EO_EST_GRP[p[0]].l)+'</span>'; }).join('');
+  var has = buckets.some(function(b){ return b.total>0; });
+  return '<div class="eo2-ch-card full"><div class="eo2-ch-title">Despachos por día — '+EO_MES[m]+' '+y+' · '+(dim==='desp'?'por fecha de despacho':'por promesa')+'</div>'+
+    (has ? '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="eo2-ch-month-svg">'+cols+'</svg>'+
+      '<div class="eo2-ch-month-x" style="grid-template-columns:repeat('+days+',1fr)">'+dayLbls+'</div>'+
+      '<div class="eo2-ch-legend">'+legend+'</div>'+
+      '<div class="eo2-an-note" style="margin-top:6px">Navega el mes en la vista <b>Calendario</b>; este gráfico sigue ese mes y su dimensión.</div>'
+      : '<div class="eo2-ch-empty">Sin órdenes en '+EO_MES[m]+' '+y+' para esta dimensión. Cambia de mes en la vista Calendario.</div>')+
+  '</div>';
 }
+function eoRenderCharts(vis){
+  var host = document.getElementById('eo-view-charts'); if(!host) return;
+  if(!vis.length){ host.innerHTML = '<div class="eo2-ch-card full"><div class="eo2-ch-empty">Ningún dato para graficar con los filtros actuales.</div></div>'; return; }
+  var c = {pend:0,ops:0,ruta:0,desp:0,rech:0};
+  vis.forEach(function(v){ c[v.e]++; });
+  host.innerHTML = eoChartDimBars(vis) +
+    '<div class="eo2-ch-card"><div class="eo2-ch-title">Distribución por estado</div><canvas id="eo-ch-donut"></canvas></div>' +
+    eoChartMonthStacked(vis);
+  // Donut por estado con el motor propio rptDonut (tokens, dark mode gratis).
+  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7'};
+  if(typeof rptDonut==='function'){
+    rptDonut('eo-ch-donut', [
+      {label:'Pendiente', val:c.pend, color:t.amber},
+      {label:'En operaciones', val:c.ops, color:t.blue},
+      {label:'En ruta', val:c.ruta, color:t.skyDot},
+      {label:'Despachadas', val:c.desp, color:t.green},
+      {label:'Rechaz./Canc.', val:c.rech, color:t.red}
+    ], 'órdenes');
+  }
+}
+
+// ══════════ Render: VISTA CALENDARIO ══════════
+function eoCalDayIso(v){ return _eoCalState.dim==='desp' ? (v.ent||null) : v.fdes; }
+function eoEstDotToken(e){ return EO_EST_GRP[e] ? EO_EST_GRP[e].t : '--text-3'; }
+function eoDayPanelHtml(d, list){
+  var byE = {};
+  list.forEach(function(v){ byE[v.e] = (byE[v.e]||0)+1; });
+  var SUM_LBL = {pend:['pendiente de revisión','pendientes de revisión'], ops:['en operaciones','en operaciones'],
+    ruta:['en ruta','en ruta'], desp:['despachada','despachadas'], rech:['rechazada','rechazadas']};
+  var parts = EO_EST_ORDER.filter(function(e){ return byE[e]; }).map(function(e){ return byE[e]+' '+SUM_LBL[e][byE[e]===1?0:1]; });
+  if(_eoCalState.dim==='prom'){
+    var nv = list.filter(eoIsOverdue).length;
+    if(nv) parts.push('<span class="eo2-cdp-ov">'+nv+' vencida'+(nv>1?'s':'')+'</span>');
+  }
+  var rows = list.map(function(v){
+    var p = eoProm(v), est = EO_EST[v.e];
+    var extra = _eoCalState.dim==='desp'
+      ? (v.evid===null ? '' : '<span class="eo2-cdp-extra'+(v.evid===0?' amber':' green')+'"><i data-lucide="image"></i>'+v.evid+'</span>')
+      : '<span class="eo2-cdp-extra '+p.c+'">'+esc(p.r)+'</span>';
+    return '<button type="button" class="eo2-cdp-row" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
+      '<span class="eo2-cdp-ord">'+esc(v.id)+'</span>'+
+      '<span class="eo2-cdp-cli">'+esc(v.cliente)+'</span>'+
+      '<span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+extra+
+    '</button>';
+  }).join('');
+  return '<div class="eo2-cal-day-panel">'+
+    '<div class="eo2-cdp-h">'+
+      '<span class="eo2-cdp-title">'+EO_DOW_FULL[d.getDay()]+' '+d.getDate()+' '+EO_MES[d.getMonth()]+'</span>'+
+      '<span class="eo2-cdp-count">'+list.length+' órden'+(list.length===1?'':'es')+'</span>'+
+      '<button type="button" class="eo2-cdp-x" aria-label="Cerrar panel del día"><i data-lucide="x"></i></button>'+
+    '</div>'+
+    '<div class="eo2-cdp-sum">'+parts.join(' · ')+'</div>'+
+    '<div class="eo2-cdp-rows">'+rows+'</div>'+
+  '</div>';
+}
+function eoRenderCalendar(vis){
+  var host = document.getElementById('eo-view-cal'); if(!host) return;
+  var y = _eoCalState.y, m = _eoCalState.mo;
+  var byDay = {};
+  vis.forEach(function(v){
+    var iso = eoCalDayIso(v); if(!iso) return;
+    var d = eoToD(iso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
+    (byDay[d.getDate()] = byDay[d.getDate()] || []).push(v);
+  });
+  var first = new Date(y, m, 1), lead = (first.getDay()+6)%7;
+  var days = new Date(y, m+1, 0).getDate();
+  var today = new Date(); today.setHours(0,0,0,0);
+  var todayD = (today.getFullYear()===y && today.getMonth()===m) ? today.getDate() : -1;
+  // Validar la selección ANTES de pintar (evita .sel huérfano).
+  if(_eoCalState.sel){
+    var sd0 = eoToD(_eoCalState.sel);
+    if(!sd0 || sd0.getFullYear()!==y || sd0.getMonth()!==m || !(byDay[sd0.getDate()]||[]).length) _eoCalState.sel = null;
+  }
+  var head = '<div class="eo2-cal-toolbar">'+
+    '<div class="eo2-cal-nav"><button type="button" class="eo2-cal-arrow" id="eo-cal-prev" aria-label="Mes anterior"><i data-lucide="chevron-left"></i></button>'+
+      '<span class="eo2-cal-month">'+EO_MESES_FULL[m]+' '+y+'</span>'+
+      '<button type="button" class="eo2-cal-arrow" id="eo-cal-next" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button></div>'+
+    '<div class="eo2-cal-dim" role="group" aria-label="Dimensión de fecha">'+
+      '<button type="button" class="'+(_eoCalState.dim==='prom'?'active':'')+'" data-dim="prom">Promesa</button>'+
+      '<button type="button" class="'+(_eoCalState.dim==='desp'?'active':'')+'" data-dim="desp">Despachado</button>'+
+    '</div></div>'+
+    '<div class="eo2-cal-hint">'+(_eoCalState.dim==='prom'
+      ? 'Qué se debe entregar cada día — los días pasados con promesas sin cumplir salen en rojo. Haz clic en un día con órdenes para ver su detalle.'
+      : 'Qué salió a ruta / se entregó cada día (throughput del mes). Haz clic en un día con órdenes para ver su detalle.')+'</div>';
+  var cal = '<div class="eo2-cal-calendar"><div class="eo2-cal-dow">'+EO_DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="eo2-cal-days">';
+  for(var i=0;i<lead;i++) cal += '<div class="eo2-cal-cell empty"></div>';
+  for(var dd=1; dd<=days; dd++){
+    var list = byDay[dd] || [], dISO = y+'-'+String(m+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+    var isToday = dd===todayD;
+    var overdueDay = _eoCalState.dim==='prom' && list.some(eoIsOverdue);
+    var dots = list.slice(0,4).map(function(v){ return '<span class="eo2-cal-dot" style="background:var('+eoEstDotToken(v.e)+')"></span>'; }).join('');
+    var selected = _eoCalState.sel===dISO;
+    cal += '<button type="button" class="eo2-cal-cell'+(list.length?' has':'')+(isToday?' today':'')+(overdueDay?' overdue':'')+(selected?' sel':'')+'"'+
+      (list.length? ' data-day="'+dISO+'" aria-pressed="'+(selected?'true':'false')+'"' : ' disabled tabindex="-1"')+
+      ' aria-label="'+dd+' · '+list.length+' órden'+(list.length===1?'':'es')+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
+      '<span class="eo2-cal-num">'+dd+'</span>'+
+      (list.length? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '')+
+    '</button>';
+  }
+  cal += '</div></div>';
+  var panel = '';
+  if(_eoCalState.sel){ var sd = eoToD(_eoCalState.sel); if(sd) panel = eoDayPanelHtml(sd, byDay[sd.getDate()]); }
+  var cells = '<div class="eo2-cal-grid">'+cal+panel+'</div>';
+  // Agenda (móvil): lista agrupada por día; encabezado estático (no interactivo).
+  var dayKeys = Object.keys(byDay).map(Number).sort(function(a,b){return a-b;});
+  var agenda = '<div class="eo2-cal-agenda">'+ (dayKeys.length ? dayKeys.map(function(dd){
+    var list = byDay[dd], d = new Date(y, m, dd);
+    var ov = _eoCalState.dim==='prom' && list.some(eoIsOverdue);
+    var head2 = '<div class="eo2-ag-day'+(ov?' overdue':'')+'"><span class="eo2-ag-dow">'+EO_DOW_ABBR[d.getDay()]+' '+dd+'</span><span class="eo2-ag-n">'+list.length+'</span></div>';
+    var items = list.map(function(v){
+      var p = eoProm(v);
+      return '<button type="button" class="eo2-ag-item" data-id="'+esc(v.sdvId)+'">'+
+        '<span class="eo2-ag-dot" style="background:var('+eoEstDotToken(v.e)+')"></span>'+
+        '<span class="eo2-ag-cli">'+esc(v.cliente)+'</span><span class="eo2-ag-ord">'+esc(v.id)+'</span>'+
+        '<span class="eo2-ag-prom '+p.c+'">'+esc(p.r)+'</span></button>';
+    }).join('');
+    return '<div class="eo2-ag-group">'+head2+items+'</div>';
+  }).join('') : '<div class="eo2-ch-empty">Sin órdenes en '+EO_MES[m]+' '+y+' para esta dimensión.</div>')+'</div>';
+  host.innerHTML = head + cells + agenda;
+}
+// Auto-scroll al panel del día (tween rAF; instantáneo con reduce-motion). Posición fija.
+function eoRevealDayPanel(){
+  var panel = document.querySelector('#eo-view-cal .eo2-cal-day-panel');
+  if(!panel) return;
+  requestAnimationFrame(function(){
+    // El contenido de Estado de Órdenes vive DENTRO de un contenedor con overflow:auto
+    // (no scrollea la ventana, a diferencia de la maqueta standalone). Buscar el ancestro
+    // que realmente scrollea; si no hay, caer al documento/ventana.
+    var sc = null;
+    for(var pa = panel.parentElement; pa; pa = pa.parentElement){
+      var cs = getComputedStyle(pa);
+      if(/(auto|scroll)/.test(cs.overflowY) && pa.scrollHeight > pa.clientHeight + 2){ sc = pa; break; }
+    }
+    var useWin = !sc;
+    var scEl = sc || (document.scrollingElement || document.documentElement);
+    var curTop = useWin ? (window.scrollY || scEl.scrollTop) : scEl.scrollTop;
+    var offset = useWin ? panel.getBoundingClientRect().top
+                        : (panel.getBoundingClientRect().top - scEl.getBoundingClientRect().top);
+    var target = Math.max(0, curTop + offset - (useWin ? 70 : 16));
+    if(Math.abs(target - curTop) < 8) return;
+    var setTop = useWin ? function(y){ window.scrollTo(0, y); } : function(y){ scEl.scrollTop = y; };
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if(reduce){ setTop(target); return; }
+    var start = curTop, dist = target - start, dur = 320, t0 = null;
+    (function tween(ts){
+      if(t0===null) t0 = ts;
+      var p = Math.min(1, (ts - t0)/dur);
+      var e = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p + 2, 2)/2;
+      setTop(Math.round(start + dist*e));
+      if(p < 1) requestAnimationFrame(tween);
+    })(performance.now());
+  });
+}
+
+// ══════════ Render: ZONA 3 · Acción hoy (atajos que escriben en _eoState.f) ══════════
+function eoRenderAlerts(sub){
+  function cnt(fn){ return sub.filter(fn).length; }
+  var rows = [
+    {fk:'prom', v:'venc',    lbl:'Vencidas',                         i:'clock-alert',   c:'red', n:cnt(eoIsOverdue)},
+    {fk:'est',  v:'rech',    lbl:'Rechazadas — corregir y reenviar', i:'x-circle',      c:'red', n:cnt(function(v){ return v.e==='rech'; })},
+    {fk:'flag', v:'sinevid', lbl:'Despachada sin evidencia',         i:'image-off',     c:'red', n:cnt(function(v){ return v.flags.indexOf('sinevid')!==-1; })},
+    {fk:'flag', v:'sinout',  lbl:'Sin OUT en Odoo',                  i:'alert-triangle',c:'red', n:cnt(function(v){ return v.flags.indexOf('sinout')!==-1; })},
+    {fk:'flag', v:'dev',     lbl:'Devolución en ruta',               i:'package-open',  c:'red', n:cnt(function(v){ return v.flags.indexOf('dev')!==-1; })}
+  ];
+  if(_eoBloqStock != null && _eoBloqStock > 0){
+    rows.unshift({fk:'flag', v:'bloq', lbl:'Bloqueado por stock (Odoo)', i:'ban', c:'amber', n:_eoBloqStock});
+  }
+  rows = rows.filter(function(a){ return a.n > 0; });
+  var demoN = cnt(function(v){ return v.flags.indexOf('demo')!==-1; });
+  var html = rows.map(function(a){
+    var active = _eoState.f[a.fk]===a.v;
+    return '<button type="button" class="eo2-al-row'+(active?' active':'')+'" data-fk="'+a.fk+'" data-fv="'+a.v+'"'+
+      (active?' aria-pressed="true"':' aria-pressed="false"')+'>'+
+      '<span class="eo2-al-n '+a.c+'">'+a.n+'</span><span class="eo2-al-lbl">'+esc(a.lbl)+'</span>'+
+      '<i data-lucide="chevron-right" class="eo2-chev"></i></button>';
+  }).join('');
+  if(demoN > 0){
+    var dActive = _eoState.f.flag==='demo';
+    html += '<div class="eo2-al-div">Seguimiento</div>'+
+      '<button type="button" class="eo2-al-row'+(dActive?' active':'')+'" data-fk="flag" data-fv="demo"'+
+      (dActive?' aria-pressed="true"':' aria-pressed="false"')+'>'+
+      '<span class="eo2-al-n purple">'+demoN+'</span><span class="eo2-al-lbl">En demo — decidir con el cliente</span>'+
+      '<i data-lucide="chevron-right" class="eo2-chev"></i></button>';
+  }
+  var el = document.getElementById('eo-al-rows'); if(el) el.innerHTML = html;
+  var cl = document.getElementById('eo-al-clear'); if(cl) cl.className = 'eo2-al-clear' + ((rows.length || demoN) ? '' : ' on');
+}
+
+// ══════════ Render: ZONA 4 · Analítica ══════════
+function eoRenderAnalytics(sub){
+  // Donut por estado (motor propio rptDonut).
+  var c = {pend:0,ops:0,ruta:0,desp:0,rech:0};
+  sub.forEach(function(v){ c[v.e]++; });
+  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7'};
+  if(typeof rptDonut==='function'){
+    rptDonut('eo-an-donut', [
+      {label:'Pendiente', val:c.pend, color:t.amber},
+      {label:'En operaciones', val:c.ops, color:t.blue},
+      {label:'En ruta', val:c.ruta, color:t.skyDot},
+      {label:'Despachadas', val:c.desp, color:t.green},
+      {label:'Rechaz./Canc.', val:c.rech, color:t.red}
+    ], 'órdenes');
+  }
+  // Barras por vendedora.
+  var by = {};
+  sub.forEach(function(v){ by[v.vendNom] = (by[v.vendNom]||0)+1; });
+  var arr = Object.keys(by).map(function(k){ return {k:k, n:by[k]}; }).sort(function(a,b){ return b.n-a.n; }).slice(0,8);
+  var max = arr.length ? arr[0].n : 1;
+  var bars = document.getElementById('eo-an-bars');
+  if(bars) bars.innerHTML = arr.map(function(x){
+    return '<div class="eo2-bar-row"><span class="eo2-bar-name" title="'+esc(x.k)+'">'+esc(x.k.split(' ')[0])+'</span>'+
+      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(x.n/max*100)+'%"></span></span>'+
+      '<span class="eo2-bar-n">'+x.n+'</span></div>';
+  }).join('') || '<div class="eo2-an-note">Sin datos en el subconjunto.</div>';
+}
+
+// ══════════ Chips de filtros activos + badge ══════════
+function eoRenderChips(){
+  var f = _eoState.f, chips = [];
+  function chip(kind, key, text){
+    return '<span class="eo2-fchip"><span class="eo2-fk">'+kind+':</span>'+esc(text)+
+      '<button type="button" data-clear="'+key+'" aria-label="Quitar filtro '+kind+'"><i data-lucide="x"></i></button></span>';
+  }
+  if(f.loc)  chips.push(chip('Almacén','loc', f.loc));
+  if(f.vend) chips.push(chip('Vendedora','vend', f.vend.split(' ')[0]));
+  if(f.est)  chips.push(chip('Estado','est', EO_EST_LBL[f.est]));
+  if(f.flag) chips.push(chip('Alerta','flag', EO_FLAG_LBL[f.flag]));
+  if(f.ord)  chips.push(chip('Orden','ord', f.ord));
+  if(f.prom) chips.push(chip('Promesa','prom', eoPromChipText()));
+  var bar = document.getElementById('eo-chips-bar');
+  if(bar){
+    if(chips.length){
+      bar.innerHTML = chips.join('') + '<button type="button" class="eo2-chip-clear" id="eo-chips-clear">Limpiar todo</button>';
+      bar.className = 'eo2-chips-bar on';
+    } else { bar.innerHTML = ''; bar.className = 'eo2-chips-bar'; }
+  }
+  var n = eoActiveFilterCount(), badge = document.getElementById('eo-fil-badge'), fbtn = document.getElementById('eo-fil-btn');
+  if(badge && fbtn){
+    if(n){ badge.textContent = n; badge.hidden = false; fbtn.classList.add('on'); }
+    else { badge.hidden = true; fbtn.classList.remove('on'); }
+  }
+}
+
+// ══════════ Conmutar vista ══════════
+function eoSetView(v){
+  _eoState.view = v;
+  ['list','kanban','cal','charts'].forEach(function(id){
+    var host = document.getElementById('eo-view-'+id);
+    if(host) host.hidden = (id !== v);
+  });
+  var seg = document.querySelector('#section-estado-ordenes .eo2-view-seg');
+  if(seg) seg.querySelectorAll('.eo2-view-btn').forEach(function(b){
+    var on = b.getAttribute('data-view')===v;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  renderEstadoOrdenes();
+}
+
+// ══════════ Orquestador principal ══════════
+function renderEstadoOrdenes(){
+  var rowsEl = document.getElementById('eo-rows');
+  if(!rowsEl) return;
+  var tasks = _tasks || [];
+  if(_eoScope === null) _eoScope = eoDefaultScope();
+  var sm = document.getElementById('eo-scope-mine'), sa = document.getElementById('eo-scope-all');
+  if(sm) sm.classList.toggle('active', _eoScope==='mine');
+  if(sa) sa.classList.toggle('active', _eoScope==='all');
+
+  var sub = eoSubset(tasks);
+  var vis = eoVisibleFrom(sub);
+
+  eoRenderPulse(sub);
+  eoRenderAlerts(sub);
+  eoRenderChips();
+  eoRenderAnalytics(sub);
+  eoDrawTrend(_eoData.filter(function(s){ return eoScopeOk(s) && eoMatch(s, _eoQuery); }));
+
+  if(_eoState.view==='list')        eoRenderRows(vis);
+  else if(_eoState.view==='kanban') eoRenderKanban(vis);
+  else if(_eoState.view==='cal')    eoRenderCalendar(vis);
+  else if(_eoState.view==='charts') eoRenderCharts(vis);
+
+  // Empty state central (Lista/Kanban/Gráficos; el calendario tiene su propio vacío por mes).
+  var emptyEl = document.getElementById('eo-empty');
+  var showEmpty = (!vis.length && _eoState.view!=='cal');
+  if(emptyEl){
+    emptyEl.className = 'eo2-empty' + (showEmpty ? ' on' : '');
+    var msgEl = document.getElementById('eo-empty-msg');
+    var hasNarrow = _eoQuery || eoActiveFilterCount() || _eoScope==='mine';
+    if(msgEl) msgEl.textContent = _eoData.length
+      ? (hasNarrow ? 'Ninguna orden coincide con ese filtro o búsqueda.' : 'Sin solicitudes en este período.')
+      : 'Sin solicitudes en este período.';
+  }
+  // Conteo en la toolbar.
+  var hasNarrow2 = _eoQuery || eoActiveFilterCount();
+  var cnt = document.getElementById('eo-tb-count');
+  if(cnt) cnt.textContent = (hasNarrow2 ? vis.length + ' de ' + sub.length : sub.length) + ' orden' + (sub.length===1?'':'es');
+
+  if(window.lucide) lucide.createIcons();
+}
+
 
 // Cuenta TODAS las fotos reales de un grupo de tareas: evidencia por artículo +
 // checklist de despacho (entrega/vehículo/recepción) + guía + el campo genérico
@@ -30172,77 +31701,6 @@ function sdvContarEvidencias(linked) {
     return n + (t.evidence||[]).length + (t.fotos_guia||[]).length + itemsEv +
       (t.fotos_entrega||[]).length + (t.fotos_vehiculo||[]).length + (t.fotos_recepcion||[]).length;
   }, 0);
-}
-function eoCardHtml(s, tasks) {
-  // Soporte dual: datos mock (_mock:true) o datos reales (SDV + tasks)
-  var mainTask, totalEvid, anyDone, demoPend, sinOut, devolucion;
-
-  if (s._mock) {
-    mainTask   = s._taskMock ? {type:s._taskMock.tipo, status:s._taskMock.estado, managerName:s._taskMock.mgr} : null;
-    totalEvid  = s._evidencias || 0;
-    anyDone    = mainTask && (mainTask.status==='completed'||mainTask.status==='validated');
-    demoPend   = s._demoPend || 0;
-    sinOut     = !!s._sinOut;
-    devolucion = !!s._devolucion;
-  } else {
-    var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
-    // Consistencia tarjeta↔detalle: misma prioridad que eoAbrirDetalle (dispatch_order = tarea
-    // madre/canónica primero). Antes la tarjeta priorizaba packaging y mostraba "Empaque" mientras
-    // el detalle mostraba "Despacho" para la misma SDV.
-    mainTask   = linked.find(function(t){ return t.type==='dispatch_order'; }) ||
-                 linked.find(function(t){ return t.type==='packaging'; }) || linked[0];
-    totalEvid  = sdvContarEvidencias(linked);
-    anyDone    = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
-    demoPend   = 0;
-    linked.forEach(function(t){ demoPend += (t.items||[]).filter(function(it){ return it.esDemo&&(!it.demoStatus||it.demoStatus==='en_demo'); }).length; });
-    sinOut     = s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); });
-    devolucion = linked.some(function(t){ return t.devolucionRuta && t.devolucionRuta.estado==='abierta'; });
-  }
-
-  // Chips
-  var chips = '';
-  if (mainTask) {
-    var stLbl  = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
-    var stCls  = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
-    var tyLbl  = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
-    var tyIcon = mainTask.type==='packaging'?'package':mainTask.type==='item_pickup'?'scan-line':'truck';
-    chips += '<span class="eo-ops-chip '+stCls+'"><i data-lucide="'+tyIcon+'" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(tyLbl)+' · '+esc(stLbl)+'</span>';
-    if (mainTask.managerName) chips += ' <span class="eo-ops-chip"><i data-lucide="user" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+esc(mainTask.managerName.split(' ')[0])+'</span>';
-  }
-  if (anyDone && totalEvid>0) {
-    chips += ' <span class="eo-ops-chip green" style="cursor:zoom-in" title="Ver fotos" onclick="event.stopPropagation();eoAbrirFotos(\''+esc(s.id)+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="image" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+totalEvid+' evidencia'+(totalEvid>1?'s':'')+'</span>';
-  } else if (anyDone && totalEvid===0) {
-    chips += ' <span class="eo-ops-chip amber" style="cursor:zoom-in" title="Ver fotos" onclick="event.stopPropagation();eoAbrirFotos(\''+esc(s.id)+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="image-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin evidencias</span>';
-  }
-  if (mainTask && mainTask.type==='dispatch_order' && mainTask.status==='in_progress') {
-    chips += ' <span class="eo-ops-chip" style="color:#0891b2;background:rgba(8,145,178,.1)"><i data-lucide="truck" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> En ruta</span>';
-  }
-  if (demoPend>0)   chips += ' <span class="eo-ops-chip purple"><i data-lucide="eye" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> '+demoPend+' en demo</span>';
-  if (sinOut)       chips += ' <span class="eo-ops-chip red"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Sin OUT Odoo</span>';
-  if (devolucion) {
-    chips += ' <span class="eo-ops-chip red eo-dev-chip" onclick="event.stopPropagation();eoAbrirDetalle(\''+esc(s.id)+'\')"><i data-lucide="package-open" style="width:10px;height:10px;stroke:currentColor;display:inline-block"></i> Devolución en ruta</span>';
-  }
-
-  var arts  = (s.articulosOdoo||[]).length;
-  var fecha = s.creadoAt ? sdvFmtDate(s.creadoAt).split(' ')[0] : '—';
-  var meta  = [
-    s.clienteNombre  ? '<strong>'+esc(s.clienteNombre)+'</strong>' : '',
-    s.vendedorNombre ? esc(s.vendedorNombre) : '',
-    s.odooOrderRef   ? 'Orden '+esc(s.odooOrderRef) : '',
-    arts             ? arts+' artículo'+(arts>1?'s':'') : '',
-    fecha
-  ].filter(Boolean).join(' · ');
-
-  var onClick = 'eoAbrirDetalle(\''+esc(s.id)+'\')';
-
-  return '<div class="eo-card"'+(onClick?' onclick="'+onClick+'" title="Ver detalle"':'')+'>'+
-    '<div class="eo-card-top">'+
-      '<span class="eo-folio">'+esc(s.folio||s.id)+'</span>'+
-      sdvBadge(s.estado)+
-    '</div>'+
-    '<div class="eo-card-meta">'+meta+'</div>'+
-    (chips?'<div class="eo-card-ops">'+chips+'</div>':'')+
-  '</div>';
 }
 
 async function eoAbrirDetalle(sdvId) {
@@ -30264,11 +31722,25 @@ async function eoAbrirDetalle(sdvId) {
     var totalEvid = sdvContarEvidencias(linked);
     var devTask = linked.find(function(t){ return t.devolucionRuta; });
     var hasDevolucion = !!(devTask && devTask.devolucionRuta.estado==='abierta');
+    // Vista normalizada + "Para el cliente": la pregunta #1 de Ventas es "¿qué le digo?".
+    var evw = eoView(s, _tasks||[]);
+    var sayMsg = eoClientMessage(evw);
+    var sayHtml = '<div class="eo2-say"><i data-lucide="message-circle"></i><div><strong>Para el cliente</strong>'+esc(sayMsg)+'</div></div>';
+    var loc = eoLocOf(s, _tasks||[]);
 
-    // Artículos
+    // Artículos — 3 niveles: image en payload (SDV viejas/lookup) → directa; sin image pero
+    // con odoo_product_id → placeholder marcado data-oprodimg (hydrateProductImgs la trae
+    // on-demand de Odoo); sin nada → placeholder fijo. Las SDV se guardan sin base64 a propósito.
     var artsHtml = (s.articulosOdoo||[]).map(function(it){
+      var imgHtml;
+      if (it.image) {
+        imgHtml = '<img src="'+it.image+'" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">';
+      } else {
+        var mark = it.odoo_product_id ? ' data-oprodimg="'+esc(String(it.odoo_product_id))+'"' : '';
+        imgHtml = '<div class="sdv-item-img-ph"'+mark+' style="width:32px;height:32px;border-radius:5px;flex-shrink:0"><i data-lucide="package" style="width:14px;height:14px"></i></div>';
+      }
       return '<div class="eo-det-art">' +
-        (it.image?'<img src="'+it.image+'" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">':'<i data-lucide="package" style="width:14px;height:14px;stroke:var(--text-3);flex-shrink:0"></i>') +
+        imgHtml +
         '<div style="flex:1"><div class="eo-det-art-name">'+esc(it.product_name||'Artículo')+'</div>'+(it.sku?'<div class="eo-det-art-sku">'+esc(it.sku)+'</div>':'')+'</div>' +
         '<span class="eo-det-art-qty">×'+it.quantity+'</span></div>';
     }).join('') || '<span style="color:var(--text-3);font-size:12px">Sin artículos</span>';
@@ -30283,7 +31755,9 @@ async function eoAbrirDetalle(sdvId) {
     if (s.receptorNombre)         datosRows += '<div class="eo-det-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>';
     if (s.receptorContacto)       datosRows += '<div class="eo-det-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>';
     if (s.fechaSolicitudDeseada)  datosRows += '<div class="eo-det-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>';
-    if (s.fechaEntrega)           datosRows += '<div class="eo-det-row"><dt>Fecha entrega</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>';
+    var _entReal = eoDispatchDate(s);
+    if (_entReal)                 datosRows += '<div class="eo-det-row"><dt>Fecha entrega</dt><dd>'+sdvFmtDate(_entReal)+'</dd></div>';
+    if (loc && loc!=='—')         datosRows += '<div class="eo-det-row"><dt>Despacho desde</dt><dd>'+esc(loc)+'</dd></div>';
     if (s.observaciones)          datosRows += '<div class="eo-det-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>';
 
     // Estado operativo
@@ -30333,21 +31807,168 @@ async function eoAbrirDetalle(sdvId) {
           '</div>' +
         '</div>' +
         '<div class="eo-det-body">' +
+          sayHtml +
           '<div><div class="eo-det-sec-title">Artículos ('+(s.articulosOdoo||[]).length+')</div>'+artsHtml+'</div>' +
           '<div><div class="eo-det-sec-title">Datos</div>'+datosRows+'</div>' +
           opsHtml +
           devHtml +
+          '<div class="eo2-gapbox"><h4><i data-lucide="alert-triangle"></i>Logística de entrega — hoja de Ventas, sin fuente viva</h4>' +
+            '<div class="eo2-gap-row"><span class="eo2-g-l">Vehículo · Transporte</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+            '<div class="eo2-gap-row"><span class="eo2-g-l">Horario de entrega</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+            '<div class="eo2-gap-row"><span class="eo2-g-l">¿Lleva instalación?</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+            '<div class="eo2-gap-note">Ninguna fuente viva (SDV / WWP / Odoo) captura estos campos hoy. Decisión pendiente: agregarlos al formulario SDV o a la tarea de despacho antes de jubilar la hoja de Ventas.</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
     var ov = document.getElementById('eoDetOverlay');
     if (ov) ov.outerHTML = html;
     if (window.lucide) lucide.createIcons();
+    hydrateProductImgs(document.getElementById('eoDetOverlay'));  // fotos de producto on-demand
     if (s.odooOrderRef) sdvLoadPickStatus(s.id, 'eo-pickstatus'); // F3-2
   } catch(e) {
     var ov2 = document.getElementById('eoDetOverlay');
     if (ov2) ov2.innerHTML = '<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text);margin-bottom:12px">Error: '+esc(e.message)+'</div><button class="btn btn-secondary" onclick="document.getElementById(\'eoDetOverlay\').remove()">Cerrar</button></div>';
   }
+}
+
+// "Para el cliente": traduce estado+flags a una frase en lenguaje de cliente (diccionario).
+// Es la respuesta a la pregunta #1 de Ventas ("¿qué le digo a mi cliente?").
+function eoClientMessage(v){
+  var p = eoProm(v);
+  if(v.flags.indexOf('bloq')!==-1) return 'Odoo aún no tiene stock reservado para toda la orden. No prometas fecha hasta que Operaciones confirme la reposición.';
+  if(v.e==='rech') return 'Operaciones devolvió la solicitud (revisa el motivo del rechazo). Corrígela y reenvía — el cliente no pierde su turno.';
+  if(v.flags.indexOf('dev')!==-1) return 'Entregado, pero hay una devolución en ruta abierta. Coordina con Operaciones el retiro del artículo.';
+  if(v.flags.indexOf('sinevid')!==-1) return 'Marcada como despachada, pero falta la foto de los documentos de entrega firmados. Pídela a Operaciones antes de cerrar con el cliente.';
+  if(v.flags.indexOf('demo')!==-1) return 'Hay piezas en demostración con el cliente. Toca decidir: compra o retiro.';
+  if(v.e==='desp'){
+    if(p.c==='amber') return 'Entregado, aunque después de la fecha prometida. Si el cliente pregunta, la demora fue por coordinación de ruta; ya está resuelto.';
+    return 'Entregado completo y a tiempo, con su evidencia. Puedes compartir las fotos con el cliente.';
+  }
+  if(v.e==='ruta') return 'Su pedido va en camino — salió a ruta y va hacia el cliente dentro del horario acordado.';
+  if(v.e==='ops'){
+    if(p.overdue) return 'En preparación pero fuera de fecha. Confirma la nueva fecha con Operaciones antes de avisar al cliente.';
+    return 'En preparación en almacén. La entrega va encaminada a cumplirse como se prometió.';
+  }
+  // pendiente de revisión
+  if(p.overdue) return 'La fecha deseada ya pasó y la solicitud sigue en revisión. Habla con Operaciones antes de comprometer una fecha nueva con el cliente.';
+  if(p.today) return 'La fecha deseada es hoy y aún está en revisión. Confirma con Operaciones si alcanza para hoy antes de prometerlo.';
+  return 'Solicitud recibida; Operaciones la revisa. La entrega sigue programada para la fecha deseada.';
+}
+
+// ── Wiring de eventos de la vista (delegados, se enlazan UNA vez) ──────────
+// renderEstadoOrdenes reconstruye innerHTML en cada apply → usamos delegación en el
+// contenedor de la sección, que persiste, y cierre de popovers por clic-fuera global.
+var _eoEventsWired = false;
+function eoInitEvents(){
+  if(_eoEventsWired) return;
+  var root = document.getElementById('section-estado-ordenes');
+  if(!root) return;
+  _eoEventsWired = true;
+
+  function closePops(){
+    ['eo-pop-fil','eo-pop-grp'].forEach(function(id){ var p=document.getElementById(id); if(p) p.classList.remove('on'); });
+    ['eo-fil-btn','eo-grp-btn'].forEach(function(id){ var b=document.getElementById(id); if(b){ b.classList.remove('open-pop'); b.setAttribute('aria-expanded','false'); } });
+  }
+  function syncFilterPanel(){
+    var g = function(id){ return document.getElementById(id); };
+    if(g('eo-f-loc'))  g('eo-f-loc').value  = _eoState.f.loc;
+    if(g('eo-f-vend')) g('eo-f-vend').value = _eoState.f.vend;
+    if(g('eo-f-est'))  g('eo-f-est').value  = (_eoState.f.est==='activas' ? '' : _eoState.f.est);
+    if(g('eo-f-ord'))  g('eo-f-ord').value  = _eoState.f.ord;
+    root.querySelectorAll('#eo-f-prom button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-p')===_eoState.f.prom); });
+    if(g('eo-f-range')) g('eo-f-range').hidden = _eoState.f.prom!=='rango';
+    if(g('eo-f-d1')) g('eo-f-d1').value = _eoState.f.d1;
+    if(g('eo-f-d2')) g('eo-f-d2').value = _eoState.f.d2;
+  }
+
+  // Delegación única de clicks dentro de la sección.
+  root.addEventListener('click', function(e){
+    // Vistas
+    var vb = e.target.closest('.eo2-view-btn'); if(vb){ eoSetView(vb.getAttribute('data-view')); return; }
+    // Botón Filtros
+    if(e.target.closest('#eo-fil-btn')){
+      e.stopPropagation();
+      var pop = document.getElementById('eo-pop-fil'), open = pop.classList.contains('on');
+      closePops();
+      if(!open){ syncFilterPanel(); pop.classList.add('on'); var b=document.getElementById('eo-fil-btn'); b.classList.add('open-pop'); b.setAttribute('aria-expanded','true'); }
+      return;
+    }
+    // Botón Agrupar
+    if(e.target.closest('#eo-grp-btn')){
+      e.stopPropagation();
+      var pg = document.getElementById('eo-pop-grp'), openg = pg.classList.contains('on');
+      closePops();
+      if(!openg){ pg.classList.add('on'); var bg=document.getElementById('eo-grp-btn'); bg.classList.add('open-pop'); bg.setAttribute('aria-expanded','true'); }
+      return;
+    }
+    // Clicks dentro de los popovers no cierran.
+    if(e.target.closest('#eo-pop-fil') || e.target.closest('#eo-pop-grp')){
+      // Promesa: chips segmentados
+      var pb = e.target.closest('#eo-f-prom button[data-p]');
+      if(pb){
+        var p = pb.getAttribute('data-p');
+        _eoState.f.prom = (_eoState.f.prom===p) ? '' : p;
+        document.getElementById('eo-f-range').hidden = _eoState.f.prom!=='rango';
+        root.querySelectorAll('#eo-f-prom button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-p')===_eoState.f.prom); });
+        e.stopPropagation(); return;
+      }
+      // Aplicar filtros
+      if(e.target.closest('#eo-fil-apply')){
+        _eoState.f.loc  = document.getElementById('eo-f-loc').value;
+        _eoState.f.vend = document.getElementById('eo-f-vend').value;
+        _eoState.f.est  = document.getElementById('eo-f-est').value;
+        _eoState.f.ord  = document.getElementById('eo-f-ord').value.trim();
+        if(_eoState.f.prom==='rango'){ _eoState.f.d1 = document.getElementById('eo-f-d1').value; _eoState.f.d2 = document.getElementById('eo-f-d2').value; }
+        else { _eoState.f.d1=''; _eoState.f.d2=''; }
+        closePops(); renderEstadoOrdenes(); return;
+      }
+      if(e.target.closest('#eo-fil-reset')){ eoClearAllFilters(); syncFilterPanel(); e.stopPropagation(); return; }
+      // Agrupar por
+      var gb = e.target.closest('#eo-grp-opts button[data-g]');
+      if(gb){
+        _eoState.group = gb.getAttribute('data-g');
+        root.querySelectorAll('#eo-grp-opts button').forEach(function(x){ x.classList.toggle('on', x===gb); });
+        var lbl = {none:'Agrupar', vend:'Por vendedora', est:'Por estado', loc:'Por almacén', fecha:'Por fecha'}[_eoState.group];
+        var lblEl = document.getElementById('eo-grp-lbl'); if(lblEl) lblEl.textContent = lbl;
+        document.getElementById('eo-grp-btn').classList.toggle('on', _eoState.group!=='none');
+        closePops(); renderEstadoOrdenes(); return;
+      }
+      e.stopPropagation(); return;
+    }
+    // Pulso (atajo → estado)
+    var pi = e.target.closest('.eo2-pi[data-f]'); if(pi){ eoSetF('est', pi.getAttribute('data-f')); return; }
+    // Alertas (atajo → filtro)
+    var al = e.target.closest('.eo2-al-row'); if(al){ eoSetF(al.getAttribute('data-fk'), al.getAttribute('data-fv')); return; }
+    // Chips: quitar filtro / limpiar
+    var cx = e.target.closest('#eo-chips-bar button[data-clear]'); if(cx){ eoClearF(cx.getAttribute('data-clear')); return; }
+    if(e.target.closest('#eo-chips-clear')){ eoClearAllFilters(); return; }
+    // Fila de lista → detalle
+    var tr = e.target.closest('tr.eo2-rw[data-id]'); if(tr && !tr.classList.contains('eo2-grp-h')){ eoAbrirDetalle(tr.getAttribute('data-id')); return; }
+    // Tarjeta kanban → detalle
+    var kc = e.target.closest('.eo2-kb-card[data-id]'); if(kc){ eoAbrirDetalle(kc.getAttribute('data-id')); return; }
+    // Calendario: navegación de mes / dimensión / panel / día
+    if(e.target.closest('#eo-cal-prev')){ _eoCalState.mo--; if(_eoCalState.mo<0){ _eoCalState.mo=11; _eoCalState.y--; } _eoCalState.sel=null; renderEstadoOrdenes(); return; }
+    if(e.target.closest('#eo-cal-next')){ _eoCalState.mo++; if(_eoCalState.mo>11){ _eoCalState.mo=0; _eoCalState.y++; } _eoCalState.sel=null; renderEstadoOrdenes(); return; }
+    var dim = e.target.closest('.eo2-cal-dim button[data-dim]'); if(dim){ _eoCalState.dim = dim.getAttribute('data-dim'); _eoCalState.sel=null; renderEstadoOrdenes(); return; }
+    var crow = e.target.closest('.eo2-cdp-row[data-id], .eo2-ag-item[data-id]'); if(crow){ eoAbrirDetalle(crow.getAttribute('data-id')); return; }
+    if(e.target.closest('.eo2-cdp-x')){ _eoCalState.sel=null; renderEstadoOrdenes(); return; }
+    var day = e.target.closest('.eo2-cal-cell[data-day]');
+    if(day){ _eoCalState.sel = day.getAttribute('data-day'); renderEstadoOrdenes(); eoRevealDayPanel(); return; }
+  });
+
+  // Teclado: Enter/Espacio en filas de lista.
+  root.addEventListener('keydown', function(e){
+    if(e.key!=='Enter' && e.key!==' ') return;
+    var tr = e.target.closest('tr.eo2-rw[data-id]');
+    if(tr && !tr.classList.contains('eo2-grp-h')){ e.preventDefault(); eoAbrirDetalle(tr.getAttribute('data-id')); return; }
+    var pi = e.target.closest('.eo2-pi[data-f]');
+    if(pi){ e.preventDefault(); eoSetF('est', pi.getAttribute('data-f')); }
+  });
+
+  // Cerrar popovers por clic fuera / Escape (global, se enlaza una vez con la sección).
+  document.addEventListener('click', function(){ closePops(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closePops(); });
 }
 
 // F3-2: carga async el estado real del despacho (OUT) desde Odoo y lo pinta como badge.
@@ -30429,9 +32050,14 @@ async function sdvVerDetalle(id, ctx) {
     if (!r.ok||!d.ok) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+(d.error||'No encontrado')+'</div>'; return; }
     var s = d.solicitud;
     var isOps = _user&&(_user.role==='admin'||_user.role==='manager');
+    // Artículos — sin image en payload (las SDV se guardan sin base64): el placeholder lleva
+    // data-oprodimg y hydrateProductImgs trae la foto on-demand desde Odoo por odoo_product_id.
     var artHtml = (s.articulosOdoo||[]).map(function(it){
+      var imgHtml;
+      if (it.image) imgHtml = '<img class="sdv-item-img" src="'+esc(it.image)+'" alt="">';
+      else imgHtml = '<div class="sdv-item-img-ph"'+(it.odoo_product_id?' data-oprodimg="'+esc(String(it.odoo_product_id))+'"':'')+'><i data-lucide="package" style="width:14px;height:14px"></i></div>';
       return '<div class="sdv-item-row" style="background:var(--surface-2);border-radius:var(--radius);margin-bottom:6px">'+
-        (it.image?'<img class="sdv-item-img" src="'+esc(it.image)+'" alt="">':'<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>')+
+        imgHtml+
         '<div><div class="sdv-item-name">'+esc(it.product_name)+'</div>'+(it.sku?'<div class="sdv-item-sku">'+esc(it.sku)+'</div>':'')+'</div>'+
         '<span class="sdv-item-qty">×'+esc(it.quantity)+'</span></div>';
     }).join('');
@@ -30526,6 +32152,7 @@ async function sdvVerDetalle(id, ctx) {
         ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
       '</div>';
     if (window.lucide) lucide.createIcons();
+    hydrateProductImgs(detailEl);   // fotos de producto on-demand (marcadores data-oprodimg)
     sdvCargarFotos(id);   // galería de evidencias de las tareas del vínculo (async, no bloquea)
     if (s.odooOrderRef) sdvLoadPickStatus(id, 'sdv-pickstatus');  // estado real del despacho en Odoo (igual que Estado de Órdenes)
   } catch(e) { detailEl.innerHTML='<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text)">Error: '+esc(e.message)+'</div></div>'; }
@@ -30730,9 +32357,18 @@ function sdvRenderEditItems(items) {
   var html = items.map(function(item) {
     var nombre = item.product_name || item.nombre || '';
     var cantidad = item.quantity!==undefined ? item.quantity : item.cantidad;
-    var imgHtml = item.imagenUrl ?
-      '<div class="sdv-edit-item-img"><img src="'+escapeHtml(item.imagenUrl)+'" alt="'+escapeHtml(nombre)+'" loading="lazy"></div>' :
-      '<div class="sdv-edit-item-img" style="background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);color:var(--text-3)">sin foto</div>';
+    // 3 niveles: imagen en el item (imagenUrl era rama muerta — nadie la asigna; se acepta
+    // también item.image por si el payload la trae) → directa; con odoo_product_id →
+    // placeholder marcado data-oprodimg (hydrateProductImgs la trae de Odoo); sin nada → "sin foto".
+    var directImg = item.imagenUrl || item.image;
+    var imgHtml;
+    if (directImg) {
+      imgHtml = '<div class="sdv-edit-item-img"><img src="'+escapeHtml(directImg)+'" alt="'+escapeHtml(nombre)+'" loading="lazy"></div>';
+    } else if (item.odoo_product_id) {
+      imgHtml = '<div class="sdv-edit-item-img" data-oprodimg="'+escapeHtml(String(item.odoo_product_id))+'">sin foto</div>';
+    } else {
+      imgHtml = '<div class="sdv-edit-item-img" style="background:var(--surface-2)">sin foto</div>';
+    }
     return '<div class="sdv-edit-item">'+
       imgHtml+
       '<div class="sdv-edit-item-content">'+
@@ -30743,6 +32379,7 @@ function sdvRenderEditItems(items) {
     '</div>';
   }).join('');
   container.innerHTML = html;
+  hydrateProductImgs(container);   // fotos de producto on-demand (marcadores data-oprodimg)
 }
 
 // Consulta el diff contra Odoo y, si hay cambios, muestra el banner con el botón

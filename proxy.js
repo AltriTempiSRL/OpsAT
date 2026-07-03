@@ -182,7 +182,26 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v122';
+const APP_BUILD = 'v125';
+
+// Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
+// /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
+// del archivo (dev: editar sin reiniciar), la constante producía un desajuste
+// irresoluble → el version-gate del cliente recargaba en loop cada 2 s (2026-07-03).
+// El server debe reportar siempre el build del HTML que realmente está sirviendo.
+let _htmlBuildCache = { mtimeMs: 0, build: APP_BUILD };
+function getHtmlBuild() {
+  try {
+    const fp = path.join(__dirname, 'historial.html');
+    const st = fs.statSync(fp);
+    if (st.mtimeMs !== _htmlBuildCache.mtimeMs) {
+      const head = fs.readFileSync(fp, 'utf-8');
+      const m = head.match(/var APP_BUILD = '([^']+)'/);
+      _htmlBuildCache = { mtimeMs: st.mtimeMs, build: (m && m[1]) || APP_BUILD };
+    }
+  } catch (e) { /* fail-open: la constante */ }
+  return _htmlBuildCache.build;
+}
 
 // ── Caché de gzip en memoria para estáticos (perf Android 8) ─────────────────
 // Antes se re-comprimía historial.html (~1.85 MB) en CADA request. La entrada
@@ -323,6 +342,38 @@ async function getOdooPhotoBuf(odooId) {
   const img = emp && emp[0] && emp[0].image_256;
   const buf = img ? Buffer.from(img, 'base64') : null;
   _odooPhotoCache.set(id, { buf, at: Date.now() });
+  return buf;
+}
+
+// Cache de fotos de PRODUCTO Odoo (product.product.image_128) por productId — mismo patrón
+// que _odooPhotoCache de empleados, pero con TOPE de entradas: el catálogo es mucho mayor que
+// la nómina y los artículos de las SDV rotan. TTL 12h; el null también se cachea (producto sin
+// imagen → no se reintenta contra Odoo en cada render). Errores de Odoo NO se cachean (throw).
+const _prodPhotoCache = new Map(); // productId → { buf, at }
+const PROD_PHOTO_TTL = 12 * 60 * 60 * 1000;
+const PROD_PHOTO_MAX = 600;
+async function getProductPhotoBuf(pid) {
+  const id = parseInt(pid);
+  if (!id) return null;
+  const hit = _prodPhotoCache.get(id);
+  if (hit && (Date.now() - hit.at) < PROD_PHOTO_TTL) return hit.buf;
+  const rows = await odooCall('product.product', 'read', [[id]], { fields: ['image_128', 'product_tmpl_id'] });
+  const row = rows && rows[0];
+  let img = row && row.image_128;
+  // Variante sin imagen propia → hereda la del template (mismo truco que resolveKitImages)
+  if (!img && row && Array.isArray(row.product_tmpl_id) && row.product_tmpl_id[0]) {
+    try {
+      const t = await odooCall('product.template', 'read', [[row.product_tmpl_id[0]]], { fields: ['image_128'] });
+      img = t && t[0] && t[0].image_128;
+    } catch (_) { /* sin permiso al template → queda sin imagen */ }
+  }
+  const buf = img ? Buffer.from(img, 'base64') : null;
+  if (_prodPhotoCache.size >= PROD_PHOTO_MAX) {
+    // Tope simple FIFO: Map conserva orden de inserción → purgar la entrada más vieja
+    const oldest = _prodPhotoCache.keys().next().value;
+    if (oldest !== undefined) _prodPhotoCache.delete(oldest);
+  }
+  _prodPhotoCache.set(id, { buf, at: Date.now() });
   return buf;
 }
 
@@ -4696,9 +4747,13 @@ const server = http.createServer(async (req, res) => {
   // ── /api/app-version — build actual del servidor (sin auth, ultra-liviano) ──
   // El cliente lo consulta periódicamente; si difiere de su APP_BUILD embebido,
   // se recarga solo. No depende del Service Worker — no puede caer en deadlock.
+  // IMPORTANTE: reporta el build del historial.html EN DISCO (cache por mtime), no la
+  // constante en memoria — si el proceso quedó viejo respecto al archivo (dev: editar
+  // sin reiniciar), la constante causaba un desajuste irresoluble → loop de recargas
+  // cada 2 s en el cliente (2026-07-03). Con esto, server y HTML nunca divergen.
   if (reqPath === '/api/app-version' && req.method === 'GET') {
     res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
-    res.end(JSON.stringify({ build: APP_BUILD }));
+    res.end(JSON.stringify({ build: getHtmlBuild() }));
     return;
   }
   // ── /api/maps-key — Google Maps API key (sin auth; restringido por dominio en GCP) ──
@@ -7794,6 +7849,22 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     try {
       const buf = await getOdooPhotoBuf(reqPath.split('/').pop());
+      if (!buf) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
+      res.end(buf);
+    } catch (e) { res.writeHead(502); res.end(); }
+    return;
+  }
+
+  // GET /api/wwp/product-photo/:pid — foto del producto Odoo (image_128, fallback template).
+  // Decisión: las SDV NO guardan la imagen base64 en sdv-solicitudes.json (inflaría el archivo
+  // crítico blindado y el payload de GET /api/sdv). Se resuelve on-demand por odoo_product_id →
+  // retroactivo para todas las SDV ya existentes en prod, sin migración. RBAC: requireJwt basta
+  // (misma política que odoo-photo de empleados — la foto de un producto no es dato sensible).
+  if (reqPath.match(/^\/api\/wwp\/product-photo\/\d+$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const buf = await getProductPhotoBuf(reqPath.split('/').pop());
       if (!buf) { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
       res.end(buf);
