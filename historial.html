@@ -90,6 +90,8 @@ function _loadXlsx(cb){
   --radius-sm:4px;--radius:6px;--radius-md:8px;--radius-lg:12px;--radius-full:9999px;
   --shadow:0 0 0 1px var(--border);
   --font:'Inter',system-ui,-apple-system,sans-serif;
+  /* ── Tooltip (data-tip) ── */
+  --tip-bg:#1c2430;--tip-fg:#ffffff;
 }
 /* ── Dark Mode — Night Ops ──────────────────────────────────────────────── */
 [data-theme='dark']{
@@ -126,6 +128,7 @@ function _loadXlsx(cb){
   --sky-bg:#0e1e30;--sky-text:#62c4f5;--sky-dot:#0ea5e9;
   --orange-bg:#2a1408;--orange-text:#f5a25a;--orange-dot:#e87020;
   --shadow:0 0 0 1px var(--border-light);
+  --tip-bg:#f4f4f6;--tip-fg:#1a1d24;
 }
 /* Sidebar y header: mantienen los mismos oscuros en ambos temas (ya son oscuros)
    --header-bg y --sidebar-bg NO se redefinen en dark mode */
@@ -4499,6 +4502,55 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo-ops-chip.purple{background:rgba(147,51,234,.1);border-color:rgba(147,51,234,.4);color:#9333ea}
 .eo-dev-chip{cursor:pointer;transition:opacity .15s}
 .eo-dev-chip:hover{opacity:.75}
+/* ── Tooltip reutilizable (data-tip) — hover + focus, CSS puro ─────────────
+   Uso: cualquier elemento con  data-tip="texto corto"  muestra una burbuja
+   explicativa al pasar el cursor O al enfocarlo con teclado. El elemento debe
+   ser enfocable (tabindex="0" / <button>) para que aparezca con foco. Para
+   lectores de pantalla el texto va en aria-label del propio elemento (la
+   burbuja es decorativa, aria-hidden implícito por ser ::after). En touch no
+   hay hover: la burbuja no aparece y no interfiere con el tap/onclick. */
+.has-tip{position:relative}
+.has-tip::after,.has-tip::before{
+  opacity:0;visibility:hidden;pointer-events:none;position:absolute;
+  z-index:60;/* sobre el contenido, por debajo de modales (>=200) */
+  transition:opacity .14s ease,visibility .14s ease;
+}
+.has-tip::after{
+  content:attr(data-tip);
+  top:calc(100% + 9px);left:50%;transform:translateX(-50%) translateY(-3px);
+  width:max-content;max-width:min(240px,78vw);white-space:normal;
+  background:var(--tip-bg);color:var(--tip-fg);
+  padding:8px 10px;border-radius:8px;
+  font-size:11px;line-height:1.35;font-weight:500;letter-spacing:0;
+  text-transform:none;text-align:left;
+  box-shadow:0 6px 22px rgba(0,0,0,.28);
+}
+.has-tip::before{/* flechita */
+  content:"";top:calc(100% + 3px);left:50%;
+  transform:translateX(-50%) translateY(-3px);
+  border:5px solid transparent;border-bottom-color:var(--tip-bg);
+}
+.has-tip:hover::after,.has-tip:hover::before,
+.has-tip:focus-visible::after,.has-tip:focus-visible::before{
+  opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);
+}
+/* Enfoque de teclado visible en cards/chips que se volvieron enfocables */
+.has-tip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.has-tip:focus:not(:focus-visible){outline:none}
+/* Variantes de anclaje para elementos pegados a un borde (evitar recorte
+   horizontal): alinear la burbuja al inicio/fin del elemento en vez de centrar. */
+.has-tip.tip-start::after{left:0;transform:translateX(0) translateY(-3px)}
+.has-tip.tip-start:hover::after,.has-tip.tip-start:focus-visible::after{transform:translateX(0) translateY(0)}
+.has-tip.tip-end::after{left:auto;right:0;transform:translateX(0) translateY(-3px)}
+.has-tip.tip-end:hover::after,.has-tip.tip-end:focus-visible::after{transform:translateX(0) translateY(0)}
+/* Tooltip que sale hacia ARRIBA (para elementos con espacio libre debajo escaso) */
+.has-tip.tip-up::after{top:auto;bottom:calc(100% + 9px);transform:translateX(-50%) translateY(3px)}
+.has-tip.tip-up::before{top:auto;bottom:calc(100% + 3px);border-bottom-color:transparent;border-top-color:var(--tip-bg);transform:translateX(-50%) translateY(3px)}
+.has-tip.tip-up:hover::after,.has-tip.tip-up:focus-visible::after,
+.has-tip.tip-up:hover::before,.has-tip.tip-up:focus-visible::before{transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){
+  .has-tip::after,.has-tip::before{transition:none}
+}
 .eo-dev-modal-overlay{position:fixed;inset:0;z-index:19000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
 .eo-dev-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .eo-dev-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
@@ -7757,7 +7809,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v121';
+var APP_BUILD = 'v122';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -29932,8 +29984,10 @@ async function kpisDespachoCargar() {
     var r = await authFetch('/api/sdv-kpis?days='+encodeURIComponent(days));
     var d = await r.json();
     if (!r.ok || !d.ok) { if (cards) cards.innerHTML = '<div style="color:var(--red-text);padding:16px">'+esc(d.error||'Error al cargar KPIs')+'</div>'; return; }
-    function card(n, lblTxt, sub, color) {
-      return '<div class="eo-kpi-card" style="border-left:3px solid '+color+';cursor:default">'+
+    function card(n, lblTxt, sub, color, tip, pos) {
+      var tipAttrs = tip ? (' has-tip'+(pos||'')+'"'+
+        ' tabindex="0" data-tip="'+esc(tip)+'" aria-label="'+esc(lblTxt+'. '+tip)+'"') : '"';
+      return '<div class="eo-kpi-card'+tipAttrs+' style="border-left:3px solid '+color+';cursor:default">'+
         '<div class="eo-kpi-n" style="color:'+color+';font-size:20px">'+n+'</div>'+
         '<div class="eo-kpi-lbl">'+lblTxt+'</div>'+
         '<div style="font-size:10px;color:var(--text-3);margin-top:2px">'+sub+'</div></div>';
@@ -29945,11 +29999,11 @@ async function kpisDespachoCargar() {
     var vinc = d.vinculoWWP.pct!=null ? d.vinculoWWP.pct+'%' : '—';
     var vincSub = d.vinculoWWP.de ? (d.vinculoWWP.con+' de '+d.vinculoWWP.de+' en flujo') : 'sin datos';
     if (cards) cards.innerHTML =
-      card(d.total, 'Solicitudes', 'en el período', 'var(--brand-primary)')+
-      card(slaVal, 'SLA de aprobación', slaSub, 'var(--accent)')+
-      card(leadVal, 'Lead time', leadSub, '#0891b2')+
-      card(d.rechazo.pct+'%', 'Tasa de rechazo', d.rechazo.count+' de '+d.total+' creadas', 'var(--red-text)')+
-      card(vinc, '% con tarea WWP', vincSub, 'var(--green-text)');
+      card(d.total, 'Solicitudes', 'en el período', 'var(--brand-primary)', 'Total de solicitudes de despacho creadas en el período.', ' tip-start')+
+      card(slaVal, 'SLA de aprobación', slaSub, 'var(--accent)', 'Tiempo promedio desde que la vendedora crea la solicitud hasta que Operaciones la aprueba.')+
+      card(leadVal, 'Lead time', leadSub, '#0891b2', 'Tiempo promedio desde crear la solicitud hasta despacharla.')+
+      card(d.rechazo.pct+'%', 'Tasa de rechazo', d.rechazo.count+' de '+d.total+' creadas', 'var(--red-text)', '% de solicitudes que Operaciones devolvió a la vendedora.')+
+      card(vinc, '% con tarea WWP', vincSub, 'var(--green-text)', '% de solicitudes en flujo que ya tienen su tarea de despacho creada.', ' tip-end');
     var html = '';
     if (d.rechazo.topMotivos && d.rechazo.topMotivos.length) {
       html += '<div class="eo-det-ops-box"><div class="eo-det-sec-title">Top motivos de rechazo</div>'+
@@ -30042,16 +30096,21 @@ function renderEstadoOrdenes() {
   var nCanc = sols.filter(function(s){ return s.estado==='rechazada'||s.estado==='cancelada'; }).length;
 
   var kpis = [
-    {n:nPend, lbl:'Pendiente revisión',  color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision'},
-    {n:nProc, lbl:'En operaciones',      color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso'},
-    {n:nRuta, lbl:'En ruta',             color:'#0891b2',            bg:'rgba(8,145,178,.08)',  filt:'en_ruta'},
-    {n:nDesp, lbl:'Despachadas',         color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada'},
-    {n:nDemo, lbl:'Con demo activo',     color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo'},
-    {n:nDev,  lbl:'Devoluciones en ruta',color:'var(--red-text)',    bg:'rgba(220,38,38,.08)',  filt:'devolucion'},
-    {n:nCanc, lbl:'Rechazadas/Canel.',  color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada'},
+    {n:nPend, lbl:'Pendiente revisión',  color:'var(--amber-text)',  bg:'rgba(245,158,11,.08)', filt:'pendiente_revision', tip:'Solicitudes esperando que Operaciones las apruebe o rechace.'},
+    {n:nProc, lbl:'En operaciones',      color:'var(--accent)',      bg:'rgba(37,99,235,.08)',  filt:'en_proceso',         tip:'Aprobadas y en preparación; el despacho aún no sale a ruta.'},
+    {n:nRuta, lbl:'En ruta',             color:'#0891b2',            bg:'rgba(8,145,178,.08)',  filt:'en_ruta',            tip:'El despacho ya arrancó y va en camino al cliente.'},
+    {n:nDesp, lbl:'Despachadas',         color:'var(--green-text)',  bg:'rgba(16,163,74,.08)',  filt:'despachada',         tip:'Entregadas y cerradas con su evidencia.'},
+    {n:nDemo, lbl:'Con demo activo',     color:'#9333ea',            bg:'rgba(147,51,234,.08)', filt:'demo',               tip:'Piezas en préstamo o demostración con el cliente, pendientes de decisión.'},
+    {n:nDev,  lbl:'Devoluciones en ruta',color:'var(--red-text)',    bg:'rgba(220,38,38,.08)',  filt:'devolucion',         tip:'Con una devolución de artículos abierta por procesar.'},
+    {n:nCanc, lbl:'Rechazadas/Canel.',  color:'var(--text-3)',      bg:'var(--surface-3)',     filt:'cancelada',          tip:'Devueltas a la vendedora o canceladas; fuera del flujo.'},
   ];
-  if (kpiEl) kpiEl.innerHTML = kpis.map(function(k){
-    return '<div class="eo-kpi-card'+((_eoFiltro===k.filt)?' active':'')+'" onclick="estadoOrdenesFiltrar(\''+k.filt+'\')" style="border-left:3px solid '+k.color+';background:'+k.bg+'">'+
+  if (kpiEl) kpiEl.innerHTML = kpis.map(function(k,i){
+    var tipPos = i===0 ? ' tip-start' : (i===kpis.length-1 ? ' tip-end' : '');
+    return '<div class="eo-kpi-card has-tip'+tipPos+((_eoFiltro===k.filt)?' active':'')+'" role="button" tabindex="0"'+
+      ' data-tip="'+esc(k.tip)+'" aria-label="'+esc(k.lbl+'. '+k.tip+' Clic para filtrar.')+'"'+
+      ' onclick="estadoOrdenesFiltrar(\''+k.filt+'\')"'+
+      ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();estadoOrdenesFiltrar(\''+k.filt+'\');}"'+
+      ' style="border-left:3px solid '+k.color+';background:'+k.bg+'">'+
       '<div class="eo-kpi-n" style="color:'+k.color+'">'+k.n+'</div>'+
       '<div class="eo-kpi-lbl">'+k.lbl+'</div>'+
     '</div>';
@@ -30301,7 +30360,18 @@ async function sdvLoadPickStatus(id, elId) {
     if (!r.ok || !d.ok || !d.pickStatus) { el.innerHTML = '<span style="color:var(--text-3);font-size:12px">No disponible</span>'; return; }
     var sev = d.pickStatus.severity;
     var cls = sev==='ok'?'green':sev==='warn'?'amber':sev==='bad'?'red':sev==='info'?'blue':'';
-    el.innerHTML = '<span class="eo-ops-chip '+cls+'">'+esc(d.pickStatus.label)+'</span>';
+    var lbl = d.pickStatus.label || '';
+    var PICK_TIPS = {
+      'Despachado':'Toda la orden salió de Odoo.',
+      'Despacho parcial':'Parte de la orden ya salió; el resto no.',
+      'Listo para despachar':'Stock reservado; se puede armar el despacho.',
+      'Bloqueado por stock':'Odoo generó la salida pero aún no hay stock reservado disponible.',
+      'Sin despacho activo':'Odoo no tiene una salida (OUT) activa para esta orden.',
+      'Sin orden en Odoo':'No se encontró la orden de venta en Odoo con esta referencia.'
+    };
+    var tip = PICK_TIPS[lbl] || '';
+    var tipAttr = tip ? ' has-tip tip-up" tabindex="0" data-tip="'+esc(tip)+'" aria-label="'+esc('Despacho en Odoo: '+lbl+'. '+tip)+'"' : '"';
+    el.innerHTML = '<span class="eo-ops-chip '+cls+tipAttr+'>'+esc(lbl)+'</span>';
   } catch(e) {
     var el2 = document.getElementById(elId); if (el2) el2.innerHTML = '<span style="color:var(--text-3);font-size:12px">No disponible</span>';
   }
