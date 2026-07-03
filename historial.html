@@ -7757,7 +7757,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v119';
+var APP_BUILD = 'v120';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -30471,6 +30471,7 @@ async function sdvCargarFotos(id) {
       return;
     }
     _sdvFotoItems = [];   // orden plano para el lightbox: [{url,cap}]
+    _sdvShareItems = [];  // solo entrega+vehículo: la prueba que se comparte al cliente
     var html = (d.soloEntregaVehiculo ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:8px">Evidencia de entrega de tu pedido.</div>' : '');
     d.grupos.forEach(function(g){
       var cab = esc(g.titulo||'Tarea') + (g.localidad?' · '+esc(g.localidad):'') + (g.cancelada?' · <span style="color:var(--red-text)">cancelada</span>':'');
@@ -30480,6 +30481,7 @@ async function sdvCargarFotos(id) {
         g.fotos.map(function(f){
           var cap = f.tipoLabel + (f.productName?': '+f.productName:'');
           var gi = _sdvFotoItems.length; _sdvFotoItems.push({ url:f.url, cap:cap });
+          if (!g.cancelada && (f.tipo==='entrega' || f.tipo==='vehiculo')) _sdvShareItems.push({ url:f.url, cap:cap });
           return '<button type="button" class="sdv-foto-thumb" title="'+esc(cap)+'" data-idx="'+gi+'" '+
             'style="width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;padding:0;cursor:pointer;background:var(--surface-2);position:relative">'+
             '<img loading="lazy" src="'+esc(f.url)+'" alt="'+esc(cap)+'" style="width:100%;height:100%;object-fit:cover;display:block">'+
@@ -30487,14 +30489,54 @@ async function sdvCargarFotos(id) {
         }).join('')+
         '</div></div>';
     });
-    box.innerHTML = html;
+    // Botón compartir: solo si hay evidencia de entrega/vehículo (prueba ante el cliente)
+    var shareBtn = _sdvShareItems.length
+      ? '<button type="button" id="sdv-share-btn" class="btn btn-secondary" style="margin-bottom:12px;display:inline-flex;align-items:center;gap:6px"><i data-lucide="share-2" style="width:14px;height:14px"></i> Compartir evidencia de entrega</button>'
+      : '';
+    box.innerHTML = shareBtn + html;
+    if (window.lucide) lucide.createIcons({el:box});
     // Delegación de click → lightbox (evita onclick con strings interpolados)
     box.querySelectorAll('.sdv-foto-thumb').forEach(function(btn){
       btn.addEventListener('click', function(){ sdvFotoLightbox(parseInt(btn.dataset.idx,10)||0); });
     });
+    var sb = document.getElementById('sdv-share-btn');
+    if (sb) sb.addEventListener('click', sdvCompartirEvidencia);
   } catch(e) { box.innerHTML = '<div style="color:var(--text-3);font-size:12px">No se pudieron cargar las evidencias.</div>'; }
 }
 var _sdvFotoItems = [];
+var _sdvShareItems = [];
+// Comparte la evidencia de entrega firmada con el cliente. Prioriza compartir los
+// ARCHIVOS de imagen (Web Share nivel 2, ideal para WhatsApp); si no, comparte los
+// enlaces; si tampoco, los copia al portapapeles. Requiere https + gesto del usuario.
+async function sdvCompartirEvidencia() {
+  var items = _sdvShareItems || [];
+  if (!items.length) { toast('No hay evidencia de entrega para compartir'); return; }
+  var abs = items.map(function(it){ return location.origin + it.url; });
+  var titulo = 'Evidencia de entrega';
+  var btn = document.getElementById('sdv-share-btn');
+  if (btn) { btn.disabled = true; }
+  try {
+    // 1) Compartir los archivos de imagen (mejor experiencia en móvil)
+    if (navigator.canShare) {
+      var files = [];
+      for (var i=0;i<items.length;i++) {
+        try { var resp = await fetch(items[i].url); var blob = await resp.blob();
+          var ext = ((blob.type.split('/')[1])||'jpg').replace('jpeg','jpg');
+          files.push(new File([blob], 'evidencia-'+(i+1)+'.'+ext, {type:blob.type||'image/jpeg'})); } catch(e){}
+      }
+      if (files.length && navigator.canShare({files:files})) { await navigator.share({files:files, title:titulo, text:titulo}); return; }
+    }
+    // 2) Compartir los enlaces (texto)
+    if (navigator.share) { await navigator.share({title:titulo, text:titulo+':\n'+abs.join('\n')}); return; }
+    // 3) Copiar al portapapeles
+    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(abs.join('\n')); toast('Enlaces de evidencia copiados al portapapeles','success'); return; }
+    // 4) Último recurso
+    window.open(abs[0], '_blank');
+  } catch(e) {
+    if (e && e.name === 'AbortError') return; // el usuario canceló el diálogo de compartir
+    toast('No se pudo compartir: '+((e&&e.message)||e), 'error');
+  } finally { if (btn) btn.disabled = false; }
+}
 // Reusa el visor de imágenes con zoom del módulo de averías (avLightbox) si existe;
 // si no, abre la imagen en una pestaña como fallback. Firma: avLightboxOpen(src,cap,items,idx).
 function sdvFotoLightbox(idx) {

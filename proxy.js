@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v119';
+const APP_BUILD = 'v120';
 
 // ── Caché de gzip en memoria para estáticos (perf Android 8) ─────────────────
 // Antes se re-comprimía historial.html (~1.85 MB) en CADA request. La entrada
