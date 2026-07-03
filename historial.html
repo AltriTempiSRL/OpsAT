@@ -2919,18 +2919,18 @@ body{font-family:var(--font);min-height:100dvh}
 .task-person-name{font-size:13px;font-weight:700;color:var(--text);flex:1}
 .task-person-count{font-size:11px;color:var(--text-muted);font-weight:600}
 
-/* ── DRAWER (WWP tareas + SDV solicitudes comparten estilo) ──────── */
-#wwp-drawer-overlay,#sdv-drawer-overlay{
+/* ── DRAWER ─────────────────────────────────────────────────────── */
+#wwp-drawer-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;cursor:pointer;
 }
-#wwp-drawer-overlay.open,#sdv-drawer-overlay.open{display:block}
-#wwp-drawer,#sdv-drawer{
+#wwp-drawer-overlay.open{display:block}
+#wwp-drawer{
   position:fixed;right:0;top:0;bottom:0;width:min(620px,100vw);
   background:var(--surface);z-index:201;overflow-y:auto;overflow-x:hidden;
   transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
   box-shadow:-8px 0 40px rgba(0,0,0,.2);display:flex;flex-direction:column;
 }
-#wwp-drawer.open,#sdv-drawer.open{transform:translateX(0)}
+#wwp-drawer.open{transform:translateX(0)}
 .drawer-header{
   position:sticky;top:0;background:var(--surface);z-index:10;
   border-bottom:1px solid var(--border-light);padding:var(--sp-3) var(--sp-4);
@@ -3907,7 +3907,7 @@ body{font-family:var(--font);min-height:100dvh}
   }
 
   /* — Drawer: Bottom sheet — */
-  #wwp-drawer,#sdv-drawer{
+  #wwp-drawer{
     top:6dvh;
     left:0;right:0;bottom:0;
     width:100%;
@@ -3916,7 +3916,7 @@ body{font-family:var(--font);min-height:100dvh}
     transition:transform .35s cubic-bezier(.32,0,.67,0);
     box-shadow:0 -8px 40px rgba(0,0,0,.25);
   }
-  #wwp-drawer.open,#sdv-drawer.open{
+  #wwp-drawer.open{
     transform:translateY(0);
     transition:transform .35s cubic-bezier(.33,1,.68,1);
   }
@@ -7237,13 +7237,6 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 </div>
 
 
-<div id="sdv-drawer-overlay" onclick="sdvCloseDrawer()"></div>
-<div id="sdv-drawer" role="dialog" aria-label="Detalle de solicitud">
-  <div class="drawer-header">
-    <button class="drawer-back" onclick="sdvCloseDrawer()">← Volver</button>
-  </div>
-  <div id="sdv-drawer-body" style="padding:var(--sp-4);overflow-y:auto;flex:1"></div>
-</div>
 <div id="wwp-drawer-overlay" onclick="closeDrawer()"></div>
 <div id="wwp-drawer">
   <div class="drawer-header">
@@ -7764,7 +7757,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v118';
+var APP_BUILD = 'v119';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -30340,10 +30333,13 @@ function sdvCardHtml(s, ctx) {
 
 // ── Detalle solicitud ─────────────────────────────────────────────────────
 async function sdvVerDetalle(id, ctx) {
-  var detailEl = document.getElementById('sdv-drawer-body');
-  if (!detailEl) return;
-  sdvOpenDrawer();
-  detailEl.innerHTML = '<div style="color:var(--text-2);padding:16px">Cargando…</div>';
+  // Modal centrado — mismo patrón que Estado de Órdenes (eoAbrirDetalle)
+  var old = document.getElementById('sdvDetOverlay'); if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="sdvDetOverlay" onclick="if(event.target===this)this.remove()">'+
+      '<div class="eo-det-modal" id="sdv-det-modal"><div style="padding:30px;text-align:center;color:var(--text-2)">Cargando…</div></div>'+
+    '</div>');
+  var detailEl = document.getElementById('sdv-det-modal');
   try {
     var r = await authFetch('/api/sdv/'+id);
     var d = await r.json();
@@ -30409,13 +30405,18 @@ async function sdvVerDetalle(id, ctx) {
       '</div>';
     }
     detailEl.innerHTML =
-      '<div class="sdv-detail">'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">'+
-          '<div class="sdv-detail-title">'+esc(s.folio)+'</div>'+
-          sdvBadge(s.estado)+
-          (isOps && s.estado==='despachada' ? ' <span id="sdv-badge-sinev" style="display:none;font-size:10px;font-weight:800;color:var(--red-text);background:var(--red-bg);padding:2px 7px;border-radius:20px">⚠ sin evidencia</span>' : '')+
+        '<div class="eo-det-hdr">'+
+          '<div style="min-width:0">'+
+            '<div class="eo-det-folio">'+esc(s.folio)+'</div>'+
+            '<div class="eo-det-sub">'+esc(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+esc(s.creadoNombre)+'</div>'+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+            sdvBadge(s.estado)+
+            (isOps && s.estado==='despachada' ? '<span id="sdv-badge-sinev" style="display:none;font-size:10px;font-weight:800;color:var(--red-text);background:var(--red-bg);padding:2px 7px;border-radius:20px">⚠ sin evidencia</span>' : '')+
+            '<button onclick="sdvCloseDrawer()" aria-label="Cerrar" style="background:none;border:none;cursor:pointer;padding:6px;color:var(--text-2);font-size:22px;line-height:1">&times;</button>'+
+          '</div>'+
         '</div>'+
-        '<div class="sdv-detail-sub">'+esc(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+' · Creado '+sdvFmtDate(s.creadoAt)+' por '+esc(s.creadoNombre)+'</div>'+
+        '<div class="eo-det-body">'+
         (s.solicitudOrigenId?'<div style="font-size:var(--fs-sm);color:var(--brand-primary);margin-bottom:4px">↳ Adicional de '+esc(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
         (s.solicitudesAdicionales&&s.solicitudesAdicionales.length?'<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:4px">Adicionales vinculadas: '+s.solicitudesAdicionales.map(function(a){return esc(a.folio)+' ('+esc(SDV_ESTADO_LABEL[a.estado]||a.estado)+')';}).join(', ')+'</div>':'')+
         '<div class="sdv-detail-section"><h4>Artículos</h4>'+(artHtml||'<span style="color:var(--text-2)">Sin artículos</span>')+'</div>'+
@@ -30432,6 +30433,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+esc(s.gpsCoords)+' 🗺</a></dd></div>':'')+
           (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
+          (s.odooOrderRef?'<div class="sdv-detail-row"><dt>Despacho (Odoo)</dt><dd id="sdv-pickstatus"><span style="color:var(--text-3);font-size:12px">Consultando…</span></dd></div>':'')+
         '</div>'+
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.wwpTaskId && isOps?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
@@ -30442,19 +30444,14 @@ async function sdvVerDetalle(id, ctx) {
       '</div>';
     if (window.lucide) lucide.createIcons();
     sdvCargarFotos(id);   // galería de evidencias de las tareas del vínculo (async, no bloquea)
-  } catch(e) { detailEl.innerHTML='<div style="color:var(--red-text)">Error: '+e.message+'</div>'; }
+    if (s.odooOrderRef) sdvLoadPickStatus(id, 'sdv-pickstatus');  // estado real del despacho en Odoo (igual que Estado de Órdenes)
+  } catch(e) { detailEl.innerHTML='<div class="eo-det-modal" style="padding:24px"><div style="color:var(--red-text)">Error: '+esc(e.message)+'</div></div>'; }
 }
 
-// ── Drawer SDV: abrir/cerrar (reusa el patrón visual del drawer WWP) ──────
-function sdvOpenDrawer() {
-  var dr = document.getElementById('sdv-drawer'), ov = document.getElementById('sdv-drawer-overlay');
-  if (ov) ov.classList.add('open');
-  if (dr) { dr.classList.add('open'); var b = document.getElementById('sdv-drawer-body'); if (b) b.scrollTop = 0; }
-}
+// ── Detalle SDV: cerrar el modal centrado (mismo patrón que Estado de Órdenes) ──
+// Se conserva el nombre sdvCloseDrawer por los ~7 llamadores (acciones que cierran el detalle).
 function sdvCloseDrawer() {
-  var dr = document.getElementById('sdv-drawer'), ov = document.getElementById('sdv-drawer-overlay');
-  if (dr) dr.classList.remove('open');
-  if (ov) ov.classList.remove('open');
+  var o = document.getElementById('sdvDetOverlay'); if (o) o.remove();
 }
 
 // ── Galería de evidencias de la SDV (fotos de todas las tareas del vínculo) ──
