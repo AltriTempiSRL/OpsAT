@@ -781,6 +781,73 @@ async function buildItemsFromPicks(orderName, stateFilter) {
   return { noPick:false, items, picks, pickNames:pickList.map(p=>p.name) };
 }
 
+// ── Resolvedor de nombre correcto por ORDEN (soporte del pase retroactivo v127) ──
+// Devuelve un mapa { odoo_product_id -> nombre correcto } para UNA orden, usando la
+// MISMA fuente que el fix v127: stock.move.description_picking (lo que ve Inventario)
+// con fallback a sale.order.line.name. NO es N+1 por item: son 2-4 llamadas Odoo por
+// ORDEN (resolver nombre real, batch de move lines, batch de moves, batch de líneas de
+// venta). El caller agrupa los items por orden y llama a esto una vez por orden.
+// Nunca lanza: ante cualquier fallo de Odoo devuelve { ok:false } y el caller deja los
+// items intactos (jamás vacía ni empeora un nombre que ya existe).
+async function resolveOrderProductNames(orderName) {
+  const out = {};                 // pid -> nombre correcto (no-vacío)
+  const clean = (orderName || '').trim();
+  if (!clean) return { ok:false, reason:'sin orden', names: out };
+  try {
+    // Nombre real de la orden (tolera ref sin prefijo: "7647" → "S07647")
+    let realName = clean;
+    try {
+      const so = await odooCall('sale.order','search_read',[[['name','ilike',clean]]],{fields:['id','name'],limit:1});
+      if (so && so.length) realName = so[0].name;
+    } catch(_) {}
+
+    // (A) Fuente primaria: stock.move.description_picking de los picks de la orden.
+    // Cubre todos los estados de pick (assigned/done/…): retroactivo también sobre
+    // órdenes ya despachadas. Batch de moves de todos los picks (NO N+1 por producto).
+    try {
+      const picks = await odooCall('stock.picking','search_read',
+        [[['origin','=',realName]]], {fields:['id'],limit:100});
+      const pickIds = (picks||[]).map(p=>p.id);
+      if (pickIds.length) {
+        const moves = await odooCall('stock.move','search_read',
+          [[['picking_id','in',pickIds]]],
+          {fields:['product_id','description_picking'],limit:3000});
+        (moves||[]).forEach(mv => {
+          if (!mv.product_id) return;
+          const pid = mv.product_id[0];
+          const d = (mv.description_picking || '').trim();
+          if (d && !out[pid]) out[pid] = d;    // primera descripción no-vacía por producto
+        });
+      }
+    } catch(_) { /* fallback a líneas de venta abajo */ }
+
+    // (B) Fallback: sale.order.line.name (para productos sin move con descripción).
+    try {
+      const orders = await odooCall('sale.order','search_read',
+        [[['name','=',realName]]], {fields:['id','order_line'],limit:1});
+      const lineIds = (orders && orders.length) ? (orders[0].order_line||[]) : [];
+      if (lineIds.length) {
+        const lines = await odooCall('sale.order.line','read',[lineIds],{fields:['product_id','name']});
+        (lines||[]).forEach(l => {
+          if (!l.product_id) return;
+          const pid = l.product_id[0];
+          const n = (l.name || '').trim();
+          if (n && !out[pid]) out[pid] = n;
+        });
+      }
+    } catch(_) {}
+
+    return { ok:true, realName, names: out };
+  } catch (e) {
+    return { ok:false, reason: e.message, names: out };
+  }
+}
+
+// Extrae las referencias de orden de un string que puede traer varias ("S03855, S03874").
+function splitOrderRefs(ref) {
+  return String(ref || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+}
+
 // Detecta componentes de kit (.Cn) y devuelve map productId → {kitId,kitRef,kitName,kitImage}
 // usando BOM tipo 'phantom' en Odoo. Reutilizable para etiquetar artículos de tareas.
 async function resolveKitInfo(products) {
@@ -4758,6 +4825,230 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/_fix/product-names — PASE RETROACTIVO v127 (Fase 2) ──────────────
+  // Corrige los product_name YA PERSISTIDOS en tareas WWP (items[].product_name) y
+  // SDV (articulosOdoo[].product_name) que quedaron con el nombre viejo/contaminado
+  // ("(Copia)") de ANTES del fix v127. El fix v127 solo arregla registros NUEVOS;
+  // este pase arregla lo existente. Re-consulta Odoo por ORDEN y usa la misma fuente
+  // que v127 (stock.move.description_picking → sale.order.line.name).
+  //
+  // ── DESACTIVADO por defecto ──  (patrón de los /api/_fix/*: `if (false && …)`).
+  //   Para activarlo temporalmente: cambiar `if (false &&` por `if (true &&` en local,
+  //   deployar, ejecutar, y VOLVER a `false` + deployar (no dejar endpoint vivo).
+  //
+  // ── Contrato ──
+  //   POST /api/_fix/product-names            → DRY-RUN (default): NO escribe nada.
+  //   POST /api/_fix/product-names?apply=true → APLICA: hace backup y escribe.
+  //   Auth: requireJwt + requireRole admin (Bearer). Body opcional:
+  //     { limitOrders?:number }  // tope de órdenes distintas a procesar por corrida
+  //                              // (paginación defensiva; el resto queda para otra corrida — idempotente)
+  //
+  // ── Orden de ejecución seguro (lo hace el COORDINADOR con OK de Gabriel) ──
+  //   1) DRY-RUN (sin ?apply) → revisar { wwp, sdv }.changed y la muestra de ejemplos.
+  //   2) Si el impacto es correcto → ?apply=true (hace BACKUP antes de escribir).
+  //   3) Restaurar si algo sale mal: copiar el backup de vuelta (ver reporte).
+  if (true && reqPath === '/api/_fix/product-names' && req.method === 'POST') { // pase retroactivo v127 — ACTIVADO TEMPORALMENTE para la corrida coordinada (devolver a false tras usar)
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const apply = (parsed.query.apply === 'true');
+      let body = {}; try { body = await readBody(req); } catch(_) { body = {}; }
+      const limitOrders = Number.isFinite(+body.limitOrders) && +body.limitOrders > 0 ? Math.floor(+body.limitOrders) : Infinity;
+
+      // ── PASO 1: BACKUP EXPLÍCITO ANTES DE ESCRIBIR NADA (solo en apply) ─────
+      // Copia cada archivo crítico a DATA_DIR/backups/ con prefijo claro. Si el
+      // backup falla, ABORTAR: preferible no correr que correr sin red de rescate.
+      const backups = [];
+      if (apply) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const toBackup = [
+          { src: WWP_TASKS_FILE, base: 'prefase2_wwp-tasks' },
+          { src: SDV_FILE,       base: 'prefase2_sdv-solicitudes' }
+        ];
+        for (const b of toBackup) {
+          try {
+            if (fs.existsSync(b.src)) {
+              const dest = path.join(BACKUPS_DIR, b.base + '.' + stamp + '.json');
+              fs.copyFileSync(b.src, dest);
+              backups.push(path.basename(dest));
+            }
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok:false, error:'Backup falló para ' + b.base + ': ' + e.message + '. ABORTADO, nada fue escrito.' }));
+            return;
+          }
+        }
+        // Además, snapshot horario canónico (best-effort, no aborta).
+        try { snapshotAllCritical(); } catch(_) {}
+      }
+
+      // ── PASO 2: Recolectar todos los items a evaluar, indexados por ORDEN ───
+      // Cada entrada: { ref, targets:[{ getName, setName, ctx }] } donde ctx es
+      // solo para el reporte. Agrupar por ref (normalizada) para NO re-consultar
+      // Odoo por item (evita N+1): una resolución por orden única.
+      const tasks = loadWwpTasks();
+      const sdvList = loadSdv();
+
+      // ordersMap: refNormalizada -> { ref, pids:Set, wwpItems:[], sdvItems:[] }
+      const ordersMap = new Map();
+      const orderKey = (r) => normRef(r) || (r || '').trim().toLowerCase();
+      function ensureOrder(ref) {
+        const key = orderKey(ref);
+        if (!key) return null;
+        if (!ordersMap.has(key)) ordersMap.set(key, { ref: (ref||'').trim(), pids: new Set(), wwpItems: [], sdvItems: [] });
+        return ordersMap.get(key);
+      }
+
+      // Tareas WWP: task.odooRef puede traer varias órdenes ("S03855, S03874").
+      // Un item pertenece a TODAS las órdenes de su tarea; al resolver, la primera
+      // orden cuyo mapa contenga el pid gana (los pids son disjuntos entre órdenes).
+      let wwpItemsTotal = 0;
+      (tasks||[]).forEach(t => {
+        const refs = splitOrderRefs(t.odooRef);
+        if (!refs.length) return;
+        (t.items||[]).forEach((it, itemIdx) => {
+          if (!it || !it.odoo_product_id) return;    // sin pid → no resoluble, se deja intacto
+          wwpItemsTotal++;
+          const entry = { pid: it.odoo_product_id, old: (it.product_name||''),
+            _apply: (nn) => { it.product_name = nn; },
+            ctx: { taskId: t.id, seq: t.seq, itemIdx, sku: it.sku||'', pid: it.odoo_product_id } };
+          refs.forEach(r => { const o = ensureOrder(r); if (o) { o.pids.add(it.odoo_product_id); o.wwpItems.push(entry); } });
+        });
+      });
+
+      // SDV: sol.odooOrderRef es una sola orden.
+      let sdvItemsTotal = 0;
+      (sdvList||[]).forEach(s => {
+        const o = ensureOrder(s.odooOrderRef);
+        if (!o) return;
+        (s.articulosOdoo||[]).forEach((it, itemIdx) => {
+          if (!it || !it.odoo_product_id) return;    // sin pid → no resoluble, se deja intacto
+          sdvItemsTotal++;
+          const entry = { pid: it.odoo_product_id, old: (it.product_name||''),
+            _apply: (nn) => { it.product_name = nn; },
+            ctx: { sdvId: s.id, folio: s.folio, itemIdx, sku: it.sku||'', pid: it.odoo_product_id } };
+          o.pids.add(it.odoo_product_id); o.sdvItems.push(entry);
+        });
+      });
+
+      // ── PASO 3: Resolver por orden (una llamada por orden) y calcular cambios ──
+      // OJO multi-orden: un item WWP ligado a N órdenes ("S03855, S03874") aparece en
+      // N grupos y se evalúa N veces, pero es UN solo item. Para no inflar el reporte,
+      // cada entry acumula su resultado en `entry.status` con precedencia
+      // changed > unchanged > unresolved (basta que UNA orden lo resuelva para cambiarlo)
+      // y al final se cuenta cada entry UNA vez. La escritura ya era correcta (el item
+      // cambia si cualquier orden lo resuelve); esto solo arregla la exactitud del conteo.
+      const samples = [];      // hasta 30 ejemplos [scope, id, pid, old → new]
+      const unresolvedOrders = [];
+      const pushSample = (scope, ctx, oldN, newN) => {
+        if (samples.length < 30) samples.push({ scope, ...ctx, old: oldN, new: newN });
+      };
+      // Precedencia de estado por item (mayor gana): basta que UNA orden del item lo
+      // resuelva para que sea 'changed'/'unchanged' aunque otra de sus órdenes no lo
+      // tenga. `touched` = alguna orden del item SÍ fue procesada (aunque no lo resolviera):
+      // permite distinguir 'unresolved' (procesado, sin nombre nuevo) de 'deferred' (ninguna
+      // orden procesada por el límite). Estado final por item: changed > unchanged >
+      // (touched ? unresolved : deferred).
+      const RANK = { unresolved: 0, unchanged: 1, changed: 2 };
+      const bump = (entry, st) => {
+        entry.touched = true;
+        const cur = entry.status; // undefined al inicio
+        if (cur === undefined || RANK[st] > RANK[cur]) entry.status = st;
+      };
+
+      let processed = 0;
+      for (const [, o] of ordersMap) {
+        if (processed >= limitOrders) break;
+        processed++;
+        const resolved = await resolveOrderProductNames(o.ref);
+        if (!resolved.ok) {
+          unresolvedOrders.push({ ref: o.ref, reason: resolved.reason || 'no resuelto' });
+          // Orden que cayó: NO marca los items (otra orden del mismo item podría
+          // resolverlo). No hace `touched`: si esta era la única orden del item, quedará
+          // 'deferred' y NO se corregirá aquí — nunca se empeora un nombre existente.
+          continue;
+        }
+        const names = resolved.names || {};
+        const evalEntry = (entry, scope) => {
+          const nn = (names[entry.pid] || '').trim();
+          // Solo cambia si el nombre nuevo es NO-VACÍO y DIFIERE del viejo.
+          // Nunca vaciar ni empeorar: si no hay nombre nuevo → intacto (no toca este item).
+          if (!nn) { bump(entry, 'unresolved'); return; }
+          if (nn === (entry.old||'').trim()) { bump(entry, 'unchanged'); return; }
+          bump(entry, 'changed');
+          if (apply && entry.newName !== nn) { entry.newName = nn; entry._apply(nn); pushSample(scope, entry.ctx, entry.old, nn); }
+          else if (!apply && !entry._sampled) { entry._sampled = true; pushSample(scope, entry.ctx, entry.old, nn); }
+        };
+        o.wwpItems.forEach(e => evalEntry(e, 'wwp'));
+        o.sdvItems.forEach(e => evalEntry(e, 'sdv'));
+      }
+
+      // Tabular por ITEM único (dedup: el mismo entry WWP está en varios grupos de orden).
+      const stats = {
+        ordersTotal: ordersMap.size,
+        ordersProcessed: Math.max(0, processed - unresolvedOrders.length),
+        ordersUnresolved: unresolvedOrders.length,
+        wwp: { itemsTotal: wwpItemsTotal, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 },
+        sdv: { itemsTotal: sdvItemsTotal, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 }
+      };
+      const tally = (entries, bucket) => {
+        const seen = new Set();
+        for (const e of entries) {
+          if (seen.has(e)) continue; seen.add(e);
+          if (!e.touched) { bucket.deferred++; continue; }        // ninguna orden procesada (límite)
+          bucket[e.status || 'unresolved']++;                     // procesado: changed/unchanged/unresolved
+        }
+      };
+      // Reunir todos los entries únicos por scope (WWP puede estar repartido entre órdenes)
+      const allWwp = []; const allSdv = [];
+      for (const [, o] of ordersMap) { allWwp.push(...o.wwpItems); allSdv.push(...o.sdvItems); }
+      tally(allWwp, stats.wwp);
+      tally(allSdv, stats.sdv);
+
+      // Órdenes que no se procesaron por el límite/paginación (quedan para otra corrida)
+      const ordersDeferred = Math.max(0, ordersMap.size - processed);
+
+      // ── PASO 4: Escribir SOLO en apply, y solo si hubo cambios reales ──────
+      let written = { wwpTasks: false, sdv: false };
+      if (apply) {
+        const totalChanged = stats.wwp.changed + stats.sdv.changed;
+        if (totalChanged > 0) {
+          // Llamada directa a saveCriticalArray (NO saveWwpTasks/saveSdv, que no
+          // propagan el booleano): así `written.*` refleja si el blindaje anti-vacío
+          // permitió (true) o bloqueó (false) la escritura.
+          if (stats.wwp.changed > 0) { written.wwpTasks = saveCriticalArray(WWP_TASKS_FILE, tasks); }
+          if (stats.sdv.changed > 0) { written.sdv = saveCriticalArray(SDV_FILE, sdvList); }
+          appendAuditLog('fix_product_names', {
+            by: jp.userId, byName: jp.name, apply: true,
+            wwpChanged: stats.wwp.changed, sdvChanged: stats.sdv.changed,
+            ordersProcessed: stats.ordersProcessed, ordersUnresolved: stats.ordersUnresolved,
+            backups, writtenWwp: written.wwpTasks, writtenSdv: written.sdv
+          });
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        mode: apply ? 'apply' : 'dry-run',
+        note: apply
+          ? 'Cambios aplicados. Rollback: restaurar los archivos listados en backups[] desde DATA_DIR/backups/.'
+          : 'DRY-RUN: nada fue escrito. Repetir con ?apply=true para aplicar (hará backup primero).',
+        backups,                 // nombres de archivo de respaldo (solo en apply)
+        written,                 // { wwpTasks, sdv }: true si se escribió; false si nada o blindaje bloqueó
+        limitOrders: (limitOrders === Infinity ? null : limitOrders),
+        ordersDeferred,          // órdenes no procesadas por el límite (correr de nuevo — idempotente)
+        stats,
+        samples,                 // hasta 30 ejemplos: { scope, id..., pid, old, new }
+        unresolvedOrders         // órdenes que Odoo no pudo resolver (items dejados intactos)
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok:false, error: e.message }));
     }
     return;
   }
