@@ -687,6 +687,23 @@ async function sdvComputePickStatus(soRef) {
   return { label, severity, outs };
 }
 
+// ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
+// La descripción correcta (stock.move.description_picking / sale.order.line.name)
+// NO trae el prefijo [código] que sí traía display_name — y en 683/688 items vivos
+// el campo sku guardado es el BARCODE, no el default_code, así que quitar el
+// prefijo del nombre = perder el código interno de la vista (análisis 2026-07-03).
+// Regla: si hay descripción → "[default_code] descripción" (sin duplicar si la
+// descripción ya contiene el código); si no → display_name tal cual (como antes).
+// Colapsa saltos de línea/espacios dobles (description_picking suele traerlos).
+function composeItemName(desc, fallbackName, code) {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const d = clean(desc);
+  if (!d) return clean(fallbackName);
+  const c = clean(code);
+  if (!c || d.toUpperCase().includes(c.toUpperCase())) return d;
+  return '[' + c + '] ' + d;
+}
+
 async function buildItemsFromPicks(orderName, stateFilter) {
   const pickStates = stateFilter || ['assigned','done'];
   // Resolver nombre real de la orden (tolera ref sin prefijo, ej. "7647" → "S07647")
@@ -770,7 +787,7 @@ async function buildItemsFromPicks(orderName, stateFilter) {
     return { item_id:'oi_'+g.pid+'_'+pickSuffix, odoo_product_id:g.pid, odoo_line_id:null,
       odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
       sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
-      product_name:(g.desc||'').trim()||(g.name||'').trim()||'', quantity:units, units,
+      product_name:composeItemName(g.desc, g.name, prod.default_code), quantity:units, units,
       image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
       unitBins:g.unitBins, pickName:g.pickName, isRet:g.isRet||false, fromPick:true,
       ...(kit ? { kitId:kit.kitId, kitRef:kit.kitRef, kitName:kit.kitName, kitImage:kit.kitImage } : {}),
@@ -4836,6 +4853,14 @@ const server = http.createServer(async (req, res) => {
   // este pase arregla lo existente. Re-consulta Odoo por ORDEN y usa la misma fuente
   // que v127 (stock.move.description_picking → sale.order.line.name).
   //
+  // ── ACOTADO A "(Copia)" (decisión Gabriel 2026-07-03) ──
+  // El dry-run completo mostró que el pase sin filtro tocaría 670/688 nombres, pero
+  // ~3/4 eran cosméticos (quitar el prefijo [default_code]) y en 683/688 items el sku
+  // guardado es el barcode → quitar el prefijo = perder el código interno de la vista.
+  // Por eso: SOLO se tocan items cuyo nombre viejo contiene "(Copia)" (el bug real),
+  // y el nombre nuevo CONSERVA el prefijo [código] del nombre viejo (Compras corrige
+  // default_code/barcode al duplicar; solo el texto queda mal): "[código] descripción".
+  //
   // ── DESACTIVADO por defecto ──  (patrón de los /api/_fix/*: `if (false && …)`).
   //   Para activarlo temporalmente: cambiar `if (false &&` por `if (true &&` en local,
   //   deployar, ejecutar, y VOLVER a `false` + deployar (no dejar endpoint vivo).
@@ -4903,16 +4928,20 @@ const server = http.createServer(async (req, res) => {
         return ordersMap.get(key);
       }
 
+      // Filtro de alcance: SOLO items con "(Copia)" en el nombre viejo (ver cabecera).
+      const isCopia = (n) => /\(copia\)/i.test(String(n || ''));
+
       // Tareas WWP: task.odooRef puede traer varias órdenes ("S03855, S03874").
       // Un item pertenece a TODAS las órdenes de su tarea; al resolver, la primera
       // orden cuyo mapa contenga el pid gana (los pids son disjuntos entre órdenes).
-      let wwpItemsTotal = 0;
+      let wwpItemsTotal = 0, wwpOutOfScope = 0;
       (tasks||[]).forEach(t => {
         const refs = splitOrderRefs(t.odooRef);
         if (!refs.length) return;
         (t.items||[]).forEach((it, itemIdx) => {
           if (!it || !it.odoo_product_id) return;    // sin pid → no resoluble, se deja intacto
           wwpItemsTotal++;
+          if (!isCopia(it.product_name)) { wwpOutOfScope++; return; }  // nombre sano → NO se toca
           const entry = { pid: it.odoo_product_id, old: (it.product_name||''),
             _apply: (nn) => { it.product_name = nn; },
             ctx: { taskId: t.id, seq: t.seq, itemIdx, sku: it.sku||'', pid: it.odoo_product_id } };
@@ -4920,14 +4949,17 @@ const server = http.createServer(async (req, res) => {
         });
       });
 
-      // SDV: sol.odooOrderRef es una sola orden.
-      let sdvItemsTotal = 0;
+      // SDV: sol.odooOrderRef es una sola orden. ensureOrder se difiere hasta tener
+      // un item EN ALCANCE: así una SDV sin "(Copia)" no genera consultas Odoo inútiles.
+      let sdvItemsTotal = 0, sdvOutOfScope = 0;
       (sdvList||[]).forEach(s => {
-        const o = ensureOrder(s.odooOrderRef);
-        if (!o) return;
+        if (!orderKey(s.odooOrderRef)) return;       // sin orden → no resoluble, se deja intacto
         (s.articulosOdoo||[]).forEach((it, itemIdx) => {
           if (!it || !it.odoo_product_id) return;    // sin pid → no resoluble, se deja intacto
           sdvItemsTotal++;
+          if (!isCopia(it.product_name)) { sdvOutOfScope++; return; }  // nombre sano → NO se toca
+          const o = ensureOrder(s.odooOrderRef);
+          if (!o) return;
           const entry = { pid: it.odoo_product_id, old: (it.product_name||''),
             _apply: (nn) => { it.product_name = nn; },
             ctx: { sdvId: s.id, folio: s.folio, itemIdx, sku: it.sku||'', pid: it.odoo_product_id } };
@@ -4978,10 +5010,15 @@ const server = http.createServer(async (req, res) => {
           // Solo cambia si el nombre nuevo es NO-VACÍO y DIFIERE del viejo.
           // Nunca vaciar ni empeorar: si no hay nombre nuevo → intacto (no toca este item).
           if (!nn) { bump(entry, 'unresolved'); return; }
-          if (nn === (entry.old||'').trim()) { bump(entry, 'unchanged'); return; }
+          // Nombre final = "[código] descripción": conserva el prefijo [default_code]
+          // del nombre viejo (el sku guardado suele ser el barcode, no el código —
+          // sin esto el código interno desaparecería de la vista y del buscador).
+          const mPref = String(entry.old || '').match(/^\s*\[([^\]]+)\]/);
+          const fixed = composeItemName(nn, entry.old, mPref ? mPref[1] : '');
+          if (fixed === String(entry.old||'').trim()) { bump(entry, 'unchanged'); return; }
           bump(entry, 'changed');
-          if (apply && entry.newName !== nn) { entry.newName = nn; entry._apply(nn); pushSample(scope, entry.ctx, entry.old, nn); }
-          else if (!apply && !entry._sampled) { entry._sampled = true; pushSample(scope, entry.ctx, entry.old, nn); }
+          if (apply && entry.newName !== fixed) { entry.newName = fixed; entry._apply(fixed); pushSample(scope, entry.ctx, entry.old, fixed); }
+          else if (!apply && !entry._sampled) { entry._sampled = true; pushSample(scope, entry.ctx, entry.old, fixed); }
         };
         o.wwpItems.forEach(e => evalEntry(e, 'wwp'));
         o.sdvItems.forEach(e => evalEntry(e, 'sdv'));
@@ -4992,8 +5029,10 @@ const server = http.createServer(async (req, res) => {
         ordersTotal: ordersMap.size,
         ordersProcessed: Math.max(0, processed - unresolvedOrders.length),
         ordersUnresolved: unresolvedOrders.length,
-        wwp: { itemsTotal: wwpItemsTotal, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 },
-        sdv: { itemsTotal: sdvItemsTotal, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 }
+        // outOfScope = items con pid cuyo nombre NO contiene "(Copia)" → intactos por diseño.
+        // Los buckets changed/unchanged/unresolved/deferred cubren SOLO los "(Copia)".
+        wwp: { itemsTotal: wwpItemsTotal, outOfScope: wwpOutOfScope, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 },
+        sdv: { itemsTotal: sdvItemsTotal, outOfScope: sdvOutOfScope, changed: 0, unchanged: 0, unresolved: 0, deferred: 0 }
       };
       const tally = (entries, bucket) => {
         const seen = new Set();
@@ -11393,8 +11432,8 @@ const server = http.createServer(async (req, res) => {
           sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',  // barcode explícito para escaneo
           // Nombre correcto = descripción de la línea (sale.order.line.name / stock.move.description_picking
           // o .name), NO el display_name del producto (contaminado con "(Copia)" en productos duplicados).
-          // Fallback a product_id[1] para no dejar nunca el nombre vacío.
-          product_name:(l.description_picking||l.name||'').trim()||(l.product_id[1]||'').trim()||'',
+          // composeItemName conserva el prefijo [default_code] y cae a product_id[1] si no hay descripción.
+          product_name:composeItemName(l.description_picking||l.name, l.product_id[1], prod.default_code),
           quantity:units, units,                 // units = unidades de la Demanda (editable)
           image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
           locations, selected_location:locations.length===1?0:null,
@@ -11468,8 +11507,8 @@ const server = http.createServer(async (req, res) => {
             return { item_id:'oi_'+m.product_id[0], odoo_product_id:m.product_id[0], odoo_line_id:null,
               odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
               sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
-              // Descripción del move (correcta) con fallback al display_name del producto.
-              product_name:(m.description_picking||m.name||'').trim()||(m.product_id[1]||'').trim()||'', quantity:units, units,
+              // Descripción del move (correcta) con prefijo [default_code]; fallback al display_name.
+              product_name:composeItemName(m.description_picking||m.name, m.product_id[1], prod.default_code), quantity:units, units,
               image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
               ...(kit ? {kitId:kit.kitId,kitRef:kit.kitRef,kitName:kit.kitName,kitImage:kit.kitImage} : {}),
               locations:[], selected_location:null,   // sin ubicación → manual
@@ -11841,7 +11880,7 @@ const server = http.createServer(async (req, res) => {
           const qty=Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
           const desc = m.move_id ? retDescByMoveId[m.move_id[0]] : '';
           return { item_id:'ret_'+m.product_id[0]+'_'+i, odoo_product_id:m.product_id[0],
-            product_name:(desc||'').trim()||(m.product_id[1]||'').trim()||'', sku:p.default_code||p.barcode||'',
+            product_name:composeItemName(desc, m.product_id[1], p.default_code), sku:p.default_code||p.barcode||'',
             quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
             selected:true, status:'pending' };
         });
