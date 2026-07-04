@@ -8545,7 +8545,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v132';
+var APP_BUILD = 'v133';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32411,12 +32411,15 @@ function eoColStack(opts){
     return Math.max(mx, t);
   }, 0);
   var scaleMax = maxTotal > 0 ? maxTotal : 1; // eje digno aunque todo esté en cero
-  // Eje Y: etiquetas de scaleMax..0 (yTicks+1 marcas).
+  // Con máximos pequeños, no generar más marcas que unidades enteras hay (evita
+  // etiquetas duplicadas tipo 2,2,1,1 cuando scaleMax=2 y yTicks=4).
+  var effTicks = Math.max(1, Math.min(yTicks, Math.round(scaleMax)));
+  // Eje Y: etiquetas de scaleMax..0 (effTicks+1 marcas).
   var yLabels = [];
-  for(var t=yTicks; t>=0; t--){ yLabels.push('<span>'+Math.round(scaleMax*t/yTicks)+'</span>'); }
+  for(var t=effTicks; t>=0; t--){ yLabels.push('<span>'+Math.round(scaleMax*t/effTicks)+'</span>'); }
   // Grid horizontal (líneas) alineado con las marcas del eje.
   var grid = [];
-  for(var g=0; g<=yTicks; g++){ grid.push('<span class="eo2-cs-gl" style="top:'+(g/yTicks*100).toFixed(2)+'%"></span>'); }
+  for(var g=0; g<=effTicks; g++){ grid.push('<span class="eo2-cs-gl" style="top:'+(g/effTicks*100).toFixed(2)+'%"></span>'); }
   // Columnas.
   var colsHtml = cols.map(function(c){
     var tot = series.reduce(function(a,s){ return a + (Number(c.seg && c.seg[s.key])||0); }, 0);
