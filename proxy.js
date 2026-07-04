@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v134';
+const APP_BUILD = 'v135';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1666,22 +1666,21 @@ const DISPATCHES_PER_ORDER_TTL = 10 * 60 * 1000; // 10 minutos
 // (NO N+1). Contar por sale_id garantiza contar por orden ÚNICA: una orden con 2
 // SDVs NO cuenta doble (Aprendizaje 14/18). Nunca lanza el error hacia afuera:
 // el caller envuelve en try/catch y devuelve estado vacío si Odoo falla.
-async function eoBuildDispatchesPerOrder(dias) {
-  dias = dias || 90;
-  // Cutoff a medianoche LOCAL de hace `dias` días (no UTC → coherente con RD).
-  const now = new Date();
-  const cutoffLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dias);
-  // Odoo date_done es 'YYYY-MM-DD HH:MM:SS' en la TZ del server Odoo (UTC).
-  // Convertimos el instante local a UTC para el dominio.
+async function eoBuildDispatchesPerOrder(desdeDate, hastaDate) {
+  // Rango [desdeDate, hastaDate] como instantes locales (RD). Odoo date_done está
+  // en UTC → convertimos ambos extremos a string UTC para el dominio.
   const pad = n => String(n).padStart(2, '0');
-  const cutoffUtc = cutoffLocal; // Date; toISOString da UTC
-  const cutoffStr = cutoffUtc.getUTCFullYear() + '-' + pad(cutoffUtc.getUTCMonth() + 1) + '-' + pad(cutoffUtc.getUTCDate())
-    + ' ' + pad(cutoffUtc.getUTCHours()) + ':' + pad(cutoffUtc.getUTCMinutes()) + ':' + pad(cutoffUtc.getUTCSeconds());
+  const toUtcStr = d => d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate())
+    + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
+  const isoLocalDay = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const desdeStr = toUtcStr(desdeDate);
+  const hastaStr = toUtcStr(hastaDate);
 
   const domain = [
     ['picking_type_code', '=', 'outgoing'],
     ['state', '=', 'done'],
-    ['date_done', '>=', cutoffStr],
+    ['date_done', '>=', desdeStr],
+    ['date_done', '<=', hastaStr],
   ];
   // read_group por sale_id → una fila por orden con su conteo de OUT-done.
   // lazy:false para obtener __count directo. Excluir sale_id=false (picks sin venta).
@@ -1707,7 +1706,7 @@ async function eoBuildDispatchesPerOrder(dias) {
     // contar SOLO los que matchean /OUT/. Una sola llamada agregada.
     const picks = await odooCall('stock.picking', 'search_read',
       [[['sale_id', 'in', saleIds], ['picking_type_code', '=', 'outgoing'],
-        ['state', '=', 'done'], ['date_done', '>=', cutoffStr]]],
+        ['state', '=', 'done'], ['date_done', '>=', desdeStr], ['date_done', '<=', hastaStr]]],
       { fields: ['name', 'sale_id'], limit: 20000 });
     (picks || []).forEach(p => {
       if (!p.sale_id || !p.sale_id[0]) return;
@@ -1746,7 +1745,8 @@ async function eoBuildDispatchesPerOrder(dias) {
 
   return {
     ok: true,
-    ventanaDias: dias,
+    desde: isoLocalDay(desdeDate),
+    hasta: isoLocalDay(hastaDate),
     generadoEn: new Date().toISOString(),
     distribucion,
     promedio,
@@ -12267,15 +12267,31 @@ const server = http.createServer(async (req, res) => {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin', 'manager'])) return;
     (async () => {
-      const dias = Math.min(365, Math.max(1, parseInt((parsed.query||{}).dias, 10) || 90));
+      // Rango de fechas [desde, hasta] (YYYY-MM-DD, día LOCAL RD). Fallback a `dias`
+      // (default 90) si no vienen ambas — mantiene compatibilidad.
+      const q = parsed.query || {};
+      const rxDate = /^\d{4}-\d{2}-\d{2}$/;
+      const parseLocal = (s, endOfDay) => { const p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2], endOfDay?23:0, endOfDay?59:0, endOfDay?59:0); };
+      let desdeDate, hastaDate, cacheKey;
+      if (rxDate.test((q.desde||'').trim()) && rxDate.test((q.hasta||'').trim())) {
+        desdeDate = parseLocal(q.desde.trim(), false);
+        hastaDate = parseLocal(q.hasta.trim(), true);
+        if (desdeDate > hastaDate) { const t = desdeDate; desdeDate = hastaDate; hastaDate = t; } // tolera invertido
+        cacheKey = q.desde.trim() + '|' + q.hasta.trim();
+      } else {
+        const dias = Math.min(365, Math.max(1, parseInt(q.dias, 10) || 90));
+        const now = new Date();
+        desdeDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dias, 0, 0, 0);
+        hastaDate = now;
+        cacheKey = 'dias:' + dias;
+      }
       try {
-        const cacheKey = dias;
         const cached = DISPATCHES_PER_ORDER_CACHE.get(cacheKey);
         let payload;
         if (cached && (Date.now() - cached.ts) < DISPATCHES_PER_ORDER_TTL) {
           payload = cached.json;
         } else {
-          payload = await eoBuildDispatchesPerOrder(dias);
+          payload = await eoBuildDispatchesPerOrder(desdeDate, hastaDate);
           DISPATCHES_PER_ORDER_CACHE.set(cacheKey, { json: payload, ts: Date.now() });
         }
         res.writeHead(200, {'Content-Type':'application/json'});
@@ -12283,8 +12299,10 @@ const server = http.createServer(async (req, res) => {
       } catch(e) {
         // Odoo caído no rompe la vista: estado vacío + bandera. HTTP 200 (fail-open,
         // como /pickstatus) para que el front pinte "sin datos" sin manejar 5xx.
+        const pad = n => String(n).padStart(2,'0');
+        const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
         res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(JSON.stringify({ ok:false, odooError:true, ventanaDias:dias, generadoEn:new Date().toISOString(),
+        res.end(JSON.stringify({ ok:false, odooError:true, desde:iso(desdeDate), hasta:iso(hastaDate), generadoEn:new Date().toISOString(),
           distribucion:[{despachos:1,ordenes:0},{despachos:2,ordenes:0},{despachos:3,ordenes:0},{despachos:'4+',ordenes:0}],
           promedio:0, totalOrdenes:0, totalDespachos:0, top:[] }));
       }

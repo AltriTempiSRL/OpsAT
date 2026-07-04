@@ -4898,9 +4898,11 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .wwp-dpo-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:-4px 0 12px}
 .wwp-dpo-sub{font-size:11px;color:var(--text-muted);line-height:1.4}
 .wwp-dpo-sub b{color:var(--text-1);font-variant-numeric:tabular-nums}
-.wwp-dpo-win{display:inline-flex;gap:2px;background:var(--surface-3);border-radius:8px;padding:2px;flex-shrink:0}
-.wwp-dpo-win button{border:none;background:none;font:inherit;font-size:11px;font-weight:700;color:var(--text-2);padding:5px 11px;border-radius:6px;cursor:pointer;min-height:32px}
-.wwp-dpo-win button.active{background:var(--surface);color:var(--text-1);box-shadow:var(--shadow)}
+.wwp-dpo-range{display:inline-flex;gap:10px;flex-shrink:0;align-items:flex-end}
+.wwp-dpo-range label{display:flex;flex-direction:column;gap:3px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.wwp-dpo-range input[type=date]{font:inherit;font-size:12px;color:var(--text-1);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;min-height:34px;font-variant-numeric:tabular-nums;cursor:pointer}
+.wwp-dpo-range input[type=date]:focus{outline:none;border-color:var(--accent)}
+@media(max-width:520px){.wwp-dpo-range{width:100%}.wwp-dpo-range label{flex:1;min-width:0}.wwp-dpo-range input[type=date]{width:100%}}
 .wwp-dpo-top{margin-top:14px;padding-top:12px;border-top:1px solid var(--border-light,var(--border))}
 .wwp-dpo-top-t{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
 .wwp-dpo-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px}
@@ -8545,7 +8547,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v134';
+var APP_BUILD = 'v135';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11887,22 +11889,27 @@ function wwpRevealDayPanel(){
 // dias=N` (admin/manager; 403 a otros roles). Fuente Odoo → caché cliente por
 // ventana (evita re-pegar en cada entrada a la vista, perf Android 8).
 // Estado por ventana: null=no pedido · {ok:false}=falló · {ok:true,...}=payload.
-var _wwpDpoWin = 90;                 // ventana activa (30/60/90 días) — default 90
-var _wwpDpoCache = {};               // {dias: {payload, at}}
-var _wwpDpoLoading = {};             // {dias: true} — petición en vuelo
+// Rango de fechas activo (YYYY-MM-DD, día local). Default: últimos 90 días.
+function _wwpDpoIso(d){ var p=function(n){return String(n).padStart(2,'0');}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function wwpDpoDefaultRange(){ var hoy=new Date(); return { desde:_wwpDpoIso(new Date(hoy.getFullYear(),hoy.getMonth(),hoy.getDate()-90)), hasta:_wwpDpoIso(hoy) }; }
+var _wwpDpoRange = wwpDpoDefaultRange();  // {desde, hasta}
+var _wwpDpoCache = {};               // {'desde|hasta': {payload, at}}
+var _wwpDpoLoading = {};             // {'desde|hasta': true} — petición en vuelo
 var _WWP_DPO_TTL = 5*60*1000;
+function _wwpDpoKey(r){ return (r||_wwpDpoRange).desde + '|' + (r||_wwpDpoRange).hasta; }
 // ¿El usuario es gerencia? El endpoint exige admin/manager; si no lo es, ni
 // pedimos ni mostramos el gráfico (evita un 403 y una card inútil).
 function wwpIsMgmt(){ return !!(_user && (_user.role==='admin' || _user.role==='manager')); }
-async function wwpLoadDpo(dias, force){
-  dias = dias || _wwpDpoWin;
-  var c = _wwpDpoCache[dias];
+async function wwpLoadDpo(range, force){
+  range = range || _wwpDpoRange;
+  var key = _wwpDpoKey(range);
+  var c = _wwpDpoCache[key];
   if(c && !force && (Date.now()-c.at < _WWP_DPO_TTL)) return c.payload;
-  if(_wwpDpoLoading[dias]) return c ? c.payload : null;
-  _wwpDpoLoading[dias] = true;
+  if(_wwpDpoLoading[key]) return c ? c.payload : null;
+  _wwpDpoLoading[key] = true;
   var payload;
   try {
-    var r = await authFetch('/api/despachos-por-orden?dias='+encodeURIComponent(dias));
+    var r = await authFetch('/api/despachos-por-orden?desde='+encodeURIComponent(range.desde)+'&hasta='+encodeURIComponent(range.hasta));
     if(r.status === 403){ payload = { ok:false, forbidden:true }; }
     else {
       var d = await r.json();
@@ -11911,18 +11918,18 @@ async function wwpLoadDpo(dias, force){
     }
   } catch(e){
     payload = { ok:false, error:(e && e.message) || 'error' };
-  } finally { _wwpDpoLoading[dias] = false; }
-  _wwpDpoCache[dias] = { payload:payload, at:Date.now() };
+  } finally { _wwpDpoLoading[key] = false; }
+  _wwpDpoCache[key] = { payload:payload, at:Date.now() };
   return payload;
 }
 // Card completa del histograma de despachos por orden. Usa eoColStack (1 serie).
 // p = payload del endpoint (o null si aún cargando). Selector de ventana + top.
 function wwpDpoCardHtml(p){
-  var winBtns = [30,60,90].map(function(w){
-    return '<button type="button" class="'+(w===_wwpDpoWin?'active':'')+'"'+(w===_wwpDpoWin?' aria-pressed="true"':' aria-pressed="false"')+' data-dpo-win="'+w+'">'+w+' d</button>';
-  }).join('');
-  var head = '<div class="wwp-dpo-head"><div class="wwp-dpo-sub" id="wwp-dpo-sub"></div>'+
-    '<div class="wwp-dpo-win" role="group" aria-label="Ventana de tiempo">'+winBtns+'</div></div>';
+  var rangeCtl = '<div class="wwp-dpo-range" role="group" aria-label="Rango de fechas">'+
+    '<label>Desde<input type="date" id="wwp-dpo-desde" value="'+esc(_wwpDpoRange.desde)+'" max="'+esc(_wwpDpoRange.hasta)+'"></label>'+
+    '<label>Hasta<input type="date" id="wwp-dpo-hasta" value="'+esc(_wwpDpoRange.hasta)+'" min="'+esc(_wwpDpoRange.desde)+'"></label>'+
+    '</div>';
+  var head = '<div class="wwp-dpo-head"><div class="wwp-dpo-sub" id="wwp-dpo-sub"></div>'+rangeCtl+'</div>';
   var body, sub;
   if(p === null){
     sub = 'Cargando…';
@@ -12046,11 +12053,11 @@ function wwpRenderCharts(visible){
   // Card full-width al frente de la parrilla; lazy: se pide al entrar a la vista.
   var dpoHtml = '';
   if(wwpIsMgmt()){
-    var dpoP = _wwpDpoCache[_wwpDpoWin] ? _wwpDpoCache[_wwpDpoWin].payload : null;
-    // Si la ventana activa quedó marcada como "sin permiso", no mostramos la card.
+    var dpoP = _wwpDpoCache[_wwpDpoKey()] ? _wwpDpoCache[_wwpDpoKey()].payload : null;
+    // Si el rango activo quedó marcado como "sin permiso", no mostramos la card.
     if(!(dpoP && dpoP.forbidden)){
       dpoHtml = wwpDpoCardHtml(dpoP).card;
-      if(dpoP === null){ wwpLoadDpo(_wwpDpoWin).then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
+      if(dpoP === null){ wwpLoadDpo().then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
     }
   }
   host.innerHTML = '<div class="eo2-charts2">'+
@@ -12064,7 +12071,7 @@ function wwpRenderCharts(visible){
       '<svg class="eo-trend-svg" id="wwp-trend-svg" preserveAspectRatio="xMidYMid meet"></svg></div>'+
   '</div>';
   // Subtítulo de la card DPO (se inyecta aparte para poder actualizarlo sin reponer botones).
-  if(dpoHtml){ var subEl = document.getElementById('wwp-dpo-sub'); if(subEl){ var dp = _wwpDpoCache[_wwpDpoWin]?_wwpDpoCache[_wwpDpoWin].payload:null; subEl.innerHTML = wwpDpoCardHtml(dp).sub; } }
+  if(dpoHtml){ var subEl = document.getElementById('wwp-dpo-sub'); if(subEl){ var dp = _wwpDpoCache[_wwpDpoKey()]?_wwpDpoCache[_wwpDpoKey()].payload:null; subEl.innerHTML = wwpDpoCardHtml(dp).sub; } }
   // Tendencia entrada (creadas) vs salida (cerradas) por semana, mismo motor SVG.
   wwpDrawTrend(vis);
   if(window.lucide) lucide.createIcons();
@@ -12163,6 +12170,18 @@ function wwpInitCalEvents(){
   var root = document.getElementById('tab-tasks');
   if(!root) return;
   _wwpCalWired = true;
+  // Despachos por orden: rango de fechas (inputs date). El change dispara recarga.
+  root.addEventListener('change', function(e){
+    var t = e.target;
+    if(t && (t.id==='wwp-dpo-desde' || t.id==='wwp-dpo-hasta')){
+      var desde = (document.getElementById('wwp-dpo-desde')||{}).value || _wwpDpoRange.desde;
+      var hasta = (document.getElementById('wwp-dpo-hasta')||{}).value || _wwpDpoRange.hasta;
+      if(desde && hasta && desde > hasta){ var tmp=desde; desde=hasta; hasta=tmp; } // tolera invertido
+      if(desde===_wwpDpoRange.desde && hasta===_wwpDpoRange.hasta) return;
+      _wwpDpoRange = { desde:desde, hasta:hasta };
+      filterTasks(); // re-render (lazy-carga el rango si no está en caché)
+    }
+  });
   root.addEventListener('click', function(e){
     // Navegación de mes
     if(e.target.closest('#wwp-cal-prev')){ _wwpCalState.mo--; if(_wwpCalState.mo<0){ _wwpCalState.mo=11; _wwpCalState.y--; } _wwpCalState.sel=null; filterTasks(); return; }
@@ -12181,17 +12200,10 @@ function wwpInitCalEvents(){
       setTaskView('list');
       return;
     }
-    // Despachos por orden (FEATURE 1): selector de ventana 30/60/90 días.
-    var dpoWin = e.target.closest('.wwp-dpo-win button[data-dpo-win]');
-    if(dpoWin){
-      var w = parseInt(dpoWin.getAttribute('data-dpo-win'),10) || 90;
-      if(w !== _wwpDpoWin){ _wwpDpoWin = w; filterTasks(); }  // re-render (lazy-carga la ventana si no está en caché)
-      return;
-    }
     // Despachos por orden: reintentar tras un fallo de Odoo.
     if(e.target.closest('#wwp-dpo-retry')){
-      _wwpDpoCache[_wwpDpoWin] = null;
-      wwpLoadDpo(_wwpDpoWin, true).then(function(){ if(_taskView==='charts') filterTasks(); });
+      _wwpDpoCache[_wwpDpoKey()] = null;
+      wwpLoadDpo(_wwpDpoRange, true).then(function(){ if(_taskView==='charts') filterTasks(); });
       return;
     }
     // Dimensión de fecha (Límite / Creada): el mismo día significa otra cosa → limpiar sel
