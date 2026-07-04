@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v126';
+const APP_BUILD = 'v127';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -713,7 +713,24 @@ async function buildItemsFromPicks(orderName, stateFilter) {
 
   const mls = await odooCall('stock.move.line','search_read',
     [[['picking_id','in',allIds]]],
-    {fields:['product_id','location_id','product_uom_qty','qty_done','picking_id'],limit:3000});
+    {fields:['product_id','location_id','product_uom_qty','qty_done','picking_id','move_id'],limit:3000});
+
+  // Nombre REAL del artículo = stock.move.description_picking (lo que ve Inventario).
+  // En Compras duplican productos ("(Copia)") y corrigen default_code/barcode pero NO el name
+  // ni el display_name → product_id[1] del move line queda contaminado. description_picking es
+  // el texto correcto por línea (verificado por Ron en S09646, incl. componentes de kit .Cn).
+  // Un solo read batch de todos los moves de la orden (NO N+1).
+  const moveDescByMoveId = {};
+  try {
+    const moveIds = [...new Set(mls.map(ml => ml.move_id && ml.move_id[0]).filter(Boolean))];
+    if (moveIds.length) {
+      const moves = await odooCall('stock.move','read',[moveIds],{fields:['id','description_picking']});
+      (moves||[]).forEach(mv => {
+        const d = (mv.description_picking || '').trim();
+        if (d) moveDescByMoveId[mv.id] = d;
+      });
+    }
+  } catch(_) { /* si falla, fallback a product_id[1] (abajo) — nunca dejar nombre vacío */ }
 
   // Clave única: pickId_productId → permite el mismo producto en picks distintos
   const byKey = {};
@@ -727,7 +744,11 @@ async function buildItemsFromPicks(orderName, stateFilter) {
     const isRet    = /\/RET\//i.test(pickName);
     const bin  = ml.location_id ? ml.location_id[1] : '';
     const key  = `${pickId}_${pid}`;
-    if(!byKey[key]) byKey[key]={ pid, name:ml.product_id[1], pickName, isRet, unitBins:[] };
+    // Nombre por descripción del move (fuente correcta) con fallback al display_name contaminado.
+    // Si varias líneas del mismo producto tienen distinta description, se toma la PRIMERA no-vacía.
+    const moveDesc = ml.move_id ? moveDescByMoveId[ml.move_id[0]] : '';
+    if(!byKey[key]) byKey[key]={ pid, name:ml.product_id[1], desc:'', pickName, isRet, unitBins:[] };
+    if(!byKey[key].desc && moveDesc) byKey[key].desc = moveDesc;
     for(let i=0;i<qty;i++) byKey[key].unitBins.push(bin);
   });
 
@@ -749,7 +770,7 @@ async function buildItemsFromPicks(orderName, stateFilter) {
     return { item_id:'oi_'+g.pid+'_'+pickSuffix, odoo_product_id:g.pid, odoo_line_id:null,
       odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
       sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
-      product_name:g.name||'', quantity:units, units,
+      product_name:(g.desc||'').trim()||(g.name||'').trim()||'', quantity:units, units,
       image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
       unitBins:g.unitBins, pickName:g.pickName, isRet:g.isRet||false, fromPick:true,
       ...(kit ? { kitId:kit.kitId, kitRef:kit.kitRef, kitName:kit.kitName, kitImage:kit.kitImage } : {}),
@@ -11079,7 +11100,10 @@ const server = http.createServer(async (req, res) => {
         return { item_id:'oi_'+l.id, odoo_line_id:l.id, odoo_product_id:l.product_id[0],
           odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
           sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',  // barcode explícito para escaneo
-          product_name:l.product_id[1]||l.name||'',
+          // Nombre correcto = descripción de la línea (sale.order.line.name / stock.move.description_picking
+          // o .name), NO el display_name del producto (contaminado con "(Copia)" en productos duplicados).
+          // Fallback a product_id[1] para no dejar nunca el nombre vacío.
+          product_name:(l.description_picking||l.name||'').trim()||(l.product_id[1]||'').trim()||'',
           quantity:units, units,                 // units = unidades de la Demanda (editable)
           image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
           locations, selected_location:locations.length===1?0:null,
@@ -11136,7 +11160,7 @@ const server = http.createServer(async (req, res) => {
         const pick=picks[0];
         const moves = await odooCall('stock.move','search_read',
           [[['picking_id','=',pick.id],['state','!=','cancel']]],
-          {fields:['product_id','product_uom_qty','quantity_done','reserved_availability','name'],limit:100});
+          {fields:['product_id','product_uom_qty','quantity_done','reserved_availability','name','description_picking'],limit:100});
         const productIds=[...new Set(moves.filter(m=>m.product_id).map(m=>m.product_id[0]))];
         const products = productIds.length ? await odooCall('product.product','read',[productIds],{fields:['id','barcode','default_code','image_128','categ_id']}) : [];
         const prodMap={}; products.forEach(p=>{ prodMap[p.id]=p; });
@@ -11153,7 +11177,8 @@ const server = http.createServer(async (req, res) => {
             return { item_id:'oi_'+m.product_id[0], odoo_product_id:m.product_id[0], odoo_line_id:null,
               odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
               sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
-              product_name:m.product_id[1]||m.name||'', quantity:units, units,
+              // Descripción del move (correcta) con fallback al display_name del producto.
+              product_name:(m.description_picking||m.name||'').trim()||(m.product_id[1]||'').trim()||'', quantity:units, units,
               image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
               ...(kit ? {kitId:kit.kitId,kitRef:kit.kitRef,kitName:kit.kitName,kitImage:kit.kitImage} : {}),
               locations:[], selected_location:null,   // sin ubicación → manual
@@ -11507,15 +11532,25 @@ const server = http.createServer(async (req, res) => {
         if (!retList.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin devolución (RET) para esta orden'})); return; }
         // 4. Obtener líneas del primer RET (o el más reciente)
         const ret = retList[retList.length-1];
-        const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done'],limit:500});
+        const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done','move_id'],limit:500});
         const pids=[...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
         const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode','image_128']}) : [];
         const prodMap={}; prods.forEach(p=>{ prodMap[p.id]=p; });
+        // Descripción real del move (correcta) — 1 read batch, fallback a product_id[1].
+        const retDescByMoveId = {};
+        try {
+          const retMoveIds = [...new Set(mls.map(m => m.move_id && m.move_id[0]).filter(Boolean))];
+          if (retMoveIds.length) {
+            const retMoves = await odooCall('stock.move','read',[retMoveIds],{fields:['id','description_picking']});
+            (retMoves||[]).forEach(mv => { const d=(mv.description_picking||'').trim(); if(d) retDescByMoveId[mv.id]=d; });
+          }
+        } catch(_) { /* fallback a product_id[1] abajo */ }
         const items = mls.filter(m=>m.product_id).map((m,i)=>{
           const p=prodMap[m.product_id[0]]||{};
           const qty=Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
+          const desc = m.move_id ? retDescByMoveId[m.move_id[0]] : '';
           return { item_id:'ret_'+m.product_id[0]+'_'+i, odoo_product_id:m.product_id[0],
-            product_name:m.product_id[1]||'', sku:p.default_code||p.barcode||'',
+            product_name:(desc||'').trim()||(m.product_id[1]||'').trim()||'', sku:p.default_code||p.barcode||'',
             quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
             selected:true, status:'pending' };
         });
