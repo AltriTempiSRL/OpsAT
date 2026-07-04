@@ -4912,6 +4912,58 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .wwp-dpo-cnt small{font-weight:600;color:var(--text-muted);font-size:10px;margin-left:3px}
 .wwp-dpo-retry{margin-top:10px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font:inherit;font-size:12px;font-weight:700;color:var(--text-1);cursor:pointer;min-height:34px}
 .wwp-dpo-retry:hover{background:var(--surface-3)}
+/* ── Refuerzo de cierre del ciclo OUT en Odoo (badge + selector + reconciliación) ── */
+/* Chip compacto de "OUT pendiente" en tarjeta de lista y kanban (solo cuando pending). */
+.wwp-out-chip{display:inline-flex;align-items:center;gap:3px;background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot);border-radius:5px;padding:1px 7px;font-size:9px;font-weight:800;white-space:nowrap;line-height:1.6}
+.wwp-out-chip i{width:9px;height:9px;stroke:currentColor;display:inline-block;flex-shrink:0}
+/* Bloque OUT dentro del drawer del despacho. */
+.wwp-out{border:1.5px solid var(--amber-dot);background:var(--amber-bg);border-radius:11px;padding:12px 14px;margin:0 0 14px}
+.wwp-out.done{border-color:var(--green-dot);background:var(--green-bg)}
+.wwp-out-hd{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.wwp-out-hd i{width:15px;height:15px;flex-shrink:0}
+.wwp-out-hd .t{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.wwp-out .amber{color:var(--amber-text)}
+.wwp-out .green{color:var(--green-text)}
+.wwp-out-sub{font-size:11.5px;line-height:1.5;color:var(--text-2);margin-bottom:9px}
+.wwp-out-sub b{color:var(--text-1)}
+.wwp-out-pick{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.wwp-out-pick label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.wwp-out-pick select{font:inherit;font-size:13px;color:var(--text-1);background:var(--surface);border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;min-height:42px;width:100%;cursor:pointer}
+.wwp-out-pick select:focus{outline:none;border-color:var(--accent)}
+.wwp-out-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px 14px;background:var(--accent);color:#fff;border:none;border-radius:9px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;min-height:44px}
+.wwp-out-btn:hover{background:var(--accent-hover)}
+.wwp-out-btn:disabled{opacity:.55;cursor:not-allowed}
+.wwp-out-btn i{width:15px;height:15px;stroke:currentColor;flex-shrink:0}
+/* Panel de reconciliación: A = bloqueo duro (rojo), B = warning (ámbar). */
+.wwp-out-recon{border-radius:10px;padding:11px 13px;margin-top:10px;font-size:12px;line-height:1.55}
+.wwp-out-recon.block{background:var(--red-bg);border:1.5px solid var(--red-dot);color:var(--red-text)}
+.wwp-out-recon.warn{background:var(--amber-bg);border:1.5px solid var(--amber-dot);color:var(--amber-text)}
+.wwp-out-recon .rc-hd{display:flex;align-items:center;gap:6px;font-weight:800;margin-bottom:6px}
+.wwp-out-recon .rc-hd i{width:14px;height:14px;stroke:currentColor;flex-shrink:0}
+.wwp-out-recon ul{margin:4px 0 0;padding-left:18px}
+.wwp-out-recon li{margin-bottom:2px}
+.wwp-out-recon .rc-steps{margin-top:7px;color:var(--text-2)}
+.wwp-out-recon .rc-steps b{color:var(--text-1)}
+.wwp-out-done-line{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--green-text);font-weight:700}
+.wwp-out-done-line i{width:14px;height:14px;stroke:currentColor;flex-shrink:0}
+/* ── Gráficos de cierre del ciclo OUT (vista Gráficos WWP, solo gerencia) ── */
+.wwp-oc-note{font-size:10.5px;color:var(--text-muted);margin-top:10px;line-height:1.45}
+.wwp-oc-note b{color:var(--text-1)}
+.wwp-oc-empty{font-size:12px;color:var(--text-muted);padding:22px 6px;text-align:center;line-height:1.5}
+.wwp-oc-empty i{width:22px;height:22px;stroke:var(--text-3);display:block;margin:0 auto 8px}
+/* Lag de cierre: barras p50/p90 con línea de meta. */
+.wwp-oc-lag{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.wwp-oc-lagrow{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:10px}
+.wwp-oc-lagrow .lbl{font-size:11px;font-weight:800;color:var(--text-2)}
+.wwp-oc-lagtrack{position:relative;height:16px;background:var(--surface-3);border-radius:8px;overflow:hidden}
+.wwp-oc-lagbar{position:absolute;left:0;top:0;height:100%;border-radius:8px}
+.wwp-oc-meta{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text-3);z-index:2}
+.wwp-oc-lagval{font-size:12px;font-weight:800;color:var(--text-1);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wwp-oc-lagval small{font-weight:600;color:var(--text-muted);font-size:10px;margin-left:2px}
+.wwp-oc-metahit{display:flex;align-items:center;gap:7px;margin-top:12px;padding:8px 11px;border-radius:9px;font-size:11.5px;font-weight:700}
+.wwp-oc-metahit.ok{background:var(--green-bg);color:var(--green-text)}
+.wwp-oc-metahit.miss{background:var(--amber-bg);color:var(--amber-text)}
+.wwp-oc-metahit i{width:14px;height:14px;stroke:currentColor;flex-shrink:0}
 /* ── Ciclo de vida por tarea (FEATURE 2, dentro del drawer) ── */
 .wwp-cv{margin-top:2px}
 .wwp-cv-bar{display:flex;height:16px;border-radius:8px;overflow:hidden;background:var(--surface-3);gap:2px}
@@ -8547,7 +8599,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v136';
+var APP_BUILD = 'v137';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11685,6 +11737,26 @@ function wwpLocalDayIso(iso){
 // Capa de VISTA normalizada: tarea viva → shape plano que consumen calendario y gráficos.
 // SOLO tareas madre (no subtareas) para no doblar el conteo del calendario/gráficos;
 // las subtareas visibles como fila propia (equipo de despacho) sí entran, igual que en la lista.
+// ── Badge "OUT pendiente en Odoo" TASK-específico (espejo cliente de deriveOutBadge) ──
+// PURO sobre el shape de la tarea (el listado /api/wwp/tasks ya trae `outPendiente`).
+// NO usa el agregado `por_validar` por orden (arrastra ambigüedad del backorder). El
+// campo `outState` de outPendiente lo refresca el backend (out-confirm / out-badge);
+// aquí solo lo leemos. Códigos estables: none | pending | closed.
+//   none    → no es despacho, o no hay obligación de cierre abierta.
+//   pending → despacho completado, OUT aún NO validado (done) en Odoo → badge ámbar.
+//   closed  → el OUT confirmado ya está done → badge apagado (no se pinta).
+function wwpOutBadge(t){
+  if(!t || t.type !== 'dispatch_order') return { code:'none', outRef:null };
+  var op = t.outPendiente;
+  if(!op) return { code:'none', outRef:null };
+  var outRef = op.confirmedOutRef || op.sugerido || null;
+  if(op.outState === 'done') return { code:'closed', outRef:outRef, since:op.since||null };
+  return {
+    code:'pending', outRef:outRef, since:op.since||null,
+    confirmed: !!op.confirmedOutRef,
+    candidatos: op.candidatos || []
+  };
+}
 function wwpTaskView(t) {
   var u = (_authUsers||[]).find(function(x){ return x.id === t.managerId; });
   return {
@@ -11964,6 +12036,99 @@ function wwpDpoCardHtml(p){
   return { card:card, sub:sub };
 }
 
+// ── Cierre del ciclo OUT (Entregable 4) — cache + loading guard, patrón DPO ──
+// Endpoint gerencial (admin/manager); universo WWP-forward (arranca en 0 y se llena
+// hacia adelante). Ventana fija 90 días (default del backend) para no añadir un 2º
+// control de fecha divergente del selector de DPO. Lazy: solo al entrar a la vista.
+var _WWP_OC_DIAS = 90;
+var _wwpOcCache = null;      // {payload, at}
+var _wwpOcLoading = false;   // petición en vuelo (evita el loop de microtasks, v136)
+var _WWP_OC_TTL = 5*60*1000;
+async function wwpLoadOutCierre(force){
+  if(_wwpOcCache && !force && (Date.now()-_wwpOcCache.at < _WWP_OC_TTL)) return _wwpOcCache.payload;
+  if(_wwpOcLoading) return _wwpOcCache ? _wwpOcCache.payload : null;
+  _wwpOcLoading = true;
+  var payload;
+  try {
+    var r = await authFetch('/api/wwp/out-cierre-metrics?dias='+_WWP_OC_DIAS);
+    if(r.status === 403){ payload = { ok:false, forbidden:true }; }
+    else {
+      var d = await r.json();
+      // El backend responde 200 con {ok:false,odooError:true} si Odoo cae (fail-open).
+      payload = (r.ok && d) ? d : { ok:false, error:(d && d.error) || 'error' };
+    }
+  } catch(e){
+    payload = { ok:false, error:(e && e.message) || 'error' };
+  } finally { _wwpOcLoading = false; }
+  _wwpOcCache = { payload:payload, at:Date.now() };
+  return payload;
+}
+// Dos cards: A) backlog de cierre por edad (eoColStack, +7d en rojo); B) lag de
+// cierre despacho→OUT validado con meta 95% ≤24h. Estado vacío honesto ("acumulando
+// datos") — NO error: el universo arranca en 0 por diseño WWP-forward.
+function wwpOutCierreHtml(p){
+  if(p === null){
+    return '<div class="eo2-ch-card"><div class="eo2-ch-title">Backlog de cierre del OUT</div><div class="eo2-ch-empty">Cargando…</div></div>'+
+           '<div class="eo2-ch-card"><div class="eo2-ch-title">Rapidez de cierre (despacho → OUT)</div><div class="eo2-ch-empty">Cargando…</div></div>';
+  }
+  if(!p.ok){
+    var msg = '<div class="eo2-ch-empty"><i data-lucide="alert-triangle" style="width:18px;height:18px;display:inline-block;vertical-align:-3px;margin-right:6px"></i>No se pudieron cargar las métricas de cierre.<br><button type="button" class="wwp-dpo-retry" id="wwp-oc-retry">Reintentar</button></div>';
+    return '<div class="eo2-ch-card full"><div class="eo2-ch-title">Cierre del ciclo OUT en Odoo</div>'+msg+'</div>';
+  }
+  var universo = p.universo||0, backlog = p.backlog||0, cerrados = p.cerrados||0;
+  // ── Card A: backlog por edad (columnas). +7 días (buckets 8-30 y 31+) en rojo. ──
+  var COL_TOK = { '0-2':'--green-dot', '3-7':'--amber-dot', '8-30':'--red-dot', '31+':'--red-dot' };
+  var cols = (p.backlogPorEdad||[]).map(function(b){
+    var seg = {}; seg[b.rango] = b.tareas||0;
+    return { label:b.label||b.rango, seg:seg };
+  });
+  // eoColStack: una serie por rango; cada columna solo llena su propia serie → cada
+  // barra toma el color (token) de su rango (verde 0-2, ámbar 3-7, rojo 8-30 y 31+).
+  var seriesA = (p.backlogPorEdad||[]).map(function(b){ return { key:b.rango, tok:COL_TOK[b.rango]||'--amber-dot', lbl:b.label||b.rango }; });
+  var backlogEmpty = backlog === 0;
+  var cardA;
+  if(universo === 0){
+    cardA = '<div class="eo2-ch-card"><div class="eo2-ch-title">Backlog de cierre del OUT</div>'+
+      '<div class="wwp-oc-empty"><i data-lucide="database"></i>Acumulando datos. Aún no hay despachos completados en la ventana; el backlog se llena a medida que se cierran despachos.</div></div>';
+  } else {
+    var chartA = eoColStack({ cols:cols, series:seriesA, showTotals:true });
+    var noteA = backlogEmpty
+      ? '<div class="wwp-oc-note"><b>Al día:</b> los '+cerrados+' despacho'+(cerrados!==1?'s':'')+' de la ventana tienen su OUT validado. Sin deuda de cierre.</div>'
+      : '<div class="wwp-oc-note"><b>'+backlog+'</b> despacho'+(backlog!==1?'s':'')+' con el OUT sin validar en Odoo. Las columnas <b>de 8 días en adelante</b> (en rojo) son las urgentes: cuanto más viejas, más riesgo de stock fantasma.</div>';
+    cardA = '<div class="eo2-ch-card"><div class="eo2-ch-title">Backlog de cierre del OUT · por edad desde el despacho</div>'+chartA+noteA+'</div>';
+  }
+  // ── Card B: lag de cierre (p50/p90) con meta 95% ≤24h. ──
+  var lag = p.lag || { n:0, p50:null, p90:null, metaHoras:24 };
+  var meta = lag.metaHoras || 24;
+  var cardB;
+  if(!lag.n){
+    cardB = '<div class="eo2-ch-card"><div class="eo2-ch-title">Rapidez de cierre · despacho → OUT validado</div>'+
+      '<div class="wwp-oc-empty"><i data-lucide="database"></i>Acumulando datos. Se medirá el tiempo entre cerrar el despacho y validar el OUT en cuanto haya cierres completos.</div>'+
+      '<div class="wwp-oc-note">Meta: <b>95%</b> de los OUT validados dentro de <b>'+meta+' h</b> del despacho.</div></div>';
+  } else {
+    var fmtH = function(h){ if(h==null) return '—'; return h < 24 ? (Math.round(h*10)/10)+' h' : (Math.round(h/24*10)/10)+' d'; };
+    // Escala común para las barras: max(p90, meta) para que la línea de meta caiga dentro.
+    var scale = Math.max(lag.p90||0, meta) || 1;
+    var barTok = function(h){ return (h!=null && h <= meta) ? '--green-dot' : '--amber-dot'; };
+    var metaPct = Math.min(100, (meta/scale*100));
+    var row = function(lbl, h){
+      var w = h!=null ? Math.min(100, (h/scale*100)) : 0;
+      return '<div class="wwp-oc-lagrow"><span class="lbl">'+esc(lbl)+'</span>'+
+        '<span class="wwp-oc-lagtrack"><span class="wwp-oc-lagbar" style="width:'+w.toFixed(1)+'%;background:var('+barTok(h)+')"></span>'+
+        '<span class="wwp-oc-meta" style="left:'+metaPct.toFixed(1)+'%" title="Meta '+meta+' h"></span></span>'+
+        '<span class="wwp-oc-lagval">'+esc(fmtH(h))+'</span></div>';
+    };
+    var p90Ok = lag.p90 != null && lag.p90 <= meta;
+    var metaHit = p90Ok
+      ? '<div class="wwp-oc-metahit ok"><i data-lucide="check-circle"></i>El 90% de los OUT se cierran dentro de la meta de '+meta+' h.</div>'
+      : '<div class="wwp-oc-metahit miss"><i data-lucide="alert-triangle"></i>La cola lenta (p90 = '+esc(fmtH(lag.p90))+') supera la meta de '+meta+' h. Hay OUT que tardan en validarse.</div>';
+    cardB = '<div class="eo2-ch-card"><div class="eo2-ch-title">Rapidez de cierre · despacho → OUT validado</div>'+
+      '<div class="wwp-oc-lag">'+row('Típico (p50)', lag.p50)+row('Lento (p90)', lag.p90)+'</div>'+
+      metaHit+
+      '<div class="wwp-oc-note">Sobre <b>'+lag.n+'</b> cierre'+(lag.n!==1?'s':'')+' medido'+(lag.n!==1?'s':'')+'. La línea gris marca la meta de <b>'+meta+' h</b>. p50 = mitad de los casos por debajo; p90 = la cola lenta.</div></div>';
+  }
+  return cardA + cardB;
+}
 // Estados activos = trabajo en curso (lo que ocupa capacidad AHORA).
 var WWP_ACTIVE_ST = ['pending','assigned','in_progress'];
 // Umbral de sobrecarga por persona (marca visual de alerta a partir de aquí).
@@ -12064,8 +12229,20 @@ function wwpRenderCharts(visible){
       if(dpoP === null && !_wwpDpoLoading[_wwpDpoKey()]){ wwpLoadDpo().then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
     }
   }
+
+  // ── Cierre del ciclo OUT (Entregable 4) — solo gerencia, mismo patrón lazy/guard ──
+  var ocHtml = '';
+  if(wwpIsMgmt()){
+    var ocP = _wwpOcCache ? _wwpOcCache.payload : null;
+    if(!(ocP && ocP.forbidden)){
+      ocHtml = wwpOutCierreHtml(ocP);
+      // Guard anti-loop (v136): solo dispara la carga si no hay fetch en vuelo.
+      if(ocP === null && !_wwpOcLoading){ wwpLoadOutCierre().then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
+    }
+  }
   host.innerHTML = '<div class="eo2-charts2">'+
     dpoHtml+
+    ocHtml+
     '<div class="eo2-ch-card"><div class="eo2-ch-title">Carga activa por persona</div><div class="eo2-ch-bars">'+loadBars+'</div>'+(loadNote?'<div class="eo2-an-note">'+loadNote+'</div>':'')+'</div>'+
     '<div class="eo2-ch-card"><div class="eo2-ch-title">Aging del trabajo activo</div><div class="eo2-ch-bars">'+agingBars+'</div>'+(agingNote?'<div class="eo2-an-note">'+agingNote+'</div>':'')+'</div>'+
     '<div class="eo2-ch-card"><div class="eo2-ch-title">Tareas por tipo</div><div class="eo2-ch-bars">'+typeBars+'</div></div>'+
@@ -12208,6 +12385,12 @@ function wwpInitCalEvents(){
     if(e.target.closest('#wwp-dpo-retry')){
       _wwpDpoCache[_wwpDpoKey()] = null;
       wwpLoadDpo(_wwpDpoRange, true).then(function(){ if(_taskView==='charts') filterTasks(); });
+      return;
+    }
+    // Cierre del ciclo OUT: reintentar tras un fallo de Odoo.
+    if(e.target.closest('#wwp-oc-retry')){
+      _wwpOcCache = null;
+      wwpLoadOutCierre(true).then(function(){ if(_taskView==='charts') filterTasks(); });
       return;
     }
     // Dimensión de fecha (Límite / Creada): el mismo día significa otra cosa → limpiar sel
@@ -12853,6 +13036,7 @@ function renderListRow(t) {
       ${overdueBadgeHtml(t)}
       ${(()=>{const b=overdueReassignButtonHtml(t);return b?`<span class="row-reassign">${b}</span>`:'';})()}
       ${photoArchiveBadgeHtml(t)}
+      ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="El ciclo de este despacho sigue abierto en Odoo: falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''}."><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
       <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
       <i data-lucide="${typeEmoji}" style="width:13px;height:13px;stroke:var(--text-muted);display:inline-block;vertical-align:-2px;flex-shrink:0"></i>
     </div>
@@ -13014,6 +13198,7 @@ function renderTaskCard(t) {
       </div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
         ${_demoChipCard}
+        ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="Falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''} en Odoo"><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
         ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
         ${photoArchiveBadgeHtml(t)}
       </div>
@@ -13443,6 +13628,70 @@ function wwpCvSegColor(st){
   return '--sky-dot';
 }
 // Sección "Ciclo de vida" para el drawer: barra segmentada + etiquetas + chips de reglas.
+// ── Bloque "Cierre del OUT en Odoo" del drawer de despacho (Entregables 2 y 3) ──
+// Aparece cuando el despacho físico está cerrado (completed/validated) y hay una
+// obligación de cierre abierta (`outPendiente`). Estados:
+//   closed  → OUT validado (done) en Odoo: bloque verde, ciclo cerrado.
+//   pending sin confirmar → SELECTOR de elección del OUT (prefill del sugerido) +
+//            botón que llama POST /out-confirm; el panel de reconciliación (A/B) se
+//            rellena tras la respuesta (contenedor #wwp-out-recon).
+//   pending confirmado (aún no done) → estado "confirmado, esperando validación" +
+//            warnings B previos si los hubo.
+// Si el usuario NO puede cerrar el despacho (canClose=false) se muestra solo el estado
+// informativo, sin selector ni botón (accountability sin permitir acción no autorizada).
+function wwpOutDrawerHtml(t, canClose){
+  var ob = wwpOutBadge(t);
+  if(ob.code === 'none') return '';
+  var op = t.outPendiente || {};
+  if(ob.code === 'closed'){
+    return '<div class="wwp-out done">'+
+      '<div class="wwp-out-hd"><i data-lucide="package-check" style="stroke:var(--green-text)"></i><span class="t green">Ciclo OUT cerrado en Odoo</span></div>'+
+      '<div class="wwp-out-done-line"><i data-lucide="check-circle"></i>El OUT '+(ob.outRef?'<b style="margin:0 3px">'+esc(ob.outRef)+'</b>':'')+' está validado en Odoo. No hay stock fantasma para esta entrega.</div>'+
+    '</div>';
+  }
+  // pending
+  var confirmed = !!op.confirmedOutRef;
+  var warnB = op.warningB || [];
+  var warnHtml = warnB.length
+    ? '<div class="wwp-out-recon warn"><div class="rc-hd"><i data-lucide="alert-triangle"></i>Artículos entregados que NO figuran en el OUT</div>'+
+        '<ul>'+warnB.map(function(w){ return '<li>'+esc(w.product_name || w.default_code || ('artículo '+(w.odoo_product_id||'')))+'</li>'; }).join('')+'</ul>'+
+        '<div class="rc-steps">Se registró la confirmación igual (no bloquea). Revisa con Operaciones si estos artículos deben incluirse en el OUT.</div></div>'
+    : '';
+  if(confirmed){
+    // OUT elegido, esperando que Odoo lo marque done.
+    return '<div class="wwp-out">'+
+      '<div class="wwp-out-hd"><i data-lucide="clock" style="stroke:var(--amber-text)"></i><span class="t amber">OUT pendiente de validar en Odoo</span></div>'+
+      '<div class="wwp-out-sub">Confirmaste el OUT <b>'+esc(op.confirmedOutRef)+'</b>. Falta que Operaciones lo <b>valide (done)</b> en Odoo para cerrar el ciclo y evitar stock fantasma.</div>'+
+      warnHtml+
+    '</div>';
+  }
+  // Sin confirmar: selector de elección del OUT.
+  var cands = (op.candidatos || []).slice();
+  if(!canClose){
+    // Solo estado informativo, sin acción.
+    return '<div class="wwp-out">'+
+      '<div class="wwp-out-hd"><i data-lucide="clock" style="stroke:var(--amber-text)"></i><span class="t amber">OUT pendiente en Odoo</span></div>'+
+      '<div class="wwp-out-sub">El despacho se cerró pero falta que el encargado registre cuál OUT de Odoo se despachó, para cerrar el ciclo.</div>'+
+    '</div>';
+  }
+  var stLbl = { done:'validado', assigned:'reservado', confirmed:'confirmado', waiting:'en espera', draft:'borrador' };
+  var opts = cands.map(function(o){
+    var sug = op.sugerido && o.name === op.sugerido;
+    return '<option value="'+esc(o.name)+'"'+(sug?' selected':'')+'>'+esc(o.name)+' — '+esc(stLbl[o.state] || o.state || '')+(sug?' (sugerido)':'')+'</option>';
+  }).join('');
+  var hasCands = cands.length > 0;
+  var picker = hasCands
+    ? '<div class="wwp-out-pick"><label for="wwp-out-sel">¿Cuál OUT despachaste?</label>'+
+        '<select id="wwp-out-sel">'+opts+'</select></div>'+
+      '<button type="button" class="wwp-out-btn" id="wwp-out-confirm" onclick="wwpConfirmOut(\''+esc(t.id)+'\')"><i data-lucide="package-check"></i>Confirmar OUT despachado</button>'
+    : '<div class="wwp-out-sub" style="margin-bottom:0">No se pudieron leer los OUT candidatos de Odoo. Cuando el ERP responda, vuelve a abrir esta tarea para elegir el OUT.</div>';
+  return '<div class="wwp-out">'+
+    '<div class="wwp-out-hd"><i data-lucide="package-x" style="stroke:var(--amber-text)"></i><span class="t amber">Cerrar el OUT en Odoo</span></div>'+
+    '<div class="wwp-out-sub">El despacho físico ya se cerró. Registra cuál <b>OUT de Odoo</b> corresponde a lo que despachaste para cerrar el ciclo y que el inventario cuadre.</div>'+
+    picker+
+    '<div id="wwp-out-recon"></div>'+
+  '</div>';
+}
 function wwpCicloVidaHtml(t, subs){
   var c = wwpBuildCiclo(t, subs);
   var stages = c.stages, rules = c.rules;
@@ -14053,6 +14302,12 @@ function renderDrawer(t) {
   let cicloVidaHtml = '';
   try { cicloVidaHtml = wwpCicloVidaHtml(t, subs); } catch(e){ cicloVidaHtml = ''; }
 
+  // ── Cierre del OUT en Odoo (Entregables 2/3): badge + selector + reconciliación ──
+  // Solo en despacho cerrado con obligación abierta. canCloseDispatch decide si se
+  // permite elegir/confirmar el OUT (encargado/admin/aux del despacho) o solo se informa.
+  let outDrawerHtml = '';
+  try { outDrawerHtml = wwpOutDrawerHtml(t, canCloseDispatch); } catch(e){ outDrawerHtml = ''; }
+
   // ── Contexto de la orden madre (solo en subtareas) ──
   // El ejecutor (ej. chofer) ve qué se hizo en el padre sin comunicarse con ese equipo.
   let parentCtxHtml = '';
@@ -14406,6 +14661,7 @@ function renderDrawer(t) {
     ${devolucionRutaHtml}
     <div style="border-top:1.5px solid var(--border);margin:16px 0 12px"></div>
     ${actionHtml}
+    ${outDrawerHtml}
     ${cicloVidaHtml}
     ${histHtml}
     ${traceHtml}
@@ -14778,6 +15034,63 @@ async function changeStatus(taskId, status, note) {
     toast('Estado actualizado');
     openDrawer(taskId);
   } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Confirmar el OUT despachado (Entregables 2/3) ────────────────────────────
+// El encargado elige el OUT en el selector del drawer y confirma. El backend corre
+// la reconciliación avería/no-entrega ↔ OUT:
+//   422 gateDuro (dirección A) → BLOQUEO: se pinta el panel rojo con la instrucción
+//        exacta (ajustar cantidad del OUT en Odoo → backorder + RET del averiado). NO
+//        se cierra la obligación; el encargado resuelve en Odoo y vuelve a confirmar.
+//   200 ok → confirmado (aunque Odoo no respondiera la reconciliación: se registra el
+//        OUT y se avisa). Los warnings B (dirección B) se muestran al re-render.
+function wwpConfirmOut(taskId){
+  var sel = document.getElementById('wwp-out-sel');
+  var btn = document.getElementById('wwp-out-confirm');
+  var reconEl = document.getElementById('wwp-out-recon');
+  var outRef = sel ? (sel.value||'').trim() : '';
+  if(!outRef){ toast('Elige el OUT que despachaste'); return; }
+  if(btn){ btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="do-spin" style="width:15px;height:15px;stroke:currentColor"></i>Confirmando…'; if(window.lucide) lucide.createIcons(); }
+  if(reconEl) reconEl.innerHTML = '';
+  authFetch('/api/wwp/tasks/'+taskId+'/out-confirm', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ outRef: outRef })
+  }).then(function(r){
+    return r.json().then(function(d){ return { status:r.status, ok:r.ok, d:d }; });
+  }).then(function(res){
+    var d = res.d || {};
+    if(res.status === 422 && d.gateDuro){
+      // Dirección A — bloqueo duro. Instrucción accionable (no cerramos la obligación).
+      var items = (d.mismatchA||[]).map(function(m){
+        var motivo = m.motivo==='damaged' ? 'averiado' : 'no entregado';
+        return '<li><b>'+esc(m.product_name || m.default_code || ('artículo '+(m.odoo_product_id||'')))+'</b> — '+motivo+' (en el OUT: '+(m.qtyEnOut||0)+')</li>';
+      }).join('');
+      if(reconEl){
+        reconEl.innerHTML = '<div class="wwp-out-recon block">'+
+          '<div class="rc-hd"><i data-lucide="octagon-alert"></i>No se puede cerrar: el OUT incluye artículos que NO salieron</div>'+
+          '<ul>'+items+'</ul>'+
+          '<div class="rc-steps"><b>Qué hacer en Odoo:</b><br>'+
+            '1. Abre el OUT <b>'+esc(outRef)+'</b> y <b>baja la cantidad</b> del artículo que no salió (Odoo genera un backorder con lo pendiente).<br>'+
+            '2. Enruta el artículo averiado a <b>avería → RET</b> (ya se avisó a Operaciones).<br>'+
+            '3. Vuelve aquí y confirma de nuevo el OUT ya ajustado.</div>'+
+        '</div>';
+        if(window.lucide) lucide.createIcons();
+      }
+      if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="package-check" style="width:15px;height:15px;stroke:currentColor"></i>Confirmar OUT despachado'; if(window.lucide) lucide.createIcons(); }
+      toast('El OUT no se puede cerrar hasta ajustarlo en Odoo', 5000);
+      return;
+    }
+    if(res.ok && d.ok){
+      toast(d.odooError ? 'OUT registrado (Odoo no respondió la reconciliación)' : '✓ OUT confirmado', d.odooError?5000:2500);
+      openDrawer(taskId);   // re-render: estado "confirmado, esperando validación" + warnings B
+      return;
+    }
+    if(reconEl){ reconEl.innerHTML = '<div class="wwp-out-recon block"><div class="rc-hd"><i data-lucide="alert-triangle"></i>No se pudo confirmar</div><div>'+esc(d.error||('Error '+res.status))+'</div></div>'; if(window.lucide) lucide.createIcons(); }
+    if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="package-check" style="width:15px;height:15px;stroke:currentColor"></i>Confirmar OUT despachado'; if(window.lucide) lucide.createIcons(); }
+  }).catch(function(e){
+    if(reconEl){ reconEl.innerHTML = '<div class="wwp-out-recon block"><div class="rc-hd"><i data-lucide="alert-triangle"></i>Error de red</div><div>'+esc((e&&e.message)||'No se pudo confirmar')+'</div></div>'; if(window.lucide) lucide.createIcons(); }
+    if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="package-check" style="width:15px;height:15px;stroke:currentColor"></i>Confirmar OUT despachado'; if(window.lucide) lucide.createIcons(); }
+  });
 }
 
 // ── Compresión de imagen para móvil ──────────────────────────────────────────
@@ -32007,6 +32320,10 @@ function eoFlagsOf(s, tasks){
   if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return (t.fotos_entrega||[]).length>0; })) flags.push('sinevid');
   // sin OUT en Odoo
   if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); })) flags.push('sinout');
+  // OUT pendiente en Odoo (TASK-específico): alguna tarea de despacho vinculada cerró el
+  // despacho físico pero su OUT aún no está validado (done). Deriva del outPendiente de la
+  // tarea (mismo dato que el badge del drawer), NO del agregado por_validar por orden.
+  if(linked.some(function(t){ return wwpOutBadge(t).code==='pending'; })) flags.push('outpend');
   // devolución en ruta abierta
   if(linked.some(function(t){ return t.devolucionRuta && t.devolucionRuta.estado==='abierta'; })) flags.push('dev');
   // demo pendiente
@@ -32122,7 +32439,7 @@ function eoActiveFilterCount(){
   return n;
 }
 var EO_EST_LBL = {activas:'Activas', pend:'Pendiente revisión', ops:'En operaciones', ruta:'En ruta', desp:'Despachada', rech:'Rechazada/Canc.'};
-var EO_FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin salida en Odoo', dev:'Devolución en ruta', bloq:'Pick por validar', demo:'En demo', atascada:'Atascadas >72h'};
+var EO_FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin salida en Odoo', outpend:'OUT pendiente en Odoo', dev:'Devolución en ruta', bloq:'Pick por validar', demo:'En demo', atascada:'Atascadas >72h'};
 var EO_PROM_LBL = {venc:'Vencidas', hoy:'Hoy', sem:'Esta semana', rango:'Rango'};
 function eoPromChipText(){
   if(_eoState.f.prom!=='rango') return EO_PROM_LBL[_eoState.f.prom];
@@ -32269,6 +32586,7 @@ function eoSubchips(v){
   if(v.flags.indexOf('dev')!==-1) out.push({t:'Devolución en ruta', c:'red', i:'package-open'});
   if(v.flags.indexOf('sinevid')!==-1) out.push({t:'Sin evidencia', c:'amber', i:'image'});
   if(v.flags.indexOf('sinout')!==-1) out.push({t:'Sin salida en Odoo', c:'red', i:'alert-triangle'});
+  if(v.flags.indexOf('outpend')!==-1) out.push({t:'OUT pendiente en Odoo', c:'amber', i:'package-x'});
   if(v.flags.indexOf('demo')!==-1) out.push({t:'En demo', c:'purple', i:'eye'});
   return out.slice(0,3);
 }

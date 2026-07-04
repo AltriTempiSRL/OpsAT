@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v136';
+const APP_BUILD = 'v137';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -678,20 +678,175 @@ async function sdvComputePickStatus(soRef) {
   if (!sos || !sos.length) return { label:'Sin orden en Odoo', severity:'muted', code:'sin_orden', outs:[] };
   const picks = await odooCall('stock.picking','search_read',
     [[['sale_id','=',sos[0].id],['picking_type_code','=','outgoing']]],
-    {fields:['name','state'],limit:50});
-  const outs = (picks||[]).filter(p => /\/OUT\//i.test(p.name)).map(p => ({ name:p.name, state:p.state }));
-  const activos = outs.filter(o => o.state !== 'cancel');
+    {fields:['name','state','date_done','backorder_id'],limit:50});
+  const outsAll = (picks||[]).filter(p => /\/OUT\//i.test(p.name)).map(p => ({
+    name:p.name, state:p.state, date_done:p.date_done || null,
+    backorderOf: (p.backorder_id && p.backorder_id[1]) || null,
+  }));
+  const outs = outsAll.map(o => ({ name:o.name, state:o.state, date_done:o.date_done }));
+  const activos = outsAll.filter(o => o.state !== 'cancel');
+  // ── Fix badge 'parcial' (ADENDA CRÍTICA, Gabriel 2026-07-04) ──────────────────
+  // Odoo, al despachar parcial, crea un OUT de backorder para el SALDO no despachado
+  // (cadena backorder_id). Ese OUT (waiting/confirmed/assigned) NO es un "viaje
+  // atascado": es mercancía que aún no se ha despachado y que puede no tener SDV.
+  // Verificado en vivo (S07639): 7 OUT done + 1 OUT waiting que es backorder del
+  // último done → la regla vieja lo leía 'Despacho parcial' cuando en realidad TODO
+  // lo comprometido salió. Excluimos del CÓMPUTO del badge los OUT cuyo backorder_id
+  // apunta a otro OUT del mismo set (saldo). Se conservan en `outs` para trazabilidad.
+  const setNames = new Set(activos.map(o => o.name));
+  const computo = activos.filter(o => !(o.backorderOf && setNames.has(o.backorderOf)));
+  // Fallback defensivo: si el filtro dejara el cómputo vacío (todos backorders entre
+  // sí, caso patológico), usar los activos crudos para no perder la señal.
+  const base = computo.length ? computo : activos;
   let label = 'Sin despacho activo', severity = 'muted', code = 'sin_out';
   if (activos.length) {
-    if (activos.every(o => o.state === 'done'))         { label='Despachado';           severity='ok';   code='despachado'; }
-    else if (activos.some(o => o.state === 'done'))     { label='Despacho parcial';     severity='info'; code='parcial';    }
-    else if (activos.some(o => o.state === 'assigned')) { label='Listo para despachar'; severity='warn'; code='listo';      }
+    if (base.every(o => o.state === 'done'))         { label='Despachado';           severity='ok';   code='despachado'; }
+    else if (base.some(o => o.state === 'done'))     { label='Despacho parcial';     severity='info'; code='parcial';    }
+    else if (base.some(o => o.state === 'assigned')) { label='Listo para despachar'; severity='warn'; code='listo';      }
     // OUT en confirmed/waiting/draft (ni assigned ni done): el pick está bien, el
     // OUT solo espera validación → "Pick por validar" (ámbar), no "Bloqueado por
     // stock" (rojo), que confundía (decisión de Gabriel 2026-07-04).
     else                                                { label='Pick por validar';    severity='warn'; code='por_validar'; }
   }
   return { label, severity, code, outs };
+}
+
+// ── Reconciliación avería/no-entrega ↔ OUT (Decisión 17, ADENDA 2) ────────────
+// Cruza los ítems de UNA tarea de despacho (con sus campos de entrega por artículo)
+// contra los move lines de UN OUT específico de Odoo. Se llama al CONFIRMAR el OUT
+// que el encargado eligió (no barre la orden entera: se ancla al OUT de SUS artículos).
+//
+// Matching por odoo_product_id (product.product id) como clave PRIMARIA — es el
+// identificador estable que el item guarda y que el move line trae en product_id[0].
+// default_code se usa como clave SECUNDARIA/legible (el `name`/display_name está
+// contaminado con "(Copia)" → jamás matchear por nombre — regla Ron). Kits `.Cn`
+// se tratan como artículos consolidados: cada componente `.Cn` es un product.product
+// con su propio pid, así que el match por pid ya los cubre 1:1 (no hay que expandir).
+//
+// Direcciones (Gabriel 2026-07-04):
+//   A (GATE DURO): ítem averiado/no-entregado (deliveryStatus∈{damaged,not_delivered}
+//     o delivered===false) que SÍ está en el OUT con qty>0 → "no salió pero está en el
+//     OUT". Bloquea el cierre (422) hasta ajustar el OUT (bajar qty → backorder + RET).
+//   B (WARNING): ítem entregado (delivered===true) AUSENTE del OUT → "OUT equivocado o
+//     falta agregar". No bloquea; se reporta.
+// El averiado se SEPARA (hilo avería→RET); la app NUDGEA, no auto-escribe Odoo.
+// Nunca lanza: ante fallo de Odoo devuelve {ok:false, odooError:true} y el caller
+// decide (fail-open: no bloquear por caída de Odoo — un gate no puede depender de que
+// el ERP esté arriba, salvo que la lectura sí funcione y muestre el mismatch).
+async function sdvReconcileOutVsTask(outRef, task) {
+  const empty = { ok:true, outState:null, date_done:null, mismatchA:[], warningB:[], matched:[] };
+  try {
+    const ref = String(outRef||'').trim();
+    if (!ref) return { ...empty, ok:false, reason:'sin outRef' };
+    // Localizar el OUT por nombre exacto (o ilike si viene sin prefijo de almacén).
+    let out = await odooCall('stock.picking','search_read',
+      [[['name','=',ref],['picking_type_code','=','outgoing']]],
+      {fields:['id','name','state','date_done'],limit:1});
+    if ((!out || !out.length)) {
+      out = await odooCall('stock.picking','search_read',
+        [[['name','ilike',ref],['picking_type_code','=','outgoing']]],
+        {fields:['id','name','state','date_done'],limit:1});
+    }
+    if (!out || !out.length) return { ...empty, ok:false, reason:'OUT no encontrado en Odoo', outRef:ref };
+    const pick = out[0];
+    // Cantidades desde stock.move filtrando picking_id (Odoo 16: NO usar move_ids;
+    // leer stock.move por picking_id). quantity_done = lo realmente hecho; product_uom_qty
+    // = demanda. Un move 'cancel' con qty 0 NO cuenta (se ignora). Sumamos por pid.
+    const moves = await odooCall('stock.move','search_read',
+      [[['picking_id','=',pick.id]]],
+      {fields:['product_id','product_uom_qty','quantity_done','state'],limit:3000});
+    const qtyByPid = new Map();          // pid → qty en el OUT (hecho o demandado)
+    const dcByPid  = new Map();          // pid → default_code (secundaria/legible)
+    const pidsNeedDc = [];
+    (moves||[]).forEach(m => {
+      if (!m.product_id) return;
+      if (m.state === 'cancel') return;                 // move anulado: no está en el OUT
+      const pid = m.product_id[0];
+      // quantity_done bajo el proceso admin puede ser 0 aunque el OUT no esté done —
+      // por eso usamos max(quantity_done, product_uom_qty): "presente en el OUT" =
+      // hay una línea con demanda o hecho > 0 (Aprendizaje: qty_done=0 no = no despachado).
+      const q = Math.max(Number(m.quantity_done)||0, Number(m.product_uom_qty)||0);
+      if (q <= 0) return;
+      qtyByPid.set(pid, (qtyByPid.get(pid)||0) + q);
+      if (!dcByPid.has(pid)) pidsNeedDc.push(pid);
+    });
+    // default_code de los productos del OUT (para reportar legible, no para matchear).
+    if (pidsNeedDc.length) {
+      try {
+        const prods = await odooCall('product.product','read',[[...new Set(pidsNeedDc)]],{fields:['id','default_code']});
+        (prods||[]).forEach(p => dcByPid.set(p.id, p.default_code||''));
+      } catch(_) { /* legibilidad opcional; el match no depende de esto */ }
+    }
+    const items = (task && task.items || []).filter(it => it && it.selected !== false);
+    const mismatchA = [], warningB = [], matched = [];
+    // Agrupar los pid ya usados por match para no reportarlos como "ausentes".
+    const itemPids = new Set();
+    items.forEach(it => {
+      const pid = Number(it.odoo_product_id) || null;
+      const dc  = String(it.default_code || '').trim();  // puede no existir en el item
+      const inOut = pid && qtyByPid.has(pid) && qtyByPid.get(pid) > 0;
+      if (pid) itemPids.add(pid);
+      const isDamaged = it.deliveryStatus === 'damaged' || it.condition === 'damaged';
+      const isNotDelivered = it.deliveryStatus === 'not_delivered' || it.delivered === false;
+      const problema = isDamaged || isNotDelivered;
+      const legible = it.product_name || dc || (pid ? ('pid '+pid) : '') || it.item_id || '';
+      if (problema && inOut) {
+        // Dirección A — GATE DURO
+        mismatchA.push({
+          item_id: it.item_id || null, odoo_product_id: pid || null,
+          default_code: dcByPid.get(pid) || dc || '',
+          product_name: legible,
+          motivo: isDamaged ? 'damaged' : 'not_delivered',
+          deliveryStatus: it.deliveryStatus || null,
+          qtyEnOut: qtyByPid.get(pid) || 0,
+        });
+      } else if (it.delivered === true && pid && !inOut) {
+        // Dirección B — WARNING (entregado pero ausente del OUT)
+        warningB.push({
+          item_id: it.item_id || null, odoo_product_id: pid || null,
+          default_code: dc || '', product_name: legible,
+        });
+      } else if (inOut) {
+        matched.push({ odoo_product_id: pid, default_code: dcByPid.get(pid) || dc || '', qtyEnOut: qtyByPid.get(pid) });
+      }
+    });
+    return {
+      ok:true, outRef: pick.name, outState: pick.state, date_done: pick.date_done || null,
+      mismatchA, warningB, matched,
+      gateDuro: mismatchA.length > 0,   // el caller responde 422 si true
+    };
+  } catch(e) {
+    silentCatch(e,'sdvReconcileOutVsTask');
+    return { ...empty, ok:false, odooError:true, reason: safeError(e) };
+  }
+}
+
+// ── Badge "OUT pendiente en Odoo" TASK-específico (Decisión 17, ADENDA 3) ─────
+// Deriva el estado del badge que Mark pinta en 3 superficies (tarjeta WWP + drawer +
+// fila de Estado de Órdenes). Es PURO (sin Odoo): se calcula sobre el shape de la
+// tarea. NO es el chip `por_validar` agregado por orden (order-level, arrastra la
+// ambigüedad del backorder) — este es de la TAREA, deriva de `outPendiente`.
+// El caller que sí toca Odoo (endpoint /out-badge) puede flippear a cerrado cuando el
+// OUT específico pasa a done (reconciliación, fail-open). `outStateLive` opcional =
+// estado real del OUT confirmado en Odoo si se pudo leer.
+// Estados devueltos (code estable — Aprendizaje 19, no acoplar UI al texto):
+//   'none'    → sin obligación (no es despacho completado, o no aplica).
+//   'pending' → despacho completado, OUT aún NO validado en Odoo (badge visible).
+//   'closed'  → el OUT confirmado ya está done en Odoo (badge apagado).
+function deriveOutBadge(task, outStateLive) {
+  if (!task || task.type !== 'dispatch_order') return { code:'none', label:'', outRef:null };
+  const op = task.outPendiente;
+  if (!op) return { code:'none', label:'', outRef:null };
+  const outRef = op.confirmedOutRef || op.sugerido || null;
+  // Estado real del OUT: preferir el live (Odoo) si se pasó; si no, el último guardado.
+  const st = (outStateLive !== undefined && outStateLive !== null) ? outStateLive : (op.outState || null);
+  if (st === 'done') return { code:'closed', label:'', outRef, since: op.since||null };
+  return {
+    code:'pending', label:'OUT pendiente en Odoo', outRef,
+    since: op.since || null,
+    confirmed: !!op.confirmedOutRef,
+    outState: st || null,
+  };
 }
 
 // ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
@@ -1658,6 +1813,11 @@ const EO_METRICS_TTL = 5 * 60 * 1000; // 5 minutos
 const DISPATCHES_PER_ORDER_CACHE = new Map(); // dias → { json, ts }
 const DISPATCHES_PER_ORDER_TTL = 10 * 60 * 1000; // 10 minutos
 
+// Caché del gráfico de cierre del OUT (Decisión 17): backlog por edad + lag de cierre.
+// Pega a Odoo (date_done por sale_id) → nunca recomputar por request. TTL 10 min.
+const OUT_CIERRE_CACHE = new Map(); // ventanaDias → { json, ts }
+const OUT_CIERRE_TTL = 10 * 60 * 1000; // 10 minutos
+
 // Construye el histograma de despachos (OUT-done) por ORDEN ÚNICA de venta desde
 // Odoo. Universo AMPLIO: TODAS las órdenes con OUT despachado (no solo SDV) —
 // mide costos de operación (decisión de Gabriel 2026-07-04).
@@ -1753,6 +1913,118 @@ async function eoBuildDispatchesPerOrder(desdeDate, hastaDate) {
     totalOrdenes,
     totalDespachos,
     top,
+  };
+}
+
+// ── Gráfico de cierre del ciclo OUT (Decisión 17, Gráficos WWP) ───────────────
+// Universo WWP-FORWARD (el proceso, no el legado): tareas dispatch_order con
+// `dispatchCompletedAt` set y `sdvId` truthy (excluye era-implementación odooRef-solo
+// y el backlog Odoo-wide legado, que es un tracker SEPARADO). Dos vistas:
+//   A) BACKLOG por edad: tareas dispatch completadas cuyo OUT confirmado NO está done
+//      (o aún sin confirmar) → deuda de cierre. Edad = now − dispatchCompletedAt (días
+//      LOCAL, Aprendizaje 17). Buckets 0-2 / 3-7 / 8-30 / 31+.
+//   B) LAG de cierre: para tareas cuyo OUT confirmado SÍ está done, lag en horas de
+//      dispatchCompletedAt → date_done del OUT. p50/p90 + meta.
+// Odoo: UNA search_read batch de los OUT confirmados (por nombre) trae state+date_done
+// (NO N+1). Contar por TAREA (cada tarea = un cierre de OUT); no por orden — una orden
+// multi-viaje tiene varias tareas dispatch, cada una con su OUT. Nunca lanza: el caller
+// envuelve en try/catch y devuelve estado vacío si Odoo falla.
+async function eoBuildOutCierreMetrics(ventanaDias) {
+  ventanaDias = Math.min(365, Math.max(1, ventanaDias || 90));
+  const nowMs = Date.now();
+  const sinceMs = nowMs - ventanaDias * 864e5;
+  // Universo: tareas dispatch WWP-forward completadas dentro de la ventana.
+  const tasks = (loadWwpTasks() || []).filter(t =>
+    t && t.type === 'dispatch_order' && t.sdvId && t.dispatchCompletedAt &&
+    new Date(t.dispatchCompletedAt).getTime() >= sinceMs);
+
+  // OUT confirmados a verificar en Odoo (por nombre). Sin OUT confirmado → cuenta como
+  // backlog "sin confirmar" (no podemos verificar el done). Batch único.
+  const refs = [...new Set(tasks
+    .map(t => t.outPendiente && (t.outPendiente.confirmedOutRef || t.outPendiente.sugerido))
+    .filter(Boolean))];
+  const outByName = new Map(); // name → { state, date_done }
+  if (refs.length) {
+    const outs = await odooCall('stock.picking','search_read',
+      [[['name','in',refs],['picking_type_code','=','outgoing']]],
+      {fields:['name','state','date_done'],limit:5000});
+    (outs||[]).forEach(o => outByName.set(o.name, { state:o.state, date_done:o.date_done||null }));
+  }
+
+  // Helpers de fecha LOCAL (Aprendizaje 17) ya existen: eoLocalDaySerial / eoDayDiff.
+  const nowDate = new Date();
+  const backlogBuckets = { '0-2':0, '3-7':0, '8-30':0, '31+':0 };
+  const backlogItems = []; // detalle para tabla/drill (top por edad)
+  const lags = [];         // horas de cierre (dispatchCompletedAt → date_done)
+  let totalDispatch = 0, cerrados = 0, backlog = 0;
+
+  tasks.forEach(t => {
+    totalDispatch++;
+    const ref = t.outPendiente && (t.outPendiente.confirmedOutRef || t.outPendiente.sugerido);
+    const info = ref ? outByName.get(ref) : null;
+    const isDone = info && info.state === 'done';
+    if (isDone && info.date_done) {
+      // date_done de Odoo llega como 'YYYY-MM-DD HH:MM:SS' (UTC). Interpretar como UTC.
+      const doneMs = Date.parse(info.date_done.replace(' ', 'T') + 'Z');
+      const compMs = new Date(t.dispatchCompletedAt).getTime();
+      if (!isNaN(doneMs) && !isNaN(compMs)) {
+        const h = (doneMs - compMs) / 36e5;
+        // Lag puede ser NEGATIVO si el OUT se validó en Odoo ANTES de que el chofer
+        // cerrara la tarea WWP (proceso admin: OUT tras entrega física). Solo contamos
+        // lags >= 0 para "cuánto tardó cerrar el OUT tras el despacho"; los negativos
+        // (OUT ya estaba done) van a 'cerradosPreDone' — cierre inmediato, no deuda.
+        if (h >= 0) lags.push(h);
+      }
+      cerrados++;
+    } else {
+      // Backlog: OUT no done (o sin confirmar/sin leer). Edad por día LOCAL.
+      backlog++;
+      const edadDias = eoDayDiff(nowDate, new Date(t.dispatchCompletedAt));
+      const e = (edadDias === null || edadDias < 0) ? 0 : edadDias;
+      if (e <= 2) backlogBuckets['0-2']++;
+      else if (e <= 7) backlogBuckets['3-7']++;
+      else if (e <= 30) backlogBuckets['8-30']++;
+      else backlogBuckets['31+']++;
+      backlogItems.push({
+        taskId: t.id, odooRef: t.odooRef || '', outRef: ref || null,
+        confirmado: !!(t.outPendiente && t.outPendiente.confirmedOutRef),
+        outState: info ? info.state : null, edadDias: e,
+        dispatchCompletedAt: t.dispatchCompletedAt,
+      });
+    }
+  });
+
+  backlogItems.sort((a,b) => b.edadDias - a.edadDias);
+  const sortedLags = lags.slice().sort((a,b) => a-b);
+  const pct = p => {
+    if (!sortedLags.length) return null;
+    const i = Math.min(sortedLags.length - 1, Math.floor((p/100) * sortedLags.length));
+    return Math.round(sortedLags[i] * 10) / 10;
+  };
+
+  const pad = n => String(n).padStart(2,'0');
+  const isoLocalDay = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  return {
+    ok: true,
+    ventanaDias,
+    generadoEn: new Date().toISOString(),
+    desde: isoLocalDay(new Date(sinceMs)),
+    hasta: isoLocalDay(nowDate),
+    universo: totalDispatch,      // tareas dispatch WWP-forward completadas en la ventana
+    cerrados,                     // con OUT confirmado done
+    backlog,                      // con OUT no done (deuda de cierre)
+    backlogPorEdad: [
+      { rango:'0-2',  label:'0-2 días',  tareas: backlogBuckets['0-2']  },
+      { rango:'3-7',  label:'3-7 días',  tareas: backlogBuckets['3-7']  },
+      { rango:'8-30', label:'8-30 días', tareas: backlogBuckets['8-30'] },
+      { rango:'31+',  label:'31+ días',  tareas: backlogBuckets['31+']  },
+    ],
+    backlogTop: backlogItems.slice(0, 15),
+    lag: {
+      n: sortedLags.length,
+      p50: pct(50), p90: pct(90),
+      metaHoras: 24,   // meta sugerida: cerrar el OUT dentro de 24h del despacho
+    },
   };
 }
 
@@ -9357,6 +9629,51 @@ const server = http.createServer(async (req, res) => {
             }
           }
         }
+        // ── Gate de VALIDACIÓN sobre el OUT en Odoo (Decisión 17, solo admin) ─────
+        // Simétrico al gate de PICK (timing inverso): PICK done gatea el INICIO del
+        // despacho; el OUT done (validado en Odoo) gatea la VALIDACIÓN final de la
+        // tarea. Solo dispatch_order con odooRef. Requiere el OUT confirmado (elegido
+        // por el encargado) en estado 'done' = pickstatus 'despachado' PARA ESE out.
+        // Override: admin puede saltarlo con motivo (despacho cancelado, mercancía en
+        // staging, etc.) — mismo molde 422 que el gate de PICK. Fail-open: si Odoo cae,
+        // NO bloquear (no podemos verificar el OUT → no es justo trabar la operación).
+        if (d.status === 'validated' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
+          const _override = d.outGateOverride && String(d.outGateOverride.motivo||'').trim();
+          if (_override) {
+            // Registrar el override con motivo + quién (auditoría inmutable).
+            appendAuditLog('out_gate_override', {
+              taskId: tasks[idx].id, odooRef: tasks[idx].odooRef,
+              outRef: (tasks[idx].outPendiente && tasks[idx].outPendiente.confirmedOutRef) || null,
+              motivo: String(d.outGateOverride.motivo).slice(0,500), by: jp.userId,
+            });
+          } else {
+            try {
+              // El OUT a validar = el confirmado por el encargado. Si aún no lo confirmó,
+              // no podemos validar el OUT específico → bloqueo pidiendo confirmarlo.
+              const _outRef = tasks[idx].outPendiente && tasks[idx].outPendiente.confirmedOutRef;
+              if (!_outRef) {
+                res.writeHead(422,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({ok:false, error:'Antes de validar, confirma cuál OUT de Odoo se despachó (aún no está registrado).', needsOutConfirm:true}));
+                return;
+              }
+              // Verificar el estado ESPECÍFICO de ese OUT en Odoo (no el agregado por orden).
+              const _out = await odooCall('stock.picking','search_read',
+                [[['name','=',_outRef],['picking_type_code','=','outgoing']]],
+                {fields:['name','state'],limit:1});
+              const _st = (_out && _out.length) ? _out[0].state : null;
+              if (_st !== 'done') {
+                res.writeHead(422,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({ok:false,
+                  error:`El OUT ${_outRef} aún no está validado en Odoo (estado: ${_st||'no encontrado'}). Valídalo en Odoo o usa el override con motivo.`,
+                  outRef:_outRef, outState:_st, needsOutValidation:true}));
+                return;
+              }
+            } catch(e) {
+              // Fail-open: Odoo caído no bloquea la validación (no podemos comprobar).
+              try { notifyAdminSyncError('OUT validate gate: '+(e.message||'')); } catch(_e) { silentCatch(_e,'notifyAdminSyncErrorOutGate'); }
+            }
+          }
+        }
         // Gate de inicio para despacho: el pick de Odoo debe estar realizado (done)
         // ACTIVADO 2026-06-20: validar picking antes de permitir in_progress
         if (d.status === 'in_progress' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
@@ -9411,6 +9728,34 @@ const server = http.createServer(async (req, res) => {
         }
         if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
           tasks[idx].dispatchCompletedAt = now;
+          // ── Obligación de cierre del OUT en Odoo (Decisión 17) ────────────────
+          // Al completar el despacho (ya exige checklist de 3 fotos = entrega
+          // confirmada), abrimos la obligación de validar el OUT en Odoo. NO es un
+          // gate sobre 'completed' (Pit): el despacho físico ya ocurrió. Es una deuda
+          // anclada a ESTA tarea, resuelta por el OUT ESPECÍFICO de SUS artículos.
+          // Multi-viaje (S07639 = 7 OUT): candidatos = TODOS los OUT no-cancel de la
+          // orden; el encargado ELIGE cuál cargó (front lo captura después). El backend
+          // acepta/persiste el outRef vía POST /out-confirm. Aquí solo prefill + since.
+          // Fail-open: si Odoo cae, se abre la obligación sin candidatos (se confirman
+          // luego) — no bloqueamos el cierre del despacho por caída del ERP.
+          if (!tasks[idx].outPendiente) {
+            tasks[idx].outPendiente = { since: now, confirmedOutRef: null, confirmedAt: null, candidatos: [], reconOk: null };
+            try {
+              if (tasks[idx].odooRef) {
+                const _ps = await sdvComputePickStatus(tasks[idx].odooRef);
+                // Candidatos = OUT activos (no cancel). El front prefila esta lista y el
+                // encargado confirma cuál despachó. Guardamos name + state para la UI.
+                tasks[idx].outPendiente.candidatos = (_ps.outs||[])
+                  .filter(o => o.state !== 'cancel')
+                  .map(o => ({ name:o.name, state:o.state, date_done:o.date_done||null }));
+                // Prefill inteligente: si hay EXACTAMENTE un OUT done candidato, lo
+                // proponemos como sugerido (el front puede pre-seleccionarlo). No lo
+                // confirmamos solos (regla: el encargado elige — multi-viaje ambiguo).
+                const _done = tasks[idx].outPendiente.candidatos.filter(o => o.state === 'done');
+                tasks[idx].outPendiente.sugerido = _done.length === 1 ? _done[0].name : null;
+              }
+            } catch(e) { silentCatch(e,'outPendientePrefill'); }
+          }
         }
         // by derivado del JWT (no del body) + límites de longitud: evita spoofing
         // y reduce superficie de XSS almacenado (el escape real va en el render).
@@ -12310,6 +12655,41 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // GET /api/wwp/out-cierre-metrics — gráfico de cierre del ciclo OUT (Decisión 17).
+  // Backlog de tareas dispatch completadas con OUT sin validar (por edad) + lag de
+  // cierre (despacho-completado → date_done del OUT). Rol gerencial (admin/manager):
+  // es métrica de accountability del proceso. Fuente Odoo → caché 10 min por `dias`.
+  // Fail-open: si Odoo falla, {ok:false, odooError:true} con estructura vacía → la UI
+  // pinta "sin datos" (mismo contrato que /despachos-por-orden).
+  if (reqPath === '/api/wwp/out-cierre-metrics' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    (async () => {
+      const dias = Math.min(365, Math.max(1, parseInt((parsed.query||{}).dias, 10) || 90));
+      try {
+        const cacheKey = 'dias:' + dias;
+        const cached = OUT_CIERRE_CACHE.get(cacheKey);
+        let payload;
+        if (cached && (Date.now() - cached.ts) < OUT_CIERRE_TTL) {
+          payload = cached.json;
+        } else {
+          payload = await eoBuildOutCierreMetrics(dias);
+          OUT_CIERRE_CACHE.set(cacheKey, { json: payload, ts: Date.now() });
+        }
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(payload));
+      } catch(e) {
+        // Odoo caído no rompe la vista: estructura vacía + bandera (HTTP 200, fail-open).
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:false, odooError:true, ventanaDias:dias, generadoEn:new Date().toISOString(),
+          universo:0, cerrados:0, backlog:0,
+          backlogPorEdad:[{rango:'0-2',label:'0-2 días',tareas:0},{rango:'3-7',label:'3-7 días',tareas:0},{rango:'8-30',label:'8-30 días',tareas:0},{rango:'31+',label:'31+ días',tareas:0}],
+          backlogTop:[], lag:{ n:0, p50:null, p90:null, metaHoras:24 } }));
+      }
+    })();
+    return;
+  }
+
   // GET /api/sdv/:id/pickstatus — estado real del despacho (OUT) en Odoo (F3-2). Read-only,
   // fail-open: si Odoo no responde, devuelve pickStatus:null y la UI simplemente no muestra el badge.
   if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/pickstatus$/) && req.method === 'GET') {
@@ -13595,6 +13975,112 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:false,error:e.message}));
     }
+    return;
+  }
+
+  // ── POST /api/wwp/tasks/:id/out-confirm — el encargado confirma cuál OUT despachó ──
+  // (Decisión 17) Cierra la obligación `outPendiente` anclando la tarea al OUT ESPECÍFICO
+  // de sus artículos (multi-viaje: el encargado elige entre los candidatos prefilados).
+  // Al confirmar corre la reconciliación avería/no-entrega ↔ OUT:
+  //   - Dirección A (averiado/no-entregado presente en el OUT con qty>0) = GATE DURO 422:
+  //     bloquea el cierre hasta ajustar el OUT (bajar qty → backorder + RET). El averiado
+  //     se separa (avería→RET) — la app NUDGEA, no auto-escribe Odoo.
+  //   - Dirección B (entregado ausente del OUT) = warning en la respuesta (no bloquea).
+  // Fail-open sobre Odoo: si la reconciliación no pudo leer el OUT, NO gatea (registra el
+  // outRef y devuelve odooError) — un gate no puede depender de que el ERP esté arriba.
+  // Participante de la tarea o admin/manager. Query `?force=1` NO existe: el gate A solo
+  // se salta ajustando el OUT en Odoo (regla Gabriel: el mismatch A se resuelve, no se ignora).
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/out-confirm$/) && req.method === 'POST') {
+    const _jpOc = requireJwt(req, res); if (!_jpOc) return;
+    const taskId = reqPath.split('/')[4];
+    (async () => {
+      try {
+        const d = await readBody(req);
+        const outRef = String(d.outRef||'').trim();
+        if (!outRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Falta outRef'})); return; }
+        const tasks = loadWwpTasks();
+        const idx = tasks.findIndex(t => t.id === taskId);
+        if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+        const task = tasks[idx];
+        if (task.type !== 'dispatch_order') { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo aplica a tareas de despacho'})); return; }
+        if (!isTaskParticipant(task, _jpOc) && !ROLE_PERMISSIONS.edit_task.includes(_jpOc.role)) {
+          res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return;
+        }
+        // Reconciliación contra el OUT elegido (matching por odoo_product_id / default_code).
+        const recon = await sdvReconcileOutVsTask(outRef, task);
+        // GATE DURO — dirección A: averiado/no-entregado presente en el OUT.
+        if (recon.ok && recon.gateDuro) {
+          // Nudge a Ops por cada averiado (enruta a avería→RET; la infra ya existe).
+          try {
+            recon.mismatchA.filter(m => m.motivo === 'damaged').forEach(m =>
+              notifyOpsDamageDetected(taskId, m.default_code || m.product_name || m.item_id || '', 'Averiado — bajar qty del OUT '+outRef+' y crear RET'));
+          } catch(e) { silentCatch(e,'outConfirmDamageNudge'); }
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ ok:false, gateDuro:true,
+            error:'El OUT '+recon.outRef+' incluye '+recon.mismatchA.length+' artículo(s) que NO salieron (averiado/no entregado). Ajusta el OUT en Odoo (baja la cantidad → genera backorder) y crea la RET del averiado antes de cerrar.',
+            mismatchA: recon.mismatchA, warningB: recon.warningB }));
+          return;
+        }
+        // Sellar la confirmación (aunque Odoo haya fallado la reconciliación — registramos
+        // el outRef elegido; reconOk refleja si la reconciliación pudo correr).
+        if (!task.outPendiente) task.outPendiente = { since: new Date().toISOString(), candidatos: [] };
+        task.outPendiente.confirmedOutRef = recon.outRef || outRef;
+        task.outPendiente.confirmedAt = new Date().toISOString();
+        task.outPendiente.confirmedBy = _jpOc.userId;
+        task.outPendiente.reconOk = recon.ok === true && !recon.odooError;
+        task.outPendiente.outState = recon.outState || null;
+        task.outPendiente.warningB = recon.warningB || [];
+        task.updatedAt = new Date().toISOString();
+        // Auditoría inmutable de la confirmación (usuario/timestamp/OUT elegido).
+        try { appendAuditLog('out_confirm', { taskId, odooRef: task.odooRef||'', outRef: task.outPendiente.confirmedOutRef, outState: recon.outState||null, by: _jpOc.userId, warnings:(recon.warningB||[]).length }); } catch(_e) { silentCatch(_e,'auditOutConfirm'); }
+        saveWwpTasks(tasks);
+        broadcastWwpTasks('out_confirmed', task, { taskId, outRef: task.outPendiente.confirmedOutRef });
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente,
+          warningB: recon.warningB||[], odooError: !!recon.odooError,
+          note: recon.odooError ? 'OUT registrado, pero Odoo no respondió la reconciliación — se verificará al validar.' : undefined }));
+      } catch(e) {
+        res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
+      }
+    })();
+    return;
+  }
+
+  // ── GET /api/wwp/tasks/:id/out-badge — badge "OUT pendiente en Odoo" task-específico ──
+  // (Decisión 17, ADENDA 3) Devuelve el badge derivado de `outPendiente` y, si hay un OUT
+  // confirmado, RECONCILIA contra Odoo (flip a 'closed' cuando ese OUT pasa a done). Es la
+  // fuente task-específica que Mark pinta en tarjeta + drawer + fila EO. NO pega a Odoo si
+  // no hay OUT confirmado (badge derivado del shape, barato). Fail-open: Odoo caído →
+  // devuelve el badge derivado sin flip (nunca 5xx). Cualquier rol autenticado (agregado
+  // sin datos de cliente; el badge en EO lo ven ventas/gerencia — accountability).
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/out-badge$/) && req.method === 'GET') {
+    const _jpBadge = requireJwt(req, res); if (!_jpBadge) return;
+    const taskId = reqPath.split('/')[4];
+    (async () => {
+      try {
+        const task = loadWwpTasks().find(t => t.id === taskId);
+        if (!task) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+        const op = task.outPendiente;
+        let outStateLive = null, odooError = false;
+        // Solo pegamos a Odoo si hay un OUT confirmado (o sugerido) que verificar.
+        const refToCheck = op && (op.confirmedOutRef || op.sugerido);
+        if (op && refToCheck) {
+          try {
+            const _out = await odooCall('stock.picking','search_read',
+              [[['name','=',refToCheck],['picking_type_code','=','outgoing']]],
+              {fields:['name','state'],limit:1});
+            outStateLive = (_out && _out.length) ? _out[0].state : null;
+          } catch(e) { odooError = true; silentCatch(e,'outBadgeLive'); }
+        }
+        const badge = deriveOutBadge(task, outStateLive);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, badge, odooError }));
+      } catch(e) {
+        // Fail-open total: nunca romper la vista por el badge.
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, badge:{ code:'none', label:'', outRef:null }, odooError:true }));
+      }
+    })();
     return;
   }
 

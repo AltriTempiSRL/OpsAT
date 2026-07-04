@@ -320,8 +320,10 @@ const approx = (a, b, eps = 1e-9) => a !== null && b !== null && Math.abs(a - b)
     // search_read de picks OUT-done
     return picksAll;
   };
-  const r = await EO.eoBuildDispatchesPerOrder(90);
-  ok('despachos-por-orden ok', r.ok === true && r.ventanaDias === 90);
+  // Firma real (Decisión 16): (desdeDate, hastaDate) — rango de fechas, no `dias`.
+  const _desde90 = new Date(Date.now() - 90 * 864e5), _hasta90 = new Date();
+  const r = await EO.eoBuildDispatchesPerOrder(_desde90, _hasta90);
+  ok('despachos-por-orden ok', r.ok === true && typeof r.desde === 'string' && typeof r.hasta === 'string');
   const b = {}; r.distribucion.forEach(d => { b[d.despachos] = d.ordenes; });
   ok('bucket 1 = 1 orden (S00101, RET excluido)', b[1] === 1, { b });
   ok('bucket 2 = 1 orden (S00102)', b[2] === 1, { b });
@@ -342,7 +344,7 @@ const approx = (a, b, eps = 1e-9) => a !== null && b !== null && Math.abs(a - b)
 {
   STUB_ODOO = async () => [];
   let r;
-  try { r = await EO.eoBuildDispatchesPerOrder(90); ok('despachos-por-orden Odoo vacío no lanza', true); }
+  try { r = await EO.eoBuildDispatchesPerOrder(new Date(Date.now()-90*864e5), new Date()); ok('despachos-por-orden Odoo vacío no lanza', true); }
   catch (e) { ok('despachos-por-orden Odoo vacío no lanza', false, { err: e.message }); }
   ok('despachos-por-orden vacío: 4 buckets en cero', r && r.distribucion.length === 4 && r.distribucion.every(d => d.ordenes === 0), { dist: r && r.distribucion });
   ok('despachos-por-orden vacío: promedio 0, totales 0', r && r.promedio === 0 && r.totalOrdenes === 0 && r.totalDespachos === 0, { r });
