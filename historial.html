@@ -8545,7 +8545,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v133';
+var APP_BUILD = 'v134';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32736,9 +32736,9 @@ function eoRenderAlerts(sub){
     {fk:'flag', v:'sinout',  lbl:'Despachada sin salida registrada en Odoo — avisa a Operaciones', i:'alert-triangle',c:'red', n:cnt(function(v){ return v.flags.indexOf('sinout')!==-1; })},
     {fk:'flag', v:'dev',     lbl:'Devolución en ruta',               i:'package-open',  c:'red', n:cnt(function(v){ return v.flags.indexOf('dev')!==-1; })}
   ];
-  if(_eoBloqStock != null && _eoBloqStock > 0){
-    rows.unshift({fk:'flag', v:'bloq', lbl:'Pick por validar (Odoo)'+(_eoBloqPartial?' · parcial':''), i:'clock', c:'amber', n:_eoBloqStock});
-  }
+  // "Pick por validar" (OUT sin validar en Odoo) NO va en Acción hoy: es tarea de
+  // Operaciones en Odoo, no una acción de ventas (decisión Gabriel 2026-07-04). El
+  // indicador sigue como chip informativo en la fila/tarjeta, no como alerta urgente.
   rows = rows.filter(function(a){ return a.n > 0; });
   var demoN = cnt(function(v){ return v.flags.indexOf('demo')!==-1; });
   var html = rows.map(function(a){
