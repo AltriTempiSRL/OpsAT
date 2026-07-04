@@ -8547,7 +8547,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v135';
+var APP_BUILD = 'v136';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12057,7 +12057,11 @@ function wwpRenderCharts(visible){
     // Si el rango activo quedó marcado como "sin permiso", no mostramos la card.
     if(!(dpoP && dpoP.forbidden)){
       dpoHtml = wwpDpoCardHtml(dpoP).card;
-      if(dpoP === null){ wwpLoadDpo().then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
+      // Solo dispara la carga+re-render si NO hay ya un fetch en vuelo para este rango.
+      // Sin este guard, dos renders concurrentes mientras Odoo responde entran en un
+      // loop de microtasks (wwpLoadDpo devuelve al instante con loading=true → .then
+      // re-renderiza → vuelve a entrar) que congela el hilo hasta que el fetch cachea.
+      if(dpoP === null && !_wwpDpoLoading[_wwpDpoKey()]){ wwpLoadDpo().then(function(){ if(_taskView==='charts') wwpRenderCharts(visible); }); }
     }
   }
   host.innerHTML = '<div class="eo2-charts2">'+
@@ -32552,7 +32556,8 @@ function eoRenderCharts(vis){
     // Aún no pedido: mostramos cargando y disparamos el fetch lazy (perf Android 8).
     cardsHtml = '';
     metricsHtml = '<div class="eo2-ch-card full"><div class="eo2-ch-empty">Cargando métricas…</div></div>';
-    eoLoadMetrics().then(function(){ if(_eoState.view==='charts') eoRenderCharts(vis); });
+    // Guard anti-loop: no re-disparar si ya hay un fetch en vuelo (ver mismo patrón en WWP).
+    if(!_eoMetricsLoading) eoLoadMetrics().then(function(){ if(_eoState.view==='charts') eoRenderCharts(vis); });
   } else if(!_eoMetrics.ok){
     cardsHtml = '';
     metricsHtml = '<div class="eo2-ch-card full"><div class="eo2-ch-empty"><i data-lucide="alert-triangle" style="width:18px;height:18px;display:inline-block;vertical-align:-3px;margin-right:6px"></i>No se pudieron cargar las métricas.<br><button type="button" class="eo2-btn-ghost" id="eo-metrics-retry" style="margin-top:10px">Reintentar</button></div></div>';
