@@ -4876,7 +4876,7 @@ const server = http.createServer(async (req, res) => {
   //   1) DRY-RUN (sin ?apply) → revisar { wwp, sdv }.changed y la muestra de ejemplos.
   //   2) Si el impacto es correcto → ?apply=true (hace BACKUP antes de escribir).
   //   3) Restaurar si algo sale mal: copiar el backup de vuelta (ver reporte).
-  if (true && reqPath === '/api/_fix/product-names' && req.method === 'POST') { // pase retroactivo v127 — ACTIVADO TEMPORALMENTE para la corrida coordinada (devolver a false tras usar)
+  if (false && reqPath === '/api/_fix/product-names' && req.method === 'POST') { // pase retroactivo v127 — DESACTIVADO (ejecutado con éxito 2026-07-03: 78 corregidos, 3 sin resolver [Noxiel], backups prefase2_*)
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
     try {
