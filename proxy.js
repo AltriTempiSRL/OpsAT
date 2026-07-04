@@ -4865,7 +4865,7 @@ const server = http.createServer(async (req, res) => {
   // Mismo protocolo que product-names: desactivado por defecto, admin, dry-run default,
   // backup antes de escribir en apply. Decisión Gabriel 3-jul: "corregir la información
   // en producción" (la limpieza del maestro Odoo queda con Compras).
-  if (true && reqPath === '/api/_fix/strip-copia' && req.method === 'POST') { // ACTIVADO TEMPORALMENTE — devolver a false tras la corrida
+  if (false && reqPath === '/api/_fix/strip-copia' && req.method === 'POST') { // DESACTIVADO (ejecutado 2026-07-03: 10 product_name + 16 kitName limpiados, backups prestrip_*)
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
     try {
