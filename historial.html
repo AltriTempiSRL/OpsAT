@@ -4658,12 +4658,12 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo2-refresh i{width:16px;height:16px;stroke:currentColor}
 /* Z1 · Pulso (KPIs + agregados fusionados en una línea) */
 .eo2-pulse{display:flex;background:var(--surface-2);border:1px solid var(--border-light,var(--border));border-radius:12px;margin-bottom:18px}
-.eo2-pi{flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:12px 16px 11px;background:transparent;border:none;border-left:1px solid var(--border-light,var(--border));text-align:left;position:relative;min-width:0;font-family:inherit;cursor:default}
+.eo2-pi{flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:12px 11px 11px;background:transparent;border:none;border-left:1px solid var(--border-light,var(--border));text-align:left;position:relative;min-width:0;font-family:inherit;cursor:default}
 .eo2-pi:first-child{border-left:none;border-radius:12px 0 0 12px}
 .eo2-pi:last-child{border-radius:0 12px 12px 0}
 .eo2-pi-n{font-size:21px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-.eo2-pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.eo2-pi-s{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.eo2-pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.3px;text-transform:uppercase;line-height:1.2}
+.eo2-pi-s{font-size:10px;color:var(--text-3);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .eo2-pi[data-f]{cursor:pointer}
 .eo2-pi[data-f]:hover{background:var(--surface-3)}
 .eo2-pi.active{background:var(--accent-light,var(--surface-3))}
@@ -8489,7 +8489,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v129';
+var APP_BUILD = 'v130';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
