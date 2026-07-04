@@ -4662,8 +4662,8 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo2-pi:first-child{border-left:none;border-radius:12px 0 0 12px}
 .eo2-pi:last-child{border-radius:0 12px 12px 0}
 .eo2-pi-n{font-size:21px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-.eo2-pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
-.eo2-pi-s{font-size:10px;color:var(--text-3);white-space:nowrap}
+.eo2-pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.eo2-pi-s{font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .eo2-pi[data-f]{cursor:pointer}
 .eo2-pi[data-f]:hover{background:var(--surface-3)}
 .eo2-pi.active{background:var(--accent-light,var(--surface-3))}
@@ -8489,7 +8489,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v128';
+var APP_BUILD = 'v129';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -31706,7 +31706,7 @@ function eoRenderPulse(sub){
      tip:'Salieron a ruta y van hacia el cliente. Clic para filtrar.'},
     {k:'desp', n:nDesp, lbl:'Despachadas', col:'var(--green-text)',
      tip:'Entregadas y cerradas con su evidencia. Clic para filtrar.'},
-    {k:null, n:(otif==null?'—':otif+'%'), lbl:'Entregas a tiempo · 60 días', col:otifCol, sub:(despWithDue?onTime+'/'+despWithDue+' a tiempo':'sin datos'),
+    {k:null, n:(otif==null?'—':otif+'%'), lbl:'Entregas a tiempo', col:otifCol, sub:(despWithDue?onTime+'/'+despWithDue+' · 60 días':'sin datos · 60 días'),
      tip:'De las despachadas con fecha deseada en los últimos 60 días, % cuya fecha REAL de despacho fue igual o anterior a la fecha PROMETIDA al cliente.'},
     {k:null, n:String(arts), lbl:'Artículos en flujo', col:'var(--text-1)',
      tip:'Piezas dentro de las solicitudes activas del subconjunto visible.'}
