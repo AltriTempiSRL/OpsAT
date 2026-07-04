@@ -2796,10 +2796,30 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* ── View toggle bar ─────────────────────────────────────────────────── */
 .tasks-view-bar{display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap}
-.tv-btn{padding:5px 10px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;transition:background .12s,color .12s,border-color .12s}
+.tv-btn{min-height:36px;padding:5px 10px;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;transition:background .12s,color .12s,border-color .12s}
 .tv-btn:hover{background:var(--surface-2);color:var(--text)}
 .tv-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tv-btn svg{width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px}
+/* Móvil: solo íconos (auxiliares Android 8 = usuario #1); target táctil ≥36px cuadrado. */
+@media(max-width:720px){
+  .tasks-view-bar .tv-lbl{display:none}
+  .tasks-view-bar .tv-btn{min-width:38px;min-height:38px;justify-content:center;padding:0 10px}
+}
+/* Gráficos WWP: marca de sobrecarga y leyenda de la tendencia de 2 series. */
+.wwp-load-hot{color:var(--red-text)!important;font-weight:800}
+.wwp-load-warn{color:var(--amber-text)!important}
+.wwp-trend-legend{display:flex;gap:14px;margin:2px 0 8px;font-size:11px;color:var(--text-2)}
+.wwp-tl{display:inline-flex;align-items:center;gap:5px}
+.wwp-tl-dot{width:9px;height:3px;border-radius:2px;display:inline-block}
+.wwp-trend-sep{margin:0 3px;color:var(--text-3);font-weight:600}
+/* Panel del día / agenda: vínculo con la promesa comercial (folio SDV + vendedora). */
+.wwp-cdp-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
+.wwp-cdp-main .eo2-cdp-cli{flex:none}
+.wwp-cdp-sdv{display:flex;align-items:center;gap:4px;margin-top:2px;font-size:10.5px;font-weight:600;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wwp-cdp-sdv i{width:11px;height:11px;stroke:currentColor;flex-shrink:0}
+.wwp-ag-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
+.wwp-ag-main .eo2-ag-cli{flex:none}
+.wwp-ag-sdv{display:block;margin-top:1px;font-size:10.5px;font-weight:600;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tv-guided-btn{border-color:var(--purple)!important;color:var(--purple)!important}
 .tv-guided-btn:hover,.tv-guided-btn.active{background:var(--purple)!important;color:#fff!important;border-color:var(--purple)!important}
 /* ── Modo Guiado ── */
@@ -7378,13 +7398,13 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           </select>
           </div>
         </div>
-        <div style="display:flex;gap:3px;flex-wrap:wrap">
-          <button class="tv-btn active" data-view="list" onclick="setTaskView('list')" title="Lista"><i data-lucide="list"></i> Lista</button>
-          <button class="tv-btn" data-view="cards" onclick="setTaskView('cards')" title="Tarjetas"><i data-lucide="layout-grid"></i> Tarjetas</button>
-          <button class="tv-btn" data-view="kanban" onclick="setTaskView('kanban')" title="Kanban"><i data-lucide="columns-3"></i> Kanban</button>
-          <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona"><i data-lucide="users"></i> Por persona</button>
-          <button class="tv-btn" data-view="cal" onclick="setTaskView('cal')" title="Calendario — qué vence cada día"><i data-lucide="calendar"></i> Calendario</button>
-          <button class="tv-btn" data-view="charts" onclick="setTaskView('charts')" title="Gráficos — distribución y tendencia"><i data-lucide="bar-chart-3"></i> Gráficos</button>
+        <div class="tasks-view-bar" role="group" aria-label="Vista de tareas">
+          <button class="tv-btn active" data-view="list" onclick="setTaskView('list')" title="Lista" aria-pressed="true"><i data-lucide="list"></i><span class="tv-lbl">Lista</span></button>
+          <button class="tv-btn" data-view="cards" onclick="setTaskView('cards')" title="Tarjetas" aria-pressed="false"><i data-lucide="layout-grid"></i><span class="tv-lbl">Tarjetas</span></button>
+          <button class="tv-btn" data-view="kanban" onclick="setTaskView('kanban')" title="Kanban" aria-pressed="false"><i data-lucide="columns-3"></i><span class="tv-lbl">Kanban</span></button>
+          <button class="tv-btn" data-view="person" onclick="setTaskView('person')" title="Por persona" aria-pressed="false"><i data-lucide="users"></i><span class="tv-lbl">Por persona</span></button>
+          <button class="tv-btn" data-view="cal" onclick="setTaskView('cal')" title="Calendario — qué vence cada día" aria-pressed="false"><i data-lucide="calendar"></i><span class="tv-lbl">Calendario</span></button>
+          <button class="tv-btn" data-view="charts" onclick="setTaskView('charts')" title="Gráficos — carga, aging y tendencia" aria-pressed="false"><i data-lucide="bar-chart-3"></i><span class="tv-lbl">Gráficos</span></button>
         </div>
       </div>
 
@@ -8489,7 +8509,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v130';
+var APP_BUILD = 'v131';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11578,7 +11598,11 @@ function canViewAnyTaskForUser(userId) {
 var _taskView = 'list';
 function setTaskView(v) {
   _taskView = v;
-  document.querySelectorAll('.tv-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v && b.id !== 'btn-guided-mode'));
+  document.querySelectorAll('.tv-btn').forEach(b => {
+    var on = b.dataset.view === v && b.id !== 'btn-guided-mode';
+    b.classList.toggle('active', on);
+    if(b.dataset.view && b.id !== 'btn-guided-mode') b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
   filterTasks();
 }
 
@@ -11607,6 +11631,19 @@ var WWP_TYPE_TOK = {
   item_pickup:'--sky-dot', truck_loading:'--amber-dot', staffing:'--red-dot', general:'--text-muted'
 };
 
+// Día LOCAL (YYYY-MM-DD) de un timestamp ISO. `createdAt`/`statusHistory[].date` son
+// `toISOString()` = UTC (verificado en proxy.js): un `.slice(0,10)` daría la fecha UTC y,
+// en RD (UTC-4), una tarea creada tras ~8pm caería al día SIGUIENTE. Tampoco sirve pasar el
+// ISO completo a eoToD (su regex ^\d{4}-\d{2}-\d{2} matchea el PREFIJO y vuelve a tomar UTC).
+// Solución: componentes LOCALES de new Date(iso). Acepta ya date-only (lo devuelve tal cual).
+function wwpLocalDayIso(iso){
+  if(!iso) return null;
+  var s = String(iso);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;          // ya es date-only (ej. dueDate)
+  var d = new Date(s); if(isNaN(d.getTime())) return null;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 // Capa de VISTA normalizada: tarea viva → shape plano que consumen calendario y gráficos.
 // SOLO tareas madre (no subtareas) para no doblar el conteo del calendario/gráficos;
 // las subtareas visibles como fila propia (equipo de despacho) sí entran, igual que en la lista.
@@ -11618,12 +11655,33 @@ function wwpTaskView(t) {
     status: t.status,
     type: t.type || 'general',
     due: t.dueDate || null,
-    created: (t.createdAt || '').slice(0,10) || null,
+    created: wwpLocalDayIso(t.createdAt) || null,   // día LOCAL (no slice UTC) — bug v126 cerrado
+    _createdRaw: t.createdAt || null,
     respName: t.managerName || (u ? u.name : '') || 'Sin asignar',
+    respId: t.managerId || null,
+    auxIds: (typeof taskAuxiliaryIds==='function') ? taskAuxiliaryIds(t) : [],
+    sdvId: t.sdvId || null,
+    sdvFolio: t.sdvFolio || null,
+    salesperson: t.salesperson || null,
+    statusHistory: t.statusHistory || [],
     odooRef: t.odooRef || '',
     active: !['completed','validated','cancelled'].includes(t.status)
   };
 }
+// Edad (horas) de una tarea activa DESDE que entró a su estado actual (último cambio a ese
+// estado en statusHistory, fecha local). Fallback a createdAt si no hay histórico. Responde
+// "¿cuánto lleva atascada en este estado?" — no la antigüedad total de la tarea.
+function wwpAgeHours(v){
+  var target = v.status, at = null;
+  var hist = v.statusHistory || [];
+  for(var i=hist.length-1;i>=0;i--){ if(hist[i] && hist[i].status===target && hist[i].date){ at = hist[i].date; break; } }
+  if(!at) at = v._createdRaw || null;
+  if(!at) return 0;
+  var t0 = new Date(at).getTime(); if(isNaN(t0)) return 0;
+  return Math.max(0, (Date.now() - t0) / 36e5);
+}
+// Bucket de aging para el trabajo ACTIVO.
+function wwpAgeTier(h){ return h < 24 ? 'fresh' : (h < 72 ? 'mid' : 'old'); }
 // Fecha ISO que usa el calendario según la dimensión activa.
 function wwpCalDayIso(v){ return _wwpCalState.dim === 'created' ? v.created : v.due; }
 // ¿Tarea vencida? (solo dimensión Límite: activa + día pasado).
@@ -11649,8 +11707,12 @@ function wwpDayPanelHtml(d, list) {
     var extra = _wwpCalState.dim === 'due' && v.due
       ? '<span class="eo2-cdp-extra ' + (ov?'red':'mut') + '">' + (ov?'Vencía ':'') + eoFmtD(v.due) + '</span>'
       : (v.odooRef ? '<span class="eo2-cdp-extra mut">' + esc(v.odooRef) + '</span>' : '');
-    return '<button type="button" class="eo2-cdp-row" data-tid="' + esc(v.id) + '" aria-label="Abrir tarea ' + esc(v.title) + '">' +
-      '<span class="eo2-cdp-cli">' + esc(v.title) + '</span>' +
+    // Vínculo con la promesa comercial: folio SDV + vendedora (Ops sabe a qué corresponde el vencimiento).
+    var sdvLine = v.sdvId
+      ? '<span class="wwp-cdp-sdv"><i data-lucide="clipboard-list"></i>' + esc(v.sdvFolio||v.sdvId) + (v.salesperson? ' · ' + esc(v.salesperson) : '') + '</span>'
+      : '';
+    return '<button type="button" class="eo2-cdp-row' + (sdvLine?' wwp-has-sdv':'') + '" data-tid="' + esc(v.id) + '" aria-label="Abrir tarea ' + esc(v.title) + '">' +
+      '<span class="wwp-cdp-main"><span class="eo2-cdp-cli">' + esc(v.title) + '</span>' + sdvLine + '</span>' +
       '<span class="wwp-cdp-resp">' + esc((v.respName||'').split(' ')[0]) + '</span>' +
       '<span class="badge ' + (STATUS_CSS[v.status]||'b-pending') + '">' + esc(STATUS_LABELS[v.status]||v.status) + '</span>' + extra +
     '</button>';
@@ -11671,32 +11733,45 @@ function wwpRenderCalendar(visible) {
   var host = document.getElementById('tasks-cal'); if(!host) return;
   var vis = (visible||[]).map(wwpTaskView);
   var y = _wwpCalState.y, m = _wwpCalState.mo;
-  var byDay = {};
+  var byDay = {}, nSinFecha = 0;
   vis.forEach(function(v){
-    var iso = wwpCalDayIso(v); if(!iso) return;
-    var d = eoToD(iso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
+    var iso = wwpCalDayIso(v);
+    // "Sin fecha" solo tiene sentido en dim Límite (toda tarea tiene fecha de creación).
+    if(!iso){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
+    var d = eoToD(iso); if(!d){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
+    if(d.getFullYear()!==y || d.getMonth()!==m) return;
     (byDay[d.getDate()] = byDay[d.getDate()] || []).push(v);
   });
   var first = new Date(y, m, 1), lead = (first.getDay()+6)%7;
   var days = new Date(y, m+1, 0).getDate();
   var today = new Date(); today.setHours(0,0,0,0);
   var todayD = (today.getFullYear()===y && today.getMonth()===m) ? today.getDate() : -1;
+  var isCurMonth = (today.getFullYear()===y && today.getMonth()===m);
+  var hasAnyDay = Object.keys(byDay).length > 0;
   // Validar la selección ANTES de pintar (evita .sel huérfano si un filtro vació el día).
   if(_wwpCalState.sel){
     var sd0 = eoToD(_wwpCalState.sel);
     if(!sd0 || sd0.getFullYear()!==y || sd0.getMonth()!==m || !(byDay[sd0.getDate()]||[]).length) _wwpCalState.sel = null;
   }
+  // Chip "N sin fecha límite" (dim Límite) → clickeable a Lista con el filtro nodate existente.
+  var sinFechaChip = (nSinFecha && _wwpCalState.dim==='due')
+    ? '<button type="button" class="eo2-cal-nofecha" id="wwp-cal-nodate" title="Ver en la lista las '+esc(nSinFecha+' tarea'+(nSinFecha===1?'':'s')+' sin fecha límite')+'"><i data-lucide="calendar-off"></i>'+nSinFecha+' sin fecha límite</button>'
+    : '';
   var head = '<div class="eo2-cal-toolbar">'+
     '<div class="eo2-cal-nav"><button type="button" class="eo2-cal-arrow" id="wwp-cal-prev" aria-label="Mes anterior"><i data-lucide="chevron-left"></i></button>'+
       '<span class="eo2-cal-month">'+EO_MESES_FULL[m]+' '+y+'</span>'+
-      '<button type="button" class="eo2-cal-arrow" id="wwp-cal-next" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button></div>'+
+      '<button type="button" class="eo2-cal-arrow" id="wwp-cal-next" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button>'+
+      (isCurMonth ? '' : '<button type="button" class="eo2-cal-today" id="wwp-cal-today"><i data-lucide="calendar-check"></i>Hoy</button>')+'</div>'+
     '<div class="eo2-cal-dim" role="group" aria-label="Dimensión de fecha">'+
-      '<button type="button" class="'+(_wwpCalState.dim==='due'?'active':'')+'" data-wdim="due">Límite</button>'+
-      '<button type="button" class="'+(_wwpCalState.dim==='created'?'active':'')+'" data-wdim="created">Creada</button>'+
+      '<button type="button" class="'+(_wwpCalState.dim==='due'?'active':'')+'"'+(_wwpCalState.dim==='due'?' aria-pressed="true"':' aria-pressed="false"')+' data-wdim="due">Límite</button>'+
+      '<button type="button" class="'+(_wwpCalState.dim==='created'?'active':'')+'"'+(_wwpCalState.dim==='created'?' aria-pressed="true"':' aria-pressed="false"')+' data-wdim="created">Creada</button>'+
     '</div></div>'+
-    '<div class="eo2-cal-hint">'+(_wwpCalState.dim==='due'
-      ? 'Qué vence cada día — los días pasados con tareas sin terminar salen en rojo. Haz clic en un día con tareas para ver su detalle.'
-      : 'Cuándo se crearon las tareas (carga entrante del mes). Haz clic en un día con tareas para ver su detalle.')+'</div>';
+    '<div class="eo2-cal-hintrow">'+
+      '<div class="eo2-cal-hint">'+(_wwpCalState.dim==='due'
+        ? 'Qué vence cada día — los días pasados con tareas sin terminar salen en rojo. Haz clic en un día con tareas para ver su detalle.'
+        : 'Cuándo se crearon las tareas (carga entrante del mes). Haz clic en un día con tareas para ver su detalle.')+'</div>'+
+      sinFechaChip+
+    '</div>';
   var cal = '<div class="eo2-cal-calendar"><div class="eo2-cal-dow">'+EO_DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="eo2-cal-days">';
   for(var i=0;i<lead;i++) cal += '<div class="eo2-cal-cell empty"></div>';
   for(var dd=1; dd<=days; dd++){
@@ -11712,7 +11787,10 @@ function wwpRenderCalendar(visible) {
       (list.length? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '')+
     '</button>';
   }
-  cal += '</div></div>';
+  cal += '</div>';
+  // Mes vacío en desktop: mensaje DENTRO del grid (antes solo vivía en la agenda móvil).
+  if(!hasAnyDay) cal += '<div class="eo2-ch-empty">Sin tareas en '+EO_MES[m]+' '+y+' para esta dimensión'+((nSinFecha&&_wwpCalState.dim==='due')?' (hay '+nSinFecha+' sin fecha límite)':'')+'.'+(isCurMonth?'':' Usa <b>Hoy</b> para volver al mes actual.')+'</div>';
+  cal += '</div>';
   var panel = '';
   if(_wwpCalState.sel){ var sd = eoToD(_wwpCalState.sel); if(sd) panel = wwpDayPanelHtml(sd, byDay[sd.getDate()]); }
   var cells = '<div class="eo2-cal-grid">'+cal+panel+'</div>';
@@ -11723,9 +11801,10 @@ function wwpRenderCalendar(visible) {
     var ov = _wwpCalState.dim==='due' && list.some(wwpIsOverdue);
     var head2 = '<div class="eo2-ag-day'+(ov?' overdue':'')+'"><span class="eo2-ag-dow">'+EO_DOW_ABBR[d.getDay()]+' '+dd+'</span><span class="eo2-ag-n">'+list.length+'</span></div>';
     var items = list.map(function(v){
+      var sdvLine = v.sdvId ? '<span class="wwp-ag-sdv">'+esc(v.sdvFolio||v.sdvId)+(v.salesperson?' · '+esc(v.salesperson):'')+'</span>' : '';
       return '<button type="button" class="eo2-ag-item" data-tid="'+esc(v.id)+'">'+
         '<span class="eo2-ag-dot" style="background:var('+(WWP_ST_DOT[v.status]||'--text-3')+')"></span>'+
-        '<span class="eo2-ag-cli">'+esc(v.title)+'</span>'+
+        '<span class="wwp-ag-main"><span class="eo2-ag-cli">'+esc(v.title)+'</span>'+sdvLine+'</span>'+
         '<span class="eo2-ag-prom '+(wwpIsOverdue(v)?'red':'mut')+'">'+esc((STATUS_LABELS[v.status]||v.status))+'</span></button>';
     }).join('');
     return '<div class="eo2-ag-group">'+head2+items+'</div>';
@@ -11766,16 +11845,31 @@ function wwpRevealDayPanel(){
   });
 }
 
+// Estados activos = trabajo en curso (lo que ocupa capacidad AHORA).
+var WWP_ACTIVE_ST = ['pending','assigned','in_progress'];
+// Umbral de sobrecarga por persona (marca visual de alerta a partir de aquí).
+var WWP_LOAD_ALERT = 4;
+
+// Nombre corto (primer nombre) de un userId, para las barras de carga.
+function wwpUserShort(id){
+  var u = (_authUsers||[]).find(function(x){ return x.id === id; });
+  var n = u ? u.name : '';
+  return (n||'').split(' ')[0] || '—';
+}
+
 // ── Render: VISTA GRÁFICOS de tareas (motor propio, tokens, dark mode gratis) ──
+// Reenfocada a preguntas operativas (Pit): quién está saturado AHORA, qué está
+// atascado, y si el equipo saca lo que entra. Nada de histórico de completadas
+// dominando las barras (anti-métrica). Todo client-side sobre el subconjunto RBAC.
 function wwpRenderCharts(visible){
   var host = document.getElementById('tasks-charts'); if(!host) return;
   var vis = (visible||[]).map(wwpTaskView);
   if(!vis.length){ host.innerHTML = '<div class="eo2-charts2"><div class="eo2-ch-card full"><div class="eo2-ch-empty">Ninguna tarea para graficar con los filtros actuales.</div></div></div>'; return; }
-  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7',purple:'#7c3aed'};
-  // Conteos por estado (partición excluyente → Σ = total del subconjunto).
-  var byS = {}; WWP_ST_ORDER.forEach(function(s){ byS[s]=0; });
-  vis.forEach(function(v){ byS[v.status] = (byS[v.status]||0)+1; });
-  // Conteos por tipo.
+  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7',purple:'#7c3aed',muted:'#94a3b8'};
+  var activeSet = {}; WWP_ACTIVE_ST.forEach(function(s){ activeSet[s]=1; });
+  var active = vis.filter(function(v){ return activeSet[v.status]; });
+
+  // ── Tareas por tipo (todo el subconjunto: composición general) ──
   var byT = {};
   vis.forEach(function(v){ byT[v.type] = (byT[v.type]||0)+1; });
   var typeArr = Object.keys(byT).map(function(k){ return {k:k, n:byT[k]}; }).sort(function(a,b){ return b.n-a.n; });
@@ -11784,41 +11878,92 @@ function wwpRenderCharts(visible){
     return '<div class="eo2-bar-row"><span class="eo2-bar-name" title="'+esc(TYPE_LABELS[x.k]||x.k)+'">'+esc(TYPE_LABELS[x.k]||x.k)+'</span>'+
       '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(x.n/typeMax*100)+'%;background:var('+(WWP_TYPE_TOK[x.k]||'--accent')+')"></span></span>'+
       '<span class="eo2-bar-n">'+x.n+'</span></div>';
-  }).join('');
-  // Conteos por responsable (top 8).
-  var byR = {};
-  vis.forEach(function(v){ byR[v.respName] = (byR[v.respName]||0)+1; });
-  var respArr = Object.keys(byR).map(function(k){ return {k:k, n:byR[k]}; }).sort(function(a,b){ return b.n-a.n; }).slice(0,8);
-  var respMax = respArr.length ? respArr[0].n : 1;
-  var respBars = respArr.map(function(x){
-    return '<div class="eo2-bar-row"><span class="eo2-bar-name" title="'+esc(x.k)+'">'+esc(x.k.split(' ')[0])+'</span>'+
-      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(x.n/respMax*100)+'%"></span></span>'+
-      '<span class="eo2-bar-n">'+x.n+'</span></div>';
   }).join('') || '<div class="eo2-an-note">Sin datos en el subconjunto.</div>';
 
+  // ── CARGA ACTIVA POR PERSONA (responsable + auxiliares de tareas ACTIVAS) ──
+  // Solo estados activos: el histórico de completadas ya no ahoga la señal ni
+  // esconde a los auxiliares. Umbral de sobrecarga marcado en rojo.
+  var byP = {}; // id -> {name, n}
+  active.forEach(function(v){
+    var ids = [];
+    if(v.respId) ids.push(v.respId);
+    (v.auxIds||[]).forEach(function(a){ if(a) ids.push(a); });
+    // Sin responsable resuelto ni auxiliares: cuenta como "Sin asignar".
+    if(!ids.length) ids.push('__none__');
+    // Dedup por tarea (un aux que también sea responsable no cuenta doble).
+    var seen = {};
+    ids.forEach(function(id){
+      if(seen[id]) return; seen[id]=1;
+      var name = id==='__none__' ? 'Sin asignar' : wwpUserShort(id);
+      if(!byP[id]) byP[id] = {name:name, n:0};
+      byP[id].n++;
+    });
+  });
+  var loadArr = Object.keys(byP).map(function(k){ return {name:byP[k].name, n:byP[k].n}; })
+    .sort(function(a,b){ return b.n-a.n; }).slice(0,10);
+  var loadMax = loadArr.length ? Math.max(loadArr[0].n, WWP_LOAD_ALERT) : 1;
+  var loadBars = loadArr.map(function(x){
+    var hot = x.n >= WWP_LOAD_ALERT;
+    return '<div class="eo2-bar-row"><span class="eo2-bar-name'+(hot?' wwp-load-hot':'')+'" title="'+esc(x.name)+'">'+esc(x.name)+'</span>'+
+      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(x.n/loadMax*100)+'%'+(hot?';background:var(--red-dot)':'')+'"></span></span>'+
+      '<span class="eo2-bar-n'+(hot?' wwp-load-hot':'')+'">'+x.n+'</span></div>';
+  }).join('') || '<div class="eo2-an-note">Sin trabajo activo asignado en el subconjunto.</div>';
+  var loadNote = active.length
+    ? 'Cuenta responsable + auxiliares de tareas pendientes, asignadas y en progreso. En <b class="wwp-load-hot">rojo</b> quien tiene '+WWP_LOAD_ALERT+' o más.'
+    : '';
+
+  // ── AGING DEL TRABAJO ACTIVO (0-24h / 24-72h / +72h desde el último cambio de estado) ──
+  var tiers = {fresh:0, mid:0, old:0};
+  active.forEach(function(v){ tiers[wwpAgeTier(wwpAgeHours(v))]++; });
+  var tierRows = [
+    {k:'fresh', lbl:'0–24 h',  n:tiers.fresh, tok:'--green-dot', cls:''},
+    {k:'mid',   lbl:'24–72 h', n:tiers.mid,   tok:'--amber-dot', cls:'amber'},
+    {k:'old',   lbl:'+72 h',   n:tiers.old,   tok:'--red-dot',   cls:'red'}
+  ];
+  var tierMax = Math.max(1, tiers.fresh, tiers.mid, tiers.old);
+  var agingBars = active.length ? tierRows.map(function(x){
+    return '<div class="eo2-bar-row"><span class="eo2-bar-name'+(x.cls?' wwp-load-'+(x.cls==='red'?'hot':'warn'):'')+'">'+x.lbl+'</span>'+
+      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(x.n/tierMax*100)+'%;background:var('+x.tok+')"></span></span>'+
+      '<span class="eo2-bar-n">'+x.n+'</span></div>';
+  }).join('') : '<div class="eo2-ch-empty">Sin trabajo activo — nada atascado ahora mismo.</div>';
+  var agingNote = active.length
+    ? 'Tiempo que cada tarea activa lleva en su estado actual. Las de <b class="wwp-load-hot">+72 h</b> son las que hay que destrabar.'
+    : '';
+
   host.innerHTML = '<div class="eo2-charts2">'+
-    '<div class="eo2-ch-card"><div class="eo2-ch-title">Distribución por estado</div><canvas id="wwp-ch-donut"></canvas></div>'+
+    '<div class="eo2-ch-card"><div class="eo2-ch-title">Carga activa por persona</div><div class="eo2-ch-bars">'+loadBars+'</div>'+(loadNote?'<div class="eo2-an-note">'+loadNote+'</div>':'')+'</div>'+
+    '<div class="eo2-ch-card"><div class="eo2-ch-title">Aging del trabajo activo</div><div class="eo2-ch-bars">'+agingBars+'</div>'+(agingNote?'<div class="eo2-an-note">'+agingNote+'</div>':'')+'</div>'+
     '<div class="eo2-ch-card"><div class="eo2-ch-title">Tareas por tipo</div><div class="eo2-ch-bars">'+typeBars+'</div></div>'+
-    '<div class="eo2-ch-card"><div class="eo2-ch-title">Tareas por responsable · top 8</div><div class="eo2-ch-bars">'+respBars+'</div></div>'+
-    '<div class="eo2-ch-card"><div class="eo2-ch-title">Tendencia — tareas creadas por semana</div>'+
-      '<div class="eo-trend-head" id="wwp-trend-head"></div><svg class="eo-trend-svg" id="wwp-trend-svg" preserveAspectRatio="xMidYMid meet"></svg></div>'+
+    '<div class="eo2-ch-card"><div class="eo2-ch-title">Entrada vs. salida — por semana</div>'+
+      '<div class="eo-trend-head" id="wwp-trend-head"></div>'+
+      '<div class="wwp-trend-legend"><span class="wwp-tl"><span class="wwp-tl-dot" style="background:var(--accent)"></span>Creadas</span><span class="wwp-tl"><span class="wwp-tl-dot" style="background:var(--green-dot)"></span>Cerradas</span></div>'+
+      '<svg class="eo-trend-svg" id="wwp-trend-svg" preserveAspectRatio="xMidYMid meet"></svg></div>'+
   '</div>';
-  // Donut por estado con el motor propio rptDonut (tokens, dark mode gratis).
-  if(typeof rptDonut==='function'){
-    rptDonut('wwp-ch-donut', [
-      {label:'Pendiente', val:byS.pending, color:t.amber},
-      {label:'Asignado', val:byS.assigned, color:t.blue},
-      {label:'En progreso', val:byS.in_progress, color:t.skyDot},
-      {label:'Completado', val:byS.completed, color:t.green},
-      {label:'Validado', val:byS.validated, color:t.purple},
-      {label:'Cancelado', val:byS.cancelled, color:(t.textMuted||'#9aa5b1')}
-    ], 'tareas');
-  }
-  // Tendencia (creadas por semana) reusando el mismo patrón SVG de eoDrawTrend.
+  // Tendencia entrada (creadas) vs salida (cerradas) por semana, mismo motor SVG.
   wwpDrawTrend(vis);
 }
 
-// Tendencia de tareas creadas por semana (8 semanas), SVG propio, mismo patrón que eoDrawTrend.
+// Semana LOCAL (inicio lunes) de un timestamp ISO UTC, sin desfase de zona.
+function wwpWeekStartOfIso(iso){
+  var day = wwpLocalDayIso(iso); if(!day) return null;
+  var d = eoToD(day); if(!d) return null;  // day ya es date-only → eoToD lo toma literal (correcto)
+  return eoWeekStart(d).getTime();
+}
+// Fecha de CIERRE (primer paso a completed/validated) de una tarea, ISO UTC. null si nunca.
+function wwpClosedIso(v){
+  var best = null;
+  (v.statusHistory||[]).forEach(function(h){
+    if(!h || !h.date) return;
+    if(h.status==='completed' || h.status==='validated'){
+      var tt = new Date(h.date).getTime();
+      if(!isNaN(tt) && (best===null || tt < best.t)) best = {t:tt, iso:h.date};
+    }
+  });
+  return best ? best.iso : null;
+}
+
+// Tendencia ENTRADA (creadas) vs SALIDA (cerradas) por semana (8 semanas), SVG propio,
+// mismo patrón que eoDrawTrend pero con 2 series → responde "¿sacamos lo que entra o el WIP crece?".
 function wwpDrawTrend(vis){
   var headEl = document.getElementById('wwp-trend-head');
   var svg    = document.getElementById('wwp-trend-svg');
@@ -11827,38 +11972,38 @@ function wwpDrawTrend(vis){
   var thisWeekStart = eoWeekStart(new Date());
   var starts = [];
   for(var w = weeks - 1; w >= 0; w--){ var st = new Date(thisWeekStart); st.setDate(st.getDate() - w*7); starts.push(st); }
-  var counts = starts.map(function(){ return 0; });
+  var startMs = starts.map(function(s){ return s.getTime(); });
+  var created = starts.map(function(){ return 0; });   // entrada
+  var closed  = starts.map(function(){ return 0; });   // salida
   (vis||[]).forEach(function(v){
-    if(!v.created) return;
-    var d = eoToD(v.created); if(!d) return;
-    var ws = eoWeekStart(d).getTime();
-    for(var i=0;i<starts.length;i++){ if(starts[i].getTime()===ws){ counts[i]++; break; } }
+    // Entrada: por semana local de creación.
+    if(v.created){ var d = eoToD(v.created); if(d){ var ws = eoWeekStart(d).getTime(); for(var i=0;i<startMs.length;i++){ if(startMs[i]===ws){ created[i]++; break; } } } }
+    // Salida: por semana local del primer cierre (completed/validated).
+    var ci = wwpClosedIso(v);
+    if(ci){ var ws2 = wwpWeekStartOfIso(ci); if(ws2!=null){ for(var j=0;j<startMs.length;j++){ if(startMs[j]===ws2){ closed[j]++; break; } } } }
   });
-  var cur  = counts[counts.length-1] || 0;
-  var prev = counts.length >= 2 ? (counts[counts.length-2] || 0) : 0;
+  // Encabezado: entrada vs salida de esta semana + saldo (WIP net).
+  var cIn  = created[created.length-1] || 0;
+  var cOut = closed[closed.length-1] || 0;
+  var net = cIn - cOut;
   var deltaCls='', deltaTxt='', deltaIcon='minus';
-  if(prev===0 && cur===0){ deltaTxt='Sin actividad'; }
-  else if(prev===0){ deltaCls='up'; deltaIcon='trending-up'; deltaTxt='+'+cur+' vs. 0'; }
-  else {
-    var pct = Math.round((cur - prev)/prev*100);
-    if(pct>0){ deltaCls='up'; deltaIcon='trending-up'; deltaTxt='+'+pct+'%'; }
-    else if(pct<0){ deltaCls='down'; deltaIcon='trending-down'; deltaTxt=pct+'%'; }
-    else { deltaCls=''; deltaIcon='minus'; deltaTxt='0%'; }
-  }
+  if(net > 0){ deltaCls='down'; deltaIcon='trending-up'; deltaTxt='+'+net+' en cola'; }   // entra más de lo que sale = malo (rojo)
+  else if(net < 0){ deltaCls='up'; deltaIcon='trending-down'; deltaTxt=net+' cola'; }       // sale más = bueno (verde)
+  else { deltaCls=''; deltaIcon='minus'; deltaTxt='al día'; }
   if(headEl){
     headEl.innerHTML =
-      '<span class="eo-trend-now">'+cur+'</span>'+
-      '<span class="eo-trend-now-lbl">esta semana · '+prev+' la anterior</span>'+
+      '<span class="eo-trend-now">'+cIn+'<span class="wwp-trend-sep">/</span>'+cOut+'</span>'+
+      '<span class="eo-trend-now-lbl">creadas / cerradas esta semana</span>'+
       '<span class="eo-trend-delta '+deltaCls+'"><i data-lucide="'+deltaIcon+'"></i>'+esc(deltaTxt)+'</span>';
   }
-  var total = counts.reduce(function(a,b){ return a+b; }, 0);
+  var total = created.reduce(function(a,b){return a+b;},0) + closed.reduce(function(a,b){return a+b;},0);
   if(!total){ svg.innerHTML=''; svg.style.display='none'; return; }
   svg.style.display = '';
   var W=720, H=150, padL=24, padR=10, padT=12, padB=20;
   svg.setAttribute('viewBox', '0 0 '+W+' '+H);
   var plotW=W-padL-padR, plotH=H-padT-padB;
-  var maxY=Math.max(1, Math.max.apply(null, counts));
-  var n=counts.length;
+  var maxY=Math.max(1, Math.max.apply(null, created.concat(closed)));
+  var n=created.length;
   var xAt=function(i){ return padL + (n<=1 ? plotW/2 : (i/(n-1))*plotW); };
   var yAt=function(v){ return padT + plotH - (v/maxY)*plotH; };
   var parts=[];
@@ -11866,19 +12011,20 @@ function wwpDrawTrend(vis){
     var gy=padT + (g/2)*plotH;
     parts.push('<line x1="'+padL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+gy.toFixed(1)+'" style="stroke:var(--border-light)" stroke-width="1"/>');
   }
-  parts.push('<text x="'+(padL-4)+'" y="'+(padT+4)+'" text-anchor="end" font-size="9" style="fill:var(--text-muted)">'+maxY+'</text>');
-  parts.push('<text x="'+(padL-4)+'" y="'+(padT+plotH)+'" text-anchor="end" font-size="9" style="fill:var(--text-muted)">0</text>');
-  var linePts = counts.map(function(v,i){ return xAt(i).toFixed(1)+','+yAt(v).toFixed(1); }).join(' ');
-  var areaPts = padL.toFixed(1)+','+(padT+plotH).toFixed(1)+' '+linePts+' '+(W-padR).toFixed(1)+','+(padT+plotH).toFixed(1);
-  parts.push('<polygon points="'+areaPts+'" style="fill:var(--accent);opacity:.10;stroke:none"/>');
-  parts.push('<polyline points="'+linePts+'" style="fill:none;stroke:var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
-  counts.forEach(function(v,i){
-    var last = i===n-1;
-    parts.push('<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(v).toFixed(1)+'" r="'+(last?3.5:2.5)+'" style="fill:var(--accent)"/>');
-  });
+  parts.push('<text x="'+(padL-4)+'" y="'+(padT+7)+'" text-anchor="end" font-size="14" style="fill:var(--text-muted)">'+maxY+'</text>');
+  parts.push('<text x="'+(padL-4)+'" y="'+(padT+plotH)+'" text-anchor="end" font-size="14" style="fill:var(--text-muted)">0</text>');
+  // Serie CREADAS (entrada, acento) con área tenue + serie CERRADAS (salida, verde) solo línea.
+  var inPts  = created.map(function(v,i){ return xAt(i).toFixed(1)+','+yAt(v).toFixed(1); }).join(' ');
+  var outPts = closed.map(function(v,i){ return xAt(i).toFixed(1)+','+yAt(v).toFixed(1); }).join(' ');
+  var areaPts = padL.toFixed(1)+','+(padT+plotH).toFixed(1)+' '+inPts+' '+(W-padR).toFixed(1)+','+(padT+plotH).toFixed(1);
+  parts.push('<polygon points="'+areaPts+'" style="fill:var(--accent);opacity:.08;stroke:none"/>');
+  parts.push('<polyline points="'+inPts+'" style="fill:none;stroke:var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+  parts.push('<polyline points="'+outPts+'" style="fill:none;stroke:var(--green-dot)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>');
+  created.forEach(function(v,i){ var last=i===n-1; parts.push('<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(v).toFixed(1)+'" r="'+(last?3.5:2.5)+'" style="fill:var(--accent)"/>'); });
+  closed.forEach(function(v,i){ var last=i===n-1; parts.push('<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(v).toFixed(1)+'" r="'+(last?3.5:2.5)+'" style="fill:var(--green-dot)"/>'); });
   var fmt=function(dt){ return ('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2); };
-  parts.push('<text x="'+padL+'" y="'+(H-5)+'" text-anchor="start" font-size="9" style="fill:var(--text-muted)">'+fmt(starts[0])+'</text>');
-  parts.push('<text x="'+(W-padR)+'" y="'+(H-5)+'" text-anchor="end" font-size="9" style="fill:var(--text-muted)">esta sem.</text>');
+  parts.push('<text x="'+padL+'" y="'+(H-4)+'" text-anchor="start" font-size="14" style="fill:var(--text-muted)">'+fmt(starts[0])+'</text>');
+  parts.push('<text x="'+(W-padR)+'" y="'+(H-4)+'" text-anchor="end" font-size="14" style="fill:var(--text-muted)">esta sem.</text>');
   svg.innerHTML = parts.join('');
 }
 
@@ -11894,6 +12040,20 @@ function wwpInitCalEvents(){
     // Navegación de mes
     if(e.target.closest('#wwp-cal-prev')){ _wwpCalState.mo--; if(_wwpCalState.mo<0){ _wwpCalState.mo=11; _wwpCalState.y--; } _wwpCalState.sel=null; filterTasks(); return; }
     if(e.target.closest('#wwp-cal-next')){ _wwpCalState.mo++; if(_wwpCalState.mo>11){ _wwpCalState.mo=0; _wwpCalState.y++; } _wwpCalState.sel=null; filterTasks(); return; }
+    // Botón "Hoy": vuelve al mes actual y, si hoy tiene tareas en la dimensión activa, lo selecciona.
+    if(e.target.closest('#wwp-cal-today')){
+      var tn = new Date(); _wwpCalState.y = tn.getFullYear(); _wwpCalState.mo = tn.getMonth();
+      _wwpCalState.sel = null; filterTasks();
+      var todayCell = document.querySelector('#tasks-cal .eo2-cal-cell.today[data-wday]');
+      if(todayCell){ _wwpCalState.sel = todayCell.getAttribute('data-wday'); filterTasks(); wwpRevealDayPanel(); }
+      return;
+    }
+    // Chip "N sin fecha límite": no aparecen en el calendario → llevar a Lista con el filtro nodate.
+    if(e.target.closest('#wwp-cal-nodate')){
+      var fdEl = document.getElementById('filter-due'); if(fdEl){ fdEl.value = 'nodate'; }
+      setTaskView('list');
+      return;
+    }
     // Dimensión de fecha (Límite / Creada): el mismo día significa otra cosa → limpiar sel
     var dim = e.target.closest('.eo2-cal-dim button[data-wdim]');
     if(dim){ _wwpCalState.dim = dim.getAttribute('data-wdim'); _wwpCalState.sel=null; filterTasks(); return; }
