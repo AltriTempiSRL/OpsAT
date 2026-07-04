@@ -695,11 +695,18 @@ async function sdvComputePickStatus(soRef) {
 // Regla: si hay descripción → "[default_code] descripción" (sin duplicar si la
 // descripción ya contiene el código); si no → display_name tal cual (como antes).
 // Colapsa saltos de línea/espacios dobles (description_picking suele traerlos).
+// Quita el sufijo/ruido "(Copia)" que deja la duplicación de productos en Compras.
+// Es puro ruido del maestro (el nombre real nunca lo lleva); puede venir en medio
+// del texto (ej. "... (Copia) (armado)"), por eso replace global y re-colapso.
+function stripCopia(s) {
+  return String(s || '').replace(/\s*\(copia\)\s*/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function composeItemName(desc, fallbackName, code) {
-  const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const clean = (s) => stripCopia(String(s || '').replace(/\s+/g, ' ').trim());
   const d = clean(desc);
   if (!d) return clean(fallbackName);
-  const c = clean(code);
+  const c = String(code || '').replace(/\s+/g, ' ').trim();
   if (!c || d.toUpperCase().includes(c.toUpperCase())) return d;
   return '[' + c + '] ' + d;
 }
@@ -902,7 +909,7 @@ async function resolveKitInfo(products) {
       const bom = kitBoms.find(b => b.id === line.bom_id[0]); if (!bom) return;
       const kp = kpForBom(bom); if (!kp) return;
       out[line.product_id[0]] = {
-        kitId: 'bom_'+bom.id, kitRef: kp.default_code||'', kitName: kp.name||'',
+        kitId: 'bom_'+bom.id, kitRef: kp.default_code||'', kitName: stripCopia(kp.name||''),  // maestro puede traer "(Copia)"
         kitImage: kp._img ? ('data:image/png;base64,'+kp._img) : '' };
     });
   } catch(_) { /* mrp no instalado o sin permiso */ }
@@ -4842,6 +4849,90 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/_fix/strip-copia — limpiar "(Copia)" residual en data persistida ──
+  // Cubre lo que el pase de product-names NO podía tocar (validación 3-jul):
+  //   1) items SIN odoo_product_id (kits "(armado)": product_name hereda kitName sucio)
+  //   2) el campo kitName de los items (banner de kit — viene del maestro contaminado)
+  //   3) los 3 Noxiel irresolubles (sin descripción en Odoo: se quita SOLO el "(Copia)",
+  //      el texto base queda tal cual — sin fuente no se inventa nombre)
+  // NO consulta Odoo: es un strip mecánico del sufijo/ruido "(Copia)" (stripCopia).
+  // BUMPEA updatedAt de las tareas tocadas → renueva el ETag global del listado y
+  // los clientes del equipo descargan la data fresca (incluye los 78 del pase previo).
+  // Mismo protocolo que product-names: desactivado por defecto, admin, dry-run default,
+  // backup antes de escribir en apply. Decisión Gabriel 3-jul: "corregir la información
+  // en producción" (la limpieza del maestro Odoo queda con Compras).
+  if (true && reqPath === '/api/_fix/strip-copia' && req.method === 'POST') { // ACTIVADO TEMPORALMENTE — devolver a false tras la corrida
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const apply = (parsed.query.apply === 'true');
+      const backups = [];
+      if (apply) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        for (const b of [ { src: WWP_TASKS_FILE, base: 'prestrip_wwp-tasks' },
+                          { src: SDV_FILE,       base: 'prestrip_sdv-solicitudes' } ]) {
+          try {
+            if (fs.existsSync(b.src)) {
+              const dest = path.join(BACKUPS_DIR, b.base + '.' + stamp + '.json');
+              fs.copyFileSync(b.src, dest);
+              backups.push(path.basename(dest));
+            }
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok:false, error:'Backup falló para ' + b.base + ': ' + e.message + '. ABORTADO, nada fue escrito.' }));
+            return;
+          }
+        }
+      }
+      const tasks = loadWwpTasks();
+      const sdvList = loadSdv();
+      const now = new Date().toISOString();
+      const samples = [];
+      const stats = { productName: 0, kitName: 0, sdv: 0, tasksTouched: 0 };
+      const push = (ctx, campo, oldN, newN) => { if (samples.length < 25) samples.push({ ...ctx, campo, old: String(oldN).slice(0,75), new: String(newN).slice(0,75) }); };
+      (tasks||[]).forEach(t => {
+        let touched = false;
+        (t.items||[]).forEach(it => {
+          if (!it) return;
+          const n = String(it.product_name || '');
+          if (/\(copia\)/i.test(n)) {
+            const nn = stripCopia(n);
+            if (nn && nn !== n) { if (apply) it.product_name = nn; stats.productName++; touched = true; push({ seq: t.seq }, 'product_name', n, nn); }
+          }
+          const k = String(it.kitName || '');
+          if (k && /\(copia\)/i.test(k)) {
+            const kn = stripCopia(k);
+            if (kn && kn !== k) { if (apply) it.kitName = kn; stats.kitName++; touched = true; push({ seq: t.seq }, 'kitName', k, kn); }
+          }
+        });
+        if (touched) { stats.tasksTouched++; if (apply) t.updatedAt = now; }
+      });
+      (sdvList||[]).forEach(s => (s.articulosOdoo||[]).forEach(it => {
+        if (!it) return;
+        const n = String(it.product_name || '');
+        if (/\(copia\)/i.test(n)) {
+          const nn = stripCopia(n);
+          if (nn && nn !== n) { if (apply) it.product_name = nn; stats.sdv++; push({ folio: s.folio }, 'sdv', n, nn); }
+        }
+      }));
+      let written = { wwpTasks: false, sdv: false };
+      if (apply) {
+        if (stats.productName + stats.kitName > 0) written.wwpTasks = saveCriticalArray(WWP_TASKS_FILE, tasks);
+        if (stats.sdv > 0) written.sdv = saveCriticalArray(SDV_FILE, sdvList);
+        appendAuditLog('fix_strip_copia', { by: jp.userId, byName: jp.name, ...stats, backups, writtenWwp: written.wwpTasks, writtenSdv: written.sdv });
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, mode: apply ? 'apply' : 'dry-run',
+        note: apply ? 'Aplicado. Rollback: restaurar backups[] desde DATA_DIR/backups/.'
+                    : 'DRY-RUN: nada escrito. Repetir con ?apply=true (hace backup primero).',
+        backups, written, stats, samples }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok:false, error: e.message }));
     }
     return;
   }
