@@ -4816,12 +4816,43 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-ch-card canvas{width:100%;height:170px;display:block}
 .eo2-ch-empty{font-size:12px;color:var(--text-muted);padding:24px 4px;text-align:center}
 .eo2-ch-bars .eo2-bar-row{grid-template-columns:120px 1fr 30px}
-.eo2-ch-month-svg{width:100%;height:150px;display:block}
-.eo2-ch-month-x{display:grid;margin-top:3px}
-.eo2-ch-month-x span{font-size:9px;color:var(--text-3);text-align:center;font-variant-numeric:tabular-nums}
 .eo2-ch-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
 .eo2-ch-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
 .eo2-ch-lg-sw{width:9px;height:9px;border-radius:2px}
+.eo2-ch-hint{font-size:9.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-3)}
+/* Barra por dimensión: segmento rojo de vencidas + clickeable */
+.eo2-ch-bar.clk{cursor:pointer;border-radius:6px;padding:2px 4px;margin:6px 0;width:100%;background:transparent;border:none;font-family:inherit;text-align:left}
+.eo2-ch-bar.clk:hover{background:var(--surface-3)}
+.eo2-ch-bar.clk:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.eo2-bar{position:relative}
+.eo2-bar-ov{position:absolute;top:0;right:0;height:100%;background:var(--red-dot);border-radius:0 4px 4px 0}
+/* Estado "Acumulando datos" (n<minN) */
+.eo2-ch-accum{display:flex;align-items:center;gap:11px;padding:18px 6px;color:var(--text-muted)}
+.eo2-ch-accum i{width:22px;height:22px;stroke:currentColor;flex-shrink:0;color:var(--text-3)}
+.eo2-ch-accum strong{display:block;font-size:12.5px;color:var(--text-1);margin-bottom:2px}
+.eo2-ch-accum span{font-size:11.5px}
+/* Barras apiladas horizontales (métricas del server) */
+.eo2-msb-row{display:grid;grid-template-columns:78px 1fr 42px;gap:9px;align-items:center;margin:7px 0;font-size:11.5px}
+.eo2-msb-lbl{color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.eo2-msb-track{display:flex;height:11px;background:var(--surface-3);border-radius:5px;overflow:hidden}
+.eo2-msb-seg{height:100%}
+.eo2-msb-n{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-1)}
+/* Embudo de etapas (mediana vs P90) */
+.eo2-fun-row{margin:11px 0}
+.eo2-fun-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.eo2-fun-lbl{font-size:12px;font-weight:700;color:var(--text-1)}
+.eo2-fun-val{font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.eo2-fun-track{position:relative;height:14px;background:var(--surface-3);border-radius:7px;overflow:hidden}
+.eo2-fun-p90{position:absolute;left:0;top:0;height:100%;background:var(--border);border-radius:7px}
+.eo2-fun-med{position:absolute;left:0;top:0;height:100%;background:var(--accent);border-radius:7px}
+.eo2-fun-track.eo2-fun-thin{height:22px;display:flex;align-items:center;padding:0 8px}
+.eo2-fun-accum-note{font-size:10.5px;color:var(--text-muted)}
+/* Entrada vs salida (barras agrupadas) */
+.eo2-es-row{display:grid;grid-template-columns:52px 1fr 46px;gap:9px;align-items:center;margin:8px 0;font-size:11.5px}
+.eo2-es-lbl{color:var(--text-2);font-variant-numeric:tabular-nums}
+.eo2-es-bars{display:flex;flex-direction:column;gap:2px}
+.eo2-es-bar{height:6px;border-radius:3px;min-width:1px}
+.eo2-es-n{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-1);font-size:10.5px}
 /* Vista Calendario */
 .eo2-cal{padding:14px 16px 16px}
 .eo2-cal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
@@ -4830,6 +4861,17 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-cal-arrow:hover{background:var(--surface-3)}
 .eo2-cal-arrow i{width:14px;height:14px;stroke:currentColor}
 .eo2-cal-month{font-size:14px;font-weight:800;min-width:130px;text-align:center;color:var(--text-1)}
+.eo2-cal-today{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;color:var(--text-1);cursor:pointer;font-family:inherit}
+.eo2-cal-today:hover{background:var(--surface-3)}
+.eo2-cal-today i{width:13px;height:13px;stroke:currentColor}
+.eo2-cal-hintrow{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.eo2-cal-nofecha{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);border-radius:6px;padding:3px 9px;margin:2px 0 12px}
+.eo2-cal-nofecha i{width:12px;height:12px;stroke:currentColor}
+.eo2-cal-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
+.eo2-cal-lg{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-2)}
+.eo2-cal-lg-dot{width:7px;height:7px;border-radius:50%}
+.eo2-cal-cntrow{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.eo2-cal-arts{font-size:10px;font-weight:700;color:var(--text-muted);font-variant-numeric:tabular-nums}
 .eo2-cal-dim{display:inline-flex;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:2px}
 .eo2-cal-dim button{padding:6px 12px;font-size:12px;font-weight:700;color:var(--text-2);border:none;background:transparent;border-radius:7px;min-height:30px;cursor:pointer;font-family:inherit}
 .eo2-cal-dim button.active{background:var(--surface);color:var(--text-1);box-shadow:0 1px 2px rgba(0,0,0,.10)}
@@ -4848,6 +4890,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-cal-cell.today .eo2-cal-num{background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
 .eo2-cal-cell.overdue{background:var(--red-bg);border-color:var(--red-dot)}
 .eo2-cal-cell.overdue .eo2-cal-num{color:var(--red-text)}
+.eo2-cal-cell.atrisk{background:var(--amber-bg);border-color:var(--amber-dot)}
+.eo2-cal-cell.atrisk .eo2-cal-num{color:var(--amber-text)}
 .eo2-cal-cell.sel{outline:2px solid var(--accent);outline-offset:-2px}
 .eo2-cal-cnt{font-size:15px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:var(--text-1)}
 .eo2-cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto}
@@ -4874,6 +4918,12 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-cdp-extra{font-size:10.5px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)}
 .eo2-cdp-extra i{width:11px;height:11px;stroke:currentColor}
 .eo2-cdp-extra.red{color:var(--red-text)}.eo2-cdp-extra.amber{color:var(--amber-text)}.eo2-cdp-extra.green{color:var(--green-text)}.eo2-cdp-extra.mut{color:var(--text-muted)}
+/* Chip de edad (tiempo atascado en el estado actual) — solo estados activos, ámbar ≥24h / rojo ≥72h */
+.eo2-age{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:5px;white-space:nowrap;margin-top:3px}
+.eo2-age i{width:11px;height:11px;stroke:currentColor}
+.eo2-age.amber{background:var(--amber-bg);color:var(--amber-text)}
+.eo2-age.red{background:var(--red-bg);color:var(--red-text)}
+.eo2-cdp-row .eo2-age{margin-top:0}
 /* WWP calendario/gráficos (Mark): responsable en la fila del panel del día */
 .wwp-cdp-resp{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .wwp-cal,.wwp-charts{margin-top:2px}
@@ -4921,6 +4971,14 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-bar{height:100%;border-radius:4px;background:var(--accent)}
 .eo2-bar-n{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-1)}
 .eo2-an-note{font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.4}
+/* Top 5 más viejas sin avanzar (rail) */
+.eo2-old-row{display:flex;align-items:center;gap:8px;width:100%;padding:8px 4px;background:transparent;border:none;border-bottom:1px solid var(--border-light,var(--border));text-align:left;min-height:38px;cursor:pointer;font-family:inherit}
+.eo2-old-row:last-child{border-bottom:none}
+.eo2-old-row:hover{background:var(--surface-3)}
+.eo2-old-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.eo2-old-cli{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eo2-old-est{font-size:9.5px;font-weight:700;white-space:nowrap}
+.eo2-old-est.amber{color:var(--amber-text)}.eo2-old-est.blue{color:var(--blue-text)}
 /* Pie: fuentes de datos */
 .eo2-src{margin-top:22px}
 .eo2-src summary{cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;list-style:none;color:var(--text-2)}
@@ -6977,13 +7035,13 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <!-- ZONA 4 · Analítica: contexto de gerencia, al costado -->
         <aside class="eo2-analytics" aria-label="Analítica">
           <div class="eo2-card eo2-an-card">
-            <div class="eo2-an-title">Tendencia · 8 semanas</div>
+            <div class="eo2-an-title">Solicitudes creadas · 8 semanas</div>
             <div id="eo-trend-head" class="eo-trend-head"></div>
-            <svg id="eo-trend-svg" class="eo-trend-svg" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <svg id="eo-trend-svg" class="eo-trend-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
           </div>
           <div class="eo2-card eo2-an-card">
-            <div class="eo2-an-title">Por estado</div>
-            <canvas id="eo-an-donut"></canvas>
+            <div class="eo2-an-title">Top 5 más viejas sin avanzar</div>
+            <div id="eo-an-oldest"></div>
           </div>
           <div class="eo2-card eo2-an-card">
             <div class="eo2-an-title">Órdenes por vendedora</div>
@@ -6993,8 +7051,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         </aside>
       </div>
 
-      <!-- Pie · Mapa de fuentes (para decidir el reemplazo de la hoja de Ventas) -->
-      <details class="eo2-src eo2-card">
+      <!-- Pie · Mapa de fuentes (para decidir el reemplazo de la hoja de Ventas) — solo gerencia -->
+      <details class="eo2-src eo2-card" id="eo-src-map" hidden>
         <summary><i data-lucide="info"></i>¿De dónde sale cada dato? — mapa hoja de Ventas → fuentes vivas<i data-lucide="chevron-right" class="eo2-chev"></i></summary>
         <div class="eo2-src-body">
           <table class="eo2-src-tbl">
@@ -8431,7 +8489,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v127';
+var APP_BUILD = 'v128';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -31079,7 +31137,17 @@ var _eoScope  = null;   // 'mine' | 'all'  (se resuelve por rol la 1ª vez)
 var _eoQuery  = '';     // texto del buscador (normalizado en el match)
 var _eoSearchT = null;  // timer de debounce del buscador
 var _eoBloqStock = null;   // conteo "bloqueado por stock" (Odoo, async fail-open)
+var _eoBloqSet   = null;   // Set de sdvId bloqueadas por stock (para el flag 'bloq'); null = sin dato
+var _eoBloqPartial = false;// true si hubo más candidatas que el cap → el conteo es parcial
 var _eoTrendWeeks = 8;     // ventana de la miniserie de tendencia (semanas)
+var _eoLastSubFp = null;   // firma del subconjunto (alcance+búsqueda) para no repintar analítica en cada clic de día
+// Cache cliente de /api/eo-metrics (métricas derivadas de tareas). 5 min. Estados:
+//   null = aún no pedido · {ok:false} = falló · {ok:true,...} = payload del server.
+var _eoMetrics = null, _eoMetricsAt = 0, _eoMetricsLoading = false;
+var _EO_METRICS_TTL = 5*60*1000;
+// ¿El usuario es gerencia (admin/manager)? Controla el gapbox de logística y el mapa de fuentes,
+// que son herramientas de decisión de gerencia, no ruido para la vendedora.
+function eoIsMgmt(){ return !!(_user && (_user.role==='admin' || _user.role==='manager')); }
 // Modelo único de vista: vista activa + agrupar + filtros combinables.
 var _eoState = { view:'list', group:'none', f:{ loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' } };
 // Estado LOCAL del calendario (mes/dimensión/día seleccionado). Se inicializa al mes actual.
@@ -31110,7 +31178,8 @@ async function estadoOrdenesCargar() {
     var inp = document.getElementById('eo-search');
     if (inp) { inp.value = _eoQuery || ''; var clr = document.getElementById('eo-search-clear'); if (clr) clr.style.display = inp.value ? '' : 'none'; }
     _eoPopulateFilterSelects();
-    _eoBloqStock = null; // se recalcula async; entretanto la alerta degrada (no aparece en local)
+    _eoBloqStock = null; _eoBloqSet = null; _eoBloqPartial = false; // se recalcula async; entretanto la alerta/flag degradan (no aparecen en local)
+    _eoLastSubFp = null; // datos frescos: forzar repintado de pulso/alertas/analítica aunque el nº de SDVs coincida
     renderEstadoOrdenes();
     // F3-2: conteo bloqueado-por-stock desde Odoo (fail-open). Al resolver, re-render para
     // pintar la alerta si aplica. En LOCAL sin Odoo queda null y no aparece la alerta.
@@ -31195,18 +31264,43 @@ function eoAgeLabel(h) {
 // en proceso con orden Odoo para no barrer todo el histórico.
 async function eoCargarBloqStock(sols) {
   try {
-    var cand = (sols||[]).filter(function(s){ return s.odooOrderRef && (s.estado==='en_proceso'||s.estado==='pendiente_revision'); }).slice(0, 40);
-    if (!cand.length) { _eoBloqStock = 0; return; }
-    var n = 0, any = false;
+    var allCand = (sols||[]).filter(function(s){ return s.odooOrderRef && (s.estado==='en_proceso'||s.estado==='pendiente_revision'); });
+    var cand = allCand.slice(0, 80);
+    _eoBloqPartial = allCand.length > cand.length; // hubo más candidatas que el cap → conteo parcial
+    if (!cand.length) { _eoBloqStock = 0; _eoBloqSet = new Set(); return; }
+    var set = new Set(), any = false;
     for (var i=0;i<cand.length;i++) {
       try {
         var r = await authFetch('/api/sdv/'+cand[i].id+'/pickstatus');
         var d = await r.json();
-        if (r.ok && d.ok && d.pickStatus) { any = true; if (d.pickStatus.label==='Bloqueado por stock') n++; }
+        if (r.ok && d.ok && d.pickStatus) { any = true; if (d.pickStatus.label==='Bloqueado por stock') set.add(cand[i].id); }
       } catch(e) {}
     }
-    _eoBloqStock = any ? n : null;
-  } catch(e) { _eoBloqStock = null; }
+    // Fail-open: si NINGUNA respuesta trajo pickStatus (local sin Odoo), dejamos null →
+    // ni la alerta ni el flag aparecen (nada de "0 bloqueadas" engañoso).
+    _eoBloqSet = any ? set : null;
+    _eoBloqStock = any ? set.size : null;
+  } catch(e) { _eoBloqStock = null; _eoBloqSet = null; }
+}
+
+// ── Métricas derivadas de tareas (GET /api/eo-metrics) — Carl las sirve; aquí solo consumo ──
+// Cache cliente 5 min (perf Android 8): no re-pega en cada entrada a la vista Gráficos. En local
+// sin data el server devuelve ceros → la UI debe verse bien así (estado "Acumulando datos").
+// authFetch devuelve el Response crudo (patrón de estadoOrdenesCargar/eoAbrirDetalle) → .json().
+async function eoLoadMetrics(force){
+  var fresh = _eoMetrics && (Date.now() - _eoMetricsAt < _EO_METRICS_TTL);
+  if(fresh && !force) return _eoMetrics;
+  if(_eoMetricsLoading) return _eoMetrics; // ya hay una petición en vuelo
+  _eoMetricsLoading = true;
+  try {
+    var r = await authFetch('/api/eo-metrics');
+    var d = await r.json();
+    if(!r.ok || !d || !d.ok) throw new Error((d && d.error) || 'Respuesta no OK');
+    _eoMetrics = d; _eoMetricsAt = Date.now();
+  } catch(e){
+    _eoMetrics = { ok:false, error:(e && e.message) || 'error' };
+  } finally { _eoMetricsLoading = false; }
+  return _eoMetrics;
 }
 
 // ── B3: Tendencia semana-vs-semana (motor SVG propio, estilo dash-trend — NUNCA Chart.js) ──
@@ -31287,8 +31381,8 @@ function eoDrawTrend(sols) {
     var gy = padT + (g/2) * plotH;
     parts.push('<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W-padR) + '" y2="' + gy.toFixed(1) + '" style="stroke:var(--border-light)" stroke-width="1"/>');
   }
-  parts.push('<text x="' + (padL-4) + '" y="' + (padT+4) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">' + maxY + '</text>');
-  parts.push('<text x="' + (padL-4) + '" y="' + (padT+plotH) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">0</text>');
+  parts.push('<text x="' + (padL-4) + '" y="' + (padT+7) + '" text-anchor="end" font-size="14" style="fill:var(--text-muted)">' + maxY + '</text>');
+  parts.push('<text x="' + (padL-4) + '" y="' + (padT+plotH) + '" text-anchor="end" font-size="14" style="fill:var(--text-muted)">0</text>');
   // Área bajo la línea (suave) + polyline + puntos.
   var linePts = counts.map(function(v,i){ return xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
   var areaPts = padL.toFixed(1) + ',' + (padT+plotH).toFixed(1) + ' ' + linePts + ' ' + (W-padR).toFixed(1) + ',' + (padT+plotH).toFixed(1);
@@ -31300,8 +31394,8 @@ function eoDrawTrend(sols) {
   });
   // Etiquetas X: primera y última semana (fecha de inicio del bucket, dd/mm).
   var fmt = function(dt){ return ('0'+dt.getDate()).slice(-2) + '/' + ('0'+(dt.getMonth()+1)).slice(-2); };
-  parts.push('<text x="' + padL + '" y="' + (H-5) + '" text-anchor="start" font-size="9" style="fill:var(--text-muted)">' + fmt(starts[0]) + '</text>');
-  parts.push('<text x="' + (W-padR) + '" y="' + (H-5) + '" text-anchor="end" font-size="9" style="fill:var(--text-muted)">esta sem.</text>');
+  parts.push('<text x="' + padL + '" y="' + (H-4) + '" text-anchor="start" font-size="14" style="fill:var(--text-muted)">' + fmt(starts[0]) + '</text>');
+  parts.push('<text x="' + (W-padR) + '" y="' + (H-4) + '" text-anchor="end" font-size="14" style="fill:var(--text-muted)">esta sem.</text>');
   svg.innerHTML = parts.join('');
 }
 
@@ -31403,6 +31497,12 @@ function eoFlagsOf(s, tasks){
   if(linked.some(function(t){ return t.devolucionRuta && t.devolucionRuta.estado==='abierta'; })) flags.push('dev');
   // demo pendiente
   if(linked.some(function(t){ return (t.items||[]).some(function(it){ return it.esDemo && (!it.demoStatus||it.demoStatus==='en_demo'); }); })) flags.push('demo');
+  // bloqueado por stock (Odoo): el Set lo llena eoCargarBloqStock async; null en local sin Odoo
+  // → el flag no se asigna (ni subchip ni alerta), sin "0 bloqueadas" falso.
+  if(_eoBloqSet && _eoBloqSet.has(s.id)) flags.push('bloq');
+  // atascada: lleva >72h en el mismo estado activo sin avanzar (eoAging con tier 'bad').
+  var ag = eoAging(s);
+  if(ag && ag.tier==='bad') flags.push('atascada');
   return flags;
 }
 // Nº de evidencias (o null si no aplica: no despachada).
@@ -31429,8 +31529,16 @@ function eoView(s, tasks){
     fdes: s.fechaSolicitudDeseada,
     ent: s._mock ? s.ent : eoDispatchDate(s),
     evid: eoEvidOf(s, tasks),
+    age: eoAging(s),   // {h,tier} o null — solo tiñe estados activos (ver eoAging)
     flags: eoFlagsOf(s, tasks)
   };
+}
+// Chip de edad (tiempo en el estado actual) para fila/tarjeta — solo cuando hay tier (activo ≥24h).
+function eoAgeChipHtml(v){
+  if(!v.age || !v.age.tier) return '';
+  var cls = v.age.tier==='bad' ? 'red' : 'amber';
+  var lbl = eoAgeLabel(v.age.h);
+  return '<span class="eo2-age '+cls+'" title="'+esc('Lleva '+lbl+' en este estado sin avanzar')+'"><i data-lucide="hourglass"></i>'+esc(lbl)+'</span>';
 }
 
 // Promesa dinámica: texto/color/tinte de fila desde la vista.
@@ -31500,7 +31608,7 @@ function eoActiveFilterCount(){
   return n;
 }
 var EO_EST_LBL = {activas:'Activas', pend:'Pendiente revisión', ops:'En operaciones', ruta:'En ruta', desp:'Despachada', rech:'Rechazada/Canc.'};
-var EO_FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin OUT Odoo', dev:'Devolución en ruta', bloq:'Bloqueado por stock', demo:'En demo'};
+var EO_FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin salida en Odoo', dev:'Devolución en ruta', bloq:'Bloqueado por stock', demo:'En demo', atascada:'Atascadas >72h'};
 var EO_PROM_LBL = {venc:'Vencidas', hoy:'Hoy', sem:'Esta semana', rango:'Rango'};
 function eoPromChipText(){
   if(_eoState.f.prom!=='rango') return EO_PROM_LBL[_eoState.f.prom];
@@ -31598,8 +31706,8 @@ function eoRenderPulse(sub){
      tip:'Salieron a ruta y van hacia el cliente. Clic para filtrar.'},
     {k:'desp', n:nDesp, lbl:'Despachadas', col:'var(--green-text)',
      tip:'Entregadas y cerradas con su evidencia. Clic para filtrar.'},
-    {k:null, n:(otif==null?'—':otif+'%'), lbl:'OTIF · 30 días', col:otifCol, sub:(despWithDue?onTime+'/'+despWithDue+' a tiempo':'sin datos'),
-     tip:'De las despachadas con fecha deseada, % cerradas a tiempo.'},
+    {k:null, n:(otif==null?'—':otif+'%'), lbl:'Entregas a tiempo · 60 días', col:otifCol, sub:(despWithDue?onTime+'/'+despWithDue+' a tiempo':'sin datos'),
+     tip:'De las despachadas con fecha deseada en los últimos 60 días, % cuya fecha REAL de despacho fue igual o anterior a la fecha PROMETIDA al cliente.'},
     {k:null, n:String(arts), lbl:'Artículos en flujo', col:'var(--text-1)',
      tip:'Piezas dentro de las solicitudes activas del subconjunto visible.'}
   ];
@@ -31633,7 +31741,7 @@ function eoRowHtml(v){
     '<td class="eo2-c-cli"><div class="eo2-cli">'+esc(v.cliente)+'</div>'+(v.ciudad?'<div class="eo2-ciu"><i data-lucide="map-pin"></i>'+esc(v.ciudad)+'</div>':'')+'</td>'+
     '<td class="eo2-c-vend"><span class="eo2-vend"><span class="eo2-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+'</span></td>'+
     '<td class="eo2-c-est"><div class="eo2-est-w"><span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+subchips+'</div></td>'+
-    '<td class="eo2-c-prom"><div class="eo2-pd">'+esc(p.d)+'</div><div class="eo2-pr '+p.c+'">'+esc(p.r)+'</div></td>'+
+    '<td class="eo2-c-prom"><div class="eo2-pd">'+esc(p.d)+'</div><div class="eo2-pr '+p.c+'">'+esc(p.r)+'</div>'+eoAgeChipHtml(v)+'</td>'+
     '<td class="eo2-c-evid">'+evid+'</td>'+
     '<td class="eo2-c-loc"><span class="eo2-loc">'+esc(v.loc)+'</span></td>'+
   '</tr>';
@@ -31646,7 +31754,7 @@ function eoSubchips(v){
   if(v.e==='rech') out.push({t:'Corregir y reenviar', c:'red', i:'x-circle'});
   if(v.flags.indexOf('dev')!==-1) out.push({t:'Devolución en ruta', c:'red', i:'package-open'});
   if(v.flags.indexOf('sinevid')!==-1) out.push({t:'Sin evidencia', c:'amber', i:'image'});
-  if(v.flags.indexOf('sinout')!==-1) out.push({t:'Sin OUT Odoo', c:'red', i:'alert-triangle'});
+  if(v.flags.indexOf('sinout')!==-1) out.push({t:'Sin salida en Odoo', c:'red', i:'alert-triangle'});
   if(v.flags.indexOf('demo')!==-1) out.push({t:'En demo', c:'purple', i:'eye'});
   return out.slice(0,3);
 }
@@ -31677,7 +31785,7 @@ function eoKbCard(v){
       '<span class="eo2-kb-prom '+p.c+'">'+esc(p.r)+'</span></div>'+
     '<div class="eo2-kb-cli">'+esc(v.cliente)+'</div>'+
     '<div class="eo2-kb-meta"><span class="eo2-kb-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+' · '+esc(v.loc)+' · '+v.nArts+' art.</div>'+
-    (subchips ? '<div class="eo2-kb-sub">'+subchips+'</div>' : '')+
+    ((subchips || eoAgeChipHtml(v)) ? '<div class="eo2-kb-sub">'+subchips+eoAgeChipHtml(v)+'</div>' : '')+
   '</button>';
 }
 function eoRenderKanban(vis){
@@ -31695,75 +31803,148 @@ function eoRenderKanban(vis){
 }
 
 // ══════════ Render: VISTA GRÁFICOS (motor propio por tokens) ══════════
+// Barras por dimensión (vendedora/estado/almacén/fecha) con SEGMENTO ROJO de vencidas dentro de
+// cada barra. CLICKEABLES → filtran por esa dimensión (patrón del pulso, vía eoSetF).
 function eoChartDimBars(vis){
   var g = _eoState.group==='none' ? 'est' : _eoState.group;
   var groups = eoBuildGroups(vis, g);
   var dimName = {vend:'Órdenes por vendedora', est:'Órdenes por estado', loc:'Órdenes por almacén', fecha:'Órdenes por fecha de promesa'}[g];
+  var fkMap = {vend:'vend', est:'est', loc:'loc'}; var fk = fkMap[g]; // 'fecha' no es filtro directo
   var max = groups.reduce(function(m,x){ return Math.max(m, x.items.length); }, 1);
   var bars = groups.map(function(gr){
-    return '<div class="eo2-bar-row eo2-ch-bar"><span class="eo2-bar-name" title="'+esc(gr.label||'')+'">'+esc(gr.label||'—')+'</span>'+
-      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+Math.round(gr.items.length/max*100)+'%'+
-        (gr.dot?';background:var('+gr.dot+')':'')+'"></span></span>'+
-      '<span class="eo2-bar-n">'+gr.items.length+'</span></div>';
+    var n = gr.items.length, nv = gr.items.filter(eoIsOverdue).length;
+    var wPct = Math.round(n/max*100), vPct = n ? Math.round(nv/n*100) : 0;
+    // fk existe → botón filtrable; el valor del filtro es la clave del grupo (est) o su label (vend/loc).
+    var fval = g==='est' ? gr.key : gr.label;
+    var tag = fk ? 'button' : 'div';
+    var attrs = fk ? ' type="button" class="eo2-bar-row eo2-ch-bar clk" data-bfk="'+esc(fk)+'" data-bfv="'+esc(fval||'')+'" aria-label="'+esc((gr.label||'—')+': '+n+' órdenes'+(nv?', '+nv+' vencidas':'')+'. Clic para filtrar.')+'"'
+                  : ' class="eo2-bar-row eo2-ch-bar"';
+    return '<'+tag+attrs+'><span class="eo2-bar-name" title="'+esc(gr.label||'')+'">'+esc(gr.label||'—')+'</span>'+
+      '<span class="eo2-bar-track"><span class="eo2-bar" style="width:'+wPct+'%'+(gr.dot?';background:var('+gr.dot+')':'')+'">'+
+        (nv?'<span class="eo2-bar-ov" style="width:'+vPct+'%" title="'+esc(nv+' vencida'+(nv>1?'s':''))+'"></span>':'')+
+      '</span></span>'+
+      '<span class="eo2-bar-n">'+n+'</span></'+tag+'>';
   }).join('');
-  return '<div class="eo2-ch-card eo2-ch-bars"><div class="eo2-ch-title">'+esc(dimName)+'</div>'+(bars||'<div class="eo2-ch-empty">Sin datos.</div>')+'</div>';
+  return '<div class="eo2-ch-card eo2-ch-bars"><div class="eo2-ch-title">'+esc(dimName)+(fk?' <span class="eo2-ch-hint">· clic para filtrar; el tramo rojo son vencidas</span>':'')+'</div>'+(bars||'<div class="eo2-ch-empty">Sin datos.</div>')+'</div>';
 }
-// Barras apiladas: despachos por día del mes visible (SVG rects, tokens en style).
-function eoChartMonthStacked(vis){
-  var y = _eoCalState.y, m = _eoCalState.mo, dim = _eoCalState.dim;
-  var days = new Date(y, m+1, 0).getDate();
-  var buckets = [];
-  for(var i=0;i<days;i++) buckets.push({pend:0,ops:0,ruta:0,desp:0,rech:0,total:0});
-  vis.forEach(function(v){
-    var iso = dim==='desp' ? (v.ent||null) : v.fdes;
-    if(!iso) return;
-    var d = eoToD(iso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
-    var b = buckets[d.getDate()-1]; b[v.e]++; b.total++;
-  });
-  var max = buckets.reduce(function(mx,b){ return Math.max(mx, b.total); }, 1);
-  var order = [['desp','--green-dot'],['ruta','--sky-dot'],['ops','--blue-dot'],['pend','--amber-dot'],['rech','--red-dot']];
-  var colW = 100/days, H = 100, cols = '';
-  [0.25,0.5,0.75].forEach(function(f){ cols += '<line x1="0" y1="'+(H*f).toFixed(1)+'" x2="100" y2="'+(H*f).toFixed(1)+'" style="stroke:var(--border-light,var(--border))" stroke-width=".4"></line>'; });
-  for(var di=0; di<days; di++){
-    var b = buckets[di], x = (di*colW + colW*0.14).toFixed(3), acc2 = 0;
-    order.forEach(function(pair){
-      var val = b[pair[0]]; if(!val) return;
-      var hh = val/max*H, yy = (H - acc2 - hh).toFixed(2);
-      cols += '<rect x="'+x+'" y="'+yy+'" width="'+(colW*0.72).toFixed(3)+'" height="'+hh.toFixed(2)+'" style="fill:var('+pair[1]+')"></rect>';
-      acc2 += hh;
-    });
+
+// Estado "Acumulando datos" honesto: nunca porcentajes/medianas con n < minN.
+function eoMetricsInsuffic(n, minN){
+  return '<div class="eo2-ch-accum"><i data-lucide="database"></i><div><strong>Acumulando datos</strong>'+
+    '<span>'+(n||0)+' de '+minN+' despachos medidos. Se mostrará al llegar a '+minN+'.</span></div></div>';
+}
+function eoMetricsSvgBars(rows, series, maxRef){
+  // rows: [{label, seg:{key:val}}]; series: [{key,tok,lbl}]. Barras apiladas horizontales, HTML.
+  var max = maxRef || rows.reduce(function(mx,r){ var t=series.reduce(function(a,s){return a+(r.seg[s.key]||0);},0); return Math.max(mx,t); }, 1);
+  if(max<=0) max = 1;
+  return rows.map(function(r){
+    var tot = series.reduce(function(a,s){return a+(r.seg[s.key]||0);},0);
+    var segs = series.map(function(s){ var val=r.seg[s.key]||0; if(!val) return ''; return '<span class="eo2-msb-seg" style="width:'+(val/max*100).toFixed(2)+'%;background:var('+s.tok+')" title="'+esc(s.lbl+': '+val)+'"></span>'; }).join('');
+    return '<div class="eo2-msb-row"><span class="eo2-msb-lbl" title="'+esc(r.label)+'">'+esc(r.label)+'</span>'+
+      '<span class="eo2-msb-track">'+segs+'</span><span class="eo2-msb-n">'+tot+'</span></div>';
+  }).join('');
+}
+function eoMetricsLegend(series){
+  return '<div class="eo2-ch-legend">'+series.map(function(s){ return '<span class="eo2-ch-lg"><span class="eo2-ch-lg-sw" style="background:var('+s.tok+')"></span>'+esc(s.lbl)+'</span>'; }).join('')+'</div>';
+}
+// Cada gráfico de métricas del server. m = payload (_eoMetrics).
+function eoChartCumplimiento(m){
+  var wk = m.cumplimientoSemanal||[];
+  var totalN = wk.reduce(function(a,w){ return a + (w.antes||0)+(w.alDia||0)+(w.tarde1a2||0)+(w.tarde3mas||0); }, 0);
+  var body;
+  if(totalN < (m.minN||5)) body = eoMetricsInsuffic(totalN, m.minN||5);
+  else {
+    var fmtWk = function(iso){ var d=eoToD(iso); return d ? (d.getDate()+'/'+(d.getMonth()+1)) : String(iso||''); };
+    var series = [{key:'antes',tok:'--green-dot',lbl:'A tiempo / antes'},{key:'tarde1a2',tok:'--amber-dot',lbl:'Tarde 1-2 días'},{key:'tarde3mas',tok:'--red-dot',lbl:'Tarde 3+ días'}];
+    var rows = wk.map(function(w){ return {label:fmtWk(w.semana), seg:{antes:(w.antes||0)+(w.alDia||0), tarde1a2:w.tarde1a2||0, tarde3mas:w.tarde3mas||0}}; });
+    body = eoMetricsSvgBars(rows, series)+eoMetricsLegend(series);
   }
-  var dayLbls = '';
-  for(var dl=1; dl<=days; dl++) dayLbls += '<span>'+((dl===1 || dl%5===0) ? dl : '')+'</span>';
-  var legend = order.map(function(p){ return '<span class="eo2-ch-lg"><span class="eo2-ch-lg-sw" style="background:var('+p[1]+')"></span>'+esc(EO_EST_GRP[p[0]].l)+'</span>'; }).join('');
-  var has = buckets.some(function(b){ return b.total>0; });
-  return '<div class="eo2-ch-card full"><div class="eo2-ch-title">Despachos por día — '+EO_MES[m]+' '+y+' · '+(dim==='desp'?'por fecha de despacho':'por promesa')+'</div>'+
-    (has ? '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="eo2-ch-month-svg">'+cols+'</svg>'+
-      '<div class="eo2-ch-month-x" style="grid-template-columns:repeat('+days+',1fr)">'+dayLbls+'</div>'+
-      '<div class="eo2-ch-legend">'+legend+'</div>'+
-      '<div class="eo2-an-note" style="margin-top:6px">Navega el mes en la vista <b>Calendario</b>; este gráfico sigue ese mes y su dimensión.</div>'
-      : '<div class="eo2-ch-empty">Sin órdenes en '+EO_MES[m]+' '+y+' para esta dimensión. Cambia de mes en la vista Calendario.</div>')+
-  '</div>';
+  return '<div class="eo2-ch-card full"><div class="eo2-ch-title">Cumplimiento de promesa · semanal</div>'+body+'</div>';
 }
+function eoChartEmbudo(m){
+  var emb = m.embudo||{};
+  var stages = [['esperaInicio','Espera para iniciar'],['empaque','Empaque'],['esperaDespacho','Espera para despacho']];
+  var maxP90 = stages.reduce(function(mx,st){ var e=emb[st[0]]||{}; return Math.max(mx, e.p90H||0, e.medianaH||0); }, 1);
+  var enough = stages.some(function(st){ return (emb[st[0]]||{}).n >= (m.minN||5); });
+  var body;
+  if(!enough){ var totN = stages.reduce(function(a,st){ return a+((emb[st[0]]||{}).n||0); },0); body = eoMetricsInsuffic(Math.round(totN/stages.length), m.minN||5); }
+  else {
+    body = stages.map(function(st){
+      var e = emb[st[0]]||{}, med=e.medianaH||0, p90=e.p90H||0, n=e.n||0;
+      var enoughS = n >= (m.minN||5);
+      return '<div class="eo2-fun-row"><div class="eo2-fun-head"><span class="eo2-fun-lbl">'+esc(st[1])+'</span>'+
+        '<span class="eo2-fun-val">'+(enoughS?('med '+med+'h · P90 '+p90+'h'):('n='+n))+'</span></div>'+
+        (enoughS
+          ? '<div class="eo2-fun-track"><span class="eo2-fun-p90" style="width:'+(p90/maxP90*100).toFixed(1)+'%" title="P90 '+p90+'h"></span><span class="eo2-fun-med" style="width:'+(med/maxP90*100).toFixed(1)+'%" title="Mediana '+med+'h"></span></div>'
+          : '<div class="eo2-fun-track eo2-fun-thin"><span class="eo2-fun-accum-note">'+n+'/'+(m.minN||5)+' medidos</span></div>')+
+      '</div>';
+    }).join('')+
+    '<div class="eo2-ch-legend"><span class="eo2-ch-lg"><span class="eo2-ch-lg-sw" style="background:var(--accent)"></span>Mediana</span><span class="eo2-ch-lg"><span class="eo2-ch-lg-sw" style="background:var(--border)"></span>P90 (los más lentos)</span></div>';
+  }
+  return '<div class="eo2-ch-card full"><div class="eo2-ch-title">Embudo de etapas · horas por fase</div>'+body+'</div>';
+}
+function eoChartEmpaqueTamano(m){
+  var e = m.empaquePorTamano||{};
+  var buckets = [['peq1a3','1-3 artículos'],['med4a10','4-10 artículos'],['gra11mas','11+ artículos']];
+  var maxMed = buckets.reduce(function(mx,b){ return Math.max(mx, (e[b[0]]||{}).medianaH||0); }, 1);
+  var enough = buckets.some(function(b){ return (e[b[0]]||{}).n >= (m.minN||5); });
+  var body;
+  if(!enough){ var totN = buckets.reduce(function(a,b){ return a+((e[b[0]]||{}).n||0); },0); body = eoMetricsInsuffic(Math.round(totN/buckets.length), m.minN||5); }
+  else body = buckets.map(function(b){
+    var d = e[b[0]]||{}, med=d.medianaH||0, n=d.n||0, enoughS = n >= (m.minN||5);
+    return '<div class="eo2-msb-row"><span class="eo2-msb-lbl">'+esc(b[1])+'</span>'+
+      '<span class="eo2-msb-track">'+(enoughS?'<span class="eo2-msb-seg" style="width:'+(med/maxMed*100).toFixed(1)+'%;background:var(--blue-dot)"></span>':'')+'</span>'+
+      '<span class="eo2-msb-n">'+(enoughS?med+'h':(n+'/'+(m.minN||5)))+'</span></div>';
+  }).join('');
+  return '<div class="eo2-ch-card"><div class="eo2-ch-title">Empaque según tamaño · mediana</div>'+body+'</div>';
+}
+function eoChartEntradaSalida(m){
+  var es = m.entradaSalidaSemanal||[];
+  var totalN = es.reduce(function(a,w){ return a+(w.creadas||0)+(w.despachadas||0); }, 0);
+  var body;
+  if(totalN <= 0) body = '<div class="eo2-ch-empty">Sin movimiento en la ventana.</div>';
+  else {
+    var fmtWk = function(iso){ var d=eoToD(iso); return d ? (d.getDate()+'/'+(d.getMonth()+1)) : String(iso||''); };
+    var series = [{key:'creadas',tok:'--accent',lbl:'Creadas'},{key:'despachadas',tok:'--green-dot',lbl:'Despachadas'}];
+    // Barras agrupadas (no apiladas): normalizamos por el máximo global de ambos.
+    var maxV = es.reduce(function(mx,w){ return Math.max(mx, w.creadas||0, w.despachadas||0); }, 1);
+    var rows = es.map(function(w){
+      return '<div class="eo2-es-row"><span class="eo2-es-lbl">'+esc(fmtWk(w.semana))+'</span>'+
+        '<span class="eo2-es-bars">'+
+          '<span class="eo2-es-bar" style="width:'+((w.creadas||0)/maxV*100).toFixed(1)+'%;background:var(--accent)" title="Creadas: '+(w.creadas||0)+'"></span>'+
+          '<span class="eo2-es-bar" style="width:'+((w.despachadas||0)/maxV*100).toFixed(1)+'%;background:var(--green-dot)" title="Despachadas: '+(w.despachadas||0)+'"></span>'+
+        '</span><span class="eo2-es-n">'+(w.creadas||0)+'/'+(w.despachadas||0)+'</span></div>';
+    }).join('');
+    body = rows + eoMetricsLegend(series);
+  }
+  return '<div class="eo2-ch-card"><div class="eo2-ch-title">Entrada vs salida · semanal</div>'+body+'</div>';
+}
+
 function eoRenderCharts(vis){
   var host = document.getElementById('eo-view-charts'); if(!host) return;
-  if(!vis.length){ host.innerHTML = '<div class="eo2-ch-card full"><div class="eo2-ch-empty">Ningún dato para graficar con los filtros actuales.</div></div>'; return; }
-  var c = {pend:0,ops:0,ruta:0,desp:0,rech:0};
-  vis.forEach(function(v){ c[v.e]++; });
-  host.innerHTML = eoChartDimBars(vis) +
-    '<div class="eo2-ch-card"><div class="eo2-ch-title">Distribución por estado</div><canvas id="eo-ch-donut"></canvas></div>' +
-    eoChartMonthStacked(vis);
-  // Donut por estado con el motor propio rptDonut (tokens, dark mode gratis).
-  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7'};
-  if(typeof rptDonut==='function'){
-    rptDonut('eo-ch-donut', [
-      {label:'Pendiente', val:c.pend, color:t.amber},
-      {label:'En operaciones', val:c.ops, color:t.blue},
-      {label:'En ruta', val:c.ruta, color:t.skyDot},
-      {label:'Despachadas', val:c.desp, color:t.green},
-      {label:'Rechaz./Canc.', val:c.rech, color:t.red}
-    ], 'órdenes');
+  // Barras por dimensión: derivadas del subconjunto visible (client-side, siempre disponibles).
+  var dimBars = vis.length ? eoChartDimBars(vis) : '';
+  // Los 4 gráficos de métricas vienen del server. Estado según _eoMetrics.
+  var metricsHtml;
+  if(_eoMetrics === null){
+    // Aún no pedido: mostramos cargando y disparamos el fetch lazy (perf Android 8).
+    metricsHtml = '<div class="eo2-ch-card full"><div class="eo2-ch-empty">Cargando métricas…</div></div>';
+    eoLoadMetrics().then(function(){ if(_eoState.view==='charts') eoRenderCharts(vis); });
+  } else if(!_eoMetrics.ok){
+    metricsHtml = '<div class="eo2-ch-card full"><div class="eo2-ch-empty"><i data-lucide="alert-triangle" style="width:18px;height:18px;display:inline-block;vertical-align:-3px;margin-right:6px"></i>No se pudieron cargar las métricas.<br><button type="button" class="eo2-btn-ghost" id="eo-metrics-retry" style="margin-top:10px">Reintentar</button></div></div>';
+  } else {
+    var m = _eoMetrics;
+    // Orden pedido por Gabriel: cumplimiento → embudo → empaque-tamaño → entrada/salida.
+    metricsHtml = eoChartCumplimiento(m) + eoChartEmbudo(m) + eoChartEmpaqueTamano(m) + eoChartEntradaSalida(m) +
+      '<div class="eo2-ch-card full"><div class="eo2-an-note">Métricas derivadas de tareas de Operaciones (WWP), universo SDV, ventana '+(m.ventanaDias||60)+' días. Actualizado '+(m.generadoEn?sdvFmtDate(m.generadoEn):'—')+'.</div></div>';
   }
+  if(!vis.length && (_eoMetrics===null || _eoMetrics.ok===false)){
+    host.innerHTML = '<div class="eo2-ch-card full"><div class="eo2-ch-empty">Ningún dato para graficar con los filtros actuales.</div></div>';
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+  host.innerHTML = metricsHtml + dimBars;
+  if(window.lucide) lucide.createIcons();
 }
 
 // ══════════ Render: VISTA CALENDARIO ══════════
@@ -31787,64 +31968,93 @@ function eoDayPanelHtml(d, list){
     return '<button type="button" class="eo2-cdp-row" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
       '<span class="eo2-cdp-ord">'+esc(v.id)+'</span>'+
       '<span class="eo2-cdp-cli">'+esc(v.cliente)+'</span>'+
-      '<span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+extra+
+      '<span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+eoAgeChipHtml(v)+extra+
     '</button>';
   }).join('');
   return '<div class="eo2-cal-day-panel">'+
     '<div class="eo2-cdp-h">'+
       '<span class="eo2-cdp-title">'+EO_DOW_FULL[d.getDay()]+' '+d.getDate()+' '+EO_MES[d.getMonth()]+'</span>'+
-      '<span class="eo2-cdp-count">'+list.length+' órden'+(list.length===1?'':'es')+'</span>'+
+      '<span class="eo2-cdp-count">'+list.length+' órden'+(list.length===1?'':'es')+(eoSumArts(list)?' · '+eoSumArts(list)+' art.':'')+'</span>'+
       '<button type="button" class="eo2-cdp-x" aria-label="Cerrar panel del día"><i data-lucide="x"></i></button>'+
     '</div>'+
     '<div class="eo2-cdp-sum">'+parts.join(' · ')+'</div>'+
     '<div class="eo2-cdp-rows">'+rows+'</div>'+
   '</div>';
 }
+// Σ de artículos activos de una lista de vistas (para el conteo por día del calendario).
+function eoSumArts(list){ return list.reduce(function(n,v){ return n + (v.nArts||0); }, 0); }
+// Día FUTURO en riesgo (dim Promesa): tiene órdenes aún en pendiente de revisión o bloqueadas
+// por stock → promesa que puede romperse antes de la fecha. Ámbar (aviso previo al rojo de vencidas).
+function eoDayAtRisk(list){
+  return list.some(function(v){ return v.e==='pend' || v.flags.indexOf('bloq')!==-1; });
+}
 function eoRenderCalendar(vis){
   var host = document.getElementById('eo-view-cal'); if(!host) return;
   var y = _eoCalState.y, m = _eoCalState.mo;
-  var byDay = {};
+  var byDay = {}, nSinFecha = 0;
   vis.forEach(function(v){
-    var iso = eoCalDayIso(v); if(!iso) return;
-    var d = eoToD(iso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
+    var iso = eoCalDayIso(v);
+    if(!iso){ nSinFecha++; return; } // órdenes del subconjunto sin la fecha de la dimensión activa
+    var d = eoToD(iso); if(!d) { nSinFecha++; return; }
+    if(d.getFullYear()!==y || d.getMonth()!==m) return; // de otro mes: ni se cuentan como "sin fecha"
     (byDay[d.getDate()] = byDay[d.getDate()] || []).push(v);
   });
   var first = new Date(y, m, 1), lead = (first.getDay()+6)%7;
   var days = new Date(y, m+1, 0).getDate();
   var today = new Date(); today.setHours(0,0,0,0);
   var todayD = (today.getFullYear()===y && today.getMonth()===m) ? today.getDate() : -1;
+  var isCurMonth = (today.getFullYear()===y && today.getMonth()===m);
+  var hasAnyDay = Object.keys(byDay).length > 0;
   // Validar la selección ANTES de pintar (evita .sel huérfano).
   if(_eoCalState.sel){
     var sd0 = eoToD(_eoCalState.sel);
     if(!sd0 || sd0.getFullYear()!==y || sd0.getMonth()!==m || !(byDay[sd0.getDate()]||[]).length) _eoCalState.sel = null;
   }
+  // Chip "N sin fecha" (subconjunto con órdenes sin la fecha de la dimensión activa).
+  var sinFechaChip = nSinFecha ? '<span class="eo2-cal-nofecha" title="'+esc(nSinFecha+' orden'+(nSinFecha===1?'':'es')+' sin '+(_eoCalState.dim==='desp'?'fecha de despacho':'fecha de promesa')+' — no aparecen en el calendario')+'"><i data-lucide="calendar-off"></i>'+nSinFecha+' sin fecha</span>' : '';
   var head = '<div class="eo2-cal-toolbar">'+
     '<div class="eo2-cal-nav"><button type="button" class="eo2-cal-arrow" id="eo-cal-prev" aria-label="Mes anterior"><i data-lucide="chevron-left"></i></button>'+
       '<span class="eo2-cal-month">'+EO_MESES_FULL[m]+' '+y+'</span>'+
-      '<button type="button" class="eo2-cal-arrow" id="eo-cal-next" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button></div>'+
+      '<button type="button" class="eo2-cal-arrow" id="eo-cal-next" aria-label="Mes siguiente"><i data-lucide="chevron-right"></i></button>'+
+      (isCurMonth ? '' : '<button type="button" class="eo2-cal-today" id="eo-cal-today"><i data-lucide="calendar-check"></i>Hoy</button>')+'</div>'+
     '<div class="eo2-cal-dim" role="group" aria-label="Dimensión de fecha">'+
       '<button type="button" class="'+(_eoCalState.dim==='prom'?'active':'')+'" data-dim="prom">Promesa</button>'+
       '<button type="button" class="'+(_eoCalState.dim==='desp'?'active':'')+'" data-dim="desp">Despachado</button>'+
     '</div></div>'+
-    '<div class="eo2-cal-hint">'+(_eoCalState.dim==='prom'
-      ? 'Qué se debe entregar cada día — los días pasados con promesas sin cumplir salen en rojo. Haz clic en un día con órdenes para ver su detalle.'
-      : 'Qué salió a ruta / se entregó cada día (throughput del mes). Haz clic en un día con órdenes para ver su detalle.')+'</div>';
-  var cal = '<div class="eo2-cal-calendar"><div class="eo2-cal-dow">'+EO_DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="eo2-cal-days">';
+    '<div class="eo2-cal-hintrow">'+
+      '<div class="eo2-cal-hint">'+(_eoCalState.dim==='prom'
+        ? 'Qué se debe entregar cada día — los días pasados con promesas sin cumplir salen en rojo, y los futuros en riesgo (pendientes o bloqueados) en ámbar. Haz clic en un día con órdenes para ver su detalle.'
+        : 'Qué salió a ruta / se entregó cada día (throughput del mes). Haz clic en un día con órdenes para ver su detalle.')+'</div>'+
+      sinFechaChip+
+    '</div>';
+  // Leyenda de puntos (compacta, tokens) — dentro de la vista.
+  var legendOrder = _eoCalState.dim==='desp' ? ['desp','ruta'] : ['pend','ops','ruta','desp','rech'];
+  var legend = '<div class="eo2-cal-legend">'+legendOrder.map(function(e){
+    return '<span class="eo2-cal-lg"><span class="eo2-cal-lg-dot" style="background:var('+eoEstDotToken(e)+')"></span>'+esc(EO_EST_GRP[e].l)+'</span>';
+  }).join('')+'</div>';
+  var cal = '<div class="eo2-cal-calendar">'+legend+'<div class="eo2-cal-dow">'+EO_DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="eo2-cal-days">';
   for(var i=0;i<lead;i++) cal += '<div class="eo2-cal-cell empty"></div>';
   for(var dd=1; dd<=days; dd++){
     var list = byDay[dd] || [], dISO = y+'-'+String(m+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
     var isToday = dd===todayD;
     var overdueDay = _eoCalState.dim==='prom' && list.some(eoIsOverdue);
+    // Día futuro (o de hoy en adelante) en riesgo → ámbar, solo si no es ya rojo por vencido.
+    var cellD = new Date(y, m, dd);
+    var atRiskDay = _eoCalState.dim==='prom' && !overdueDay && cellD.getTime()>=today.getTime() && list.length && eoDayAtRisk(list);
+    var arts = eoSumArts(list);
     var dots = list.slice(0,4).map(function(v){ return '<span class="eo2-cal-dot" style="background:var('+eoEstDotToken(v.e)+')"></span>'; }).join('');
     var selected = _eoCalState.sel===dISO;
-    cal += '<button type="button" class="eo2-cal-cell'+(list.length?' has':'')+(isToday?' today':'')+(overdueDay?' overdue':'')+(selected?' sel':'')+'"'+
+    cal += '<button type="button" class="eo2-cal-cell'+(list.length?' has':'')+(isToday?' today':'')+(overdueDay?' overdue':'')+(atRiskDay?' atrisk':'')+(selected?' sel':'')+'"'+
       (list.length? ' data-day="'+dISO+'" aria-pressed="'+(selected?'true':'false')+'"' : ' disabled tabindex="-1"')+
-      ' aria-label="'+dd+' · '+list.length+' órden'+(list.length===1?'':'es')+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
+      ' aria-label="'+dd+' · '+list.length+' órden'+(list.length===1?'':'es')+(arts?', '+arts+' artículo'+(arts===1?'':'s'):'')+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
       '<span class="eo2-cal-num">'+dd+'</span>'+
-      (list.length? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '')+
+      (list.length? '<span class="eo2-cal-cntrow"><span class="eo2-cal-cnt">'+list.length+'</span>'+(arts?'<span class="eo2-cal-arts">'+arts+' art.</span>':'')+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '')+
     '</button>';
   }
-  cal += '</div></div>';
+  cal += '</div>';
+  // Mes vacío en desktop: mensaje DENTRO del grid (antes solo vivía en la agenda móvil).
+  if(!hasAnyDay) cal += '<div class="eo2-ch-empty">Sin órdenes en '+EO_MES[m]+' '+y+' para esta dimensión'+(nSinFecha?' (hay '+nSinFecha+' sin fecha)':'')+'.'+(isCurMonth?'':' Usa <b>Hoy</b> para volver al mes actual.')+'</div>';
+  cal += '</div>';
   var panel = '';
   if(_eoCalState.sel){ var sd = eoToD(_eoCalState.sel); if(sd) panel = eoDayPanelHtml(sd, byDay[sd.getDate()]); }
   var cells = '<div class="eo2-cal-grid">'+cal+panel+'</div>';
@@ -31904,13 +32114,14 @@ function eoRenderAlerts(sub){
   function cnt(fn){ return sub.filter(fn).length; }
   var rows = [
     {fk:'prom', v:'venc',    lbl:'Vencidas',                         i:'clock-alert',   c:'red', n:cnt(eoIsOverdue)},
+    {fk:'flag', v:'atascada',lbl:'Atascadas >72h sin avanzar',       i:'hourglass',     c:'amber', n:cnt(function(v){ return v.flags.indexOf('atascada')!==-1; })},
     {fk:'est',  v:'rech',    lbl:'Rechazadas — corregir y reenviar', i:'x-circle',      c:'red', n:cnt(function(v){ return v.e==='rech'; })},
     {fk:'flag', v:'sinevid', lbl:'Despachada sin evidencia',         i:'image-off',     c:'red', n:cnt(function(v){ return v.flags.indexOf('sinevid')!==-1; })},
-    {fk:'flag', v:'sinout',  lbl:'Sin OUT en Odoo',                  i:'alert-triangle',c:'red', n:cnt(function(v){ return v.flags.indexOf('sinout')!==-1; })},
+    {fk:'flag', v:'sinout',  lbl:'Despachada sin salida registrada en Odoo — avisa a Operaciones', i:'alert-triangle',c:'red', n:cnt(function(v){ return v.flags.indexOf('sinout')!==-1; })},
     {fk:'flag', v:'dev',     lbl:'Devolución en ruta',               i:'package-open',  c:'red', n:cnt(function(v){ return v.flags.indexOf('dev')!==-1; })}
   ];
   if(_eoBloqStock != null && _eoBloqStock > 0){
-    rows.unshift({fk:'flag', v:'bloq', lbl:'Bloqueado por stock (Odoo)', i:'ban', c:'amber', n:_eoBloqStock});
+    rows.unshift({fk:'flag', v:'bloq', lbl:'Bloqueado por stock (Odoo)'+(_eoBloqPartial?' · parcial':''), i:'ban', c:'amber', n:_eoBloqStock});
   }
   rows = rows.filter(function(a){ return a.n > 0; });
   var demoN = cnt(function(v){ return v.flags.indexOf('demo')!==-1; });
@@ -31935,18 +32146,19 @@ function eoRenderAlerts(sub){
 
 // ══════════ Render: ZONA 4 · Analítica ══════════
 function eoRenderAnalytics(sub){
-  // Donut por estado (motor propio rptDonut).
-  var c = {pend:0,ops:0,ruta:0,desp:0,rech:0};
-  sub.forEach(function(v){ c[v.e]++; });
-  var t = (typeof rptTheme==='function') ? rptTheme() : {green:'#16a34a',amber:'#d97706',red:'#dc2626',blue:'#2563eb',skyDot:'#0284c7'};
-  if(typeof rptDonut==='function'){
-    rptDonut('eo-an-donut', [
-      {label:'Pendiente', val:c.pend, color:t.amber},
-      {label:'En operaciones', val:c.ops, color:t.blue},
-      {label:'En ruta', val:c.ruta, color:t.skyDot},
-      {label:'Despachadas', val:c.desp, color:t.green},
-      {label:'Rechaz./Canc.', val:c.rech, color:t.red}
-    ], 'órdenes');
+  // Top 5 más viejas sin avanzar (usa el aging ya calculado en eoView; solo estados activos con tier).
+  var oldest = sub.filter(function(v){ return v.age && v.age.tier; })
+    .sort(function(a,b){ return b.age.h - a.age.h; }).slice(0,5);
+  var oldEl = document.getElementById('eo-an-oldest');
+  if(oldEl){
+    oldEl.innerHTML = oldest.length ? oldest.map(function(v){
+      var cls = v.age.tier==='bad' ? 'red' : 'amber', est = EO_EST[v.e];
+      return '<button type="button" class="eo2-old-row" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+', lleva '+eoAgeLabel(v.age.h)+' sin avanzar">'+
+        '<span class="eo2-old-cli">'+esc(v.cliente)+'</span>'+
+        '<span class="eo2-old-est '+(v.e==='pend'?'amber':'blue')+'">'+esc(est.lbl)+'</span>'+
+        '<span class="eo2-age '+cls+'"><i data-lucide="hourglass"></i>'+esc(eoAgeLabel(v.age.h))+'</span>'+
+      '</button>';
+    }).join('') : '<div class="eo2-an-note">Nada atascado: todas las activas avanzaron en las últimas 24 h.</div>';
   }
   // Barras por vendedora.
   var by = {};
@@ -32017,11 +32229,28 @@ function renderEstadoOrdenes(){
   var sub = eoSubset(tasks);
   var vis = eoVisibleFrom(sub);
 
-  eoRenderPulse(sub);
-  eoRenderAlerts(sub);
+  // Pulso/alertas/analítica/tendencia dependen SOLO del subconjunto (alcance + búsqueda),
+  // NO de los filtros de la toolbar ni del día seleccionado del calendario. Repintarlos en
+  // cada clic de día es trabajo perdido (mi hallazgo d3). Firma del subconjunto: alcance +
+  // búsqueda + nº de SDVs + estado del conteo bloqueado-por-stock (que altera flags/alertas).
+  var subFp = _eoScope + '|' + _eoQuery + '|' + _eoData.length + '|' + _eoBloqStock;
+  if(subFp !== _eoLastSubFp){
+    _eoLastSubFp = subFp;
+    eoRenderPulse(sub);
+    eoRenderAlerts(sub);
+    eoRenderAnalytics(sub);
+    eoDrawTrend(_eoData.filter(function(s){ return eoScopeOk(s) && eoMatch(s, _eoQuery); }));
+  }
   eoRenderChips();
-  eoRenderAnalytics(sub);
-  eoDrawTrend(_eoData.filter(function(s){ return eoScopeOk(s) && eoMatch(s, _eoQuery); }));
+
+  // Ocultar la analítica lateral en la vista Gráficos: sus barras/donut duplicarían la vista
+  // (dos números para lo mismo si hay filtros activos = dos verdades en pantalla).
+  var asideAn = document.querySelector('#section-estado-ordenes .eo2-analytics');
+  if(asideAn) asideAn.hidden = (_eoState.view==='charts');
+  // Mapa de fuentes al pie: herramienta de decisión de gerencia (jubilar la hoja de Ventas), no
+  // ruido para la vendedora → solo admin/manager.
+  var srcMap = document.getElementById('eo-src-map');
+  if(srcMap) srcMap.hidden = !eoIsMgmt();
 
   if(_eoState.view==='list')        eoRenderRows(vis);
   else if(_eoState.view==='kanban') eoRenderKanban(vis);
@@ -32153,6 +32382,39 @@ async function eoAbrirDetalle(sdvId) {
         '</div>';
     }
 
+    // Seguimiento (statusHistory de la SDV) — portado de "Mis Solicitudes" (usa {estado,at,nombre,nota}).
+    var histHtml = '';
+    var hist = s.statusHistory || [];
+    if (hist.length) {
+      // "Días de preparación": de aprobada (pendiente_revision → en_proceso) a despachada, si hay ambos.
+      var apAt = null;
+      for (var hi=0; hi<hist.length; hi++){ if (hist[hi].estado==='en_proceso' && hist[hi].at){ apAt = hist[hi].at; break; } }
+      var dispAt = eoDispatchDate(s);
+      var prepHtml = '';
+      if (apAt && dispAt) {
+        var da = new Date(apAt), dd = new Date(dispAt);
+        if (!isNaN(da.getTime()) && !isNaN(dd.getTime()) && dd.getTime() >= da.getTime()) {
+          var prepD = Math.round((dd.getTime()-da.getTime())/864e5);
+          prepHtml = '<div class="eo-det-row"><dt>Días de preparación</dt><dd><strong>'+prepD+(prepD===1?' día':' días')+'</strong> <span style="color:var(--text-3);font-size:11px">(aprobada → despachada)</span></dd></div>';
+        }
+      }
+      var rowsH = hist.map(function(h){
+        return '<div class="eo-det-row"><dt>'+esc(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>';
+      }).join('');
+      histHtml = '<div class="eo-det-ops-box"><div class="eo-det-sec-title">Seguimiento</div>'+prepHtml+rowsH+'</div>';
+    }
+
+    // El gapbox de logística y el mapa de fuentes son herramientas de decisión de gerencia
+    // (no ruido para la vendedora): solo admin/manager.
+    var gapHtml = eoIsMgmt()
+      ? '<div class="eo2-gapbox"><h4><i data-lucide="alert-triangle"></i>Logística de entrega — hoja de Ventas, sin fuente viva</h4>' +
+          '<div class="eo2-gap-row"><span class="eo2-g-l">Vehículo · Transporte</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+          '<div class="eo2-gap-row"><span class="eo2-g-l">Horario de entrega</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+          '<div class="eo2-gap-row"><span class="eo2-g-l">¿Lleva instalación?</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
+          '<div class="eo2-gap-note">Ninguna fuente viva (SDV / WWP / Odoo) captura estos campos hoy. Decisión pendiente: agregarlos al formulario SDV o a la tarea de despacho antes de jubilar la hoja de Ventas.</div>' +
+        '</div>'
+      : '';
+
     var html = '<div class="eo-det-overlay" id="eoDetOverlay" onclick="if(event.target===this)this.remove()">' +
       '<div class="eo-det-modal">' +
         '<div class="eo-det-hdr">' +
@@ -32170,13 +32432,9 @@ async function eoAbrirDetalle(sdvId) {
           '<div><div class="eo-det-sec-title">Artículos ('+(s.articulosOdoo||[]).length+')</div>'+artsHtml+'</div>' +
           '<div><div class="eo-det-sec-title">Datos</div>'+datosRows+'</div>' +
           opsHtml +
+          histHtml +
           devHtml +
-          '<div class="eo2-gapbox"><h4><i data-lucide="alert-triangle"></i>Logística de entrega — hoja de Ventas, sin fuente viva</h4>' +
-            '<div class="eo2-gap-row"><span class="eo2-g-l">Vehículo · Transporte</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
-            '<div class="eo2-gap-row"><span class="eo2-g-l">Horario de entrega</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
-            '<div class="eo2-gap-row"><span class="eo2-g-l">¿Lleva instalación?</span><span class="eo2-g-v">—</span><span class="eo2-gap-chip">Requiere captura nueva</span></div>' +
-            '<div class="eo2-gap-note">Ninguna fuente viva (SDV / WWP / Odoo) captura estos campos hoy. Decisión pendiente: agregarlos al formulario SDV o a la tarea de despacho antes de jubilar la hoja de Ventas.</div>' +
-          '</div>' +
+          gapHtml +
         '</div>' +
       '</div>' +
     '</div>';
@@ -32306,11 +32564,24 @@ function eoInitEvents(){
     var tr = e.target.closest('tr.eo2-rw[data-id]'); if(tr && !tr.classList.contains('eo2-grp-h')){ eoAbrirDetalle(tr.getAttribute('data-id')); return; }
     // Tarjeta kanban → detalle
     var kc = e.target.closest('.eo2-kb-card[data-id]'); if(kc){ eoAbrirDetalle(kc.getAttribute('data-id')); return; }
+    // Barra de gráficos por dimensión → filtro (patrón del pulso)
+    var bb = e.target.closest('.eo2-ch-bar.clk[data-bfk]'); if(bb){ eoSetF(bb.getAttribute('data-bfk'), bb.getAttribute('data-bfv')); return; }
+    // Reintentar métricas
+    if(e.target.closest('#eo-metrics-retry')){ _eoMetrics = null; eoLoadMetrics(true).then(function(){ if(_eoState.view==='charts') renderEstadoOrdenes(); }); return; }
     // Calendario: navegación de mes / dimensión / panel / día
     if(e.target.closest('#eo-cal-prev')){ _eoCalState.mo--; if(_eoCalState.mo<0){ _eoCalState.mo=11; _eoCalState.y--; } _eoCalState.sel=null; renderEstadoOrdenes(); return; }
     if(e.target.closest('#eo-cal-next')){ _eoCalState.mo++; if(_eoCalState.mo>11){ _eoCalState.mo=0; _eoCalState.y++; } _eoCalState.sel=null; renderEstadoOrdenes(); return; }
+    // Botón "Hoy": vuelve al mes actual y, si hoy tiene órdenes en la dimensión activa, lo selecciona.
+    if(e.target.closest('#eo-cal-today')){
+      var tn = new Date(); _eoCalState.y = tn.getFullYear(); _eoCalState.mo = tn.getMonth();
+      _eoCalState.sel = null; renderEstadoOrdenes();
+      // Re-verificar contra el subconjunto ya pintado: solo seleccionar hoy si tiene órdenes.
+      var todayCell = document.querySelector('#eo-view-cal .eo2-cal-cell.today[data-day]');
+      if(todayCell){ _eoCalState.sel = todayCell.getAttribute('data-day'); renderEstadoOrdenes(); eoRevealDayPanel(); }
+      return;
+    }
     var dim = e.target.closest('.eo2-cal-dim button[data-dim]'); if(dim){ _eoCalState.dim = dim.getAttribute('data-dim'); _eoCalState.sel=null; renderEstadoOrdenes(); return; }
-    var crow = e.target.closest('.eo2-cdp-row[data-id], .eo2-ag-item[data-id]'); if(crow){ eoAbrirDetalle(crow.getAttribute('data-id')); return; }
+    var crow = e.target.closest('.eo2-cdp-row[data-id], .eo2-ag-item[data-id], .eo2-old-row[data-id]'); if(crow){ eoAbrirDetalle(crow.getAttribute('data-id')); return; }
     if(e.target.closest('.eo2-cdp-x')){ _eoCalState.sel=null; renderEstadoOrdenes(); return; }
     var day = e.target.closest('.eo2-cal-cell[data-day]');
     if(day){ _eoCalState.sel = day.getAttribute('data-day'); renderEstadoOrdenes(); eoRevealDayPanel(); return; }

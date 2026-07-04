@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v127';
+const APP_BUILD = 'v128';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1492,6 +1492,287 @@ function sdvTransition(sol, nuevo, por, nombre, nota, opts) {
 
 function wwpId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+// ── Helpers para /api/eo-metrics (Gráficos de Estado de Órdenes, Fase 1) ─────
+// TODAS las fechas usan los componentes LOCALES del servidor. Nunca
+// .toISOString().slice(0,10): eso da la fecha en UTC y, en RD (UTC-4), tras
+// las ~8pm el día UTC ya es el siguiente → una SDV despachada a las 21:00
+// caería en el día equivocado y en la semana ISO equivocada. Por eso derivamos
+// el día desde getFullYear/getMonth/getDate (huso del proceso, RD en prod).
+
+// Día local como {y,m,d} y como número serial (días desde epoch a medianoche
+// local) para restar días a nivel de DÍA, no de milisegundos.
+function eoLocalDaySerial(input) {
+  const d = (input instanceof Date) ? input : new Date(input);
+  if (isNaN(d.getTime())) return null;
+  // Date.UTC con los componentes LOCALES → serial de días estable, sin arrastrar
+  // la hora ni el offset del huso (ambas fechas se normalizan igual).
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 864e5);
+}
+
+// Diferencia en DÍAS local entre la fecha real y la prometida (real - prometida).
+// >0 = despachó tarde; 0 = mismo día; <0 = antes. null si alguna es inválida.
+function eoDayDiff(real, prometida) {
+  const a = eoLocalDaySerial(real), b = eoLocalDaySerial(prometida);
+  if (a === null || b === null) return null;
+  return a - b;
+}
+
+// Semana ISO-8601 de una fecha, en componentes LOCALES → "YYYY-Www".
+// Regla ISO: la semana empieza el lunes; la semana 1 es la que contiene el
+// primer jueves del año (equivalente: la que contiene el 4 de enero). El "año
+// ISO" puede diferir del año calendario en los bordes (ej. 31-dic puede ser
+// W01 del año siguiente; 1-ene puede ser W52/W53 del anterior).
+function eoISOWeek(input) {
+  const src = (input instanceof Date) ? input : new Date(input);
+  if (isNaN(src.getTime())) return null;
+  // Normalizar a medianoche local y trabajar en un Date UTC "espejo" para que
+  // los saltos de huso/DST no muevan el día.
+  const d = new Date(Date.UTC(src.getFullYear(), src.getMonth(), src.getDate()));
+  // getUTCDay: 0=domingo..6=sábado → llevar a jueves de esta semana ISO.
+  const dayNum = (d.getUTCDay() + 6) % 7; // 0=lunes..6=domingo
+  d.setUTCDate(d.getUTCDate() - dayNum + 3); // jueves de la semana
+  const isoYear = d.getUTCFullYear();
+  const firstThu = new Date(Date.UTC(isoYear, 0, 4)); // 4-ene siempre es semana 1
+  const firstThuDayNum = (firstThu.getUTCDay() + 6) % 7;
+  firstThu.setUTCDate(firstThu.getUTCDate() - firstThuDayNum + 3); // jueves de la W01
+  const week = 1 + Math.round((d.getTime() - firstThu.getTime()) / (7 * 864e5));
+  return isoYear + '-W' + String(week).padStart(2, '0');
+}
+
+// Las últimas n claves ISO week terminando en la semana de `ref` (default hoy),
+// en orden cronológico. Retrocede de a 7 días desde el lunes de la semana actual
+// → cae en la semana previa sin depender de aritmética de número de semana (que
+// se complica en los bordes de año W52/W53). Devuelve claves únicas.
+function eoLastISOWeeks(n, ref) {
+  const base = ref ? new Date(ref) : new Date();
+  // Lunes (local) de la semana de `base`, a medianoche local.
+  const monday = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  const dayNum = (monday.getDay() + 6) % 7; // 0=lunes..6=domingo (local)
+  monday.setDate(monday.getDate() - dayNum);
+  const weeks = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const wd = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - i * 7);
+    weeks.push(eoISOWeek(wd));
+  }
+  return weeks;
+}
+
+// Mediana de un array de números (horas). null si vacío. Sin mutar el original.
+function eoMedian(arr) {
+  const a = (arr || []).filter(x => typeof x === 'number' && isFinite(x)).slice().sort((x, y) => x - y);
+  if (!a.length) return null;
+  const mid = a.length >> 1;
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+// Percentil 90 por interpolación lineal (mismo método que numpy 'linear').
+// null si vacío. Con 1 dato devuelve ese dato.
+function eoP90(arr) {
+  const a = (arr || []).filter(x => typeof x === 'number' && isFinite(x)).slice().sort((x, y) => x - y);
+  if (!a.length) return null;
+  if (a.length === 1) return a[0];
+  const rank = 0.9 * (a.length - 1);
+  const lo = Math.floor(rank), hi = Math.ceil(rank);
+  if (lo === hi) return a[lo];
+  return a[lo] + (a[hi] - a[lo]) * (rank - lo);
+}
+
+// Redondea horas a 1 decimal, conservando null.
+function eoRound1(h) { return (h === null || h === undefined || !isFinite(h)) ? null : Math.round(h * 10) / 10; }
+
+// Duración en HORAS entre dos ISO timestamps; null si inválida o negativa.
+function eoHoursBetween(fromIso, toIso) {
+  if (!fromIso || !toIso) return null;
+  const a = new Date(fromIso).getTime(), b = new Date(toIso).getTime();
+  if (isNaN(a) || isNaN(b)) return null;
+  const h = (b - a) / 36e5;
+  return h >= 0 ? h : null;
+}
+
+// Fecha REAL de despacho de una SDV: cascada despachadaEn → fechaEntrega →
+// statusHistory con estado 'despachada' (claves {estado, at, ...}). null si nunca.
+function eoSdvDispatchDate(sol) {
+  if (!sol) return null;
+  if (sol.despachadaEn) return sol.despachadaEn;
+  if (sol.fechaEntrega) return sol.fechaEntrega;
+  const h = (sol.statusHistory || []).find(x => x && x.estado === 'despachada' && x.at);
+  return h ? h.at : null;
+}
+
+// Fecha de CREACIÓN de una SDV (verificado en POST /api/sdv: creadoAt === fechaSolicitud).
+function eoSdvCreatedDate(sol) {
+  return (sol && (sol.fechaSolicitud || sol.creadoAt)) || null;
+}
+
+// De un statusHistory de TAREA ({status, date, by, note}): primer date con
+// status === target, o el ÚLTIMO si last=true. null si no hay.
+function eoTaskStatusDate(task, target, last) {
+  const hist = (task && task.statusHistory) || [];
+  const matches = hist.filter(h => h && h.status === target && h.date);
+  if (!matches.length) return null;
+  return last ? matches[matches.length - 1].date : matches[0].date;
+}
+
+// Duración de EMPAQUE de una tarea packaging: primer 'in_progress' → último
+// 'completed'/'validated'. Horas o null. (Un empaque solo cuenta si tiene ambos
+// hitos en su statusHistory.)
+function eoPackagingDurationH(task) {
+  const start = eoTaskStatusDate(task, 'in_progress', false);
+  if (!start) return null;
+  const completed = eoTaskStatusDate(task, 'completed', true);
+  const validated = eoTaskStatusDate(task, 'validated', true);
+  // "último completed/validated": tomar el más tardío de ambos.
+  let end = null;
+  [completed, validated].forEach(d => { if (d && (!end || new Date(d).getTime() > new Date(end).getTime())) end = d; });
+  if (!end) return null;
+  return eoHoursBetween(start, end);
+}
+
+// Caché del payload de /api/eo-metrics (recorrer wwp-tasks.json de ~15MB es
+// caro; NO recomputar por request). Invalida por TTL. Clave = ventanaDias.
+const EO_METRICS_CACHE = new Map(); // ventanaDias → { json, ts }
+const EO_METRICS_TTL = 5 * 60 * 1000; // 5 minutos
+
+// Construye TODO el payload de /api/eo-metrics. Universo SDV-only (decisión de
+// Gabriel 2026-07-04): SOLO las SDV (loadSdv) y las tareas WWP con sdvId truthy.
+// EXCLUYE tareas con solo odooRef (época de implementación, no representativa) y
+// las internas. Muestras chicas son honestas: se devuelven los n reales; el
+// front pinta "acumulando datos" cuando n < minN. Nunca lanza: en error, arrays
+// vacíos válidos (el caller igual envuelve en try/catch).
+function eoBuildMetrics(ventanaDias, minN) {
+  ventanaDias = ventanaDias || 60;
+  minN = minN || 5;
+  const nowMs = Date.now();
+  const sinceMs = nowMs - ventanaDias * 864e5;
+  const inWindow = iso => { if (!iso) return false; const t = new Date(iso).getTime(); return !isNaN(t) && t >= sinceMs && t <= nowMs; };
+
+  const sdvs = loadSdv() || [];
+  // SDV-only: tareas con sdvId truthy. Excluye odooRef-solo e internas.
+  const tasks = (loadWwpTasks() || []).filter(t => t && t.sdvId);
+
+  const weeks8 = eoLastISOWeeks(8);
+  const idxByWeek = new Map(weeks8.map((w, i) => [w, i]));
+
+  // ── 1) cumplimientoSemanal ────────────────────────────────────────────────
+  // Por SDV despachada con fechaSolicitudDeseada (dentro de ventana por la fecha
+  // REAL de despacho): comparar día real vs prometido. Semana = ISO de la real.
+  const cumplimientoSemanal = weeks8.map(w => ({ semana: w, antes: 0, alDia: 0, tarde1a2: 0, tarde3mas: 0 }));
+  sdvs.forEach(s => {
+    if (!s || !s.fechaSolicitudDeseada) return;
+    const real = eoSdvDispatchDate(s);
+    if (!real || !inWindow(real)) return;
+    const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+    if (diff === null) return;
+    const wk = eoISOWeek(real);
+    const idx = idxByWeek.get(wk);
+    if (idx === undefined) return; // real fuera de las 8 semanas mostradas
+    const bucket = cumplimientoSemanal[idx];
+    if (diff < 0) bucket.antes++;
+    else if (diff === 0) bucket.alDia++;
+    else if (diff <= 2) bucket.tarde1a2++;
+    else bucket.tarde3mas++;
+  });
+
+  // ── 2) empaquePorTamano ───────────────────────────────────────────────────
+  // Tareas packaging con sdvId, en ventana (por inicio de empaque = primer
+  // in_progress). Buckets por items.length: 1-3, 4-10, 11+. Una tarea sin items
+  // o sin duración medible no cuenta (no infla ni ensucia la mediana).
+  const empSizes = { peq1a3: [], med4a10: [], gra11mas: [] };
+  tasks.filter(t => t.type === 'packaging').forEach(t => {
+    const start = eoTaskStatusDate(t, 'in_progress', false);
+    if (!start || !inWindow(start)) return;
+    const dur = eoPackagingDurationH(t);
+    if (dur === null) return;
+    const nItems = Array.isArray(t.items) ? t.items.length : 0;
+    if (nItems <= 0) return; // sin items no clasifica por tamaño
+    if (nItems <= 3) empSizes.peq1a3.push(dur);
+    else if (nItems <= 10) empSizes.med4a10.push(dur);
+    else empSizes.gra11mas.push(dur);
+  });
+  const empaquePorTamano = {
+    peq1a3:   { n: empSizes.peq1a3.length,   medianaH: eoRound1(eoMedian(empSizes.peq1a3)) },
+    med4a10:  { n: empSizes.med4a10.length,  medianaH: eoRound1(eoMedian(empSizes.med4a10)) },
+    gra11mas: { n: empSizes.gra11mas.length, medianaH: eoRound1(eoMedian(empSizes.gra11mas)) },
+  };
+
+  // ── 3) embudo ─────────────────────────────────────────────────────────────
+  // esperaInicio  = createdAt → primer in_progress (packaging con sdvId)
+  // empaque       = duración de empaque (como arriba)
+  // esperaDespacho= fin de empaque → dispatchStartedAt (o primer in_progress) de
+  //                 la tarea dispatch_order del MISMO sdvId, solo si positivo.
+  // NO se incluye "ruta": captura corrupta hoy (choferes marcan inicio y fin
+  // juntos → mediana 0h, no representativo). Documentado; se reintegra cuando
+  // la captura de ruta sea fiable.
+  const esperaInicio = [], empaque = [], esperaDespacho = [];
+  // Índice de tareas dispatch_order por sdvId (para esperaDespacho).
+  const dispatchBySdv = new Map();
+  tasks.filter(t => t.type === 'dispatch_order').forEach(t => {
+    if (!dispatchBySdv.has(t.sdvId)) dispatchBySdv.set(t.sdvId, []);
+    dispatchBySdv.get(t.sdvId).push(t);
+  });
+  tasks.filter(t => t.type === 'packaging').forEach(t => {
+    const start = eoTaskStatusDate(t, 'in_progress', false);
+    // Filtro de ventana por el inicio de empaque (el hito central de la tarea).
+    const anchorInWindow = start && inWindow(start);
+    // esperaInicio
+    if (start && t.createdAt && anchorInWindow) {
+      const h = eoHoursBetween(t.createdAt, start);
+      if (h !== null) esperaInicio.push(h);
+    }
+    // empaque
+    const dur = anchorInWindow ? eoPackagingDurationH(t) : null;
+    if (dur !== null) empaque.push(dur);
+    // esperaDespacho: fin de empaque → inicio del despacho hermano (mismo sdvId)
+    if (anchorInWindow) {
+      const completed = eoTaskStatusDate(t, 'completed', true);
+      const validated = eoTaskStatusDate(t, 'validated', true);
+      let endEmp = null;
+      [completed, validated].forEach(d => { if (d && (!endEmp || new Date(d).getTime() > new Date(endEmp).getTime())) endEmp = d; });
+      const disps = dispatchBySdv.get(t.sdvId) || [];
+      // El despacho relevante: el que arrancó ANTES (o el único). Tomamos el
+      // menor dispatchStartedAt (o primer in_progress) positivo tras el empaque.
+      let bestDispStart = null;
+      disps.forEach(d => {
+        const ds = d.dispatchStartedAt || eoTaskStatusDate(d, 'in_progress', false);
+        if (ds && (!bestDispStart || new Date(ds).getTime() < new Date(bestDispStart).getTime())) bestDispStart = ds;
+      });
+      if (endEmp && bestDispStart) {
+        const h = eoHoursBetween(endEmp, bestDispStart);
+        if (h !== null && h > 0) esperaDespacho.push(h); // "solo si positivo"
+      }
+    }
+  });
+  const embudo = {
+    esperaInicio:   { n: esperaInicio.length,   medianaH: eoRound1(eoMedian(esperaInicio)),   p90H: eoRound1(eoP90(esperaInicio)) },
+    empaque:        { n: empaque.length,        medianaH: eoRound1(eoMedian(empaque)),        p90H: eoRound1(eoP90(empaque)) },
+    esperaDespacho: { n: esperaDespacho.length, medianaH: eoRound1(eoMedian(esperaDespacho)), p90H: eoRound1(eoP90(esperaDespacho)) },
+  };
+
+  // ── 4) entradaSalidaSemanal ───────────────────────────────────────────────
+  // creadas    = SDV por su fecha de creación (creadoAt/fechaSolicitud)
+  // despachadas= SDV por su fecha REAL de despacho
+  const entradaSalidaSemanal = weeks8.map(w => ({ semana: w, creadas: 0, despachadas: 0 }));
+  sdvs.forEach(s => {
+    if (!s) return;
+    const created = eoSdvCreatedDate(s);
+    if (created && inWindow(created)) { const i = idxByWeek.get(eoISOWeek(created)); if (i !== undefined) entradaSalidaSemanal[i].creadas++; }
+    const real = eoSdvDispatchDate(s);
+    if (real && inWindow(real)) { const i = idxByWeek.get(eoISOWeek(real)); if (i !== undefined) entradaSalidaSemanal[i].despachadas++; }
+  });
+
+  return {
+    ok: true,
+    universo: 'sdv',
+    ventanaDias,
+    minN,
+    generadoEn: new Date().toISOString(),
+    cumplimientoSemanal,
+    empaquePorTamano,
+    embudo,
+    entradaSalidaSemanal,
+  };
 }
 
 // ── Caché en memoria para /api/analysis/reposicion ───────────────────────────
@@ -11756,6 +12037,37 @@ const server = http.createServer(async (req, res) => {
         adopcion, porEstado
       }));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // GET /api/eo-metrics — métricas agregadas para los Gráficos de Estado de Órdenes
+  // (Fase 1, aprobado 2026-07-04). JWT requerido, CUALQUIER rol: son agregados de
+  // equipo, sin datos de cliente. Universo SDV-only (decisión de Gabriel): SOLO
+  // SDVs (loadSdv) + tareas WWP con sdvId truthy. Todo se calcula local; NO llama
+  // a Odoo. Caché en memoria 5 min (recorrer wwp-tasks.json ~15MB es caro).
+  // Ruta con guion (no /api/sdv/...) para no colisionar con GET /api/sdv/:id.
+  // Fechas: componentes LOCALES del servidor (nunca UTC → corrimiento tras 8pm RD).
+  if (reqPath === '/api/eo-metrics' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const ventanaDias = Math.min(365, Math.max(1, parseInt((parsed.query||{}).days, 10) || 60));
+      const minN = 5;
+      const cacheKey = ventanaDias;
+      const cached = EO_METRICS_CACHE.get(cacheKey);
+      let payload;
+      if (cached && (Date.now() - cached.ts) < EO_METRICS_TTL) {
+        payload = cached.json;
+      } else {
+        payload = eoBuildMetrics(ventanaDias, minN);
+        EO_METRICS_CACHE.set(cacheKey, { json: payload, ts: Date.now() });
+      }
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(payload));
+    } catch(e) {
+      // Nunca lanzar hacia afuera: arrays vacíos válidos + error saneado.
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:false, error: safeError(e) }));
+    }
     return;
   }
 
