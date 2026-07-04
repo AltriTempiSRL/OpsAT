@@ -16,7 +16,9 @@ const SRC = fs.readFileSync(path.join(ROOT, 'proxy.js'), 'utf8');
 // ── Extractor: toma una función top-level `function NAME(...) { ... }` del fuente,
 // balanceando llaves desde la primera '{' tras la firma. ──────────────────────────
 function extractFn(name) {
-  const re = new RegExp('function\\s+' + name + '\\s*\\(', 'g');
+  // Captura el modificador `async ` opcional que precede a `function` — sin él, el
+  // cuerpo de una función async extraída tendría un `await` en un contexto no-async.
+  const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(', 'g');
   const m = re.exec(SRC);
   if (!m) throw new Error('No se encontró la función ' + name + ' en proxy.js');
   // Avanzar hasta la '{' de apertura del cuerpo.
@@ -33,25 +35,36 @@ function extractFn(name) {
 }
 
 const FN_NAMES = [
-  'eoLocalDaySerial', 'eoDayDiff', 'eoISOWeek', 'eoLastISOWeeks',
+  'eoLocalDaySerial', 'eoDayDiff', 'eoISOWeek', 'eoWeekdayIndex', 'eoLastISOWeeks',
   'eoMedian', 'eoP90', 'eoRound1', 'eoHoursBetween',
   'eoSdvDispatchDate', 'eoSdvCreatedDate', 'eoTaskStatusDate',
-  'eoPackagingDurationH', 'eoBuildMetrics',
+  'eoPackagingDurationH', 'eoBuildMetrics', 'eoBuildDispatchesPerOrder',
 ];
 
-// Ensamblar un módulo con las funciones reales + stubs de loadSdv/loadWwpTasks.
-let STUB_SDVS = [], STUB_TASKS = [];
+// Extraer también la constante EO_WEEKDAY_LABELS (la usa eoBuildMetrics).
+function extractConst(name) {
+  const re = new RegExp('const\\s+' + name + '\\s*=\\s*(\\[[^\\]]*\\]);');
+  const m = re.exec(SRC);
+  if (!m) throw new Error('No se encontró la const ' + name + ' en proxy.js');
+  return 'const ' + name + ' = ' + m[1] + ';';
+}
+
+// Ensamblar un módulo con las funciones reales + stubs de loadSdv/loadWwpTasks/odooCall.
+let STUB_SDVS = [], STUB_TASKS = [], STUB_ODOO = async () => [];
 const bodySrc = FN_NAMES.map(extractFn).join('\n\n');
+const constSrc = extractConst('EO_WEEKDAY_LABELS');
 const factory = new Function(
-  '__getSdvs', '__getTasks',
+  '__getSdvs', '__getTasks', '__odoo',
   `
   function loadSdv() { return __getSdvs(); }
   function loadWwpTasks() { return __getTasks(); }
+  async function odooCall(model, method, args, kwargs) { return __odoo(model, method, args, kwargs); }
+  ${constSrc}
   ${bodySrc}
   return { ${FN_NAMES.join(', ')} };
   `
 );
-const EO = factory(() => STUB_SDVS, () => STUB_TASKS);
+const EO = factory(() => STUB_SDVS, () => STUB_TASKS, (...a) => STUB_ODOO(...a));
 
 // ── Aserciones ────────────────────────────────────────────────────────────────
 const R = [];
@@ -207,6 +220,133 @@ const approx = (a, b, eps = 1e-9) => a !== null && b !== null && Math.abs(a - b)
   const lastES = m.entradaSalidaSemanal[7];
   ok('entradaSalida semana actual: despachadas=4', lastES.despachadas === 4, { lastES });
   ok('universo excluye odooRef-solo: t6 no infló ningún bucket', (m.empaquePorTamano.peq1a3.n + m.empaquePorTamano.med4a10.n + m.empaquePorTamano.gra11mas.n) === 3, { emp: m.empaquePorTamano });
+
+  // ── NUEVO punto 2: cumplimientoPorDia (7 entradas Lun..Dom) ────────────────
+  ok('cumplimientoPorDia tiene 7 entradas', m.cumplimientoPorDia.length === 7, { len: m.cumplimientoPorDia.length });
+  ok('cumplimientoPorDia en orden Lun..Dom', JSON.stringify(m.cumplimientoPorDia.map(x => x.dia)) === JSON.stringify(['Lun','Mar','Mie','Jue','Vie','Sab','Dom']), { dias: m.cumplimientoPorDia.map(x => x.dia) });
+  // s1(alDia),s2(tarde3mas),s3(tarde1a2) despachadas HOY (mismo día de semana), s4 excluida.
+  const hoyWd = (new Date().getDay() + 6) % 7;
+  const dayBucket = m.cumplimientoPorDia[hoyWd];
+  ok('cumplimientoPorDia día de hoy: alDia=1, tarde1a2=1, tarde3mas=1',
+    dayBucket.alDia === 1 && dayBucket.tarde1a2 === 1 && dayBucket.tarde3mas === 1, { dayBucket, hoyWd });
+  ok('cumplimientoPorDia: total del día = 3 (s4 sin dueDate NO cuenta)',
+    (dayBucket.antes + dayBucket.alDia + dayBucket.tarde1a2 + dayBucket.tarde3mas) === 3, { dayBucket });
+  // Suma por-día == suma por-semana (misma clasificación, distinto eje)
+  const totDia = m.cumplimientoPorDia.reduce((a, d) => a + d.antes + d.alDia + d.tarde1a2 + d.tarde3mas, 0);
+  const totSem = m.cumplimientoSemanal.reduce((a, w) => a + w.antes + w.alDia + w.tarde1a2 + w.tarde3mas, 0);
+  ok('cumplimientoPorDia y cumplimientoSemanal suman igual (mismo universo, distinto eje)', totDia === totSem, { totDia, totSem });
+
+  // ── NUEVO punto 2: wip por semana = creadas - despachadas ──────────────────
+  ok('entradaSalidaSemanal expone wip en cada entrada', m.entradaSalidaSemanal.every(e => 'wip' in e), { sample: lastES });
+  ok('wip = creadas - despachadas (todas las semanas)', m.entradaSalidaSemanal.every(e => e.wip === e.creadas - e.despachadas), { sample: m.entradaSalidaSemanal[7] });
+
+  // ── NUEVO punto 2: resumen (deltas vs período anterior) ────────────────────
+  ok('resumen presente con las 3 métricas', !!m.resumen && 'despachadas' in m.resumen && 'aTiempoPct' in m.resumen && 'despachosPorOrden' in m.resumen, { resumen: m.resumen });
+  ok('resumen.despachadas.actual = 4 (s1..s4 despachadas en ventana)', m.resumen.despachadas.actual === 4, { r: m.resumen.despachadas });
+  ok('resumen.despachadas.anterior = 0 (nada en período previo)', m.resumen.despachadas.anterior === 0, { r: m.resumen.despachadas });
+  // aTiempo: de las 3 con promesa (s1 alDia diff0, s2 tarde diff5, s3 tarde diff1) → 1 a tiempo (diff<=0) sobre 3 = 33.3%
+  ok('resumen.aTiempoPct.actual ≈ 33.3 (1 de 3 con promesa a tiempo)', m.resumen.aTiempoPct.actual === 33.3, { r: m.resumen.aTiempoPct });
+  ok('resumen.aTiempoPct.anterior = null (sin despachos con promesa en período previo)', m.resumen.aTiempoPct.anterior === null, { r: m.resumen.aTiempoPct });
+  ok('resumen.despachosPorOrden es null (lo sirve /api/despachos-por-orden, no eo-metrics)', m.resumen.despachosPorOrden.actual === null && m.resumen.despachosPorOrden.anterior === null, { r: m.resumen.despachosPorOrden });
+}
+
+// 6b) resumen con período ANTERIOR poblado ──────────────────────────────────────
+{
+  const nowMs = Date.now(); const D = 864e5;
+  const iso = msAgo => new Date(nowMs - msAgo).toISOString();
+  // ventanaDias=30: actual [now-30d,now]; anterior [now-60d,now-30d).
+  // s1 despachada hoy (actual), s2 despachada hace 40d (anterior). Ambas con promesa a tiempo.
+  STUB_SDVS = [
+    { id: 'a1', creadoAt: iso(5 * D), fechaSolicitudDeseada: new Date(nowMs).toISOString(), despachadaEn: iso(0) },
+    { id: 'a2', creadoAt: iso(45 * D), fechaSolicitudDeseada: new Date(nowMs - 40 * D).toISOString(), despachadaEn: iso(40 * D) },
+  ];
+  STUB_TASKS = [];
+  const m = EO.eoBuildMetrics(30, 5);
+  ok('período previo: despachadas.actual=1, anterior=1', m.resumen.despachadas.actual === 1 && m.resumen.despachadas.anterior === 1, { r: m.resumen.despachadas });
+  ok('período previo: aTiempoPct.actual=100, anterior=100', m.resumen.aTiempoPct.actual === 100 && m.resumen.aTiempoPct.anterior === 100, { r: m.resumen.aTiempoPct });
+}
+
+// 8) Borde de MEDIANOCHE RD: día de la semana debe ser el LOCAL ────────────────
+{
+  // Un despacho a las 21:00 local RD (UTC-4) cae, en UTC, a la 01:00 del día
+  // SIGUIENTE. eoWeekdayIndex debe usar el día LOCAL, no el UTC. Como el test
+  // corre en la TZ del proceso, comparamos que 09:00 y 23:00 del MISMO día local
+  // dan el mismo índice de día de semana (no cruzan a otro día).
+  const dLunAM = new Date(2026, 6, 13, 9, 0, 0);   // lunes 13-jul-2026 09:00
+  const dLunPM = new Date(2026, 6, 13, 23, 0, 0);  // lunes 13-jul-2026 23:00
+  ok('eoWeekdayIndex: lunes = 0', EO.eoWeekdayIndex(dLunAM) === 0, { got: EO.eoWeekdayIndex(dLunAM) });
+  ok('eoWeekdayIndex: 09:00 y 23:00 del mismo día local → mismo índice', EO.eoWeekdayIndex(dLunAM) === EO.eoWeekdayIndex(dLunPM), { am: EO.eoWeekdayIndex(dLunAM), pm: EO.eoWeekdayIndex(dLunPM) });
+  ok('eoWeekdayIndex: domingo = 6', EO.eoWeekdayIndex(new Date(2026, 6, 19, 12)) === 6, { got: EO.eoWeekdayIndex(new Date(2026, 6, 19, 12)) });
+  ok('eoWeekdayIndex: sábado = 5', EO.eoWeekdayIndex(new Date(2026, 6, 18, 12)) === 5, { got: EO.eoWeekdayIndex(new Date(2026, 6, 18, 12)) });
+  ok('eoWeekdayIndex inválida → null', EO.eoWeekdayIndex('no-fecha') === null);
+}
+
+// 9) eoBuildDispatchesPerOrder — agregación por orden ÚNICA (buckets 1/2/3/4+) ──
+{
+  // Simular Odoo: read_group devuelve grupos por sale_id; search_read devuelve los
+  // picks OUT-done con name+sale_id. Contamos por sale_id (orden única).
+  // Escenario:
+  //  - Orden 100 (S00100): 3 picks OUT-done → bucket 3
+  //  - Orden 101 (S00101): 1 pick OUT + 1 pick RET (RET NO cuenta) → bucket 1
+  //  - Orden 102 (S00102): 2 picks OUT → bucket 2
+  //  - Orden 103 (S00103): 5 picks OUT → bucket 4+
+  //  - un pick OUT sin sale_id → se ignora
+  const picksAll = [
+    { name: 'WH/OUT/00001', sale_id: [100, 'S00100'] },
+    { name: 'WH/OUT/00002', sale_id: [100, 'S00100'] },
+    { name: 'WH/OUT/00003', sale_id: [100, 'S00100'] },
+    { name: 'WH/OUT/00004', sale_id: [101, 'S00101'] },
+    { name: 'WH/RET/00099', sale_id: [101, 'S00101'] }, // RET no cuenta
+    { name: 'WH/OUT/00005', sale_id: [102, 'S00102'] },
+    { name: 'WH/OUT/00006', sale_id: [102, 'S00102'] },
+    { name: 'WH/OUT/00007', sale_id: [103, 'S00103'] },
+    { name: 'WH/OUT/00008', sale_id: [103, 'S00103'] },
+    { name: 'WH/OUT/00009', sale_id: [103, 'S00103'] },
+    { name: 'WH/OUT/00010', sale_id: [103, 'S00103'] },
+    { name: 'WH/OUT/00011', sale_id: [103, 'S00103'] },
+    { name: 'WH/OUT/00012', sale_id: false }, // sin venta → ignorado
+  ];
+  STUB_ODOO = async (model, method) => {
+    if (method === 'read_group') {
+      // grupos por sale_id (incluye uno con sale_id:false que el builder filtra)
+      return [
+        { sale_id: [100, 'S00100'], __count: 3 },
+        { sale_id: [101, 'S00101'], __count: 2 },
+        { sale_id: [102, 'S00102'], __count: 2 },
+        { sale_id: [103, 'S00103'], __count: 5 },
+        { sale_id: false, __count: 1 },
+      ];
+    }
+    // search_read de picks OUT-done
+    return picksAll;
+  };
+  const r = await EO.eoBuildDispatchesPerOrder(90);
+  ok('despachos-por-orden ok', r.ok === true && r.ventanaDias === 90);
+  const b = {}; r.distribucion.forEach(d => { b[d.despachos] = d.ordenes; });
+  ok('bucket 1 = 1 orden (S00101, RET excluido)', b[1] === 1, { b });
+  ok('bucket 2 = 1 orden (S00102)', b[2] === 1, { b });
+  ok('bucket 3 = 1 orden (S00100)', b[3] === 1, { b });
+  ok('bucket 4+ = 1 orden (S00103, 5 OUT)', b['4+'] === 1, { b });
+  ok('totalOrdenes = 4 (sin sale_id ignorado)', r.totalOrdenes === 4, { t: r.totalOrdenes });
+  ok('totalDespachos = 11 (3+1+2+5, RET no cuenta)', r.totalDespachos === 11, { t: r.totalDespachos });
+  ok('promedio = 2.8 (11/4 = 2.75 → 2.8)', r.promedio === 2.8, { p: r.promedio });
+  ok('top ordenado desc por despachos, S00103 primero', r.top[0].orden === 'S00103' && r.top[0].despachos === 5, { top: r.top });
+  ok('top incluye cliente (vacío por ahora)', r.top.every(t => 'cliente' in t), { top0: r.top[0] });
+
+  // Trampa: una orden con 2 SDVs NO cuenta doble. read_group por sale_id ya
+  // colapsa por orden; verificamos que 3 picks OUT de la MISMA orden = bucket 3, no 3 órdenes de bucket 1.
+  ok('TRAMPA fan-out: 3 OUT de la misma orden = 1 orden en bucket 3 (no 3 órdenes bucket 1)', b[3] === 1 && b[1] === 1, { b });
+}
+
+// 9b) despachos-por-orden con Odoo vacío → estructura válida sin lanzar ──────────
+{
+  STUB_ODOO = async () => [];
+  let r;
+  try { r = await EO.eoBuildDispatchesPerOrder(90); ok('despachos-por-orden Odoo vacío no lanza', true); }
+  catch (e) { ok('despachos-por-orden Odoo vacío no lanza', false, { err: e.message }); }
+  ok('despachos-por-orden vacío: 4 buckets en cero', r && r.distribucion.length === 4 && r.distribucion.every(d => d.ordenes === 0), { dist: r && r.distribucion });
+  ok('despachos-por-orden vacío: promedio 0, totales 0', r && r.promedio === 0 && r.totalOrdenes === 0 && r.totalDespachos === 0, { r });
+  ok('despachos-por-orden vacío: top []', r && Array.isArray(r.top) && r.top.length === 0);
 }
 
 // 7) Universo vacío no lanza y devuelve estructura válida ────────────────────────

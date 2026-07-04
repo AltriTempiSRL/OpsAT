@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v131';
+const APP_BUILD = 'v132';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -669,22 +669,29 @@ function dcComputeSummary(user, date) {
 // F3-2: estado real del despacho (OUT) de una orden — read-only, barato (sin move.lines).
 // Consulta por sale_id (más confiable que origin, confirmado por Ron 2026-07-02) y resume el
 // estado de los OUT en una etiqueta única para la UX. Excluye picks 'cancel'.
+// Cada rama devuelve un `code` ESTABLE (contrato con el front): NO comparar por el
+// texto del label (frágil) ni por severity ('por_validar' y 'listo' comparten
+// 'warn' → severity no distingue). El front compara pickStatus.code (Aprendizaje 16:
+// no acoplar la UI al texto de UI).
 async function sdvComputePickStatus(soRef) {
   const sos = await odooCall('sale.order','search_read',[[['name','ilike',soRef]]],{fields:['id','name'],limit:1});
-  if (!sos || !sos.length) return { label:'Sin orden en Odoo', severity:'muted', outs:[] };
+  if (!sos || !sos.length) return { label:'Sin orden en Odoo', severity:'muted', code:'sin_orden', outs:[] };
   const picks = await odooCall('stock.picking','search_read',
     [[['sale_id','=',sos[0].id],['picking_type_code','=','outgoing']]],
     {fields:['name','state'],limit:50});
   const outs = (picks||[]).filter(p => /\/OUT\//i.test(p.name)).map(p => ({ name:p.name, state:p.state }));
   const activos = outs.filter(o => o.state !== 'cancel');
-  let label = 'Sin despacho activo', severity = 'muted';
+  let label = 'Sin despacho activo', severity = 'muted', code = 'sin_out';
   if (activos.length) {
-    if (activos.every(o => o.state === 'done'))         { label='Despachado';           severity='ok';   }
-    else if (activos.some(o => o.state === 'done'))     { label='Despacho parcial';     severity='info'; }
-    else if (activos.some(o => o.state === 'assigned')) { label='Listo para despachar'; severity='warn'; }
-    else                                                { label='Bloqueado por stock';  severity='bad';  }
+    if (activos.every(o => o.state === 'done'))         { label='Despachado';           severity='ok';   code='despachado'; }
+    else if (activos.some(o => o.state === 'done'))     { label='Despacho parcial';     severity='info'; code='parcial';    }
+    else if (activos.some(o => o.state === 'assigned')) { label='Listo para despachar'; severity='warn'; code='listo';      }
+    // OUT en confirmed/waiting/draft (ni assigned ni done): el pick está bien, el
+    // OUT solo espera validación → "Pick por validar" (ámbar), no "Bloqueado por
+    // stock" (rojo), que confundía (decisión de Gabriel 2026-07-04).
+    else                                                { label='Pick por validar';    severity='warn'; code='por_validar'; }
   }
-  return { label, severity, outs };
+  return { label, severity, code, outs };
 }
 
 // ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
@@ -1541,6 +1548,17 @@ function eoISOWeek(input) {
   return isoYear + '-W' + String(week).padStart(2, '0');
 }
 
+// Índice de día de la semana LOCAL en orden lunes..domingo (0=Lun..6=Dom).
+// getDay() local devuelve 0=domingo..6=sábado → se reordena a lunes primero.
+// LOCAL (no getUTCDay): en RD un despacho a las 21:00 debe caer en su día local,
+// no en el día UTC siguiente (misma trampa que eoLocalDaySerial).
+function eoWeekdayIndex(input) {
+  const d = (input instanceof Date) ? input : new Date(input);
+  if (isNaN(d.getTime())) return null;
+  return (d.getDay() + 6) % 7; // 0=Lun,1=Mar,...,6=Dom
+}
+const EO_WEEKDAY_LABELS = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+
 // Las últimas n claves ISO week terminando en la semana de `ref` (default hoy),
 // en orden cronológico. Retrocede de a 7 días desde el lunes de la semana actual
 // → cae en la semana previa sin depender de aritmética de número de semana (que
@@ -1635,6 +1653,109 @@ function eoPackagingDurationH(task) {
 const EO_METRICS_CACHE = new Map(); // ventanaDias → { json, ts }
 const EO_METRICS_TTL = 5 * 60 * 1000; // 5 minutos
 
+// Caché de /api/despachos-por-orden (pega a Odoo → nunca recomputar por request).
+// Clave = dias. TTL 10 min. Mismo patrón que EO_METRICS_CACHE.
+const DISPATCHES_PER_ORDER_CACHE = new Map(); // dias → { json, ts }
+const DISPATCHES_PER_ORDER_TTL = 10 * 60 * 1000; // 10 minutos
+
+// Construye el histograma de despachos (OUT-done) por ORDEN ÚNICA de venta desde
+// Odoo. Universo AMPLIO: TODAS las órdenes con OUT despachado (no solo SDV) —
+// mide costos de operación (decisión de Gabriel 2026-07-04).
+// Fuente: stock.picking [picking_type_code=outgoing, state=done, date_done>=cutoff],
+// filtrado a nombres /OUT/ (excluye RET). Se agrega con UN read_group por sale_id
+// (NO N+1). Contar por sale_id garantiza contar por orden ÚNICA: una orden con 2
+// SDVs NO cuenta doble (Aprendizaje 14/18). Nunca lanza el error hacia afuera:
+// el caller envuelve en try/catch y devuelve estado vacío si Odoo falla.
+async function eoBuildDispatchesPerOrder(dias) {
+  dias = dias || 90;
+  // Cutoff a medianoche LOCAL de hace `dias` días (no UTC → coherente con RD).
+  const now = new Date();
+  const cutoffLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dias);
+  // Odoo date_done es 'YYYY-MM-DD HH:MM:SS' en la TZ del server Odoo (UTC).
+  // Convertimos el instante local a UTC para el dominio.
+  const pad = n => String(n).padStart(2, '0');
+  const cutoffUtc = cutoffLocal; // Date; toISOString da UTC
+  const cutoffStr = cutoffUtc.getUTCFullYear() + '-' + pad(cutoffUtc.getUTCMonth() + 1) + '-' + pad(cutoffUtc.getUTCDate())
+    + ' ' + pad(cutoffUtc.getUTCHours()) + ':' + pad(cutoffUtc.getUTCMinutes()) + ':' + pad(cutoffUtc.getUTCSeconds());
+
+  const domain = [
+    ['picking_type_code', '=', 'outgoing'],
+    ['state', '=', 'done'],
+    ['date_done', '>=', cutoffStr],
+  ];
+  // read_group por sale_id → una fila por orden con su conteo de OUT-done.
+  // lazy:false para obtener __count directo. Excluir sale_id=false (picks sin venta).
+  const groups = await odooCall('stock.picking', 'read_group',
+    [domain, ['id'], ['sale_id']],
+    { lazy: false });
+
+  // Cada grupo: { sale_id:[id,name] | false, __count:N, __domain:[...] }.
+  // OJO: el __count del read_group cuenta TODOS los picks del grupo, incluidos
+  // los /RET/ y /IN/ que compartan sale_id. Necesitamos SOLO /OUT/. Como no
+  // podemos filtrar por nombre en el dominio de Odoo de forma fiable (el patrón
+  // /OUT/ vive en el name), hacemos una 2ª consulta acotada de nombres por las
+  // órdenes candidatas y contamos OUT reales por sale_id en Node. Esto sigue
+  // siendo O(1..2) llamadas, NO N+1.
+  const saleIds = (groups || [])
+    .map(g => g.sale_id && g.sale_id[0])
+    .filter(Boolean);
+
+  const countByOrder = new Map();   // saleId → # OUT-done
+  const nameByOrder  = new Map();   // saleId → nombre de la orden (S#####)
+  if (saleIds.length) {
+    // 2ª consulta: los picks OUT-done de esas órdenes, con name y sale_id, para
+    // contar SOLO los que matchean /OUT/. Una sola llamada agregada.
+    const picks = await odooCall('stock.picking', 'search_read',
+      [[['sale_id', 'in', saleIds], ['picking_type_code', '=', 'outgoing'],
+        ['state', '=', 'done'], ['date_done', '>=', cutoffStr]]],
+      { fields: ['name', 'sale_id'], limit: 20000 });
+    (picks || []).forEach(p => {
+      if (!p.sale_id || !p.sale_id[0]) return;
+      if (!/\/OUT\//i.test(p.name || '')) return; // excluye RET/IN
+      const sid = p.sale_id[0];
+      countByOrder.set(sid, (countByOrder.get(sid) || 0) + 1);
+      if (!nameByOrder.has(sid)) nameByOrder.set(sid, p.sale_id[1] || '');
+    });
+  }
+
+  // Histograma: buckets 1, 2, 3, "4+".
+  const dist = { 1: 0, 2: 0, 3: 0, '4+': 0 };
+  let totalOrdenes = 0, totalDespachos = 0;
+  const ordenesArr = []; // {orden, cliente, despachos} para el top
+  countByOrder.forEach((cnt, sid) => {
+    if (cnt <= 0) return;
+    totalOrdenes++;
+    totalDespachos += cnt;
+    if (cnt === 1) dist[1]++;
+    else if (cnt === 2) dist[2]++;
+    else if (cnt === 3) dist[3]++;
+    else dist['4+']++;
+    ordenesArr.push({ orden: nameByOrder.get(sid) || '', cliente: '', despachos: cnt });
+  });
+
+  const distribucion = [
+    { despachos: 1,    ordenes: dist[1] },
+    { despachos: 2,    ordenes: dist[2] },
+    { despachos: 3,    ordenes: dist[3] },
+    { despachos: '4+', ordenes: dist['4+'] },
+  ];
+  const promedio = totalOrdenes > 0 ? Math.round((totalDespachos / totalOrdenes) * 10) / 10 : 0;
+  const top = ordenesArr
+    .sort((a, b) => b.despachos - a.despachos || String(a.orden).localeCompare(String(b.orden)))
+    .slice(0, 10);
+
+  return {
+    ok: true,
+    ventanaDias: dias,
+    generadoEn: new Date().toISOString(),
+    distribucion,
+    promedio,
+    totalOrdenes,
+    totalDespachos,
+    top,
+  };
+}
+
 // Construye TODO el payload de /api/eo-metrics. Universo SDV-only (decisión de
 // Gabriel 2026-07-04): SOLO las SDV (loadSdv) y las tareas WWP con sdvId truthy.
 // EXCLUYE tareas con solo odooRef (época de implementación, no representativa) y
@@ -1647,6 +1768,10 @@ function eoBuildMetrics(ventanaDias, minN) {
   const nowMs = Date.now();
   const sinceMs = nowMs - ventanaDias * 864e5;
   const inWindow = iso => { if (!iso) return false; const t = new Date(iso).getTime(); return !isNaN(t) && t >= sinceMs && t <= nowMs; };
+  // Período ANTERIOR de igual duración: [now - 2*ventana, now - ventana). Para los
+  // deltas de las metric cards (resumen.actual vs resumen.anterior).
+  const prevSinceMs = nowMs - 2 * ventanaDias * 864e5;
+  const inPrevWindow = iso => { if (!iso) return false; const t = new Date(iso).getTime(); return !isNaN(t) && t >= prevSinceMs && t < sinceMs; };
 
   const sdvs = loadSdv() || [];
   // SDV-only: tareas con sdvId truthy. Excluye odooRef-solo e internas.
@@ -1669,6 +1794,27 @@ function eoBuildMetrics(ventanaDias, minN) {
     const idx = idxByWeek.get(wk);
     if (idx === undefined) return; // real fuera de las 8 semanas mostradas
     const bucket = cumplimientoSemanal[idx];
+    if (diff < 0) bucket.antes++;
+    else if (diff === 0) bucket.alDia++;
+    else if (diff <= 2) bucket.tarde1a2++;
+    else bucket.tarde3mas++;
+  });
+
+  // ── 1b) cumplimientoPorDia ────────────────────────────────────────────────
+  // MISMA clasificación que cumplimientoSemanal (día real de despacho vs
+  // fechaSolicitudDeseada) pero agrupando por DÍA DE LA SEMANA local (getDay
+  // local reordenado a Lun..Dom) sobre TODA la ventana, no por semana ISO. Es lo
+  // que pinta el gráfico de columnas verticales. 7 entradas en orden Lun..Dom.
+  const cumplimientoPorDia = EO_WEEKDAY_LABELS.map(dia => ({ dia, antes: 0, alDia: 0, tarde1a2: 0, tarde3mas: 0 }));
+  sdvs.forEach(s => {
+    if (!s || !s.fechaSolicitudDeseada) return;
+    const real = eoSdvDispatchDate(s);
+    if (!real || !inWindow(real)) return;
+    const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+    if (diff === null) return;
+    const wd = eoWeekdayIndex(real);
+    if (wd === null) return;
+    const bucket = cumplimientoPorDia[wd];
     if (diff < 0) bucket.antes++;
     else if (diff === 0) bucket.alDia++;
     else if (diff <= 2) bucket.tarde1a2++;
@@ -1753,7 +1899,10 @@ function eoBuildMetrics(ventanaDias, minN) {
   // ── 4) entradaSalidaSemanal ───────────────────────────────────────────────
   // creadas    = SDV por su fecha de creación (creadoAt/fechaSolicitud)
   // despachadas= SDV por su fecha REAL de despacho
-  const entradaSalidaSemanal = weeks8.map(w => ({ semana: w, creadas: 0, despachadas: 0 }));
+  // wip        = creadas - despachadas (FLUJO NETO de la semana, no stock/backlog
+  //              acumulado — decisión Lean/consistencia WWP 2026-07-04). Puede ser
+  //              negativo (semana que despachó más de lo que entró).
+  const entradaSalidaSemanal = weeks8.map(w => ({ semana: w, creadas: 0, despachadas: 0, wip: 0 }));
   sdvs.forEach(s => {
     if (!s) return;
     const created = eoSdvCreatedDate(s);
@@ -1761,6 +1910,41 @@ function eoBuildMetrics(ventanaDias, minN) {
     const real = eoSdvDispatchDate(s);
     if (real && inWindow(real)) { const i = idxByWeek.get(eoISOWeek(real)); if (i !== undefined) entradaSalidaSemanal[i].despachadas++; }
   });
+  entradaSalidaSemanal.forEach(e => { e.wip = e.creadas - e.despachadas; });
+
+  // ── 5) resumen (metric cards con delta vs período anterior) ────────────────
+  // actual = ventana [now-ventana, now]; anterior = [now-2*ventana, now-ventana).
+  // despachadas       = # SDV cuya fecha REAL de despacho cae en el período.
+  // aTiempoPct        = % de esas despachadas (con fechaSolicitudDeseada) con
+  //                     diff <= 0 (antes o al día). Sobre las que tienen promesa.
+  // despachosPorOrden = promedio de OUT-done por orden única. Costoso vía Odoo →
+  //                     lo sirve /api/despachos-por-orden; aquí null (no meter
+  //                     Odoo lento dentro de eo-metrics, que es cómputo local).
+  const resumenAcc = {
+    actual:   { desp: 0, promesa: 0, aTiempo: 0 },
+    anterior: { desp: 0, promesa: 0, aTiempo: 0 },
+  };
+  sdvs.forEach(s => {
+    if (!s) return;
+    const real = eoSdvDispatchDate(s);
+    if (!real) return;
+    let slot = null;
+    if (inWindow(real)) slot = resumenAcc.actual;
+    else if (inPrevWindow(real)) slot = resumenAcc.anterior;
+    if (!slot) return;
+    slot.desp++;
+    if (s.fechaSolicitudDeseada) {
+      const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+      if (diff !== null) { slot.promesa++; if (diff <= 0) slot.aTiempo++; }
+    }
+  });
+  const pct = (num, den) => den > 0 ? Math.round((num / den) * 1000) / 10 : null; // 1 decimal
+  const resumen = {
+    despachadas:       { actual: resumenAcc.actual.desp,   anterior: resumenAcc.anterior.desp },
+    aTiempoPct:        { actual: pct(resumenAcc.actual.aTiempo, resumenAcc.actual.promesa),
+                         anterior: pct(resumenAcc.anterior.aTiempo, resumenAcc.anterior.promesa) },
+    despachosPorOrden: { actual: null, anterior: null },
+  };
 
   return {
     ok: true,
@@ -1769,9 +1953,11 @@ function eoBuildMetrics(ventanaDias, minN) {
     minN,
     generadoEn: new Date().toISOString(),
     cumplimientoSemanal,
+    cumplimientoPorDia,
     empaquePorTamano,
     embudo,
     entradaSalidaSemanal,
+    resumen,
   };
 }
 
@@ -12068,6 +12254,41 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:false, error: safeError(e) }));
     }
+    return;
+  }
+
+  // GET /api/despachos-por-orden — histograma de despachos (OUT-done) por orden
+  // ÚNICA de venta (universo AMPLIO: TODAS las órdenes de Odoo, no solo SDV).
+  // Mide costos de operación (decisión de Gabriel 2026-07-04). Rol gerencial
+  // (admin/manager): es métrica de ops. Fuente Odoo → caché 10 min por `dias`.
+  // Nunca lanza: si Odoo falla, {ok:false, odooError:true} y la UI muestra vacío.
+  // Contar por sale_id = por orden única (una orden con 2 SDVs no cuenta doble).
+  if (reqPath === '/api/despachos-por-orden' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    (async () => {
+      const dias = Math.min(365, Math.max(1, parseInt((parsed.query||{}).dias, 10) || 90));
+      try {
+        const cacheKey = dias;
+        const cached = DISPATCHES_PER_ORDER_CACHE.get(cacheKey);
+        let payload;
+        if (cached && (Date.now() - cached.ts) < DISPATCHES_PER_ORDER_TTL) {
+          payload = cached.json;
+        } else {
+          payload = await eoBuildDispatchesPerOrder(dias);
+          DISPATCHES_PER_ORDER_CACHE.set(cacheKey, { json: payload, ts: Date.now() });
+        }
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(payload));
+      } catch(e) {
+        // Odoo caído no rompe la vista: estado vacío + bandera. HTTP 200 (fail-open,
+        // como /pickstatus) para que el front pinte "sin datos" sin manejar 5xx.
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:false, odooError:true, ventanaDias:dias, generadoEn:new Date().toISOString(),
+          distribucion:[{despachos:1,ordenes:0},{despachos:2,ordenes:0},{despachos:3,ordenes:0},{despachos:'4+',ordenes:0}],
+          promedio:0, totalOrdenes:0, totalDespachos:0, top:[] }));
+      }
+    })();
     return;
   }
 
