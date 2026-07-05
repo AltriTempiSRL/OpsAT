@@ -4,12 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mapa CDP — Almacén AlTriTempi</title>
+<!-- Three.js vendorizado LOCAL (nunca CDN, patrón leaflet). r147 UMD → THREE global; OrbitControls engancha THREE.OrbitControls -->
+<script src="/three.min.js"></script>
+<script src="/OrbitControls.js"></script>
 <style>
 :root{
   --bg:#e8e9e4;--surface:#fff;--surface-2:#f4f4f0;--border:#d8dbd5;
   --text:#1f2d3d;--text-2:#4a5568;--text-3:#94a3b8;--accent:#1b3b6f;
   --radius:8px;
   --scrollbar-thumb:rgba(31,45,61,.22);--scrollbar-thumb-hover:rgba(31,45,61,.42);
+  /* ── Escena 3D (digital twin) — fondo, piso, luces por tema ── */
+  --scene-bg-top:#eef1f4;      /* cielo del degradé de fondo (claro) */
+  --scene-bg-bottom:#d4d8dd;   /* horizonte del degradé de fondo (claro) */
+  --scene-floor:#dfe3e6;       /* piso de nave */
+  --scene-aisle:#e9d38a;       /* franja de pasillo */
+  --scene-rack:#8a9099;        /* estructura de estantería (parales/vigas) */
+  --scene-hemi-sky:#ffffff;    /* HemisphereLight color de cielo */
+  --scene-hemi-ground:#b7bcc2; /* HemisphereLight color de piso */
+  --scene-dir:#fff6e8;         /* DirectionalLight (cálida sutil) */
+  --scene-hemi-int:0.95;       /* intensidad relleno */
+  --scene-dir-int:1.05;        /* intensidad direccional */
+}
+/* Dark mode por tokens (estándar del proyecto: data-theme + localStorage wwp_theme).
+   El archivo NO tenía dark mode; se agrega aquí para escena + toda la UI. */
+[data-theme='dark']{
+  --bg:#171a1f;--surface:#20242b;--surface-2:#272c34;--border:#333941;
+  --text:#e6e9ee;--text-2:#aeb6c2;--text-3:#7a828f;--accent:#4d7fc4;
+  --scrollbar-thumb:rgba(230,233,238,.20);--scrollbar-thumb-hover:rgba(230,233,238,.38);
+  --scene-bg-top:#1c2027;--scene-bg-bottom:#0e1116;
+  --scene-floor:#2a2f37;--scene-aisle:#8a7636;--scene-rack:#525a66;
+  --scene-hemi-sky:#8ea0bb;--scene-hemi-ground:#20242b;--scene-dir:#cfd8e6;
+  --scene-hemi-int:0.75;--scene-dir-int:0.9;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 /* Scrollbars — mismo estándar fino/disimulado que historial.html (Firefox: thin+color; WebKit viejo Android 8: thumb flotante) */
@@ -24,7 +49,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .topbar h1{font-size:14px;font-weight:700}
 .topbar .sub{font-size:10px;opacity:.65;margin-top:1px}
 .mock-badge{background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;color:#856404}
-#btn-refresh{background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600}
+[data-theme='dark'] .mock-badge{background:#3a2f12;border-color:#b58a1c;color:#e7c765}
+#btn-refresh,#btn-theme{background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600}
+#btn-theme{padding:3px 8px}
 .layout{flex:1;display:grid;grid-template-columns:190px 1fr 290px;overflow:hidden;min-height:0}
 .layout.no-left{grid-template-columns:0 1fr 290px}
 .layout.no-right{grid-template-columns:190px 1fr 0}
@@ -59,12 +86,15 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .view-btn.active{background:var(--accent);color:#fff}
 .filter-sel{border:1px solid var(--border);border-radius:5px;padding:3px 6px;font-size:11px;background:var(--surface)}
 #map-container{flex:1;position:relative;overflow:hidden}
-#canvas-3d{display:block;cursor:grab;touch-action:none}
+#canvas-3d{display:block;cursor:grab;touch-action:none;width:100%;height:100%}
 #canvas-3d.rotating{cursor:ew-resize}
-#map-legend{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:10px;box-shadow:0 2px 10px rgba(0,0,0,.10);z-index:50}
+#map-legend{position:absolute;top:12px;right:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:10px;box-shadow:0 2px 10px rgba(0,0,0,.10);z-index:50;opacity:.96}
 #map-legend .ml-title{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 #map-legend .ml-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;color:var(--text-2)}
 #map-legend .ml-dot{width:11px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.12);flex-shrink:0}
+/* Aviso de fallback 2.5D (cuando no hay WebGL) */
+#gl-fallback-note{position:absolute;top:12px;left:12px;background:var(--surface);border:1px solid var(--border);border-left:3px solid #f5a650;border-radius:7px;padding:6px 10px;font-size:10px;color:var(--text-2);max-width:230px;z-index:60;display:none;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+#gl-fallback-note b{color:var(--text)}
 
 /* Rotation widget */
 #rot-widget{position:absolute;bottom:12px;left:12px;background:rgba(15,30,70,.75);border-radius:8px;padding:7px 10px;display:flex;flex-direction:column;gap:5px;backdrop-filter:blur(4px)}
@@ -117,10 +147,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 <div class="topbar">
   <div>
     <h1>🏭 Mapa Almacén CDP · Vista 3D &nbsp;<span class="mock-badge">⚠ DIMS MOCK</span></h1>
-    <div class="sub">AlTriTempi · Arrastra = mover · Shift+arrastra = rotar/inclinar · Rueda = zoom · Clic = detalle</div>
+    <div class="sub">AlTriTempi · Arrastra = mover · Clic derecho = rotar/inclinar · Rueda = zoom · Clic = detalle</div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <span id="last-update" style="font-size:10px;opacity:.6"></span>
+    <button id="btn-theme" onclick="toggleTheme()" title="Cambiar tema claro/oscuro">🌓 Tema</button>
     <button id="btn-refresh" onclick="initMap()">↻ Actualizar</button>
   </div>
 </div>
@@ -204,6 +235,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
     <div id="map-container">
       <canvas id="canvas-3d"></canvas>
       <div id="canvas-2d-wrap" style="display:none;width:100%;height:100%;overflow:auto;padding:12px"></div>
+      <div id="gl-fallback-note"><b>Modo compatible (2.5D)</b><br>Tu navegador no soporta WebGL; se muestra el mapa en modo ligero.</div>
       <div id="map-legend">
         <div class="ml-title">Estado del bin</div>
         <div class="ml-row"><span class="ml-dot" style="background:#cdd6cd"></span>Vacío</div>
@@ -233,8 +265,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
           <button class="rot-btn" onclick="zoom3D(1.2)" title="Acercar">+</button>
           <button class="rot-btn" onclick="zoom3D(0.83)" title="Alejar">−</button>
         </div>
-        <div id="rot-hint">↔ Rotar · ↕ Inclinar</div>
-        <div id="zoom-label">Zoom: <span id="zoom-val">100%</span></div>
+        <div id="rot-hint">Arrastra = mover · Der. = rotar · Rueda = zoom</div>
       </div>
     </div>
   </div>
@@ -321,7 +352,440 @@ const V = {
 const TW=50, TH=25, LH=30;   // tile width, tile height (2:1), level height px
 
 // ═══════════════════════════════════════════════════════════════════
-// PROJECTION — full orbit (azimuth + elevation)
+// THREE.JS — digital twin (motor 3D principal). El pipeline canvas 2.5D
+// de más abajo (proj/drawBox/render3D/hitTest) se CONSERVA como fallback
+// si no hay WebGL. GL.on decide cuál motor gobierna cada función de vista.
+// ═══════════════════════════════════════════════════════════════════
+const GL = {
+  on:false,          // true = Three.js gobierna la vista 3D; false = fallback 2.5D
+  ready:false,       // escena construida
+  renderer:null, scene:null, camera:null, controls:null,
+  binsMesh:null,     // InstancedMesh de bins (1 draw call)
+  instMap:[],        // instanceId → código de bin
+  codeInst:{},       // código → instanceId (para selección/goToBin)
+  selMesh:null,      // caja de resaltado del bin seleccionado
+  rackGroup:null, floor:null, frontMesh:null,
+  dir:null, hemi:null,
+  raf:null,          // handle del loop temporal (damping) — render on-demand
+  _tmpColor:null, _tmpMat:null, _tmpObj:null,
+  ro:null            // ResizeObserver
+};
+
+// ¿Hay WebGL utilizable? (una sola vez; barato)
+function _hasWebGL(){
+  try{
+    if(typeof THREE==='undefined') return false;
+    const c=document.createElement('canvas');
+    return !!(window.WebGLRenderingContext && (c.getContext('webgl')||c.getContext('experimental-webgl')));
+  }catch(e){ return false; }
+}
+
+// Lee un token CSS resuelto y lo pasa a THREE.Color (respeta claro/oscuro).
+function _tok(name, fb){
+  const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return new THREE.Color(v||fb);
+}
+function _tokNum(name, fb){
+  const v=parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+  return isNaN(v)?fb:v;
+}
+
+// ── Escala del mundo 3D. 1 unidad de grilla = GLU metros de escena. ──
+const GLU=1.0;           // ancho/prof de un slot en unidades de escena
+const GL_LVL=0.62;       // alto de un nivel (rack un poco más apretado que ancho)
+
+// Centro geométrico del almacén (para framear y orbitar alrededor)
+function _glCenter(){
+  let maxLv=0; ROWS.forEach(r=>maxLv=Math.max(maxLv,lvlsOf(r)));
+  return new THREE.Vector3(
+    (COLS.length*GLU)/2,
+    (maxLv*GL_LVL)/2,
+    (MAX_RY*GLU)/2
+  );
+}
+// Radio aproximado de la nave (para distancia inicial de cámara y sombras)
+function _glRadius(){
+  let maxLv=0; ROWS.forEach(r=>maxLv=Math.max(maxLv,lvlsOf(r)));
+  const dx=COLS.length*GLU, dz=MAX_RY*GLU, dy=maxLv*GL_LVL;
+  return Math.max(6, 0.62*Math.sqrt(dx*dx+dz*dz+dy*dy));
+}
+
+// Convierte (columna idx, fila, nivel 0-based) → posición 3D del CENTRO del bin.
+function _glPos(ci, rowLetter, lv){
+  const ry=ROW_POS[rowLetter];
+  return new THREE.Vector3((ci+0.5)*GLU, (lv+0.5)*GL_LVL, (ry+0.5)*GLU);
+}
+
+// Construye el renderer/cámara/luces una sola vez.
+function glInit(){
+  if(GL.ready || !_hasWebGL()) return GL.ready;
+  const canvas=document.getElementById('canvas-3d');
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;                 // r147
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.05;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+
+  // OrbitControls (examples/js → THREE.OrbitControls global). Damping + clamp de piso.
+  const controls=new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=0.09;
+  controls.screenSpacePanning=false;
+  controls.maxPolarAngle=Math.PI*0.495;  // nunca bajo el piso
+  controls.minDistance=3; controls.maxDistance=400;
+  controls.mouseButtons={ LEFT:THREE.MOUSE.PAN, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE };
+  controls.touches={ ONE:THREE.TOUCH.PAN, TWO:THREE.TOUCH.DOLLY_ROTATE };
+  controls.addEventListener('start', ()=>glStartLoop());
+  controls.addEventListener('change', ()=>glRenderOnce());
+  controls.addEventListener('end', ()=>glStartLoop());  // deja correr el damping hasta que pare
+
+  // Luces: relleno hemisférico + UNA direccional con sombra.
+  const hemi=new THREE.HemisphereLight(0xffffff,0xffffff,1.0);
+  scene.add(hemi);
+  const dir=new THREE.DirectionalLight(0xffffff,1.0);
+  dir.castShadow=true;
+  dir.shadow.mapSize.set(1024,1024);
+  dir.shadow.bias=-0.0006;
+  scene.add(dir);
+  scene.add(dir.target);
+
+  GL.renderer=renderer; GL.scene=scene; GL.camera=camera; GL.controls=controls;
+  GL.hemi=hemi; GL.dir=dir;
+  GL._tmpColor=new THREE.Color(); GL._tmpMat=new THREE.Matrix4(); GL._tmpObj=new THREE.Object3D();
+  GL.ready=true;
+
+  // Reaccionar a cambios de tamaño del contenedor (además del resize de ventana).
+  if(window.ResizeObserver){
+    GL.ro=new ResizeObserver(()=>{ if(GL.on) glResize(); });
+    GL.ro.observe(document.getElementById('map-container'));
+  }
+  return true;
+}
+
+// Aplica los colores/intensidades del tema actual a fondo y luces.
+function glApplyTheme(){
+  if(!GL.ready) return;
+  const s=GL.scene;
+  // Fondo: degradé vertical simple con dos colores del token → textura de 1x2.
+  const top=_tok('--scene-bg-top','#eef1f4'), bot=_tok('--scene-bg-bottom','#d4d8dd');
+  s.background=_glBgTexture(top,bot);
+  if(s.fog) s.fog.color.copy(bot); else s.fog=new THREE.Fog(bot.getHex(), _glRadius()*2.2, _glRadius()*6);
+  s.fog.color.copy(bot);
+  GL.hemi.color.copy(_tok('--scene-hemi-sky','#ffffff'));
+  GL.hemi.groundColor.copy(_tok('--scene-hemi-ground','#b7bcc2'));
+  GL.hemi.intensity=_tokNum('--scene-hemi-int',0.95);
+  GL.dir.color.copy(_tok('--scene-dir','#fff6e8'));
+  GL.dir.intensity=_tokNum('--scene-dir-int',1.05);
+  if(GL.floor) GL.floor.material.color.copy(_tok('--scene-floor','#dfe3e6'));
+  if(GL.rackGroup) GL.rackGroup.traverse(o=>{ if(o.isMesh && o.userData.rack) o.material.color.copy(_tok('--scene-rack','#8a9099')); });
+}
+// Textura de fondo (degradé vertical) — barata, 2px de alto.
+function _glBgTexture(top,bot){
+  const cv=document.createElement('canvas'); cv.width=2; cv.height=256;
+  const g=cv.getContext('2d');
+  const grd=g.createLinearGradient(0,0,0,256);
+  grd.addColorStop(0,'#'+top.getHexString()); grd.addColorStop(1,'#'+bot.getHexString());
+  g.fillStyle=grd; g.fillRect(0,0,2,256);
+  const tex=new THREE.CanvasTexture(cv);
+  if('colorSpace' in tex){ tex.colorSpace=THREE.SRGBColorSpace; } else { tex.encoding=THREE.sRGBEncoding; }
+  return tex;
+}
+
+// Reconstruye la geometría (piso, racks, bins) desde el layout actual.
+function glBuildScene(){
+  if(!GL.ready) return;
+  const s=GL.scene;
+  // Limpiar geometría previa (permite re-cargar Odoo / aplicar dims).
+  ['floor','rackGroup','frontMesh','binsMesh','selMesh'].forEach(k=>{
+    if(GL[k]){ s.remove(GL[k]); _glDispose(GL[k]); GL[k]=null; }
+  });
+  GL.instMap=[]; GL.codeInst={};
+  if(!ROWS.length) return;
+
+  const W=COLS.length*GLU, D=MAX_RY*GLU;
+  let maxLv=0; ROWS.forEach(r=>maxLv=Math.max(maxLv,lvlsOf(r)));
+
+  // ── Piso de nave (recibe sombra) ──
+  const floorGeo=new THREE.PlaneGeometry(W*1.5, D*1.5);
+  const floorMat=new THREE.MeshStandardMaterial({color:_tok('--scene-floor','#dfe3e6'),roughness:0.96,metalness:0.02});
+  const floor=new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x=-Math.PI/2;
+  floor.position.set(W/2, 0, D/2);
+  floor.receiveShadow=true;
+  s.add(floor); GL.floor=floor;
+
+  // Marcas de pasillo (franjas planas entre grupos de filas)
+  const aisleMat=new THREE.MeshStandardMaterial({color:_tok('--scene-aisle','#e9d38a'),roughness:0.9,metalness:0,transparent:true,opacity:0.55});
+  AISLE_GROUPS.forEach((grp,gi)=>{
+    if(gi===AISLE_GROUPS.length-1) return;
+    const ry0=ROW_POS[grp[grp.length-1]]+1;
+    const strip=new THREE.Mesh(new THREE.PlaneGeometry(W, AISLE_W*GLU*0.9), aisleMat);
+    strip.rotation.x=-Math.PI/2;
+    strip.position.set(W/2, 0.01, (ry0+AISLE_W/2)*GLU);
+    strip.receiveShadow=false;
+    floor.add(_reparent(strip, floor));  // como hijo mantiene la orientación del piso
+  });
+
+  // ── Estructura de rack por grupo de filas (parales + vigas) → relieve real ──
+  const rackGroup=new THREE.Group(); rackGroup.userData.isRacks=true;
+  const rackMat=new THREE.MeshStandardMaterial({color:_tok('--scene-rack','#8a9099'),roughness:0.6,metalness:0.35});
+  const postGeo=new THREE.BoxGeometry(0.06,1,0.06);       // paral vertical (se escala en Y)
+  const beamGeo=new THREE.BoxGeometry(1,0.05,0.05);       // viga horizontal (se escala en X)
+  ROWS.forEach(row=>{
+    const ry=ROW_POS[row];
+    const lv=lvlsOf(row);
+    const cols=colsOf(row).length;
+    const rowH=lv*GL_LVL;
+    // Parales en las 4 esquinas de la fila + entre columnas cada 1
+    for(let cx=0; cx<=cols; cx++){
+      [0,1].forEach(dz=>{
+        const post=new THREE.Mesh(postGeo, rackMat);
+        post.userData.rack=true;
+        post.scale.y=rowH+0.05;
+        post.position.set(cx*GLU, (rowH+0.05)/2, (ry+dz)*GLU);
+        post.castShadow=true; post.receiveShadow=true;
+        rackGroup.add(post);
+      });
+    }
+    // Vigas horizontales por nivel (frente y fondo de la fila)
+    for(let l=0; l<=lv; l++){
+      [0,1].forEach(dz=>{
+        const beam=new THREE.Mesh(beamGeo, rackMat);
+        beam.userData.rack=true;
+        beam.scale.x=cols*GLU;
+        beam.position.set((cols*GLU)/2, l*GL_LVL, (ry+dz)*GLU);
+        beam.castShadow=true;
+        rackGroup.add(beam);
+      });
+    }
+  });
+  s.add(rackGroup); GL.rackGroup=rackGroup;
+
+  // ── Bins como InstancedMesh (1 draw call para todos) ──
+  const binList=[];
+  ROWS.forEach(row=>{
+    const lv=lvlsOf(row);
+    colsOf(row).forEach((colL,ci)=>{
+      for(let l=0;l<lv;l++){ binList.push({ci,row,colL,l,code:row+colL+(l+1)}); }
+    });
+  });
+  const N=binList.length;
+  if(N){
+    const binGeo=new THREE.BoxGeometry(GLU*0.82, GL_LVL*0.78, GLU*0.82);
+    const binMat=new THREE.MeshStandardMaterial({roughness:0.72,metalness:0.06,vertexColors:false});
+    const mesh=new THREE.InstancedMesh(binGeo, binMat, N);
+    mesh.castShadow=true; mesh.receiveShadow=true;
+    mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(N*3),3);
+    const obj=GL._tmpObj, col=GL._tmpColor;
+    binList.forEach((b,i)=>{
+      const p=_glPos(b.ci,b.row,b.l);
+      obj.position.copy(p); obj.rotation.set(0,0,0); obj.scale.set(1,1,1);
+      obj.updateMatrix();
+      mesh.setMatrixAt(i,obj.matrix);
+      _glBinColor(b.code,col);
+      mesh.setColorAt(i,col);
+      GL.instMap[i]=b.code; GL.codeInst[b.code]=i;
+    });
+    mesh.instanceMatrix.needsUpdate=true;
+    if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    s.add(mesh); GL.binsMesh=mesh;
+  }
+
+  // ── Franja Frontal (delante de la columna A, todo el frente) ──
+  const frontCnt=(_binMap[FRONTAL_LOC]?.items||[]).length;
+  const frontMat=new THREE.MeshStandardMaterial({color:new THREE.Color('#a878dc'),roughness:0.7,metalness:0.05,transparent:true,opacity:0.9});
+  const frontGeo=new THREE.BoxGeometry(GLU*0.9, GL_LVL*0.5, D);
+  const front=new THREE.Mesh(frontGeo, frontMat);
+  front.position.set(-0.8*GLU, GL_LVL*0.25, D/2);
+  front.castShadow=true; front.receiveShadow=true;
+  front.userData.frontal=true;
+  s.add(front); GL.frontMesh=front;
+
+  // ── Caja de resaltado (invisible hasta seleccionar) ──
+  const selGeo=new THREE.BoxGeometry(GLU*0.9, GL_LVL*0.86, GLU*0.9);
+  const selMat=new THREE.MeshBasicMaterial({color:new THREE.Color('#1b3b6f'),wireframe:true,transparent:true,opacity:0.95});
+  const sel=new THREE.Mesh(selGeo, selMat);
+  sel.visible=false; sel.renderOrder=999;
+  s.add(sel); GL.selMesh=sel;
+
+  glApplyTheme();
+  glFrameAll();
+}
+// Reparenta un mesh manteniendo su transform de mundo (para hijos del piso rotado).
+function _reparent(child, parent){ parent.attach(child); return child; }
+function _glDispose(o){
+  o.traverse && o.traverse(n=>{ if(n.geometry) n.geometry.dispose(); if(n.material){ (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose && m.dispose()); } });
+  if(o.geometry) o.geometry.dispose();
+  if(o.material) (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose && m.dispose());
+}
+
+// Color de un bin en THREE.Color a partir de la paleta de ocupación (getC).
+// Sube el contraste sobre la paleta pastel del canvas (más saturado y oscuro).
+function _glBinColor(code, out){
+  const c=getC(code);          // [r,g,b] 0-255 del canvas
+  // Realce: acerca un poco los medios/altos a color pleno para lectura a distancia.
+  out.setRGB(c[0]/255, c[1]/255, c[2]/255);
+  if('convertSRGBToLinear' in out) out.convertSRGBToLinear();  // material lee en lineal
+  return out;
+}
+
+// Encaja toda la nave en cámara (equivalente al fitView del canvas).
+function glFrameAll(){
+  if(!GL.ready) return;
+  const center=_glCenter(), r=_glRadius();
+  GL.controls.target.copy(center);
+  // posición isométrica agradable
+  GL.camera.position.set(center.x - r*0.9, center.y + r*0.95, center.z + r*1.15);
+  GL.camera.near=Math.max(0.1, r*0.02); GL.camera.far=r*12;
+  GL.camera.updateProjectionMatrix();
+  // Sombra direccional que cubre la nave
+  const d=GL.dir;
+  d.position.set(center.x + r*0.6, center.y + r*1.6, center.z - r*0.4);
+  d.target.position.copy(center);
+  const sc=d.shadow.camera; const half=r*1.25;
+  sc.left=-half; sc.right=half; sc.top=half; sc.bottom=-half;
+  sc.near=0.5; sc.far=r*5; sc.updateProjectionMatrix();
+  GL.controls.update();
+  glRenderOnce();
+}
+
+// ── Render on-demand: una sola pasada ──
+function glRenderOnce(){
+  if(GL.ready && GL.on) GL.renderer.render(GL.scene, GL.camera);
+}
+// ── Loop temporal SOLO mientras el damping siga moviendo la cámara ──
+function glStartLoop(){
+  if(!GL.ready || !GL.on) return;
+  if(GL.raf) return;
+  const tick=()=>{
+    const moving=GL.controls.update();  // devuelve true si el damping sigue activo
+    GL.renderer.render(GL.scene, GL.camera);
+    if(moving){ GL.raf=requestAnimationFrame(tick); }
+    else { GL.raf=null; }               // se detiene solo → cero CPU en reposo
+  };
+  GL.raf=requestAnimationFrame(tick);
+}
+function glResize(){
+  if(!GL.ready) return;
+  const cont=document.getElementById('map-container');
+  const w=cont.clientWidth||1, h=cont.clientHeight||1;
+  GL.renderer.setSize(w,h,false);
+  GL.camera.aspect=w/h; GL.camera.updateProjectionMatrix();
+  glRenderOnce();
+}
+
+// Recolorea los bins sin reconstruir la geometría (tras applyDims / re-carga).
+function glRecolor(){
+  if(!GL.ready || !GL.binsMesh) return;
+  const mesh=GL.binsMesh, col=GL._tmpColor;
+  GL.instMap.forEach((code,i)=>{ _glBinColor(code,col); mesh.setColorAt(i,col); });
+  if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+  glRenderOnce();
+}
+
+// Resalta el bin seleccionado (mueve la caja wireframe).
+function glHighlight(code){
+  if(!GL.ready) return;
+  const sel=GL.selMesh;
+  if(code && GL.codeInst[code]!=null){
+    const i=GL.codeInst[code];
+    GL.binsMesh.getMatrixAt(i, GL._tmpMat);
+    const pos=new THREE.Vector3().setFromMatrixPosition(GL._tmpMat);
+    sel.position.copy(pos); sel.visible=true;
+  } else if(code===FRONTAL_LOC && GL.frontMesh){
+    sel.position.copy(GL.frontMesh.position);
+    sel.scale.set(GLU*0.9/(GLU*0.9), 1, (MAX_RY*GLU)/(GLU*0.9)); // aproxima la franja
+    sel.visible=true;
+  } else {
+    sel.visible=false;
+  }
+  glRenderOnce();
+}
+
+// Anima la cámara hacia un bin (goToBin). Interpolación corta y suave.
+function glFlyTo(code){
+  if(!GL.ready) return;
+  let target;
+  if(GL.codeInst[code]!=null){
+    GL.binsMesh.getMatrixAt(GL.codeInst[code], GL._tmpMat);
+    target=new THREE.Vector3().setFromMatrixPosition(GL._tmpMat);
+  } else if(code===FRONTAL_LOC && GL.frontMesh){
+    target=GL.frontMesh.position.clone();
+  } else return;
+  const r=_glRadius();
+  const camTo=target.clone().add(new THREE.Vector3(-r*0.28, r*0.34, r*0.4));
+  const startT=GL.controls.target.clone(), startC=GL.camera.position.clone();
+  const t0=performance.now(), dur=520;
+  const ease=k=>k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+  GL.on && (GL.raf && cancelAnimationFrame(GL.raf), GL.raf=null);
+  const step=()=>{
+    const k=Math.min(1,(performance.now()-t0)/dur), e=ease(k);
+    GL.controls.target.lerpVectors(startT,target,e);
+    GL.camera.position.lerpVectors(startC,camTo,e);
+    GL.controls.update();
+    GL.renderer.render(GL.scene,GL.camera);
+    if(k<1) GL.raf=requestAnimationFrame(step); else GL.raf=null;
+  };
+  GL.raf=requestAnimationFrame(step);
+}
+
+// ── Raycasting: pointer → código de bin ──
+const _glRay=new THREE.Raycaster ? new THREE.Raycaster() : null;
+const _glMouse={x:0,y:0};
+function glPick(clientX, clientY){
+  if(!GL.ready || !_glRay) return null;
+  const rect=GL.renderer.domElement.getBoundingClientRect();
+  _glMouse.x=((clientX-rect.left)/rect.width)*2-1;
+  _glMouse.y=-((clientY-rect.top)/rect.height)*2+1;
+  _glRay.setFromCamera(_glMouse, GL.camera);
+  const targets=[]; if(GL.binsMesh) targets.push(GL.binsMesh); if(GL.frontMesh) targets.push(GL.frontMesh);
+  const hits=_glRay.intersectObjects(targets, false);
+  if(!hits.length) return null;
+  const h=hits[0];
+  if(h.object===GL.frontMesh) return FRONTAL_LOC;
+  if(h.instanceId!=null) return GL.instMap[h.instanceId]||null;
+  return null;
+}
+
+// Eventos de pointer para el motor Three.js (hover tooltip + click select).
+function glInitEvents(){
+  const canvas=document.getElementById('canvas-3d');
+  const tip=document.getElementById('iso-tooltip');
+  let downX=0, downY=0, moved=0;
+  canvas.addEventListener('pointerdown', e=>{ downX=e.clientX; downY=e.clientY; moved=0; });
+  canvas.addEventListener('pointermove', e=>{
+    if(!GL.on) return;
+    if(e.buttons){ moved+=Math.abs(e.movementX)+Math.abs(e.movementY); tip.style.display='none'; return; }
+    const rect=canvas.getBoundingClientRect();
+    const hit=glPick(e.clientX, e.clientY);
+    if(hit){
+      const u=calcUtil(hit), bin=_binMap[hit], items=bin?bin.items:[];
+      document.getElementById('tip-code').textContent=hit;
+      document.getElementById('tip-util').textContent=
+        (hit===FRONTAL_LOC||hit===OBSOLETO_LOC)?items.length+' artículo(s)':
+        (u.cnt===0?'Vacío':(!u.ok?u.cnt+' artículo(s) · sin medidas':Math.round(u.pct)+'% · '+u.cnt+' artículo(s)'));
+      const first3=items.slice(0,3).map(it=>_prodMap[it.prodId]?.ref||'—').join(' · ');
+      document.getElementById('tip-items').textContent=first3+(items.length>3?' +más':'');
+      tip.style.display='block';
+      tip.style.left=(e.clientX-rect.left+14)+'px';
+      tip.style.top=Math.max(4,e.clientY-rect.top-40)+'px';
+    } else { tip.style.display='none'; }
+  });
+  canvas.addEventListener('pointerup', e=>{
+    if(!GL.on) return;
+    if(moved>8) return; // fue arrastre, no clic
+    const hit=glPick(e.clientX, e.clientY);
+    if(hit) selectBin(hit);
+  });
+  canvas.addEventListener('pointerleave', ()=>{ tip.style.display='none'; });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PROJECTION — full orbit (azimuth + elevation)  [FALLBACK 2.5D]
 // ═══════════════════════════════════════════════════════════════════
 function proj(c, ry, lv) {
   const ca=Math.cos(V.azimuth), sa=Math.sin(V.azimuth);
@@ -362,6 +826,7 @@ function computeBounds(){
   return {minX,maxX,minY,maxY};
 }
 function fitView(){
+  if(GL.on){ glFrameAll(); return; }   // motor Three.js
   const canvas=document.getElementById('canvas-3d');
   if(!canvas) return;
   const W=parseInt(canvas.style.width)||canvas.clientWidth;
@@ -632,11 +1097,13 @@ function render3D(){
   ctx.restore(); // end translate+scale
   ctx.restore(); // end DPR transform
 
-  // Update zoom display
-  document.getElementById('zoom-val').textContent=Math.round(V.zoom*100)+'%';
+  // Update zoom display (defensivo: el elemento no existe con el motor Three.js)
+  const _zv=document.getElementById('zoom-val');
+  if(_zv) _zv.textContent=Math.round(V.zoom*100)+'%';
 }
 
 function schedRender(){
+  if(GL.on){ glRenderOnce(); return; }   // motor Three.js gobierna
   if(V.animReq) cancelAnimationFrame(V.animReq);
   V.animReq=requestAnimationFrame(()=>{V.animReq=null;render3D();});
 }
@@ -784,19 +1251,55 @@ function initEvents(){
 // ═══════════════════════════════════════════════════════════════════
 // VIEW CONTROLS
 // ═══════════════════════════════════════════════════════════════════
-function rotateBy(delta){ V.azimuth+=delta; schedRender(); }
-function tiltBy(delta){ V.elevation=Math.max(0.08,Math.min(1.45,V.elevation+delta)); schedRender(); }
-function zoom3D(f){ V.zoom=Math.max(0.25,Math.min(5,V.zoom*f)); schedRender(); }
-function resetView(){ V.azimuth=Math.PI*0.28; V.elevation=0.55; V.panX=0; V.panY=0; fitView(); }
+// Orbita la cámara Three.js alrededor del target (azimut) — reusa el ángulo esférico.
+function _glOrbit(dAzi, dPolar){
+  if(!GL.ready) return;
+  const off=GL.camera.position.clone().sub(GL.controls.target);
+  const sph=new THREE.Spherical().setFromVector3(off);
+  sph.theta+=dAzi;
+  if(dPolar){ sph.phi=Math.max(0.05, Math.min(GL.controls.maxPolarAngle, sph.phi+dPolar)); }
+  off.setFromSpherical(sph);
+  GL.camera.position.copy(GL.controls.target).add(off);
+  GL.controls.update(); glRenderOnce();
+}
+function rotateBy(delta){ if(GL.on){ _glOrbit(delta,0); return; } V.azimuth+=delta; schedRender(); }
+function tiltBy(delta){
+  if(GL.on){ _glOrbit(0, -delta*3.0); return; }  // signo: ▲ acerca a cenital
+  V.elevation=Math.max(0.08,Math.min(1.45,V.elevation+delta)); schedRender();
+}
+function zoom3D(f){
+  if(GL.on){
+    const off=GL.camera.position.clone().sub(GL.controls.target);
+    off.multiplyScalar(1/f);  // f>1 = acercar
+    const len=off.length();
+    if(len>=GL.controls.minDistance && len<=GL.controls.maxDistance){
+      GL.camera.position.copy(GL.controls.target).add(off);
+      GL.controls.update(); glRenderOnce();
+    }
+    return;
+  }
+  V.zoom=Math.max(0.25,Math.min(5,V.zoom*f)); schedRender();
+}
+function resetView(){
+  if(GL.on){ glFrameAll(); return; }
+  V.azimuth=Math.PI*0.28; V.elevation=0.55; V.panX=0; V.panY=0; fitView();
+}
 
 // Buscar un bin por código, centrar la vista en él y seleccionarlo
 function goToBin(q){
   const code=(q||'').trim().toUpperCase();
   if(!code) return;
+  if(_currentView!=='3d') setView('3d'); // setView reencaja; enfocamos DESPUÉS
+  // ── Motor Three.js: vuela la cámara al bin y lo selecciona ──
+  if(GL.on){
+    if(GL.codeInst[code]!=null || code===FRONTAL_LOC){ glFlyTo(code); }
+    if(_binMap[code]) selectBin(code); else glRenderOnce();
+    return;
+  }
+  // ── Fallback 2.5D ──
   const m=BIN_PAT.exec(code);
   if(m){
     const row=m[1], col=m[2], lv=+m[3];
-    if(_currentView!=='3d') setView('3d'); // setView reencaja; centramos DESPUÉS
     const ci=colsOf(row).indexOf(col), ry=ROW_POS[row];
     if(ci>=0 && ry!=null){
       const wc=proj(ci+0.5, ry+0.5, lv);  // centro del bin
@@ -818,6 +1321,8 @@ function togglePanel(side){
 }
 
 function resizeCanvas(){
+  // Motor Three.js: el WebGLRenderer administra el canvas (no tocar getContext('2d')).
+  if(GL.on){ glResize(); return; }
   const canvas=document.getElementById('canvas-3d');
   const cont=document.getElementById('map-container');
   const dpr = window.devicePixelRatio || 1;
@@ -952,14 +1457,42 @@ function setView(v){
   const c3=document.getElementById('canvas-3d');
   const c2=document.getElementById('canvas-2d-wrap');
   const rw=document.getElementById('rot-widget');
-  if(v==='3d'){ c3.style.display='block';c2.style.display='none';rw.style.display='flex'; resizeCanvas(); }
-  else { c3.style.display='none';c2.style.display='block';rw.style.display='none'; renderMap(); }
+  if(v==='3d'){
+    c3.style.display='block';c2.style.display='none';rw.style.display='flex';
+    if(GL.on){ glResize(); glStartLoop(); }   // reactiva el motor Three.js
+    else resizeCanvas();
+  } else {
+    // Planta y Rack (2D) — motor SVG existente intacto. El canvas WebGL queda oculto.
+    c3.style.display='none';c2.style.display='block';rw.style.display='none';
+    renderMap();
+  }
 }
-function onFilterChange(){ renderMap(); }
+function onFilterChange(){
+  // En 3D+GL el filtro de fila/nivel se refleja atenuando bins fuera del filtro.
+  if(_currentView==='3d' && GL.on){ glApplyFilter(); return; }
+  renderMap();
+}
 function renderMap(){
-  if(_currentView==='3d') schedRender();
+  if(_currentView==='3d'){ if(GL.on) glRenderOnce(); else schedRender(); }
   else if(_currentView==='plant') render2DPlant();
   else render2DRack();
+}
+// Atenúa (baja opacidad de color) los bins fuera del filtro fila/nivel activo.
+function glApplyFilter(){
+  if(!GL.ready || !GL.binsMesh) return;
+  const fRow=document.getElementById('filter-row').value;
+  const fLv=+document.getElementById('filter-level').value||0;
+  const mesh=GL.binsMesh, col=GL._tmpColor, dim=new THREE.Color();
+  GL.instMap.forEach((code,i)=>{
+    _glBinColor(code,col);
+    const m=BIN_PAT.exec(code);
+    const inFilter=(!fRow || (m&&m[1]===fRow)) && (!fLv || (m&&+m[3]===fLv));
+    if(inFilter){ mesh.setColorAt(i,col); }
+    else { dim.copy(col).lerp(_tok('--scene-floor','#dfe3e6'),0.82); mesh.setColorAt(i,dim); }
+  });
+  if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+  // Muestra/oculta la estructura de racks fuera de la fila filtrada
+  glRenderOnce();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -979,7 +1512,8 @@ function selectRack(rc){
   showDetail({code:rc,path:'Rack '+rc+' ('+lvls+' niveles)',tot,pct:!hd?-1:Math.min(100,vU/bV*100),ok:hd,vU,bV,items:all});
 }
 function selectBin(code){
-  _selectedBin=code; renderMap();
+  _selectedBin=code;
+  if(_currentView==='3d' && GL.on) glHighlight(code); else renderMap();
   const bin=_binMap[code];if(!bin)return;
   const u=calcUtil(code);
   showDetail({code,path:bin.completeName,tot:bin.items.length,pct:u.pct,ok:u.ok,vU:u.volUsed,bV:u.vol,items:bin.items.map(it=>({...it,slot:code}))});
@@ -1110,11 +1644,13 @@ async function initMap(){
     const sel=document.getElementById('filter-row');
     sel.innerHTML='<option value="">Todas las filas</option>';
     ROWS.forEach(r=>sel.innerHTML+=`<option value="${r}">Fila ${r}</option>`);
-    // Dim volumes
+    // ── Motor Three.js: (re)construir la escena con el layout recién cargado ──
+    if(GL.on){ glBuildScene(); }
+    // Dim volumes (recolorea bins ya construidos si GL está activo)
     applyDims();
     document.getElementById('last-update').textContent='Actualizado: '+new Date().toLocaleTimeString('es-DO');
     setLoading(false);
-    if(_currentView==='3d') fitView();
+    if(_currentView==='3d'){ if(GL.on){ glResize(); glFrameAll(); } else fitView(); }
   }catch(e){ setLoading(false); alert('Error: '+e.message); }
 }
 function applyDims(){
@@ -1122,21 +1658,54 @@ function applyDims(){
   _dimB={w:+document.getElementById('dB-w').value||120,d:+document.getElementById('dB-d').value||90,h:+document.getElementById('dB-h').value||55};
   document.getElementById('volA').textContent=(_dimA.w*_dimA.d*_dimA.h/1e6).toFixed(3)+' m³';
   document.getElementById('volB').textContent=(_dimB.w*_dimB.d*_dimB.h/1e6).toFixed(3)+' m³';
+  // La ocupación depende de dims mock → recolorear bins sin reconstruir la escena.
+  if(GL.on){ glRecolor(); if(document.getElementById('filter-row').value||document.getElementById('filter-level').value) glApplyFilter(); }
   renderMap();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TEMA (dark mode) — estándar del proyecto: data-theme + localStorage wwp_theme
+// ═══════════════════════════════════════════════════════════════════
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');
+  try{ localStorage.setItem('wwp_theme', t); }catch(e){}
+  if(GL.on){ glApplyTheme(); glRenderOnce(); }
+}
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
+  applyTheme(cur==='dark'?'light':'dark');
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded',()=>{
+  // Tema guardado (comparte clave con historial.html)
+  let _th='light'; try{ _th=localStorage.getItem('wwp_theme')||'light'; }catch(e){}
+  document.documentElement.setAttribute('data-theme', _th==='dark'?'dark':'light');
+
   document.getElementById('volA').textContent=(120*90*65/1e6).toFixed(3)+' m³';
   document.getElementById('volB').textContent=(120*90*55/1e6).toFixed(3)+' m³';
-  initEvents();
-  resizeCanvas();
+
+  // ── Motor 3D: Three.js si hay WebGL, si no fallback al canvas 2.5D ──
+  if(glInit()){
+    GL.on=true;
+    glInitEvents();          // pointer events del motor Three.js
+    glApplyTheme();
+  } else {
+    GL.on=false;
+    initEvents();            // eventos del motor 2.5D (fallback)
+    resizeCanvas();
+    const note=document.getElementById('gl-fallback-note');
+    if(note) note.style.display='block';
+  }
   setView('3d');
   initMap();
 });
-window.addEventListener('resize',()=>{ if(_currentView==='3d') resizeCanvas(); });
+window.addEventListener('resize',()=>{
+  if(_currentView!=='3d') return;
+  if(GL.on) glResize(); else resizeCanvas();
+});
 </script>
 </body>
 </html>
