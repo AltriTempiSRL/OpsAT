@@ -5064,6 +5064,45 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .wwp-cdp-resp{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .wwp-cal,.wwp-charts{margin-top:2px}
 @media(max-width:720px){.wwp-cdp-resp{display:none}}
+/* ── Dimensión ACTIVIDAD (Mark, 2026-07-05) ── */
+/* Celda: throughput del día = entrada / salida-cierre / cancelación (no dot por estado) */
+.wwp-flow-chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:auto}
+.wwp-flow-chip{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;line-height:1;padding:2px 5px;border-radius:5px;font-variant-numeric:tabular-nums}
+.wwp-flow-chip i{width:10px;height:10px;stroke:currentColor;stroke-width:2.5}
+.wwp-flow-chip.in{background:var(--sky-bg);color:var(--sky-text)}
+.wwp-flow-chip.out{background:var(--green-bg);color:var(--green-text)}
+.wwp-flow-chip.cancel{background:var(--surface-3);color:var(--text-muted)}
+/* Tag de familia de evento (bitácora + agenda) */
+.wwp-ev-tag{font-size:10px;font-weight:800;text-transform:capitalize;padding:1px 7px;border-radius:20px;white-space:nowrap}
+.wwp-ev-tag.creada{background:var(--sky-bg);color:var(--sky-text)}
+.wwp-ev-tag.iniciada{background:var(--blue-bg);color:var(--blue-text)}
+.wwp-ev-tag.completada{background:var(--green-bg);color:var(--green-text)}
+.wwp-ev-tag.despachada{background:var(--purple-bg);color:var(--purple-text)}
+.wwp-ev-tag.validada{background:var(--green-bg);color:var(--green-text)}
+.wwp-ev-tag.cancelada{background:var(--surface-3);color:var(--text-muted)}
+/* Panel = BITÁCORA del día */
+.wwp-log-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:2px 14px 11px;font-size:11px;color:var(--text-2);border-bottom:1px solid var(--border-light,var(--border))}
+.wwp-log-sum-i{display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--text-2)}
+.wwp-log-sum-i i{width:12px;height:12px;stroke:currentColor}
+.wwp-log-sum-i.creada i{color:var(--sky-dot)}.wwp-log-sum-i.iniciada i{color:var(--blue-dot)}
+.wwp-log-sum-i.completada i,.wwp-log-sum-i.validada i{color:var(--green-dot)}
+.wwp-log-sum-i.despachada i{color:var(--purple-dot)}.wwp-log-sum-i.cancelada i{color:var(--text-3)}
+.wwp-log-sum.wwp-log-empty{color:var(--text-muted);font-style:italic}
+.wwp-log-ctx{display:flex;align-items:center;gap:6px;padding:9px 14px;font-size:11.5px;font-weight:600;color:var(--amber-text);background:var(--amber-bg);border-bottom:1px solid var(--border-light,var(--border))}
+.wwp-log-ctx i{width:13px;height:13px;stroke:currentColor}
+.wwp-log-rows{display:flex;flex-direction:column}
+.wwp-log-row{display:flex;align-items:center;gap:9px;width:100%;padding:9px 14px;background:transparent;border:none;border-top:1px solid var(--border-light,var(--border));text-align:left;min-height:44px;color:inherit;cursor:pointer;font-family:inherit}
+.wwp-log-rows .wwp-log-row:first-child{border-top:none}
+.wwp-log-row:hover{background:var(--surface-3)}
+.wwp-log-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.wwp-log-ic{flex-shrink:0;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+.wwp-log-ic i{width:15px;height:15px;stroke:currentColor;stroke-width:2.2}
+.wwp-log-time{flex-shrink:0;font-size:11px;font-weight:800;color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:52px}
+.wwp-log-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.wwp-log-title{font-size:12.5px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wwp-log-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wwp-log-who{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--text-muted)}
+.wwp-log-who i{width:11px;height:11px;stroke:currentColor}
 /* Vista Agenda (degradación móvil del calendario) */
 .eo2-cal-agenda{display:none}
 .eo2-ag-group{margin-bottom:12px}
@@ -8599,7 +8638,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v137';
+var APP_BUILD = 'v138';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11801,6 +11840,170 @@ function wwpIsOverdue(v){
   return !!d && d.getTime() < t.getTime();
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  DIMENSIÓN "ACTIVIDAD" — bin por EVENTOS reales de statusHistory (Mark, 2026-07-05)
+//  A diferencia de Límite/Creada (1 tarea cae en 1 día por una fecha estática y se
+//  pinta con su estado ACTUAL), en Actividad una tarea NO cae en un solo día: cada
+//  EVENTO datado de su ciclo de vida cae en SU día local. Así un día pasado responde
+//  "qué PASÓ ese día" (se crearon 3, se despacharon 2, se validó 1), no "qué vencía".
+//  Reusa el patrón 'desp' del calendario de Estado de Órdenes (ejecución real).
+//  FRONTERA: solo LEE statusHistory; no muta nada de la tarea.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Familias de evento del ciclo de vida (orden de flujo). El "despacho" NO es un
+// status propio: es un evento (in_progress/completed) de una tarea de tipo
+// dispatch_order → se re-etiqueta como iniciada/despachada de despacho.
+var WWP_EV_ORDER = ['creada','iniciada','completada','despachada','validada','cancelada'];
+var WWP_EV_LABEL = {
+  creada:'creada', iniciada:'iniciada', completada:'completada',
+  despachada:'despachada', validada:'validada', cancelada:'cancelada'
+};
+// Icono lucide y token de color por familia de evento (entrada / avance / salida-cierre / anulación).
+var WWP_EV_ICON = {
+  creada:'plus-circle', iniciada:'play', completada:'check-circle',
+  despachada:'truck', validada:'badge-check', cancelada:'x-circle'
+};
+var WWP_EV_DOT = {
+  creada:'--sky-dot', iniciada:'--blue-dot', completada:'--green-dot',
+  despachada:'--purple-dot', validada:'--green-dot', cancelada:'--text-3'
+};
+// Clasificación de FLUJO para la celda (entrada abre / salida cierra / anulación).
+// 'entrada' = trabajo que ENTRÓ ese día; 'salida' = trabajo que SE CERRÓ/DESPACHÓ;
+// 'cancel' = anulaciones. 'iniciada' no cuenta como entrada ni salida (es avance interno).
+var WWP_EV_FLOW = {
+  creada:'in', iniciada:'mid', completada:'out',
+  despachada:'out', validada:'out', cancelada:'cancel'
+};
+
+// Eventos datados de UNA tarea normalizada, en su día LOCAL. Deriva de statusHistory
+// (fuente de verdad de los hitos reales) + createdAt como respaldo de "creada".
+// Cada evento: { kind, dayIso, dateRaw, by, isDispatch, title, id, status }.
+function wwpActivityEvents(v){
+  var out = [], hist = (v.statusHistory||[]), isDisp = v.type === 'dispatch_order';
+  var seen = {};
+  function add(kind, dateRaw, by){
+    if(!dateRaw) return;
+    var dayIso = wwpLocalDayIso(dateRaw); if(!dayIso) return;
+    // dedup por (familia+día): dos 'assigned' el mismo día no cuentan dos veces como creación.
+    var k = kind + '|' + dayIso; if(seen[k]) return; seen[k] = true;
+    out.push({ kind:kind, dayIso:dayIso, dateRaw:dateRaw, by:by, isDispatch:isDisp, title:v.title, id:v.id, status:v.status });
+  }
+  // "creada": el primer pending del histórico; si no hay, el createdAt de la tarea.
+  var firstPending = null;
+  for(var i=0;i<hist.length;i++){ if(hist[i] && hist[i].status==='pending' && hist[i].date){ firstPending = hist[i]; break; } }
+  if(firstPending) add('creada', firstPending.date, firstPending.by);
+  else if(v._createdRaw) add('creada', v._createdRaw, null);
+  // Resto de hitos: primer in_progress = iniciada; primer completed/validated/cancelled = su evento.
+  var firstInProg = null, firstCompleted = null, firstValidated = null, firstCancelled = null;
+  for(var j=0;j<hist.length;j++){
+    var h = hist[j]; if(!h || !h.date) continue;
+    if(h.status==='in_progress' && !firstInProg) firstInProg = h;
+    else if(h.status==='completed' && !firstCompleted) firstCompleted = h;
+    else if(h.status==='validated' && !firstValidated) firstValidated = h;
+    else if(h.status==='cancelled' && !firstCancelled) firstCancelled = h;
+  }
+  if(firstInProg)   add('iniciada', firstInProg.date, firstInProg.by);
+  // Una tarea de despacho completada = un DESPACHO ejecutado ese día (evento propio).
+  if(firstCompleted) add(isDisp ? 'despachada' : 'completada', firstCompleted.date, firstCompleted.by);
+  if(firstValidated) add('validada', firstValidated.date, firstValidated.by);
+  if(firstCancelled) add('cancelada', firstCancelled.date, firstCancelled.by);
+  return out;
+}
+
+// Set de tareas que ALIMENTA el calendario. Igual a `visible` en Límite/Creada.
+// En Actividad, para que la actividad de despacho deje de ser invisible a gerencia
+// (32/42 tareas dispatch son subtareas que `filterTasks` oculta al admin, L11401),
+// se AÑADEN las subtareas dispatch_order — SOLO en el render del calendario, sin
+// tocar el filtro global (que alimenta lista/kanban/gráficos). RBAC estricto:
+//   · admin → ve toda subtarea dispatch (ya recibe las 173 del backend).
+//   · no-admin → NO se amplía: se queda con `visible` (su RBAC ya decidió qué ve).
+function wwpCalTaskSet(visible){
+  if(_wwpCalState.dim !== 'activity') return visible;
+  if(!(_user && _user.role === 'admin')) return visible;
+  var byId = {}; (visible||[]).forEach(function(t){ if(t) byId[t.id] = true; });
+  var merged = (visible||[]).slice();
+  (_tasks||[]).forEach(function(t){
+    if(t && t.parentId && t.type === 'dispatch_order' && !byId[t.id]){ byId[t.id] = true; merged.push(t); }
+  });
+  return merged;
+}
+
+// Conteo de flujo de un día de Actividad (lista de EVENTOS): entrada / salida-cierre /
+// cancelación. 'iniciada' es avance interno (ni entra ni sale del sistema).
+function wwpFlowCounts(events){
+  var c = { in:0, out:0, cancel:0, total:(events||[]).length };
+  (events||[]).forEach(function(ev){
+    var f = WWP_EV_FLOW[ev.kind];
+    if(f==='in') c.in++; else if(f==='out') c.out++; else if(f==='cancel') c.cancel++;
+  });
+  return c;
+}
+// Orden cronológico de los eventos de un día (por instante absoluto).
+function wwpSortEvents(events){
+  return (events||[]).slice().sort(function(a,b){
+    return new Date(a.dateRaw).getTime() - new Date(b.dateRaw).getTime();
+  });
+}
+// Sub-línea de un evento: quién lo hizo (actor normalizado) — reusa wwpCvActor.
+function wwpEvSubline(ev){
+  var who = wwpCvActor(ev.by);
+  return who && who!=='—' ? esc(who) : '';
+}
+// Hora local corta de un evento (12h). Reusa el formato de wwpCvFmt sin la fecha.
+function wwpEvTime(iso){
+  if(!iso) return '';
+  var d = new Date(iso); if(isNaN(d.getTime())) return '';
+  var hh = d.getHours(), ap = hh>=12?'pm':'am', h12 = (hh%12)||12;
+  return h12+':'+String(d.getMinutes()).padStart(2,'0')+ap;
+}
+
+// ── Panel del día en dimensión ACTIVIDAD = BITÁCORA de eventos ──────────────────
+// Muestra lo que PASÓ ese día (no el estado ACTUAL de las tareas): resumen por
+// familia + una fila por evento real (hora local · actor · tarea). Para HOY añade
+// contexto de "qué vence" y "qué sigue abierto". Para días futuros = vacío natural.
+function wwpDayLogHtml(d, events, todayD){
+  var isFuture = (function(){ var t=new Date(); t.setHours(0,0,0,0); var dd=new Date(d.getFullYear(),d.getMonth(),d.getDate()); return dd.getTime() > t.getTime(); })();
+  var isToday = d.getDate()===todayD;
+  var fc = {}; (events||[]).forEach(function(ev){ fc[ev.kind]=(fc[ev.kind]||0)+1; });
+  // Resumen "ese día: N creadas · N iniciadas · …" en orden de flujo.
+  var sumParts = WWP_EV_ORDER.filter(function(k){ return fc[k]; }).map(function(k){
+    return '<span class="wwp-log-sum-i '+k+'"><i data-lucide="'+WWP_EV_ICON[k]+'"></i>'+fc[k]+' '+esc(WWP_EV_LABEL[k]||k)+'</span>';
+  });
+  var sumHtml = sumParts.length
+    ? '<div class="wwp-log-sum">'+(isToday?'Hoy · ':'Ese día · ')+sumParts.join('')+'</div>'
+    : '<div class="wwp-log-sum wwp-log-empty">'+(isFuture?'Aún no ha pasado nada este día.':'Sin eventos registrados este día.')+'</div>';
+  // Filas de eventos (cronológico). Cada fila abre la tarea (drawer existente).
+  var rows = wwpSortEvents(events||[]).map(function(ev){
+    var who = wwpCvActor(ev.by);
+    var whoTxt = (who && who!=='—') ? '<span class="wwp-log-who"><i data-lucide="user"></i>'+esc(who)+'</span>' : '';
+    return '<button type="button" class="wwp-log-row '+ev.kind+'" data-tid="'+esc(ev.id)+'" aria-label="Abrir tarea '+esc(ev.title)+'">'+
+      '<span class="wwp-log-ic" style="color:var('+(WWP_EV_DOT[ev.kind]||'--text-3')+')"><i data-lucide="'+WWP_EV_ICON[ev.kind]+'"></i></span>'+
+      '<span class="wwp-log-time">'+esc(wwpEvTime(ev.dateRaw))+'</span>'+
+      '<span class="wwp-log-main"><span class="wwp-log-title">'+esc(ev.title)+'</span>'+
+        '<span class="wwp-log-meta"><span class="wwp-ev-tag '+ev.kind+'">'+esc(WWP_EV_LABEL[ev.kind]||ev.kind)+'</span>'+whoTxt+'</span></span>'+
+    '</button>';
+  }).join('');
+  // Contexto "hoy": cuántas tareas con movimiento hoy siguen ABIERTAS = su estado
+  // ACTUAL (leído de la tarea, no del evento) no es de cierre. Se lee del `status`
+  // que el evento arrastra (ev.status = estado actual de la tarea; solo lectura).
+  var todayCtx = '';
+  if(isToday){
+    var CLOSED = { completed:1, validated:1, cancelled:1 };
+    var seenT = {}, nAb = 0;
+    (events||[]).forEach(function(ev){ if(seenT[ev.id]) return; seenT[ev.id]=1; if(!CLOSED[ev.status]) nAb++; });
+    if(nAb) todayCtx = '<div class="wwp-log-ctx"><i data-lucide="clock"></i>'+nAb+' con movimiento hoy sigue'+(nAb===1?'':'n')+' abierta'+(nAb===1?'':'s')+'.</div>';
+  }
+  return '<div class="eo2-cal-day-panel wwp-log-panel">' +
+    '<div class="eo2-cdp-h">' +
+      '<span class="eo2-cdp-title">'+EO_DOW_FULL[d.getDay()]+' '+d.getDate()+' '+EO_MES[d.getMonth()]+'</span>' +
+      '<span class="eo2-cdp-count">'+(events||[]).length+' evento'+((events||[]).length===1?'':'s')+'</span>' +
+      '<button type="button" class="eo2-cdp-x" aria-label="Cerrar bitácora del día"><i data-lucide="x"></i></button>' +
+    '</div>' +
+    sumHtml + todayCtx +
+    ((events||[]).length ? '<div class="wwp-log-rows">'+rows+'</div>' : '') +
+  '</div>';
+}
+
 // ── Panel del día (recompensa visible del clic; DEBAJO del grid, con auto-scroll) ──
 function wwpDayPanelHtml(d, list) {
   var byE = {};
@@ -11841,17 +12044,33 @@ function wwpDayPanelHtml(d, list) {
 // ── Render: VISTA CALENDARIO de tareas ──
 function wwpRenderCalendar(visible) {
   var host = document.getElementById('tasks-cal'); if(!host) return;
-  var vis = (visible||[]).map(wwpTaskView);
+  var isAct = _wwpCalState.dim === 'activity';
+  // En Actividad el admin ve también la actividad de las hijas de despacho (set aumentado
+  // SOLO aquí; el filtro global de la lista/kanban/gráficos no se toca).
+  var vis = wwpCalTaskSet(visible||[]).map(wwpTaskView);
   var y = _wwpCalState.y, m = _wwpCalState.mo;
-  var byDay = {}, nSinFecha = 0;
-  vis.forEach(function(v){
-    var iso = wwpCalDayIso(v);
-    // "Sin fecha" solo tiene sentido en dim Límite (toda tarea tiene fecha de creación).
-    if(!iso){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
-    var d = eoToD(iso); if(!d){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
-    if(d.getFullYear()!==y || d.getMonth()!==m) return;
-    (byDay[d.getDate()] = byDay[d.getDate()] || []).push(v);
-  });
+  var byDay = {}, nSinFecha = 0, evByDay = {};
+  if(isAct){
+    // Bin por EVENTOS: cada hito datado cae en su día local. Un día puede tener N eventos
+    // de M tareas (creada→iniciada→despachada en días distintos = 3 dots en 3 días).
+    vis.forEach(function(v){
+      wwpActivityEvents(v).forEach(function(ev){
+        var d = eoToD(ev.dayIso); if(!d || d.getFullYear()!==y || d.getMonth()!==m) return;
+        (evByDay[d.getDate()] = evByDay[d.getDate()] || []).push(ev);
+      });
+    });
+    // byDay refleja el conteo de EVENTOS por día (alimenta la grilla/agenda genéricas).
+    Object.keys(evByDay).forEach(function(dd){ byDay[dd] = evByDay[dd]; });
+  } else {
+    vis.forEach(function(v){
+      var iso = wwpCalDayIso(v);
+      // "Sin fecha" solo tiene sentido en dim Límite (toda tarea tiene fecha de creación).
+      if(!iso){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
+      var d = eoToD(iso); if(!d){ if(_wwpCalState.dim==='due') nSinFecha++; return; }
+      if(d.getFullYear()!==y || d.getMonth()!==m) return;
+      (byDay[d.getDate()] = byDay[d.getDate()] || []).push(v);
+    });
+  }
   var first = new Date(y, m, 1), lead = (first.getDay()+6)%7;
   var days = new Date(y, m+1, 0).getDate();
   var today = new Date(); today.setHours(0,0,0,0);
@@ -11875,11 +12094,14 @@ function wwpRenderCalendar(visible) {
     '<div class="eo2-cal-dim" role="group" aria-label="Dimensión de fecha">'+
       '<button type="button" class="'+(_wwpCalState.dim==='due'?'active':'')+'"'+(_wwpCalState.dim==='due'?' aria-pressed="true"':' aria-pressed="false"')+' data-wdim="due">Límite</button>'+
       '<button type="button" class="'+(_wwpCalState.dim==='created'?'active':'')+'"'+(_wwpCalState.dim==='created'?' aria-pressed="true"':' aria-pressed="false"')+' data-wdim="created">Creada</button>'+
+      '<button type="button" class="'+(isAct?'active':'')+'"'+(isAct?' aria-pressed="true"':' aria-pressed="false"')+' data-wdim="activity">Actividad</button>'+
     '</div></div>'+
     '<div class="eo2-cal-hintrow">'+
       '<div class="eo2-cal-hint">'+(_wwpCalState.dim==='due'
         ? 'Qué vence cada día — los días pasados con tareas sin terminar salen en rojo. Haz clic en un día con tareas para ver su detalle.'
-        : 'Cuándo se crearon las tareas (carga entrante del mes). Haz clic en un día con tareas para ver su detalle.')+'</div>'+
+        : (_wwpCalState.dim==='created'
+          ? 'Cuándo se crearon las tareas (carga entrante del mes). Haz clic en un día con tareas para ver su detalle.'
+          : 'Qué PASÓ cada día — creadas, iniciadas, completadas, despachadas, validadas y canceladas según los eventos reales. Haz clic en un día para ver la bitácora.'))+'</div>'+
       sinFechaChip+
     '</div>';
   var cal = '<div class="eo2-cal-calendar"><div class="eo2-cal-dow">'+EO_DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="eo2-cal-days">';
@@ -11888,26 +12110,62 @@ function wwpRenderCalendar(visible) {
     var list = byDay[dd] || [], dISO = y+'-'+String(m+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
     var isToday = dd===todayD;
     var overdueDay = _wwpCalState.dim==='due' && list.some(wwpIsOverdue);
-    var dots = list.slice(0,4).map(function(v){ return '<span class="eo2-cal-dot" style="background:var('+(WWP_ST_DOT[v.status]||'--text-3')+')"></span>'; }).join('');
     var selected = _wwpCalState.sel===dISO;
+    var body;
+    if(isAct){
+      // Celda de Actividad: throughput del día = entrada (creadas) vs. salida/cierre
+      // (completadas/despachadas/validadas) vs. cancelaciones. NO un dot por estado actual.
+      var fl = wwpFlowCounts(list); // {in,out,cancel,total}
+      var chips = '';
+      if(fl.in)     chips += '<span class="wwp-flow-chip in"><i data-lucide="arrow-down-to-line"></i>'+fl.in+'</span>';
+      if(fl.out)    chips += '<span class="wwp-flow-chip out"><i data-lucide="arrow-up-from-line"></i>'+fl.out+'</span>';
+      if(fl.cancel) chips += '<span class="wwp-flow-chip cancel"><i data-lucide="x"></i>'+fl.cancel+'</span>';
+      body = list.length
+        ? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="wwp-flow-chips">'+chips+'</span>'
+        : '';
+    } else {
+      var dots = list.slice(0,4).map(function(v){ return '<span class="eo2-cal-dot" style="background:var('+(WWP_ST_DOT[v.status]||'--text-3')+')"></span>'; }).join('');
+      body = list.length? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '';
+    }
+    var ariaN = isAct
+      ? list.length+' evento'+(list.length===1?'':'s')
+      : list.length+' tarea'+(list.length===1?'':'s');
     cal += '<button type="button" class="eo2-cal-cell'+(list.length?' has':'')+(isToday?' today':'')+(overdueDay?' overdue':'')+(selected?' sel':'')+'"'+
       (list.length? ' data-wday="'+dISO+'" aria-pressed="'+(selected?'true':'false')+'"' : ' disabled tabindex="-1"')+
-      ' aria-label="'+dd+' · '+list.length+' tarea'+(list.length===1?'':'s')+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
+      ' aria-label="'+dd+' · '+ariaN+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
       '<span class="eo2-cal-num">'+dd+'</span>'+
-      (list.length? '<span class="eo2-cal-cnt">'+list.length+'</span><span class="eo2-cal-dots">'+dots+'</span>' : '')+
+      body+
     '</button>';
   }
   cal += '</div>';
   // Mes vacío en desktop: mensaje DENTRO del grid (antes solo vivía en la agenda móvil).
-  if(!hasAnyDay) cal += '<div class="eo2-ch-empty">Sin tareas en '+EO_MES[m]+' '+y+' para esta dimensión'+((nSinFecha&&_wwpCalState.dim==='due')?' (hay '+nSinFecha+' sin fecha límite)':'')+'.'+(isCurMonth?'':' Usa <b>Hoy</b> para volver al mes actual.')+'</div>';
+  if(!hasAnyDay) cal += '<div class="eo2-ch-empty">Sin '+(isAct?'actividad registrada':'tareas')+' en '+EO_MES[m]+' '+y+' para esta dimensión'+((nSinFecha&&_wwpCalState.dim==='due')?' (hay '+nSinFecha+' sin fecha límite)':'')+'.'+(isCurMonth?'':' Usa <b>Hoy</b> para volver al mes actual.')+'</div>';
   cal += '</div>';
   var panel = '';
-  if(_wwpCalState.sel){ var sd = eoToD(_wwpCalState.sel); if(sd) panel = wwpDayPanelHtml(sd, byDay[sd.getDate()]); }
+  if(_wwpCalState.sel){
+    var sd = eoToD(_wwpCalState.sel);
+    if(sd) panel = isAct ? wwpDayLogHtml(sd, byDay[sd.getDate()]||[], todayD) : wwpDayPanelHtml(sd, byDay[sd.getDate()]);
+  }
   var cells = '<div class="eo2-cal-grid">'+cal+panel+'</div>';
   // Agenda (móvil ≤720px): lista agrupada por día; encabezado estático (no interactivo).
   var dayKeys = Object.keys(byDay).map(Number).sort(function(a,b){return a-b;});
   var agenda = '<div class="eo2-cal-agenda">'+ (dayKeys.length ? dayKeys.map(function(dd){
     var list = byDay[dd], d = new Date(y, m, dd);
+    if(isAct){
+      // Agenda de Actividad: encabezado con el flujo del día + bitácora de eventos.
+      var fl = wwpFlowCounts(list);
+      var flTxt = [];
+      if(fl.in) flTxt.push(fl.in+' entró'); if(fl.out) flTxt.push(fl.out+' cerró'); if(fl.cancel) flTxt.push(fl.cancel+' canc.');
+      var head3 = '<div class="eo2-ag-day"><span class="eo2-ag-dow">'+EO_DOW_ABBR[d.getDay()]+' '+dd+'</span><span class="eo2-ag-n">'+list.length+'</span></div>';
+      var evs = wwpSortEvents(list).map(function(ev){
+        var sub = wwpEvSubline(ev);
+        return '<button type="button" class="eo2-ag-item" data-tid="'+esc(ev.id)+'">'+
+          '<span class="eo2-ag-dot" style="background:var('+(WWP_EV_DOT[ev.kind]||'--text-3')+')"></span>'+
+          '<span class="wwp-ag-main"><span class="eo2-ag-cli">'+esc(ev.title)+'</span>'+(sub?'<span class="wwp-ag-sdv">'+sub+'</span>':'')+'</span>'+
+          '<span class="wwp-ev-tag '+ev.kind+'">'+esc(WWP_EV_LABEL[ev.kind]||ev.kind)+'</span></button>';
+      }).join('');
+      return '<div class="eo2-ag-group">'+head3+evs+'</div>';
+    }
     var ov = _wwpCalState.dim==='due' && list.some(wwpIsOverdue);
     var head2 = '<div class="eo2-ag-day'+(ov?' overdue':'')+'"><span class="eo2-ag-dow">'+EO_DOW_ABBR[d.getDay()]+' '+dd+'</span><span class="eo2-ag-n">'+list.length+'</span></div>';
     var items = list.map(function(v){
@@ -11918,7 +12176,7 @@ function wwpRenderCalendar(visible) {
         '<span class="eo2-ag-prom '+(wwpIsOverdue(v)?'red':'mut')+'">'+esc((STATUS_LABELS[v.status]||v.status))+'</span></button>';
     }).join('');
     return '<div class="eo2-ag-group">'+head2+items+'</div>';
-  }).join('') : '<div class="eo2-ch-empty">Sin tareas en '+EO_MES[m]+' '+y+' para esta dimensión.</div>')+'</div>';
+  }).join('') : '<div class="eo2-ch-empty">Sin '+(isAct?'actividad':'tareas')+' en '+EO_MES[m]+' '+y+' para esta dimensión.</div>')+'</div>';
   host.innerHTML = '<div class="eo2-cal">'+head + cells + agenda+'</div>';
 }
 
@@ -12396,8 +12654,8 @@ function wwpInitCalEvents(){
     // Dimensión de fecha (Límite / Creada): el mismo día significa otra cosa → limpiar sel
     var dim = e.target.closest('.eo2-cal-dim button[data-wdim]');
     if(dim){ _wwpCalState.dim = dim.getAttribute('data-wdim'); _wwpCalState.sel=null; filterTasks(); return; }
-    // Fila del panel del día / ítem de agenda → abrir el drawer existente de la tarea
-    var crow = e.target.closest('.eo2-cdp-row[data-tid], .eo2-ag-item[data-tid]');
+    // Fila del panel/bitácora del día / ítem de agenda → abrir el drawer existente de la tarea
+    var crow = e.target.closest('.eo2-cdp-row[data-tid], .wwp-log-row[data-tid], .eo2-ag-item[data-tid]');
     if(crow){ openDrawer(crow.getAttribute('data-tid')); return; }
     // Cerrar panel del día
     if(e.target.closest('.eo2-cdp-x')){ _wwpCalState.sel=null; filterTasks(); return; }
