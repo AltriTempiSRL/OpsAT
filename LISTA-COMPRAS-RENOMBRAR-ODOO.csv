@@ -1,0 +1,33 @@
+Referencia interna;Nombre ACTUAL en Odoo (mal);Nombre CORRECTO sugerido;Nota
+FPS.KHOLIN.ARMCH.SX2039S14.P;Kholin Armchair Color Blue (Copia);KHOLIN ARMCHAIR COLOR BROWN;Color equivocado (caso S09646)
+YH.ARIC.CUSH.AMC069-8.P;Aric Cushion Fabric Color Beige (Copia);Aric Cushion Fabric color Red;Color equivocado
+ISM.CRYSTAL.CDL.HOLDER.PNK.P;Crystal Tapercandle Holder Blue (Copia);Crystal Tapercandle Holder Pink;Color equivocado
+AT.APSARAS.MEC.GRN.P;Apsaras Rocking Chair Rattan Color Dark Green (Copia);Apsaras Rocking Chair Rattan Color Olive Green;Color equivocado
+GRF.CACTUS.S.SCULP.P;Cactus Sculpture (Copia);Cactus Sculpture Small;Falta el tamano
+GZF.ARAE.CUSH.60X60.CAPPU-26A.P;Arae Cushion 48X48 Color Orange (Copia);Arae Cushion 60X60 Color Orange;Medida equivocada
+DEM.MISHA.CUSH.50X50.62737-COL.06.P;Misha Pouf Color Light Green (Copia);Misha Cushion 50 x 50 Color Dark Grey;Producto distinto (pouf vs cushion)
+DEM.NAYME.BACKCLOTH.CHAIR.BG.P;Back Cloth Wooden Bar Stool Col Blue (Copia);Nayme Back Cloth Wooden Bar Stool Beige;Color equivocado
+S48.VENICE.HB.LOUNGE.TAU.BG.C1;Venice Royal High Back Lounge Chair Taupe+Beige *K* (Copia);Venice Royal High Back Lounge Chair Taupe+Beige;Solo quitar (Copia) y *K*
+MC.SILMAN.SQ.COFFTBL.BASE.C2;Silman Sq. Coffee Table Nerodorato Marble Top (Copia);SILMAN SQ. COFFEE TABLE BASE;Nombre de otro componente
+DEM.BRENNAN.TVSTN.ALP.WLN.PART2.C2;Brennan Tv Unit Part 1 (Copia);Brennan TV Unit Part 2;CORRIDO: tiene el nombre de Part 1
+DEM.BRENNAN.TVSTN.ALP.WLN.PART3.C3;Brennan Tv Unit Part 2 (Copia);Brennan TV Unit Part 3;CORRIDO: tiene el nombre de Part 2
+VM.BUBBLES.LAMPC.LED.XL.C2;Bubbles Led Bulb Pendant Lamp (Copia);Bubbles Led Bulb Pendant Lamp XL;Falta XL
+AF.PORTIA.LAMPT.GRN.MARB.BASE.C2;Portia Table Lamp In Green Marble *K* (Copia);Portia Table Lamp Green Marble Base;Nombre del kit completo en el componente
+AF.PORTIA.LAMPT.WH.SHADE.C1;Portia Table Lamp Green Marble Base (Copia);Portia Table Lamp White Shade;CORRIDO: tiene el nombre de la base
+DEM.LIONE.CONS.MARB.GRN.TOP.C1;Lione Console Green Marble Top *K* (Copia);Lione Console Green Marble Top;Solo quitar (Copia) y *K*
+DEM.LIONE.CONS.MARB.GRN.PART1.C2;Lione Console Green Marble Top (Copia);Lione Console Green Marble Part I;CORRIDO: tiene el nombre del top
+DEM.LIONE.CONS.MARB.GRN.PART2.C3;Lione Console Green Marble Part I (Copia);Lione Console Green Marble Part II;CORRIDO: tiene el nombre de Part I
+DEM.LIONE.CONS.WD.BASE.C4;Lione Console Green Marble Part I (Copia);Lione Console Wood Legs;CORRIDO: tiene el nombre de Part I
+IE.PALERMO.SOFA.CX.DGRY.C1;Palermo Sofa Color Dark Grey *K* (Copia);Palermo Sofa CX Mod Color Dark Grey;CORRIDO: cadena de 5 modulos corrida
+IE.PALERMO.ST-POUF.DGRY.C2;Palermo Sofa Cx Mod Color Dark Grey (Copia);Palermo Seat-Pouf Color Dark Grey;CORRIDO
+IE.PALERMO.SOFA.CORNER.DGRY.C3;Palermo Seat-Pouf Color Dark Grey (Copia);Palermo Sofa Corner Mod Color Dark Grey;CORRIDO
+IE.PALERMO.CHAISE.RX.DGRY.C4;Palermo Sofa Corner Mod Color Dark Grey (Copia);Palermo Chaise RX Color Dark Grey;CORRIDO
+IE.PALERMO.SOFA.DOUBLE.SIDE.DGRY.C5;Palermo Chaise Rx Color Dark Grey (Copia);Palermo Sofa Double-Sided Seat Dark Grey;CORRIDO
+GVF.NOXIEL.KING.HDBOARD.ART.62737-COL48.GRY.C1;Noxiel Full Size Bed Headboard Green (Copia);VERIFICAR FISICAMENTE;Sin fuente confiable: Odoo no tiene descripcion en la orden; posible cadena corrida
+GVF.NOXIEL.KING.BASE.ART.62737-COL48.GRY.C2;Noxiel Full Size Bed Base Green (Copia);VERIFICAR FISICAMENTE;Sin fuente confiable
+GVF.NOXIEL.KING.PART3.ART.62737-COL48.GRY.C3;Noxiel Full Size Bed Base Grey (Copia);VERIFICAR FISICAMENTE;Sin fuente confiable
+MC.SILMAN.SQ.COFFTBL.NERO.MARB.TOP.K2;Silman Sq. Coffee Table W/Nerodorato Marble Top *K* (Copia);Quitar (Copia);Producto KIT (banner de empaque)
+VM.BUBBLES.LAMPC.XL.RATT.K2;Bubbles Pendant Lamp Rattan Xl (Copia);Quitar (Copia);Producto KIT
+LNL.FIERA.LAMPTBL31.NAT.WD.K2;Fiera Lamp Base O31 Matt Natural Wood (Copia);Quitar (Copia);Producto KIT
+LNL.HOWIE.LAMPTBL16.CER.CM.K2;Amta Table Lamp Base 16 Ceramics Cream (Copia);Quitar (Copia);Producto KIT
+(sin ref capturada);Lavci Table Lamp Base Small Ceramics Matt Cream (Copia);Quitar (Copia);Producto KIT (aparece en items armados)

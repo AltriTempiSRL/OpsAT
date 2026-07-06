@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maqueta — Estado de Órdenes (rediseño para Ventas)</title>
+<style>
+/* ═══ Tokens — copiados 1:1 de historial.html (fuente de verdad de color) ═══ */
+:root{
+  color-scheme:light;
+  --fs-xs:11px;--fs-sm:12px;--fs-base:13px;--fs-md:14px;--fs-lg:15px;
+  --fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --bg:#f4f3f1;
+  --surface:#f4f3f1;
+  --surface-2:#eeece9;
+  --surface-3:#e8e7e4;
+  --border:#d6d4cf;
+  --border-light:#dedad5;
+  --border-focus:#2b6ad4;
+  --text-primary:#1c2430;
+  --text-secondary:#45556a;
+  --text-muted:#7a8c9e;
+  --text:#1c2430;
+  --text-2:#45556a;
+  --text-3:#a8b5c2;
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
+  --accent:#1b3b6f;
+  --accent-hover:#142d56;
+  --accent-light:#e5edf7;
+  --link:#1a5ab8;
+  --brand:#0f2340;
+  --brand-primary:#062465;
+  --green:#059669;--amber:#d97706;--red:#dc2626;--purple:#7c3aed;
+  --green-bg:#e2f0e8;--green-text:#16643a;--green-dot:#1e9855;
+  --amber-bg:#fdf4e3;--amber-text:#7a4f0d;--amber-dot:#cc8500;
+  --red-bg:#f9e8e8;--red-text:#8b1a1a;--red-dot:#c42020;
+  --blue-bg:#e8f0fb;--blue-text:#184080;--blue-dot:#2a68b0;
+  --purple-bg:#f0ecf8;--purple-text:#522d7a;--purple-dot:#7c3aed;
+  --sky-bg:#e6f2fc;--sky-text:#0e5282;--sky-dot:#0284c7;
+  --orange-bg:#fceee2;--orange-text:#7c3410;--orange-dot:#c4510d;
+  --radius-sm:4px;--radius:6px;--radius-md:8px;--radius-lg:12px;--radius-full:9999px;
+  --shadow:0 0 0 1px var(--border);
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+  --tip-bg:#1c2430;--tip-fg:#ffffff;
+}
+[data-theme='dark']{
+  color-scheme:dark;
+  --bg:#14171e;
+  --surface:#14171e;
+  --surface-2:#1e2229;
+  --surface-3:#272c36;
+  --border:#2e333d;
+  --border-light:#252a33;
+  --border-focus:#4a9eff;
+  --text-primary:#e8eaed;
+  --text-secondary:#9aa5b4;
+  --text-muted:#6b7a8d;
+  --text:#e8eaed;
+  --text-2:#9aa5b4;
+  --text-3:#4a5568;
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
+  --accent:#2a5f9e;
+  --accent-hover:#3370b5;
+  --accent-light:#1e3252;
+  --link:#5ba3f5;
+  --brand:#0e1e38;
+  --brand-primary:#1a2e50;
+  --green:#2ecc6e;--amber:#e8a020;--red:#e84040;--purple:#9f6ef0;
+  --green-bg:#162a1e;--green-text:#5dd894;--green-dot:#2ecc6e;
+  --amber-bg:#2e2208;--amber-text:#f5b942;--amber-dot:#e8a020;
+  --red-bg:#2e1010;--red-text:#fc7272;--red-dot:#e84040;
+  --blue-bg:#112036;--blue-text:#7ab8f5;--blue-dot:#3a9eff;
+  --purple-bg:#1e1230;--purple-text:#b28af5;--purple-dot:#9f6ef0;
+  --sky-bg:#0e1e30;--sky-text:#62c4f5;--sky-dot:#0ea5e9;
+  --orange-bg:#2a1408;--orange-text:#f5a25a;--orange-dot:#e87020;
+  --shadow:0 0 0 1px var(--border-light);
+  --tip-bg:#f4f4f6;--tip-fg:#1a1d24;
+}
+
+/* ═══ Base ═══ */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text-primary);font-family:var(--font);font-size:var(--fs-base);line-height:1.45;transition:background .2s,color .2s}
+button{font-family:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--border-focus);outline-offset:1px}
+.ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;display:inline-block;vertical-align:-2px}
+.page{max-width:1480px;margin:0 auto;padding:18px 22px 44px}
+
+/* ═══ Tooltip accesible (patrón .has-tip del proyecto) ═══ */
+.has-tip{position:relative}
+.has-tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--tip-bg);color:var(--tip-fg);font-size:11px;font-weight:500;line-height:1.35;padding:6px 9px;border-radius:6px;white-space:normal;width:max-content;max-width:min(240px,78vw);text-align:left;opacity:0;pointer-events:none;transition:opacity .12s;z-index:60}
+.has-tip:hover::after,.has-tip:focus-visible::after{opacity:1}
+.tip-start::after{left:0;transform:none}
+.tip-end::after{left:auto;right:0;transform:none}
+
+/* ═══ ZONA 0 · Encabezado ═══ */
+.hd{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:4px 2px 16px}
+.hd-eyebrow{font-size:10px;letter-spacing:1.6px;font-weight:700;color:var(--text-muted);text-transform:uppercase}
+.hd h1{font-size:var(--fs-3xl);font-weight:700;letter-spacing:-.3px;margin-top:2px}
+.hd-live{display:flex;gap:7px;align-items:center;font-size:11px;color:var(--text-secondary);margin-top:5px}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--green-dot);box-shadow:0 0 0 3px var(--green-bg)}
+.hd-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:2px}
+.seg-btn{padding:7px 13px;font-size:12px;font-weight:600;color:var(--text-secondary);border:none;background:transparent;border-radius:7px;min-height:32px}
+.seg-btn.active{background:var(--surface);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.tbtn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;color:var(--text-secondary)}
+.tbtn:hover{background:var(--surface-3)}
+.tbtn .ic{width:16px;height:16px}
+[data-theme='light'] .ic-sun{display:none}
+[data-theme='dark'] .ic-moon{display:none}
+
+/* ═══ ZONA 1 · Pulso (KPIs + agregados fusionados en una línea) ═══ */
+.pulse{display:flex;background:var(--surface-2);border:1px solid var(--border-light);border-radius:12px;overflow:visible;margin-bottom:18px}
+.pi{flex:1;display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:12px 16px 11px;background:transparent;border:none;border-left:1px solid var(--border-light);text-align:left;position:relative;min-width:0}
+.pi:first-child{border-left:none;border-radius:12px 0 0 12px}
+.pi:last-child{border-radius:0 12px 12px 0}
+.pi-n{font-size:21px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.pi-l{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+.pi-s{font-size:10px;color:var(--text-3);white-space:nowrap}
+.pi[data-f]:hover{background:var(--surface-3)}
+.pi[data-f]{cursor:pointer}
+.pi.static{cursor:default}
+.pi.active{background:var(--accent-light)}
+.pi.active::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent)}
+
+/* ═══ Rejilla de zonas ═══ */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 318px;grid-template-rows:auto 1fr;gap:18px;align-items:start}
+.zone-main{grid-column:1;grid-row:1/3;min-width:0}
+.zone-alerts{grid-column:2;grid-row:1}
+.zone-analytics{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface-2);border:1px solid var(--border-light);border-radius:12px}
+
+/* ═══ ZONA 2 · Centro: barra de herramientas unificada (vistas + búsqueda + filtros + agrupar) ═══ */
+.toolbar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border-light);flex-wrap:wrap;position:relative}
+/* Segmented de vistas */
+.view-seg{display:inline-flex;background:var(--surface-3);border:1px solid var(--border);border-radius:9px;padding:2px;flex-shrink:0}
+.view-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;font-size:12px;font-weight:600;color:var(--text-secondary);border:none;background:transparent;border-radius:7px;min-height:32px}
+.view-btn .ic{width:14px;height:14px}
+.view-btn.active{background:var(--surface);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.view-btn .vb-txt{white-space:nowrap}
+.search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;color:var(--text-muted)}
+.search input{flex:1;border:none;background:transparent;font:inherit;font-size:13px;color:var(--text-primary);outline:none;min-width:40px}
+.search input::placeholder{color:var(--text-3)}
+/* Botones de la toolbar (Filtros / Agrupar) */
+.tb-ctrl{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:8px 11px;font-size:12px;font-weight:600;color:var(--text-secondary);min-height:36px;white-space:nowrap;flex-shrink:0}
+.tb-ctrl:hover{background:var(--surface-3)}
+.tb-ctrl .ic{width:14px;height:14px}
+.tb-ctrl.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+[data-theme='dark'] .tb-ctrl.on{color:var(--text-primary)}
+.tb-ctrl .tb-badge{min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.tb-ctrl .cv{color:var(--text-3);transition:transform .15s}
+.tb-ctrl.open-pop .cv{transform:rotate(90deg)}
+.tb-count{font-size:11px;color:var(--text-muted);white-space:nowrap;margin-left:auto}
+/* Fila de chips de filtros activos */
+.chips-bar{display:none;flex-wrap:wrap;gap:6px;padding:9px 14px 2px;border-bottom:1px solid var(--border-light)}
+.chips-bar.on{display:flex}
+.fchip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-light);color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:3px 5px 3px 11px;font-size:11px;font-weight:700}
+[data-theme='dark'] .fchip{color:var(--text-primary)}
+.fchip .fk{font-weight:600;opacity:.7}
+.fchip button{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:none;background:transparent;border-radius:50%;color:inherit}
+.fchip button:hover{background:rgba(0,0,0,.12)}
+.chip-clear{background:transparent;border:none;color:var(--text-muted);font-size:11px;font-weight:600;text-decoration:underline;padding:3px 6px}
+.chip-clear:hover{color:var(--text-primary)}
+/* Popover de filtros */
+.pop{display:none;position:absolute;top:calc(100% - 4px);z-index:40;width:min(560px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.22);padding:14px}
+.pop.on{display:block}
+.pop-fil{left:14px}
+.pop-grp{right:14px;width:min(230px,calc(100vw - 32px))}
+.pop-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.pop-f{display:flex;flex-direction:column;gap:5px}
+.pop-f.wide{grid-column:1/3}
+.pop-lbl{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.pop-sel,.pop-in{width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:12.5px;color:var(--text-primary);min-height:38px}
+.pop-sel:focus,.pop-in:focus{outline:none;border-color:var(--border-focus)}
+.pop-range{display:flex;align-items:center;gap:8px}
+.pop-range .pop-in{flex:1}
+.pop-range span{font-size:11px;color:var(--text-muted)}
+.pop-seg{display:flex;flex-wrap:wrap;gap:6px}
+.pop-seg button{background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--text-secondary);min-height:34px}
+.pop-seg button:hover{background:var(--surface-3)}
+.pop-seg button.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+[data-theme='dark'] .pop-seg button.on{color:var(--text-primary)}
+.pop-ft{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-light)}
+.pop-opt{display:flex;flex-direction:column;gap:5px}
+.pop-opt button{text-align:left;background:transparent;border:1px solid transparent;border-radius:8px;padding:9px 11px;font-size:12.5px;font-weight:600;color:var(--text-primary);min-height:38px}
+.pop-opt button:hover{background:var(--surface-3)}
+.pop-opt button.on{background:var(--accent-light);color:var(--accent)}
+[data-theme='dark'] .pop-opt button.on{color:var(--text-primary)}
+.pop-opt button.on::after{content:'✓';float:right;font-weight:800}
+.btn-apply{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:700;min-height:38px}
+.btn-apply:hover{background:var(--accent-hover)}
+.btn-reset{background:transparent;border:none;color:var(--text-muted);font-size:12px;font-weight:600;text-decoration:underline;padding:8px 4px}
+.btn-reset:hover{color:var(--text-primary)}
+.tbl-wrap{overflow-x:auto}
+/* Encabezado de grupo (agrupar por, en Lista) */
+.grp-h td{background:var(--surface-3);border-bottom:1px solid var(--border);padding:8px 12px}
+.grp-h .grp-t{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-secondary)}
+.grp-h .grp-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.grp-h .grp-n{font-weight:700;color:var(--text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+tr.due-red.grp-h td,tr.due-amber.grp-h td{background:var(--surface-3)}
+/* ═══ Vista Kanban ═══ */
+.kanban{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start}
+.kb-col{flex:0 0 262px;background:var(--surface);border:1px solid var(--border-light);border-radius:12px;display:flex;flex-direction:column;max-height:none}
+.kb-h{display:flex;align-items:center;gap:8px;padding:11px 12px;border-bottom:1px solid var(--border-light);position:sticky;top:0}
+.kb-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.kb-t{font-size:12px;font-weight:700;color:var(--text-primary);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kb-n{min-width:22px;height:20px;padding:0 6px;border-radius:6px;background:var(--surface-3);color:var(--text-secondary);font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.kb-body{padding:9px;display:flex;flex-direction:column;gap:9px;min-height:60px}
+.kb-card{background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:10px 11px;cursor:pointer;text-align:left;width:100%;display:block;position:relative}
+.kb-card:hover{border-color:var(--border);background:var(--surface-3)}
+.kb-card:focus-visible{outline:2px solid var(--border-focus);outline-offset:1px}
+.kb-card.due-red{box-shadow:inset 3px 0 0 var(--red-dot)}
+.kb-card.due-amber{box-shadow:inset 3px 0 0 var(--amber-dot)}
+.kb-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.kb-ord{font-size:12px;font-weight:700}
+.kb-cli{font-size:12.5px;font-weight:600;line-height:1.3;margin-bottom:4px}
+.kb-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10.5px;color:var(--text-muted)}
+.kb-meta .kb-av{width:18px;height:18px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:8px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+[data-theme='dark'] .kb-meta .kb-av{color:var(--text-primary)}
+.kb-prom{font-weight:700}
+.kb-prom.red{color:var(--red-text)}.kb-prom.amber{color:var(--amber-text)}.kb-prom.green{color:var(--green-text)}.kb-prom.mut{color:var(--text-muted)}
+.kb-sub{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.kb-empty{font-size:11px;color:var(--text-3);padding:14px 4px;text-align:center}
+/* ═══ Vista Gráficos ═══ */
+.charts{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ch-card{background:var(--surface);border:1px solid var(--border-light);border-radius:12px;padding:15px 16px}
+.ch-card.full{grid-column:1/3}
+.ch-title{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px}
+.ch-bars .bar-row{grid-template-columns:110px 1fr 26px;margin:11px 0}
+.ch-empty{font-size:12px;color:var(--text-muted);padding:24px 4px;text-align:center}
+.ch-month-svg{width:100%;height:150px;display:block}
+.ch-month-x{display:grid;margin-top:3px}
+.ch-month-x span{font-size:9px;color:var(--text-3);text-align:center;font-variant-numeric:tabular-nums}
+.ch-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.ch-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary)}
+.ch-lg-sw{width:9px;height:9px;border-radius:2px}
+/* ═══ Vista Calendario ═══ */
+.cal{padding:14px 16px 16px}
+.cal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.cal-nav{display:flex;align-items:center;gap:10px}
+.cal-arrow{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary)}
+.cal-arrow:hover{background:var(--surface-3)}
+.cal-month{font-size:14px;font-weight:700;min-width:130px;text-align:center}
+.cal-hint{font-size:11px;color:var(--text-muted);margin:2px 0 12px;line-height:1.4}
+/* Grid del calendario apilado (el panel del día va DEBAJO; el clic hace auto-scroll a él). */
+.cal-grid{display:block}
+.cal-calendar{min-width:0}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.cal-dow span{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);text-align:center}
+.cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-cell{position:relative;min-height:70px;background:var(--surface);border:1px solid var(--border-light);border-radius:9px;padding:6px 7px;text-align:left;display:flex;flex-direction:column;gap:3px;color:inherit}
+.cal-cell.empty{background:transparent;border:none}
+.cal-cell.has{cursor:pointer}
+.cal-cell.has:hover{border-color:var(--border);background:var(--surface-3)}
+.cal-cell:focus-visible{outline:2px solid var(--border-focus);outline-offset:1px}
+.cal-cell[disabled]{cursor:default}
+.cal-num{font-size:11.5px;font-weight:700;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.cal-cell.today .cal-num{background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.cal-cell.overdue{background:var(--red-bg);border-color:var(--red-dot)}
+.cal-cell.overdue .cal-num{color:var(--red-text)}
+.cal-cell.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.cal-cnt{font-size:15px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:auto}
+.cal-dot{width:6px;height:6px;border-radius:50%}
+/* Panel del día: la recompensa visible del clic en un día. Va DEBAJO del grid, a ancho
+   completo; el clic hace auto-scroll suave hasta él para que no nazca fuera de pantalla. */
+.cal-day-panel{margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;animation:cdp-in .18s ease-out}
+@keyframes cdp-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.cal-day-panel{animation:none}}
+.cdp-h{display:flex;align-items:center;gap:10px;padding:11px 14px 3px}
+.cdp-title{font-size:13px;font-weight:700}
+.cdp-count{font-size:11px;color:var(--text-muted);font-weight:600}
+.cdp-x{margin-left:auto;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:7px;color:var(--text-muted)}
+.cdp-x:hover{background:var(--surface-3)}
+.cdp-sum{font-size:11px;color:var(--text-secondary);padding:0 14px 10px;border-bottom:1px solid var(--border-light)}
+.cdp-ov{color:var(--red-text);font-weight:700}
+.cdp-rows{display:flex;flex-direction:column}
+.cdp-row{display:flex;align-items:center;gap:10px;width:100%;padding:9px 14px;background:transparent;border:none;border-top:1px solid var(--border-light);text-align:left;min-height:42px;color:inherit}
+.cdp-rows .cdp-row:first-child{border-top:none}
+.cdp-row:hover{background:var(--surface-3)}
+.cdp-row:focus-visible{outline:2px solid var(--border-focus);outline-offset:-2px}
+.cdp-ord{font-size:12px;font-weight:700;white-space:nowrap}
+.cdp-cli{font-size:12.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cdp-extra{font-size:10.5px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;color:var(--text-muted)}
+.cdp-extra.red{color:var(--red-text)}.cdp-extra.amber{color:var(--amber-text)}.cdp-extra.green{color:var(--green-text)}.cdp-extra.mut{color:var(--text-muted)}
+.cal-agenda{display:none}
+/* ═══ Vista Agenda (degradación móvil del calendario) ═══ */
+.ag-group{margin-bottom:12px}
+.ag-day{display:flex;align-items:center;gap:10px;width:100%;background:var(--surface-3);border:none;border-radius:8px;padding:8px 11px;margin-bottom:6px;text-align:left}
+.ag-day.overdue{background:var(--red-bg)}
+.ag-dow{font-size:12px;font-weight:800;text-transform:capitalize;color:var(--text-primary)}
+.ag-day.overdue .ag-dow{color:var(--red-text)}
+.ag-n{margin-left:auto;font-size:11px;font-weight:800;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.ag-item{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:none;border-bottom:1px solid var(--border-light);padding:9px 6px;text-align:left;color:inherit;min-height:44px}
+.ag-item:hover{background:var(--surface-2)}
+.ag-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ag-cli{font-size:12.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag-ord{font-size:11px;color:var(--text-muted);font-weight:700}
+.ag-prom{font-size:10.5px;font-weight:700;white-space:nowrap}
+.ag-prom.red{color:var(--red-text)}.ag-prom.amber{color:var(--amber-text)}.ag-prom.green{color:var(--green-text)}.ag-prom.mut{color:var(--text-muted)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);font-weight:700;text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--border-light);font-size:12.5px;vertical-align:middle}
+tr.rw{cursor:pointer}
+@media(hover:hover){tr.rw:hover td{background:var(--surface-3)}}
+tr.rw:focus-visible{outline:2px solid var(--border-focus);outline-offset:-2px}
+tr.due-red td{background:var(--red-bg)}
+tr.due-red td:first-child{box-shadow:inset 3px 0 0 var(--red-dot)}
+tr.due-amber td{background:var(--amber-bg)}
+tr.due-amber td:first-child{box-shadow:inset 3px 0 0 var(--amber-dot)}
+.ord{font-weight:700;font-size:12.5px;white-space:nowrap}
+.fol{font-size:10.5px;color:var(--text-muted);margin-top:1px;white-space:nowrap}
+.cli{font-weight:600}
+.ciu{font-size:10.5px;color:var(--text-muted);display:flex;align-items:center;gap:4px;margin-top:1px}
+.ciu .ic{width:10px;height:10px}
+.vend{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.av{width:22px;height:22px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;letter-spacing:.3px}
+[data-theme='dark'] .av{color:var(--text-primary)}
+.est-w{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.sdv-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.sdv-badge-pendiente{background:var(--amber-bg);color:var(--amber-text)}
+.sdv-badge-proceso{background:var(--blue-bg);color:var(--blue-text)}
+.sdv-badge-despachada{background:var(--green-bg);color:var(--green-text)}
+.sdv-badge-rechazada{background:var(--red-bg);color:var(--red-text)}
+tr.due-red .sdv-badge-pendiente,tr.due-red .sdv-badge-proceso{background:var(--surface)}
+tr.due-amber .sdv-badge-pendiente,tr.due-amber .sdv-badge-proceso{background:var(--surface)}
+.subchip{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:5px;font-size:10px;font-weight:700;border:1px solid var(--border);background:var(--surface);color:var(--text-2);white-space:nowrap}
+.subchip .ic{width:10px;height:10px}
+.subchip.red{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+.subchip.amber{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
+.subchip.sky{background:var(--sky-bg);color:var(--sky-text);border-color:var(--sky-dot)}
+.subchip.green{background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)}
+.subchip.purple{background:var(--purple-bg);color:var(--purple-text);border-color:var(--purple-dot)}
+tr.due-red .subchip.red,tr.due-amber .subchip.amber{background:var(--surface)}
+.pd{font-weight:600;font-size:12px;white-space:nowrap}
+.pr{font-size:10.5px;font-weight:700;margin-top:1px;white-space:nowrap}
+.pr.red{color:var(--red-text)}
+.pr.amber{color:var(--amber-text)}
+.pr.green{color:var(--green-text)}
+.pr.mut{color:var(--text-muted)}
+.evd{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--green-text);white-space:nowrap}
+.evd.warn{color:var(--amber-text)}
+.evd.na{color:var(--text-3);font-weight:500}
+.loc{font-size:11.5px;color:var(--text-secondary);white-space:nowrap}
+.empty{display:none;padding:44px 20px;text-align:center;color:var(--text-muted)}
+.empty.on{display:block}
+.empty .ic{width:26px;height:26px;color:var(--text-3)}
+.empty p{margin:10px 0 14px;font-size:13px}
+.btn-ghost{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--surface-3)}
+
+/* ═══ ZONA 3 · Acción hoy ═══ */
+.alert-card{border-left:3px solid var(--red-dot)}
+.rc-h{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;font-size:12px;font-weight:700}
+.rc-h .ic{color:var(--red-dot)}
+.rc-sub{font-size:10.5px;color:var(--text-muted);font-weight:500;margin-left:auto}
+.al-row{display:flex;align-items:center;gap:9px;width:100%;padding:9px 14px;background:transparent;border:none;border-top:1px solid var(--border-light);font-size:12px;color:var(--text-primary);text-align:left;min-height:38px}
+.al-row:hover{background:var(--surface-3)}
+.al-row.active{background:var(--accent-light)}
+.al-n{min-width:23px;height:22px;padding:0 5px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11.5px;font-variant-numeric:tabular-nums}
+.al-n.red{background:var(--red-bg);color:var(--red-text)}
+.al-n.amber{background:var(--amber-bg);color:var(--amber-text)}
+.al-n.purple{background:var(--purple-bg);color:var(--purple-text)}
+.al-lbl{flex:1;font-weight:600}
+.al-row .chev{color:var(--text-3)}
+.al-div{padding:8px 14px 3px;font-size:9.5px;letter-spacing:1px;font-weight:700;text-transform:uppercase;color:var(--text-3);border-top:1px solid var(--border-light)}
+.al-clear{display:none;padding:16px 14px;border-top:1px solid var(--border-light);font-size:12px;color:var(--green-text);align-items:center;gap:8px}
+.al-clear.on{display:flex}
+
+/* ═══ ZONA 4 · Analítica (lateral, secundaria) ═══ */
+.an-card{padding:13px 14px 12px}
+.an-title{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);margin-bottom:9px}
+.tr-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.tr-big{font-size:20px;font-weight:700}
+.tr-prev{font-size:11px;color:var(--text-muted)}
+.tr-delta{font-size:11px;font-weight:700;color:var(--green-text);display:inline-flex;gap:3px;align-items:center;margin-left:auto}
+.trend{width:100%;height:72px;display:block}
+.don-wrap{display:flex;gap:16px;align-items:center}
+.don-box{position:relative;width:110px;height:110px;flex-shrink:0}
+.don-box svg{width:110px;height:110px;transform:none}
+.don-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.don-n{font-size:20px;font-weight:700;line-height:1}
+.don-l{font-size:9.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.don-leg{flex:1;min-width:0}
+.dl-row{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:2.5px 0}
+.dl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dl-lbl{flex:1;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-n{font-weight:700;font-variant-numeric:tabular-nums}
+.bar-row{display:grid;grid-template-columns:60px 1fr 20px;gap:9px;align-items:center;margin:8px 0;font-size:11.5px}
+.bar-name{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{height:8px;background:var(--surface-3);border-radius:4px;overflow:hidden}
+.bar{height:100%;border-radius:4px;background:var(--accent)}
+.bar-n{font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.an-note{font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.4}
+
+/* ═══ Pie: fuentes de datos + nota ═══ */
+.src{margin-top:22px}
+.src summary{cursor:pointer;padding:12px 16px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;list-style:none;color:var(--text-secondary)}
+.src summary::-webkit-details-marker{display:none}
+.src summary .chev{margin-left:auto;transition:transform .15s;color:var(--text-3)}
+.src[open] summary .chev{transform:rotate(90deg)}
+.src-body{padding:2px 16px 16px}
+.src-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.src-tbl th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);padding:6px 8px;border-bottom:1px solid var(--border)}
+.src-tbl td{padding:5px 8px;border-bottom:1px dashed var(--border-light);color:var(--text-secondary)}
+.src-tbl td:first-child{font-weight:600;color:var(--text-primary)}
+.ok-chip,.gap-chip{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:1px 7px;border-radius:4px;white-space:nowrap}
+.ok-chip{background:var(--green-bg);color:var(--green-text)}
+.gap-chip{background:var(--amber-bg);color:var(--amber-text);border:1px solid var(--amber-dot)}
+.src-dec{margin:14px 0 0;padding:12px 14px;background:var(--amber-bg);border:1px dashed var(--amber-dot);border-radius:10px;font-size:12px;color:var(--amber-text)}
+.src-dec strong{display:block;margin-bottom:6px}
+.src-dec ol{margin-left:18px}
+.src-dec li{margin:3px 0;line-height:1.45}
+.mock-note{font-size:11px;color:var(--text-3);text-align:center;margin-top:16px;line-height:1.5}
+
+/* ═══ Detalle (modal centrado — patrón existente eo-det) ═══ */
+.ovl{position:fixed;inset:0;background:rgba(10,16,28,.48);display:flex;align-items:center;justify-content:center;padding:18px;z-index:100}
+.ovl[hidden]{display:none}
+/* Regla defensiva global: el atributo hidden SIEMPRE gana, aunque la clase del
+   contenedor declare display:flex/grid (si no, la vista "oculta" queda visible). */
+[hidden]{display:none!important}
+.mod{background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:780px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+.mod-h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border-light);position:sticky;top:0;background:var(--surface);z-index:2;flex-wrap:wrap}
+.mod-h .ord{font-size:15px}
+.mod-h .fol{margin:0}
+.mod-x{margin-left:auto;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;border-radius:8px;color:var(--text-muted)}
+.mod-x:hover{background:var(--surface-3)}
+.mod-b{padding:16px 18px 20px}
+.say{display:flex;gap:9px;background:var(--blue-bg);color:var(--blue-text);border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.5;margin-bottom:16px}
+.say .ic{width:15px;height:15px;margin-top:1px}
+.say strong{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.mod-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.ms-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:7px}
+.dr{display:flex;gap:10px;padding:5px 0;border-bottom:1px dashed var(--border-light);font-size:12px}
+.dr dt{width:112px;color:var(--text-muted);flex-shrink:0}
+.dr dd{flex:1;font-weight:500;min-width:0}
+.art{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px dashed var(--border-light)}
+.art-ph{width:34px;height:34px;border-radius:7px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-3);flex-shrink:0}
+.art-n{font-size:12px;font-weight:600;line-height:1.3}
+.art-s{font-size:10px;color:var(--text-muted)}
+.art-q{margin-left:auto;font-size:11px;font-weight:700;background:var(--surface-3);border-radius:6px;padding:2px 7px;white-space:nowrap}
+.art-more{font-size:11px;color:var(--text-muted);padding:7px 0 0}
+.ev-grid{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.ev-ph{width:52px;height:52px;border-radius:8px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;color:var(--text-3)}
+.ev-warn{display:flex;gap:8px;align-items:flex-start;background:var(--amber-bg);color:var(--amber-text);border-radius:9px;padding:9px 11px;font-size:11.5px;line-height:1.45;margin-top:4px}
+.gapbox{margin-top:18px;border:1px dashed var(--amber-dot);border-radius:10px;padding:12px 14px}
+.gapbox h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--amber-text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.gap-row{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:12px}
+.gap-row .g-l{width:150px;color:var(--text-muted);flex-shrink:0}
+.gap-row .g-v{color:var(--text-3)}
+.gap-row .gap-chip{margin-left:auto}
+.gap-note{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.5}
+.tl{margin-top:18px}
+.tl-i{display:flex;gap:10px;padding:0 0 12px 2px;position:relative}
+.tl-i::before{content:'';position:absolute;left:6px;top:14px;bottom:-2px;width:1px;background:var(--border)}
+.tl-i:last-child::before{display:none}
+.tl-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);margin-top:4px;flex-shrink:0;position:relative;z-index:1}
+.tl-t{font-size:12px;font-weight:600}
+.tl-m{font-size:10.5px;color:var(--text-muted)}
+
+/* ═══ Responsive ═══ */
+/* Rango medio (tablet / laptop angosto): las zonas laterales bajan y respiran */
+@media(max-width:1100px){
+  .layout{display:flex;flex-direction:column;align-items:stretch}
+  .zone-alerts{order:-1;width:100%}
+  .zone-analytics{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .pop-fil{width:min(560px,calc(100vw - 32px))}
+}
+@media(max-width:820px){
+  .charts{grid-template-columns:1fr}
+  .ch-card.full{grid-column:auto}
+}
+/* Colapso de la toolbar: el rótulo de las vistas se oculta (queda el ícono),
+   y la barra vive en dos filas sin apilar selects sueltos. */
+@media(max-width:720px){
+  .page{padding:14px 12px 36px}
+  .pulse{flex-wrap:wrap;overflow:hidden}
+  .pi{flex:1 1 32%;border-top:1px solid var(--border-light);padding:10px 12px}
+  .pi:nth-child(-n+3){border-top:none}
+  .pi-n{font-size:18px}
+  .toolbar{padding:10px 12px;gap:8px}
+  .view-seg{order:1}
+  .search{order:3;flex:1 1 100%;min-width:0}
+  .tb-ctrl.f-btn{order:2;margin-left:auto}
+  .tb-ctrl.g-btn{order:2}
+  .view-btn .vb-txt{display:none}
+  .view-btn{padding:7px 10px}
+  .tb-count{order:4;flex:1 1 100%;margin-left:0;text-align:right}
+  .pop{position:fixed;left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:80vh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,.28)}
+  .pop-grid{grid-template-columns:1fr}
+  .pop-f.wide{grid-column:auto}
+  /* Tabla → tarjetas: cada card limpia, con jerarquía y sin desbordes */
+  .tbl{min-width:0}
+  .tbl thead{display:none}
+  .tbl,.tbl tbody{display:block}
+  .tbl tr.rw{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:13px 14px;border-bottom:1px solid var(--border-light);border-radius:0}
+  .tbl td{display:block;padding:0;border:none;background:none!important;box-shadow:none!important;min-width:0}
+  tr.due-red{background:var(--red-bg);box-shadow:inset 3px 0 0 var(--red-dot)}
+  tr.due-amber{background:var(--amber-bg);box-shadow:inset 3px 0 0 var(--amber-dot)}
+  /* fila 1: orden (izq) · estado (der) */
+  .c-orden{grid-column:1;grid-row:1;align-self:center}
+  .c-orden .ord{font-size:13.5px}
+  .c-est{grid-column:2;grid-row:1;justify-self:end}
+  .c-est .est-w{align-items:flex-end;gap:5px}
+  /* fila 2: cliente + ciudad, ocupa el ancho */
+  .c-cli{grid-column:1/3;grid-row:2;margin-top:2px}
+  .c-cli .cli{font-size:13px}
+  /* fila 3: promesa con semáforo (izq) · vendedora (der) */
+  .c-prom{grid-column:1;grid-row:3;margin-top:6px}
+  .c-prom .pd{font-size:12px}.c-prom .pr{display:block;margin-top:1px}
+  .c-vend{grid-column:2;grid-row:3;justify-self:end;align-self:end;margin-top:6px}
+  /* fila 4: evidencia (izq) · almacén (der) */
+  .c-evid{grid-column:1;grid-row:4;margin-top:6px;padding-top:8px;border-top:1px dashed var(--border-light)!important;width:100%}
+  .c-loc{grid-column:2;grid-row:4;justify-self:end;align-self:center;margin-top:6px;padding-top:8px}
+  .c-loc .loc{font-size:11px;display:inline-flex;align-items:center;gap:4px}
+  .c-loc .loc::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--text-3)}
+  /* Kanban en móvil: columnas un poco más angostas */
+  .kb-col{flex-basis:78vw}
+  /* Grupos (Lista) en móvil */
+  .grp-h td{grid-column:1/3!important;padding:9px 14px}
+  .grp-h.rw{display:block!important;padding:0!important;background:none}
+  /* Calendario → Agenda: el grid mensual denso es hostil en 375px, se sustituye por la lista por día */
+  .cal-grid{display:none}
+  .cal-agenda{display:block}
+  .cal-toolbar{gap:8px}
+  .cal-month{min-width:0;flex:1;text-align:center}
+  .mod-grid{grid-template-columns:1fr}
+  .gap-row .g-l{width:118px}
+}
+@media(max-width:400px){
+  .pi{flex:1 1 48%}
+}
+</style>
+</head>
+<body>
+
+<!-- Sprite de íconos SVG inline (sin librerías) -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></symbol>
+  <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-xcircle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+  <symbol id="i-columns" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></symbol>
+  <symbol id="i-group" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h14"/><path d="M7 18h14"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></symbol>
+</svg>
+
+<div class="page">
+
+  <!-- ═══ ZONA 0 · Encabezado: identidad + alcance + tema ═══ -->
+  <header class="hd">
+    <div>
+      <div class="hd-eyebrow">Altri Tempi · Ventas</div>
+      <h1>Estado de Órdenes</h1>
+      <div class="hd-live"><span class="live-dot"></span>En vivo — SDV · Operaciones (WWP) · Odoo &nbsp;·&nbsp; actualizado 10:42 a. m.</div>
+    </div>
+    <div class="hd-right">
+      <div class="seg" role="group" aria-label="Alcance de la vista">
+        <button class="seg-btn" id="sc-mine" type="button">Solo lo mío</button>
+        <button class="seg-btn active" id="sc-all" type="button">Todo el equipo</button>
+      </div>
+      <button class="tbtn has-tip tip-end" id="theme-btn" type="button" data-tip="Alternar tema claro / oscuro" aria-label="Alternar tema claro u oscuro">
+        <svg class="ic ic-moon"><use href="#i-moon"/></svg>
+        <svg class="ic ic-sun"><use href="#i-sun"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ ZONA 1 · Pulso: una sola línea (fusiona los 7 KPI + agregados + OTIF) ═══ -->
+  <section class="pulse" id="pulse" aria-label="Pulso de órdenes"></section>
+
+  <div class="layout">
+
+    <!-- ═══ ZONA 2 · Centro: la lista de órdenes (el corazón para Ventas) ═══ -->
+    <main class="zone-main card">
+      <!-- Barra de herramientas ÚNICA: vistas + búsqueda + filtros + agrupar -->
+      <div class="toolbar">
+        <div class="view-seg" role="group" aria-label="Vista">
+          <button type="button" class="view-btn active" data-view="list" aria-pressed="true"><svg class="ic"><use href="#i-list"/></svg><span class="vb-txt">Lista</span></button>
+          <button type="button" class="view-btn" data-view="kanban" aria-pressed="false"><svg class="ic"><use href="#i-columns"/></svg><span class="vb-txt">Kanban</span></button>
+          <button type="button" class="view-btn" data-view="cal" aria-pressed="false"><svg class="ic"><use href="#i-cal"/></svg><span class="vb-txt">Calendario</span></button>
+          <button type="button" class="view-btn" data-view="charts" aria-pressed="false"><svg class="ic"><use href="#i-chart"/></svg><span class="vb-txt">Gráficos</span></button>
+        </div>
+        <label class="search" for="q">
+          <svg class="ic"><use href="#i-search"/></svg>
+          <input id="q" type="text" placeholder="Cliente, orden (S07…), folio o vendedora" autocomplete="off">
+        </label>
+        <button type="button" class="tb-ctrl f-btn" id="fil-btn" aria-haspopup="true" aria-expanded="false">
+          <svg class="ic"><use href="#i-filter"/></svg>Filtros<span class="tb-badge" id="fil-badge" hidden>0</span><svg class="ic cv"><use href="#i-chev"/></svg>
+        </button>
+        <button type="button" class="tb-ctrl g-btn" id="grp-btn" aria-haspopup="true" aria-expanded="false">
+          <svg class="ic"><use href="#i-group"/></svg><span id="grp-lbl">Agrupar</span><svg class="ic cv"><use href="#i-chev"/></svg>
+        </button>
+        <span class="tb-count" id="tb-count"></span>
+
+        <!-- Popover de FILTROS (multi-parámetro, combinables) -->
+        <div class="pop pop-fil" id="pop-fil" role="dialog" aria-label="Filtros">
+          <div class="pop-grid">
+            <div class="pop-f">
+              <label class="pop-lbl" for="f-loc">Almacén (despacho desde)</label>
+              <select class="pop-sel" id="f-loc"><option value="">Todos</option></select>
+            </div>
+            <div class="pop-f">
+              <label class="pop-lbl" for="f-vend">Vendedora</label>
+              <select class="pop-sel" id="f-vend"><option value="">Todas</option></select>
+            </div>
+            <div class="pop-f">
+              <label class="pop-lbl" for="f-est">Estado</label>
+              <select class="pop-sel" id="f-est">
+                <option value="">Todos</option>
+                <option value="pend">Pendiente revisión</option>
+                <option value="ops">En operaciones</option>
+                <option value="ruta">En ruta</option>
+                <option value="desp">Despachada</option>
+                <option value="rech">Rechazada</option>
+              </select>
+            </div>
+            <div class="pop-f">
+              <label class="pop-lbl" for="f-ord">Nº de orden</label>
+              <input class="pop-in" id="f-ord" type="text" placeholder="Ej. 07231 o S07231" autocomplete="off">
+            </div>
+            <div class="pop-f wide">
+              <span class="pop-lbl">Promesa de entrega</span>
+              <div class="pop-seg" id="f-prom" role="group" aria-label="Filtro de promesa">
+                <button type="button" data-p="venc">Vencidas</button>
+                <button type="button" data-p="hoy">Hoy</button>
+                <button type="button" data-p="sem">Esta semana</button>
+                <button type="button" data-p="rango">Rango…</button>
+              </div>
+              <div class="pop-range" id="f-range" hidden style="margin-top:4px">
+                <input class="pop-in" id="f-d1" type="date" aria-label="Fecha desde">
+                <span>a</span>
+                <input class="pop-in" id="f-d2" type="date" aria-label="Fecha hasta">
+              </div>
+            </div>
+          </div>
+          <div class="pop-ft">
+            <button type="button" class="btn-reset" id="fil-reset">Limpiar filtros</button>
+            <button type="button" class="btn-apply" id="fil-apply">Aplicar</button>
+          </div>
+        </div>
+
+        <!-- Popover de AGRUPAR POR -->
+        <div class="pop pop-grp" id="pop-grp" role="dialog" aria-label="Agrupar por">
+          <div class="pop-opt" id="grp-opts">
+            <button type="button" data-g="none" class="on">Ninguno</button>
+            <button type="button" data-g="vend">Vendedora</button>
+            <button type="button" data-g="est">Estado</button>
+            <button type="button" data-g="loc">Almacén</button>
+            <button type="button" data-g="fecha">Fecha (promesa)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chips de filtros activos -->
+      <div class="chips-bar" id="chips-bar"></div>
+
+      <!-- VISTA LISTA -->
+      <div class="tbl-wrap" id="view-list">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Orden</th><th>Cliente</th><th>Vendedora</th><th>Estado</th>
+              <th>Promesa</th><th>Evid.</th><th>Despacho desde</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <!-- VISTA KANBAN -->
+      <div class="kanban" id="view-kanban" hidden></div>
+
+      <!-- VISTA CALENDARIO (grid en desktop, agenda en móvil) -->
+      <div class="cal" id="view-cal" hidden></div>
+
+      <!-- VISTA GRÁFICOS -->
+      <div class="charts" id="view-charts" hidden></div>
+
+      <div class="empty" id="empty">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <p>Ninguna orden coincide con ese filtro o búsqueda.</p>
+        <button class="btn-ghost" type="button" id="empty-clear">Limpiar todo</button>
+      </div>
+    </main>
+
+    <!-- ═══ ZONA 3 · Acción hoy: solo lo que exige acción (excepciones, no estados) ═══ -->
+    <aside class="zone-alerts card alert-card" aria-label="Acción hoy">
+      <div class="rc-h"><svg class="ic"><use href="#i-alert"/></svg>Acción hoy<span class="rc-sub">solo lo que exige acción</span></div>
+      <div id="al-rows"></div>
+      <div class="al-clear" id="al-clear"><svg class="ic"><use href="#i-check"/></svg>Sin pendientes que exijan acción.</div>
+    </aside>
+
+    <!-- ═══ ZONA 4 · Analítica: contexto de gerencia, al costado ═══ -->
+    <aside class="zone-analytics" aria-label="Analítica">
+      <div class="card an-card">
+        <div class="an-title">Tendencia · 8 semanas</div>
+        <div class="tr-head">
+          <span class="tr-big">12</span><span class="tr-prev">esta semana · 9 la anterior</span>
+          <span class="tr-delta"><svg class="ic" style="width:12px;height:12px"><use href="#i-trend"/></svg>+33%</span>
+        </div>
+        <svg class="trend" id="trend" viewBox="0 0 260 72" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </div>
+      <div class="card an-card">
+        <div class="an-title">Por estado</div>
+        <div class="don-wrap">
+          <div class="don-box">
+            <svg viewBox="0 0 110 110" id="donut" aria-hidden="true"></svg>
+            <div class="don-c"><span class="don-n" id="don-n">0</span><span class="don-l">órdenes</span></div>
+          </div>
+          <div class="don-leg" id="don-leg"></div>
+        </div>
+      </div>
+      <div class="card an-card">
+        <div class="an-title">Órdenes por vendedora</div>
+        <div id="bars"></div>
+        <div class="an-note">Panorama del alcance y la búsqueda activos. La vista <b>Gráficos</b> (arriba) refleja además los filtros aplicados. (Tendencia: serie ilustrativa en esta maqueta.)</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ═══ Pie · Mapa de fuentes (para decidir el reemplazo de la hoja) ═══ -->
+  <details class="src card">
+    <summary><svg class="ic"><use href="#i-info"/></svg>¿De dónde sale cada dato? — mapa hoja de Ventas → fuentes vivas<svg class="ic chev"><use href="#i-chev"/></svg></summary>
+    <div class="src-body">
+      <table class="src-tbl">
+        <thead><tr><th>Concepto (hoja de Ventas)</th><th>Fuente viva</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>No. Orden</td><td>SDV · odooOrderRef (Odoo)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Tipo de Movimiento</td><td>SDV · tipoSolicitud</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Nombre Cliente</td><td>SDV · clienteNombre (Odoo)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Ciudad</td><td>SDV · ciudadEntrega (Odoo)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Lugar de Entrega</td><td>SDV · direccionEntrega (Odoo)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Fecha Solicitada</td><td>SDV · creadoAt</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Fecha de Entrega (promesa)</td><td>SDV · fechaSolicitudDeseada</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Fecha de Entrega (real)</td><td>despachadaEn / statusHistory</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Vendedor</td><td>SDV · vendedorNombre</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Días Restantes</td><td>Derivado (fecha deseada − hoy)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Prioridad</td><td>Prioridad SDV / tarea WWP</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Cantidad de Artículos</td><td>SDV · articulosOdoo (Odoo)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Lugar de Despacho</td><td>Localidad de la tarea (WWP) / pick Odoo</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Estatus</td><td>Estado SDV + pickStatus Odoo</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Comentario</td><td>SDV · observaciones</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Artículos Adicionales</td><td>Solicitudes adicionales (solicitudOrigenId)</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Fecha de Modificación</td><td>updatedAt / statusHistory</td><td><span class="ok-chip">Vivo</span></td></tr>
+          <tr><td>Vehículo</td><td>— (existe módulo Vehículos en WWP, sin asignación por despacho)</td><td><span class="gap-chip">Requiere captura nueva</span></td></tr>
+          <tr><td>Tipo de Transporte</td><td>—</td><td><span class="gap-chip">Requiere captura nueva</span></td></tr>
+          <tr><td>¿Lleva instalación?</td><td>—</td><td><span class="gap-chip">Requiere captura nueva</span></td></tr>
+          <tr><td>Horario de Entrega</td><td>—</td><td><span class="gap-chip">Requiere captura nueva</span></td></tr>
+          <tr><td>Días de preparación</td><td>— (posible derivar de statusHistory si la definición coincide)</td><td><span class="gap-chip">Requiere captura nueva</span></td></tr>
+        </tbody>
+      </table>
+      <div class="src-dec">
+        <strong>Decisiones pendientes antes de jubilar la hoja</strong>
+        <ol>
+          <li>¿Capturar <b>Vehículo</b> y <b>Tipo de transporte</b> al asignar la ruta en WWP? (el módulo de Vehículos ya existe; falta la asignación por despacho).</li>
+          <li>¿Capturar <b>Horario de entrega</b> y <b>¿Lleva instalación?</b> en el formulario SDV, al crear la solicitud?</li>
+          <li>¿<b>Días de preparación</b> se deriva del historial (aprobada → despachada) o se captura a mano? Confirmar la definición con Ventas.</li>
+          <li>¿La vista arranca en <b>Solo lo mío</b> para vendedoras y <b>Todo el equipo</b> para gerencia? (propuesto: sí).</li>
+          <li>¿Vista por defecto <b>Lista</b> para todos, o <b>Calendario/Agenda</b> para gerencia de Ops (planificación de carga)? ¿Se recuerda la última vista por usuario?</li>
+          <li>Calendario: ¿dimensión por defecto <b>Promesa</b> (agenda hacia adelante) o <b>Despachado</b> (throughput hacia atrás)? Propuesto: Promesa para Ventas, Despachado para gerencia.</li>
+        </ol>
+      </div>
+    </div>
+  </details>
+
+  <p class="mock-note">Maqueta con datos simulados — concepto de rediseño de Estado de Órdenes (reemplaza al Dashboard Ventas).<br>Vistas Lista · Kanban · Calendario · Gráficos + filtros combinables y agrupar por, todo sobre el mismo subconjunto (una sola verdad). Fuentes vivas: SDV · WWP · Odoo — ninguna depende de la hoja de Google.</p>
+</div>
+
+<!-- ═══ Detalle de la orden (modal centrado — mismo patrón eo-det de la app) ═══ -->
+<div class="ovl" id="ovl" hidden>
+  <div class="mod" role="dialog" aria-modal="true" aria-labelledby="mod-title">
+    <div class="mod-h">
+      <div>
+        <div class="ord" id="mod-title"></div>
+        <div class="fol" id="mod-fol"></div>
+      </div>
+      <span id="mod-badge"></span>
+      <button class="mod-x" type="button" id="mod-x" aria-label="Cerrar detalle"><svg class="ic" style="width:16px;height:16px"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="mod-b" id="mod-b"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ══════════ Datos simulados (en la app real: /api/sdv + _tasks + pickstatus Odoo) ══════════ */
+var VEND = {
+  daniela:  {n:'Daniela',  full:'Daniela Gómez',    ini:'DG'},
+  heidy:    {n:'Heidy',    full:'Heidy Núñez',      ini:'HN'},
+  yudelka:  {n:'Yudelka',  full:'Yudelka Reyes',    ini:'YR'},
+  jeniffer: {n:'Jeniffer', full:'Jeniffer Batista', ini:'JB'}
+};
+var EST = {
+  pend:{lbl:'Pendiente revisión', cls:'sdv-badge-pendiente'},
+  ops: {lbl:'En proceso',         cls:'sdv-badge-proceso'},
+  ruta:{lbl:'En proceso',         cls:'sdv-badge-proceso'},
+  desp:{lbl:'Despachada',         cls:'sdv-badge-despachada'},
+  rech:{lbl:'Rechazada',          cls:'sdv-badge-rechazada'}
+};
+// "Hoy" de la maqueta = 3 jul 2026. Las fechas (cre/fdes/ent) van en ISO para poder
+// computar promesa (vencidas/hoy/semana/rango) y agrupar por fecha con datos reales.
+var TODAY = '2026-07-03';
+var DATA = [
+  {id:'S07204', folio:'SD-2026-0131', cliente:'Inversiones Marbella SRL', vend:'yudelka',
+   ciudad:'Santo Domingo', dir:'Av. Sarasota 47, Bella Vista', loc:'CDP', tipo:'Despacho a cliente',
+   e:'pend', flags:['venc'], nArts:14, cre:'2026-06-29', fdes:'2026-07-01', evid:null,
+   sub:[{t:'4 d en revisión', c:'red', i:'hourglass'}],
+   pick:'Sin OUT — la solicitud aún no se aprueba',
+   recept:'Sr. Andrés Marte · 809-555-0187',
+   obs:'Cliente pide llamar 1 hora antes de llegar.',
+   msg:'La fecha deseada ya pasó y la solicitud sigue en revisión. Habla con Operaciones antes de comprometer una fecha nueva con el cliente.',
+   arts:[{n:'Mesa Comedor Toscana 200 cm — Roble', s:'AT-2104', q:1},{n:'Silla Roma — Terciopelo Verde', s:'AT-2311', q:8}], more:5,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'29 jun · 10:22 a. m.'}]},
+
+  {id:'S07200', folio:'SD-2026-0129', cliente:'Constructora del Este', vend:'yudelka',
+   ciudad:'La Romana', dir:'Carret. Romana–Bayahíbe km 6', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ops', flags:['venc'], nArts:5, cre:'2026-06-26', fdes:'2026-07-02', evid:null,
+   sub:[{t:'Empaque · en progreso', c:'sky', i:'package'}],
+   pick:'OUT/00471 — en espera',
+   recept:'Ing. Franklin Sosa · 809-555-0142', obs:'',
+   msg:'En preparación pero fuera de fecha. Confirma la nueva fecha con Operaciones antes de avisar al cliente.',
+   arts:[{n:'Escritorio Módena 160 cm — Nogal', s:'AT-1830', q:2},{n:'Librero Verona 5 niveles', s:'AT-1912', q:3}], more:0,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'26 jun · 9:05 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'26 jun · 11:40 a. m.'}]},
+
+  {id:'S07230', folio:'SD-2026-0146', cliente:'Casa Ortiz', vend:'daniela',
+   ciudad:'Santiago', dir:'Calle del Sol 112', loc:'Nave 2', tipo:'Despacho a cliente',
+   e:'rech', flags:[], nArts:3, cre:'2026-07-01', fdes:'2026-07-06', evid:null,
+   sub:[{t:'Corregir y reenviar', c:'red', i:'xcircle'}],
+   pick:'Sin OUT — la solicitud fue rechazada',
+   recept:'', obs:'Motivo del rechazo: dirección de entrega incompleta.',
+   msg:'Operaciones la devolvió: falta la dirección exacta de entrega. Corrígela y reenvía — el cliente no pierde su turno.',
+   arts:[{n:'Butaca Firenze — Lino Piedra', s:'AT-2240', q:2},{n:'Lámpara de Pie Arco — Bronce', s:'AT-2405', q:1}], more:0,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'01 jul · 3:12 p. m.'},{l:'Rechazada — dirección incompleta', w:'Melvin Roa', at:'02 jul · 8:50 a. m.'}]},
+
+  {id:'S07231', folio:'SD-2026-0147', cliente:'BLOOMSDAY', vend:'daniela',
+   ciudad:'Santo Domingo', dir:'C. Max Henríquez Ureña 32, Naco', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ops', flags:['bloq'], nArts:12, cre:'2026-06-27', fdes:'2026-07-04', evid:null,
+   sub:[{t:'Bloqueado por stock', c:'red', i:'ban'}],
+   pick:'OUT/00483 — sin stock reservado (2 artículos)',
+   recept:'Sra. Miguelina Báez · 809-555-0134', obs:'Entregar en recepción de la torre.',
+   msg:'Odoo no tiene stock reservado para 2 artículos. No prometas fecha hasta que Operaciones confirme la reposición.',
+   arts:[{n:'Sofá Divani 3P — Piel Cognac', s:'AT-2050', q:1},{n:'Mesa de Centro Como — Mármol', s:'AT-2136', q:1},{n:'Credenza Milano 180 cm — Nogal', s:'AT-2019', q:1}], more:9,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'27 jun · 10:02 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'27 jun · 12:15 p. m.'}]},
+
+  {id:'S07228', folio:'SD-2026-0143', cliente:'Cristina Fernández', vend:'heidy',
+   ciudad:'Punta Cana', dir:'Res. Cocotal, Villa 18-B', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ruta', flags:[], nArts:2, cre:'2026-06-28', fdes:'2026-07-03', evid:null,
+   sub:[{t:'En ruta · salió 9:40 a. m.', c:'sky', i:'truck'}],
+   pick:'OUT/00479 — hecho',
+   recept:'Cristina Fernández · 829-555-0119', obs:'',
+   msg:'Su pedido va en camino — salió a las 9:40 a. m. y llega hoy dentro del horario acordado.',
+   arts:[{n:'Cama King Torino — Cuero Blanco', s:'AT-1904', q:1},{n:'Colchón Dolce Vita King', s:'AT-1955', q:1}], more:0,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'28 jun · 4:30 p. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'29 jun · 8:20 a. m.'},{l:'Salió a ruta', w:'Equipo de despacho', at:'03 jul · 9:40 a. m.'}]},
+
+  {id:'S07224', folio:'SD-2026-0141', cliente:'Sra. Carmen Then', vend:'heidy',
+   ciudad:'Santo Domingo Este', dir:'Av. San Vicente de Paúl 89', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'ruta', flags:[], nArts:8, cre:'2026-06-27', fdes:'2026-07-03', evid:null,
+   sub:[{t:'En ruta · salió 11:15 a. m.', c:'sky', i:'truck'}],
+   pick:'OUT/00480 — hecho',
+   recept:'', obs:'',
+   msg:'Su pedido va en camino — salió a las 11:15 a. m. y llega hoy dentro del horario acordado.',
+   arts:[{n:'Silla Roma — Terciopelo Verde', s:'AT-2311', q:6},{n:'Mesa Comedor Toscana 160 cm — Roble', s:'AT-2102', q:1}], more:1,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'27 jun · 2:44 p. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'28 jun · 9:00 a. m.'},{l:'Salió a ruta', w:'Equipo de despacho', at:'03 jul · 11:15 a. m.'}]},
+
+  {id:'S07234', folio:'SD-2026-0148', cliente:'Grupo Alonzo y Asoc.', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'Torre Empresarial AIRD, piso 7', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'pend', flags:[], nArts:6, cre:'2026-07-03', fdes:'2026-07-10', evid:null,
+   sub:[{t:'3 h en revisión', c:'', i:'hourglass'}],
+   pick:'Sin OUT — pendiente de aprobación',
+   recept:'Lic. Rafael Alonzo · 809-555-0166', obs:'Coordinar con seguridad del edificio.',
+   msg:'Solicitud recibida; Operaciones la revisa hoy. La entrega sigue programada para el 10 de julio.',
+   arts:[{n:'Escritorio Módena 180 cm — Grafito', s:'AT-1832', q:4},{n:'Silla Ejecutiva Parma — Piel Negra', s:'AT-2410', q:2}], more:0,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'03 jul · 7:58 a. m.'}]},
+
+  {id:'S07229', folio:'SD-2026-0145', cliente:'Residencial Las Palmas', vend:'daniela',
+   ciudad:'Santo Domingo', dir:'Av. Anacaona 45, Torre II', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ops', flags:[], nArts:9, cre:'2026-06-30', fdes:'2026-07-08', evid:null,
+   sub:[{t:'OUT listo · reservado', c:'green', i:'package'}],
+   pick:'OUT/00486 — listo para salir',
+   recept:'', obs:'',
+   msg:'En preparación y con salida lista en Odoo. La entrega va en camino de cumplirse el 8 de julio, como se prometió.',
+   arts:[{n:'Sofá Seccional Nube — Bouclé Marfil', s:'AT-2071', q:1},{n:'Mesa de Centro Como — Mármol', s:'AT-2136', q:1},{n:'Espejo Venezia 120 cm', s:'AT-2380', q:2}], more:5,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'30 jun · 11:26 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'30 jun · 2:05 p. m.'}]},
+
+  {id:'S07210', folio:'SD-2026-0135', cliente:'Hotel Villa Serena', vend:'yudelka',
+   ciudad:'Las Terrenas', dir:'Calle Duarte 27', loc:'Nave 2', tipo:'Despacho a cliente',
+   e:'desp', flags:['dev'], nArts:4, cre:'2026-06-20', fdes:'2026-06-25', ent:'2026-06-25', evid:3,
+   sub:[{t:'Devolución en ruta', c:'red', i:'undo'}],
+   pick:'OUT/00458 — hecho',
+   recept:'Recepción del hotel', obs:'Devolución abierta: 1 butaca con defecto de tapiz.',
+   msg:'Entregado el 25 de junio; hay una devolución en ruta abierta por 1 artículo. Coordina con Operaciones el retiro.',
+   arts:[{n:'Butaca Firenze — Lino Arena', s:'AT-2241', q:4}], more:0,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'20 jun · 9:15 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'20 jun · 10:30 a. m.'},{l:'Despachada — 3 evidencias', w:'Equipo de despacho', at:'25 jun · 1:20 p. m.'},{l:'Devolución en ruta abierta', w:'Equipo de despacho', at:'25 jun · 1:35 p. m.'}]},
+
+  {id:'S07198', folio:'SD-2026-0128', cliente:'Sr. José Contreras', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'C. Rafael A. Sánchez 55', loc:'CDP', tipo:'Despacho a cliente',
+   e:'desp', flags:['sinevid','sinout'], nArts:5, cre:'2026-06-24', fdes:'2026-06-30', ent:'2026-06-28', evid:0,
+   sub:[{t:'Sin evidencia', c:'amber', i:'image'},{t:'Sin OUT Odoo', c:'red', i:'alert'}],
+   pick:'Sin OUT registrado en Odoo',
+   recept:'Sr. José Contreras · 809-555-0102', obs:'',
+   msg:'Entregado el 28 de junio, pero falta la foto de los documentos firmados y la salida en Odoo. Pídelas a Operaciones antes de cerrar con el cliente.',
+   arts:[{n:'Juego de Comedor Capri 6 sillas', s:'AT-2150', q:1},{n:'Aparador Capri — Roble Ahumado', s:'AT-2155', q:1}], more:0,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'24 jun · 10:48 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'24 jun · 1:10 p. m.'},{l:'Despachada — sin evidencias', w:'Equipo de despacho', at:'28 jun · 4:55 p. m.'}]},
+
+  {id:'S07217', folio:'SD-2026-0138', cliente:'Dra. Marlene Peña', vend:'heidy',
+   ciudad:'Santiago', dir:'Rep. de Argentina 14, Los Jardines', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'desp', flags:['demo'], nArts:2, cre:'2026-06-22', fdes:'2026-06-28', ent:'2026-06-28', evid:4,
+   sub:[{t:'2 en demo · día 5', c:'purple', i:'eye'}],
+   pick:'OUT/00462 — hecho',
+   recept:'Dra. Marlene Peña · 829-555-0177', obs:'Demo pactada por 7 días.',
+   msg:'2 piezas en demostración desde hace 5 días. Toca decidir con el cliente: compra o retiro.',
+   arts:[{n:'Sillón Reclinable Torino — Piel Taupe', s:'AT-2090', q:1},{n:'Otomán Torino — Piel Taupe', s:'AT-2091', q:1}], more:0,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'22 jun · 3:40 p. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'23 jun · 8:30 a. m.'},{l:'Despachada — 4 evidencias · 2 piezas en demo', w:'Equipo de despacho', at:'28 jun · 11:05 a. m.'}]},
+
+  {id:'S07222', folio:'SD-2026-0140', cliente:'BLOOMSDAY', vend:'daniela',
+   ciudad:'Santo Domingo', dir:'C. Max Henríquez Ureña 32, Naco', loc:'CDP', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:6, cre:'2026-06-26', fdes:'2026-06-30', ent:'2026-06-30', evid:6,
+   sub:[],
+   pick:'OUT/00470 — hecho',
+   recept:'Sra. Miguelina Báez · 809-555-0134', obs:'',
+   msg:'Entregado completo y a tiempo el 30 de junio, con 6 fotos de evidencia. Puedes compartirlas con el cliente.',
+   arts:[{n:'Mesa Auxiliar Lira — Latón', s:'AT-2377', q:2},{n:'Lámpara de Mesa Siena — Cerámica', s:'AT-2401', q:2},{n:'Tapete Persa 200×300', s:'AT-2500', q:1}], more:1,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'26 jun · 9:32 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'26 jun · 10:15 a. m.'},{l:'Salió a ruta', w:'Equipo de despacho', at:'30 jun · 8:50 a. m.'},{l:'Despachada — 6 evidencias', w:'Equipo de despacho', at:'30 jun · 2:10 p. m.'}]},
+
+  {id:'S07236', folio:'SD-2026-0150', cliente:'Boutique Verde Oliva', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'Plaza Andalucía, local 12', loc:'Nave 2', tipo:'Despacho a cliente',
+   e:'ops', flags:['venc'], nArts:7, cre:'2026-06-25', fdes:'2026-07-02', evid:null,
+   sub:[{t:'Empaque · en progreso', c:'sky', i:'package'}],
+   pick:'OUT/00489 — en preparación',
+   recept:'Sra. Paola Grullón · 809-555-0155', obs:'Cita previa con administración de la plaza.',
+   msg:'En preparación pero la fecha ya pasó. Acuerda con Operaciones una nueva fecha antes de comprometerte con la clienta.',
+   arts:[{n:'Estantería Nórdica Pino — 6 cubos', s:'AT-2210', q:3},{n:'Silla Wishbone — Cuerda Natural', s:'AT-2318', q:4}], more:0,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'25 jun · 11:20 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'26 jun · 8:40 a. m.'}]},
+
+  {id:'S07233', folio:'SD-2026-0149', cliente:'Arq. Lucía Peralta', vend:'yudelka',
+   ciudad:'Santo Domingo', dir:'Torre Blue Mall, apto 1402', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'pend', flags:[], nArts:4, cre:'2026-07-02', fdes:'2026-07-03', evid:null,
+   sub:[{t:'1 d en revisión', c:'amber', i:'hourglass'}],
+   pick:'Sin OUT — pendiente de aprobación',
+   recept:'Arq. Lucía Peralta · 809-555-0173', obs:'Prefiere entrega en horario de la mañana.',
+   msg:'La fecha deseada es hoy y aún está en revisión. Confirma con Operaciones si alcanza para hoy antes de prometerlo.',
+   arts:[{n:'Consola Recibidor Aria — Roble', s:'AT-2028', q:1},{n:'Espejo Redondo Sol — Latón', s:'AT-2382', q:2}], more:0,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'02 jul · 5:10 p. m.'}]},
+
+  {id:'S07226', folio:'SD-2026-0142', cliente:'Sr. Pedro Guzmán', vend:'heidy',
+   ciudad:'San Cristóbal', dir:'Av. Constitución 61', loc:'Nave 2', tipo:'Despacho a cliente',
+   e:'ops', flags:[], nArts:5, cre:'2026-06-29', fdes:'2026-07-09', evid:null,
+   sub:[{t:'OUT listo · reservado', c:'green', i:'package'}],
+   pick:'OUT/00485 — listo para salir',
+   recept:'Sr. Pedro Guzmán · 809-555-0198', obs:'',
+   msg:'En preparación con salida lista en Odoo. La entrega va encaminada a cumplirse el 9 de julio, como se prometió.',
+   arts:[{n:'Juego de Terraza Amalfi 4 pzs', s:'AT-2600', q:1},{n:'Sombrilla Capri 3 m — Beige', s:'AT-2610', q:2}], more:1,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'29 jun · 1:15 p. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'30 jun · 9:30 a. m.'}]},
+
+  {id:'S07219', folio:'SD-2026-0139', cliente:'Studio Concept SRL', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'C. Erik Leonard Ekman 8', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:3, cre:'2026-06-23', fdes:'2026-06-29', ent:'2026-07-01', evid:5,
+   sub:[{t:'Entregada tarde', c:'amber', i:'hourglass'}],
+   pick:'OUT/00465 — hecho',
+   recept:'Sra. Vanessa Lora · 809-555-0121', obs:'',
+   msg:'Entregado el 1 de julio, dos días después de la fecha prometida. Si el cliente pregunta, la demora fue por coordinación de ruta; ya está resuelto.',
+   arts:[{n:'Mesa de Reunión Oslo 240 cm', s:'AT-2035', q:1},{n:'Silla Operativa Berlín — Malla', s:'AT-2420', q:8}], more:1,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'23 jun · 10:05 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'23 jun · 2:20 p. m.'},{l:'Despachada — 5 evidencias', w:'Equipo de despacho', at:'01 jul · 3:40 p. m.'}]},
+
+  {id:'S07212', folio:'SD-2026-0136', cliente:'Villa Marina Golf', vend:'yudelka',
+   ciudad:'Casa de Campo', dir:'Villa 44, La Marina', loc:'CDP', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:11, cre:'2026-06-19', fdes:'2026-06-27', ent:'2026-06-27', evid:8,
+   sub:[],
+   pick:'OUT/00460 — hecho',
+   recept:'Administración Villa Marina', obs:'',
+   msg:'Entregado completo y a tiempo el 27 de junio, con 8 fotos de evidencia. Puedes compartirlas con el cliente.',
+   arts:[{n:'Comedor Portofino 10 pzs — Teca', s:'AT-2620', q:1},{n:'Tumbona Riviera — Textilene', s:'AT-2630', q:6},{n:'Sofá Exterior Amalfi 3P', s:'AT-2640', q:2}], more:8,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'19 jun · 8:50 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'19 jun · 11:00 a. m.'},{l:'Salió a ruta', w:'Equipo de despacho', at:'27 jun · 7:30 a. m.'},{l:'Despachada — 8 evidencias', w:'Equipo de despacho', at:'27 jun · 4:05 p. m.'}]},
+
+  {id:'S07208', folio:'SD-2026-0133', cliente:'Sra. Altagracia Vidal', vend:'daniela',
+   ciudad:'Santo Domingo', dir:'C. Fantino Falco 21, Naco', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:3, cre:'2026-06-18', fdes:'2026-06-24', ent:'2026-06-24', evid:4,
+   sub:[],
+   pick:'OUT/00455 — hecho',
+   recept:'Sra. Altagracia Vidal · 809-555-0144', obs:'',
+   msg:'Entregado a tiempo el 24 de junio, con 4 fotos de evidencia. Puedes compartirlas con la clienta.',
+   arts:[{n:'Poltrona Copenhague — Tela Mostaza', s:'AT-2080', q:2},{n:'Mesa Nido Trío — Roble', s:'AT-2139', q:1}], more:0,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'18 jun · 9:10 a. m.'},{l:'Despachada — 4 evidencias', w:'Equipo de despacho', at:'24 jun · 3:15 p. m.'}]},
+
+  {id:'S07235', folio:'SD-2026-0151', cliente:'Torre Empresarial Piantini', vend:'heidy',
+   ciudad:'Santo Domingo', dir:'Av. Gustavo Mejía Ricart 102', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ops', flags:[], nArts:10, cre:'2026-07-01', fdes:'2026-07-07', evid:null,
+   sub:[{t:'Empaque · en progreso', c:'sky', i:'package'}],
+   pick:'OUT/00490 — en preparación',
+   recept:'Administración de la torre', obs:'Entregar por el sótano de carga.',
+   msg:'En preparación en almacén. La entrega va encaminada a cumplirse el 7 de julio, como se prometió.',
+   arts:[{n:'Silla Operativa Berlín — Malla', s:'AT-2420', q:6},{n:'Escritorio Módena 160 cm — Nogal', s:'AT-1830', q:4}], more:2,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'01 jul · 10:30 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'01 jul · 1:00 p. m.'}]},
+
+  {id:'S07237', folio:'SD-2026-0152', cliente:'Sr. Manuel Objío', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'C. José Amado Soler 14', loc:'CDP', tipo:'Despacho a cliente',
+   e:'pend', flags:[], nArts:2, cre:'2026-07-03', fdes:'2026-07-11', evid:null,
+   sub:[{t:'1 h en revisión', c:'', i:'hourglass'}],
+   pick:'Sin OUT — pendiente de aprobación',
+   recept:'Sr. Manuel Objío · 809-555-0159', obs:'',
+   msg:'Solicitud recibida; Operaciones la revisa. La entrega queda programada para el 11 de julio.',
+   arts:[{n:'Sofá Cama Lisboa — Gris Perla', s:'AT-2060', q:1},{n:'Mesa de Centro Como — Mármol', s:'AT-2136', q:1}], more:0,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'03 jul · 9:20 a. m.'}]},
+
+  {id:'S07225', folio:'SD-2026-0144', cliente:'Colegio San Judas Tadeo', vend:'daniela',
+   ciudad:'Santiago', dir:'Av. Estrella Sadhalá 55', loc:'Nave 2', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:24, cre:'2026-06-24', fdes:'2026-06-26', ent:'2026-06-26', evid:6,
+   sub:[],
+   pick:'OUT/00463 — hecho',
+   recept:'Dirección administrativa', obs:'Mobiliario para aulas.',
+   msg:'Entregado completo el 26 de junio, con 6 fotos de evidencia. Puedes compartirlas con el cliente.',
+   arts:[{n:'Pupitre Escolar Individual', s:'AT-2700', q:20},{n:'Pizarra Blanca 240 cm', s:'AT-2710', q:4}], more:0,
+   hist:[{l:'Creada', w:'Daniela Gómez', at:'24 jun · 8:00 a. m.'},{l:'Despachada — 6 evidencias', w:'Equipo de despacho', at:'26 jun · 5:30 p. m.'}]},
+
+  {id:'S07232', folio:'SD-2026-0153', cliente:'Café del Parque', vend:'yudelka',
+   ciudad:'Santo Domingo', dir:'C. El Conde 108, Zona Colonial', loc:'Showroom', tipo:'Despacho a cliente',
+   e:'ruta', flags:[], nArts:6, cre:'2026-07-01', fdes:'2026-07-04', evid:null,
+   sub:[{t:'En ruta · salió 8:20 a. m.', c:'sky', i:'truck'}],
+   pick:'OUT/00491 — hecho',
+   recept:'Sr. Iván Mercedes · 809-555-0188', obs:'',
+   msg:'Su pedido va en camino — salió esta mañana y llega mañana dentro del horario acordado.',
+   arts:[{n:'Silla Bistró París — Ratán', s:'AT-2320', q:8},{n:'Mesa Bistró Redonda 60 cm', s:'AT-2130', q:4}], more:0,
+   hist:[{l:'Creada', w:'Yudelka Reyes', at:'01 jul · 4:00 p. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'02 jul · 9:00 a. m.'},{l:'Salió a ruta', w:'Equipo de despacho', at:'04 jul · 8:20 a. m.'}]},
+
+  {id:'S07214', folio:'SD-2026-0137', cliente:'Sra. Rosa Herrera', vend:'heidy',
+   ciudad:'Bávaro', dir:'Res. Los Corales, Villa 9', loc:'CDP', tipo:'Despacho a cliente',
+   e:'desp', flags:[], nArts:5, cre:'2026-06-20', fdes:'2026-06-29', ent:'2026-06-29', evid:5,
+   sub:[],
+   pick:'OUT/00461 — hecho',
+   recept:'Sra. Rosa Herrera · 829-555-0166', obs:'',
+   msg:'Entregado a tiempo el 29 de junio, con 5 fotos de evidencia. Puedes compartirlas con la clienta.',
+   arts:[{n:'Cama Queen Verona — Lino Gris', s:'AT-1908', q:1},{n:'Mesita de Noche Verona', s:'AT-1910', q:2}], more:2,
+   hist:[{l:'Creada', w:'Heidy Núñez', at:'20 jun · 2:00 p. m.'},{l:'Despachada — 5 evidencias', w:'Equipo de despacho', at:'29 jun · 1:00 p. m.'}]},
+
+  {id:'S07238', folio:'SD-2026-0154', cliente:'Inmobiliaria Costa Azul', vend:'jeniffer',
+   ciudad:'Santo Domingo', dir:'Av. Winston Churchill 1550', loc:'CDP', tipo:'Despacho a cliente',
+   e:'ops', flags:[], nArts:8, cre:'2026-07-02', fdes:'2026-07-14', evid:null,
+   sub:[{t:'OUT listo · reservado', c:'green', i:'package'}],
+   pick:'OUT/00492 — listo para salir',
+   recept:'Lic. Mariela Fernández · 809-555-0177', obs:'Amueblado de apartamento modelo.',
+   msg:'En preparación con salida lista en Odoo. La entrega va encaminada a cumplirse el 14 de julio, como se prometió.',
+   arts:[{n:'Sofá Divani 2P — Piel Cognac', s:'AT-2051', q:1},{n:'Mesa Comedor Toscana 160 cm — Roble', s:'AT-2102', q:1}], more:6,
+   hist:[{l:'Creada', w:'Jeniffer Batista', at:'02 jul · 11:40 a. m.'},{l:'Aprobada — pasó a Operaciones', w:'Melvin Roa', at:'02 jul · 3:30 p. m.'}]}
+];
+// Usuario simulado de la sesión: Daniela (vendedora). "Solo lo mío" filtra por ella.
+var CURRENT_VEND = 'daniela';
+var TREND_SERIES = [7, 9, 6, 10, 8, 11, 9, 12];
+var LOCS = ['CDP', 'Showroom', 'Nave 2'];
+
+/* ══════════ Estado de la vista ══════════
+   Un solo modelo de filtros COMBINABLES (AND). El pulso y las alertas son atajos
+   que escriben en este mismo modelo — cero duplicación de verdad. */
+var state = {
+  scope:'all', q:'', view:'list', group:'none',
+  f:{ loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' }
+};
+
+function norm(s){
+  // Quita diacríticos sin regex unicode: filtra los combinantes U+0300–U+036F (768–879).
+  var d = String(s||'').toLowerCase().normalize('NFD'), out = '';
+  for(var i=0;i<d.length;i++){
+    var c = d.charCodeAt(i);
+    if(c < 768 || c > 879) out += d.charAt(i);
+  }
+  return out;
+}
+function searchStr(r){
+  return norm(r.id + ' ' + r.folio + ' ' + r.cliente + ' ' + VEND[r.vend].full + ' ' + r.ciudad + ' ' + r.id.replace(/^s0*/i,''));
+}
+
+/* ── Fechas: parse ISO seguro (sin desfase de zona) + promesa dinámica ── */
+function toD(iso){ if(!iso) return null; var p=iso.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function daysBetween(a, b){ return Math.round((b - a) / 86400000); }
+var _today = toD(TODAY);
+var MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fmtD(iso){ var d=toD(iso); return d ? (d.getDate()+' '+MESES[d.getMonth()]) : '—'; }
+// weekStart (lunes) para agrupar por fecha
+function weekStart(d){ var x=new Date(d.getTime()); var g=(x.getDay()+6)%7; x.setDate(x.getDate()-g); x.setHours(0,0,0,0); return x; }
+
+// Deriva promesa (texto/color/tinte de fila) de la orden — reemplaza los campos hardcodeados
+function prom(r){
+  if(r.e==='desp'){
+    // entregada: comparar entrega real vs fecha deseada
+    var late = r.ent && r.fdes && daysBetween(toD(r.fdes), toD(r.ent)) > 0;
+    return { d:'Entregada '+fmtD(r.ent||r.fdes), r: late ? 'entregada tarde' : 'a tiempo',
+             c: late ? 'amber' : 'green', tint:'', overdue:false, today:false };
+  }
+  if(r.e==='rech'){
+    return { d:fmtD(r.fdes), r:'rechazada', c:'mut', tint:'', overdue:false, today:false };
+  }
+  var diff = daysBetween(_today, toD(r.fdes)); // >0 futuro, 0 hoy, <0 vencida
+  if(diff < 0)  return { d:fmtD(r.fdes), r:'vencida · hace '+(-diff)+(diff===-1?' día':' días'), c:'red',   tint:'red',   overdue:true,  today:false };
+  if(diff === 0) return { d:fmtD(r.fdes), r:'hoy',                                              c:'amber', tint:'amber', overdue:false, today:true  };
+  if(diff === 1) return { d:fmtD(r.fdes), r:'mañana',                                           c:'amber', tint:'amber', overdue:false, today:false };
+  return { d:fmtD(r.fdes), r:'en '+diff+' días', c:'mut', tint:'', overdue:false, today:false };
+}
+// ¿la orden está "vencida" a efectos de alerta/filtro? (activa + fecha deseada pasada)
+function isOverdue(r){ return prom(r).overdue; }
+
+/* ── Predicados de filtro (combinables con AND) ── */
+function scopeOk(r){ return state.scope==='all' || r.vend===CURRENT_VEND; }
+function qOk(r){ return !state.q || searchStr(r).indexOf(norm(state.q)) !== -1; }
+function promOk(r){
+  var p = state.f.prom; if(!p) return true;
+  if(p==='venc') return isOverdue(r);
+  var d = toD(r.fdes); if(!d) return false;
+  if(p==='hoy') return daysBetween(_today, d) === 0;
+  if(p==='sem'){ var ws=weekStart(_today), we=new Date(ws.getTime()); we.setDate(we.getDate()+6); return d>=ws && d<=we; }
+  if(p==='rango'){
+    var a = state.f.d1 ? toD(state.f.d1) : null, b = state.f.d2 ? toD(state.f.d2) : null;
+    if(a && d < a) return false;
+    if(b && d > b) return false;
+    return true;
+  }
+  return true;
+}
+function filtOk(r){
+  var f = state.f;
+  if(f.loc && r.loc !== f.loc) return false;
+  if(f.vend && r.vend !== f.vend) return false;
+  if(f.est){
+    if(f.est==='activas'){ if(!(r.e==='pend'||r.e==='ops'||r.e==='ruta')) return false; }
+    else if(r.e !== f.est) return false;
+  }
+  if(f.flag && r.flags.indexOf(f.flag) === -1) return false;
+  if(f.ord && norm(r.id).indexOf(norm(f.ord.replace(/^s0*/i,'').replace(/^s/i,''))) === -1
+           && norm(r.id).indexOf(norm(f.ord)) === -1) return false;
+  if(!promOk(r)) return false;
+  return true;
+}
+// subset = scope + búsqueda (define el "universo" de KPIs/alertas/gráficos)
+function subset(){ return DATA.filter(function(r){ return scopeOk(r) && qOk(r); }); }
+// visible = subset + todos los filtros del panel/pulso/alertas
+function visibleFrom(sub){ return sub.filter(filtOk); }
+
+/* ── Contador de filtros activos (para el badge y los chips) ── */
+function activeFilterCount(){
+  var f = state.f, n = 0;
+  ['loc','vend','est','flag','ord','prom'].forEach(function(k){ if(f[k]) n++; });
+  return n;
+}
+
+/* ── Etiquetas legibles de cada filtro (para los chips) ── */
+var EST_LBL = {activas:'Activas', pend:'Pendiente revisión', ops:'En operaciones', ruta:'En ruta', desp:'Despachada', rech:'Rechazada'};
+var FLAG_LBL = {venc:'Vencidas', sinevid:'Sin evidencia', sinout:'Sin OUT Odoo', dev:'Devolución en ruta', bloq:'Bloqueado por stock', demo:'En demo'};
+var PROM_LBL = {venc:'Vencidas', hoy:'Hoy', sem:'Esta semana', rango:'Rango'};
+function promChipText(){
+  if(state.f.prom!=='rango') return PROM_LBL[state.f.prom];
+  var a = state.f.d1 ? fmtD(state.f.d1) : '…', b = state.f.d2 ? fmtD(state.f.d2) : '…';
+  return a + ' → ' + b;
+}
+
+/* ── Setear un filtro y re-renderizar ── */
+function setF(k, v){ state.f[k] = (state.f[k]===v ? '' : v); apply(); }
+function clearF(k){
+  state.f[k] = '';
+  if(k==='prom'){ state.f.d1=''; state.f.d2=''; }
+  apply();
+}
+function clearAllFilters(){
+  state.f = { loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' };
+  apply();
+}
+function clearAll(){
+  clearAllFilters();
+  state.q = ''; document.getElementById('q').value = '';
+  apply();
+}
+
+/* ══════════ Render: ZONA 1 · Pulso ══════════ */
+function renderPulse(sub){
+  var nPend = 0, nOps = 0, nRuta = 0, nDesp = 0, arts = 0;
+  sub.forEach(function(r){
+    if(r.e==='pend') nPend++;
+    else if(r.e==='ops') nOps++;
+    else if(r.e==='ruta') nRuta++;
+    else if(r.e==='desp') nDesp++;
+    if(r.e==='pend'||r.e==='ops'||r.e==='ruta') arts += r.nArts;
+  });
+  var items = [
+    {k:'activas', n:nPend+nOps+nRuta, lbl:'Activas', col:'var(--accent)',
+     tip:'Pendientes + en operaciones + en ruta: todo lo que aún no se entrega. Clic para filtrar.'},
+    {k:'pend', n:nPend, lbl:'Pend. revisión', col:'var(--amber-text)',
+     tip:'Esperando que Operaciones apruebe o rechace. Clic para filtrar.'},
+    {k:'ops', n:nOps, lbl:'En operaciones', col:'var(--blue-text)',
+     tip:'Aprobadas y en preparación en almacén. Clic para filtrar.'},
+    {k:'ruta', n:nRuta, lbl:'En ruta', col:'var(--sky-text)',
+     tip:'Salieron a ruta y van hacia el cliente. Clic para filtrar.'},
+    {k:'desp', n:nDesp, lbl:'Despachadas', col:'var(--green-text)',
+     tip:'Entregadas y cerradas con su evidencia. Clic para filtrar.'},
+    {k:null, n:'86%', lbl:'OTIF · 30 días', col:'var(--amber-text)', sub:'18/21 a tiempo',
+     tip:'De las despachadas con fecha deseada, % cerradas a tiempo. (Cifra fija en esta maqueta.)'},
+    {k:null, n:String(arts), lbl:'Artículos en flujo', col:'var(--text-primary)',
+     tip:'Piezas dentro de las solicitudes activas del subconjunto visible.'}
+  ];
+  var html = items.map(function(it, i){
+    var tipPos = i===0 ? ' tip-start' : (i===items.length-1 ? ' tip-end' : '');
+    var active = it.k && state.f.est===it.k;
+    return '<button type="button" class="pi has-tip'+tipPos+(it.k?'':' static')+(active?' active':'')+'"'+
+      (it.k ? ' data-f="'+it.k+'"' : ' tabindex="0"')+
+      ' data-tip="'+it.tip+'" aria-label="'+it.lbl+': '+it.n+'. '+it.tip+'"'+
+      (active ? ' aria-pressed="true"' : (it.k ? ' aria-pressed="false"' : ''))+'>'+
+      '<span class="pi-n" style="color:'+it.col+'">'+it.n+'</span>'+
+      '<span class="pi-l">'+it.lbl+'</span>'+
+      (it.sub ? '<span class="pi-s">'+it.sub+'</span>' : '')+
+    '</button>';
+  }).join('');
+  document.getElementById('pulse').innerHTML = html;
+}
+
+/* ══════════ Agrupamiento (compartido: Lista · Kanban · Gráficos) ══════════
+   Devuelve [{key, label, dot(token), items[]}] según state.group. */
+var EST_ORDER = ['pend','ops','ruta','desp','rech'];
+var EST_GRP = {pend:{l:'Pendiente revisión', t:'--amber-dot'}, ops:{l:'En operaciones', t:'--blue-dot'},
+  ruta:{l:'En ruta', t:'--sky-dot'}, desp:{l:'Despachadas', t:'--green-dot'}, rech:{l:'Rechazadas', t:'--red-dot'}};
+function groupKeyLabel(r, g){
+  if(g==='vend') return {k:r.vend, l:VEND[r.vend].full, t:'--accent'};
+  if(g==='est')  return {k:r.e, l:EST_GRP[r.e].l, t:EST_GRP[r.e].t};
+  if(g==='loc')  return {k:r.loc, l:r.loc, t:'--text-3'};
+  if(g==='fecha'){ var d=toD(r.fdes); return {k:r.fdes, l:d.getDate()+' '+MESES[d.getMonth()]+' '+d.getFullYear(), t:'--accent'}; }
+  return {k:'all', l:'', t:'--accent'};
+}
+function buildGroups(list, g){
+  if(g==='none') return [{key:'all', label:'', dot:'', items:list}];
+  var map = {}, order = [];
+  list.forEach(function(r){
+    var gl = groupKeyLabel(r, g);
+    if(!map[gl.k]){ map[gl.k] = {key:gl.k, label:gl.l, dot:gl.t, items:[]}; order.push(gl.k); }
+    map[gl.k].items.push(r);
+  });
+  // orden: estado canónico / fecha ascendente / resto por conteo desc
+  if(g==='est') order.sort(function(a,b){ return EST_ORDER.indexOf(a)-EST_ORDER.indexOf(b); });
+  else if(g==='fecha') order.sort();
+  else order.sort(function(a,b){ return map[b].items.length - map[a].items.length; });
+  return order.map(function(k){ return map[k]; });
+}
+
+/* ══════════ Render: VISTA LISTA (con encabezados de grupo + subtotal) ══════════ */
+function rowHtml(r){
+  var v = VEND[r.vend], est = EST[r.e], p = prom(r);
+  var subchips = r.sub.map(function(c){
+    return '<span class="subchip'+(c.c?' '+c.c:'')+'"><svg class="ic"><use href="#i-'+c.i+'"/></svg>'+c.t+'</span>';
+  }).join('');
+  var evid;
+  if(r.evid===null) evid = '<span class="evd na">—</span>';
+  else if(r.evid===0) evid = '<span class="evd warn"><svg class="ic" style="width:12px;height:12px"><use href="#i-image"/></svg>0</span>';
+  else evid = '<span class="evd"><svg class="ic" style="width:12px;height:12px"><use href="#i-image"/></svg>'+r.evid+'</span>';
+  return '<tr class="rw'+(p.tint?' due-'+p.tint:'')+'" data-id="'+r.id+'" tabindex="0" role="button" aria-label="Ver detalle de '+r.id+' — '+r.cliente+'">'+
+    '<td class="c-orden"><div class="ord">'+r.id+'</div><div class="fol">'+r.folio+'</div></td>'+
+    '<td class="c-cli"><div class="cli">'+r.cliente+'</div><div class="ciu"><svg class="ic"><use href="#i-pin"/></svg>'+r.ciudad+'</div></td>'+
+    '<td class="c-vend"><span class="vend"><span class="av">'+v.ini+'</span>'+v.n+'</span></td>'+
+    '<td class="c-est"><div class="est-w"><span class="sdv-badge '+est.cls+'">'+est.lbl+'</span>'+subchips+'</div></td>'+
+    '<td class="c-prom"><div class="pd">'+p.d+'</div><div class="pr '+p.c+'">'+p.r+'</div></td>'+
+    '<td class="c-evid">'+evid+'</td>'+
+    '<td class="c-loc"><span class="loc">'+r.loc+'</span></td>'+
+  '</tr>';
+}
+function grpHeadRow(gr){
+  return '<tr class="rw grp-h"><td colspan="7"><span class="grp-t">'+
+    (gr.dot ? '<span class="grp-dot" style="background:var('+gr.dot+')"></span>' : '')+
+    gr.label+' <span class="grp-n">· '+gr.items.length+'</span></span></td></tr>';
+}
+function renderRows(vis, sub){
+  var html;
+  if(state.group==='none'){
+    html = vis.map(rowHtml).join('');
+  } else {
+    html = buildGroups(vis, state.group).map(function(gr){
+      return grpHeadRow(gr) + gr.items.map(rowHtml).join('');
+    }).join('');
+  }
+  document.getElementById('rows').innerHTML = html;
+}
+
+/* ══════════ Render: ZONA 3 · Acción hoy (atajos que escriben en state.f) ══════════ */
+function renderAlerts(sub){
+  function cnt(fn){ return sub.filter(fn).length; }
+  var rows = [
+    {fk:'prom', v:'venc',    lbl:'Vencidas',                         i:'hourglass', c:'red',
+     n:cnt(isOverdue)},
+    {fk:'est',  v:'rech',    lbl:'Rechazadas — corregir y reenviar', i:'xcircle',   c:'red',
+     n:cnt(function(r){ return r.e==='rech'; })},
+    {fk:'flag', v:'sinevid', lbl:'Despachada sin evidencia',         i:'image',     c:'red',
+     n:cnt(function(r){ return r.flags.indexOf('sinevid')!==-1; })},
+    {fk:'flag', v:'sinout',  lbl:'Sin OUT en Odoo',                  i:'alert',     c:'red',
+     n:cnt(function(r){ return r.flags.indexOf('sinout')!==-1; })},
+    {fk:'flag', v:'dev',     lbl:'Devolución en ruta',               i:'undo',      c:'red',
+     n:cnt(function(r){ return r.flags.indexOf('dev')!==-1; })},
+    {fk:'flag', v:'bloq',    lbl:'Bloqueado por stock (Odoo)',       i:'ban',       c:'amber',
+     n:cnt(function(r){ return r.flags.indexOf('bloq')!==-1; })}
+  ].filter(function(a){ return a.n > 0; });
+  var demoN = cnt(function(r){ return r.flags.indexOf('demo')!==-1; });
+  var html = rows.map(function(a){
+    var active = state.f[a.fk]===a.v;
+    return '<button type="button" class="al-row'+(active?' active':'')+'" data-fk="'+a.fk+'" data-fv="'+a.v+'"'+
+      (active?' aria-pressed="true"':' aria-pressed="false"')+'>'+
+      '<span class="al-n '+a.c+'">'+a.n+'</span><span class="al-lbl">'+a.lbl+'</span>'+
+      '<svg class="ic chev" style="width:12px;height:12px"><use href="#i-chev"/></svg></button>';
+  }).join('');
+  if(demoN > 0){
+    var dActive = state.f.flag==='demo';
+    html += '<div class="al-div">Seguimiento</div>'+
+      '<button type="button" class="al-row'+(dActive?' active':'')+'" data-fk="flag" data-fv="demo"'+
+      (dActive?' aria-pressed="true"':' aria-pressed="false"')+'>'+
+      '<span class="al-n purple">'+demoN+'</span><span class="al-lbl">En demo — decidir con el cliente</span>'+
+      '<svg class="ic chev" style="width:12px;height:12px"><use href="#i-chev"/></svg></button>';
+  }
+  document.getElementById('al-rows').innerHTML = html;
+  document.getElementById('al-clear').className = 'al-clear' + ((rows.length || demoN) ? '' : ' on');
+}
+
+/* ══════════ Render: ZONA 4 · Analítica ══════════ */
+function renderDonut(sub){
+  var c = {pend:0, ops:0, ruta:0, desp:0, rech:0};
+  sub.forEach(function(r){ c[r.e]++; });
+  var segs = [
+    {lbl:'Pendiente',      v:c.pend, tok:'--amber-dot'},
+    {lbl:'En operaciones', v:c.ops,  tok:'--blue-dot'},
+    {lbl:'En ruta',        v:c.ruta, tok:'--sky-dot'},
+    {lbl:'Despachadas',    v:c.desp, tok:'--green-dot'},
+    {lbl:'Rechaz./Canc.',  v:c.rech, tok:'--red-dot'}
+  ];
+  var total = sub.length || 1;
+  var R = 44, C = 2*Math.PI*R, acc = 0, parts = '';
+  parts += '<circle cx="55" cy="55" r="'+R+'" style="fill:none;stroke:var(--surface-3);stroke-width:13"></circle>';
+  segs.forEach(function(s){
+    if(!s.v) return;
+    var frac = s.v/total;
+    var dash = Math.max(frac*C - 1.5, 0.5);
+    parts += '<circle cx="55" cy="55" r="'+R+'" style="fill:none;stroke:var('+s.tok+');stroke-width:13"'+
+      ' stroke-dasharray="'+dash.toFixed(2)+' '+(C-dash).toFixed(2)+'"'+
+      ' stroke-dashoffset="'+(C*0.25 - acc*C).toFixed(2)+'"></circle>';
+    acc += frac;
+  });
+  document.getElementById('donut').innerHTML = parts;
+  document.getElementById('don-n').textContent = sub.length;
+  document.getElementById('don-leg').innerHTML = segs.map(function(s){
+    return '<div class="dl-row"><span class="dl-dot" style="background:var('+s.tok+')"></span>'+
+      '<span class="dl-lbl">'+s.lbl+'</span><span class="dl-n">'+s.v+'</span></div>';
+  }).join('');
+}
+function renderBars(sub){
+  var by = {};
+  sub.forEach(function(r){ by[r.vend] = (by[r.vend]||0) + 1; });
+  var arr = Object.keys(by).map(function(k){ return {k:k, n:by[k]}; })
+    .sort(function(a,b){ return b.n - a.n; });
+  var max = arr.length ? arr[0].n : 1;
+  document.getElementById('bars').innerHTML = arr.map(function(x){
+    return '<div class="bar-row"><span class="bar-name">'+VEND[x.k].n+'</span>'+
+      '<span class="bar-track"><span class="bar" style="width:'+Math.round(x.n/max*100)+'%"></span></span>'+
+      '<span class="bar-n">'+x.n+'</span></div>';
+  }).join('') || '<div class="an-note">Sin datos en el subconjunto.</div>';
+}
+function renderTrend(){
+  var s = TREND_SERIES, w = 260, h = 72, p = 7;
+  var max = Math.max.apply(null, s), min = Math.min.apply(null, s);
+  function xAt(i){ return p + i*(w-2*p)/(s.length-1); }
+  function yAt(v){ return max===min ? h/2 : (h-p) - (v-min)*(h-2*p)/(max-min); }
+  var pts = s.map(function(v,i){ return xAt(i).toFixed(1)+','+yAt(v).toFixed(1); }).join(' ');
+  var poly = pts + ' ' + xAt(s.length-1).toFixed(1)+','+(h-2) + ' ' + xAt(0).toFixed(1)+','+(h-2);
+  var html = '';
+  [0.25, 0.5, 0.75].forEach(function(f){
+    var y = (p + f*(h-2*p)).toFixed(1);
+    html += '<line x1="'+p+'" y1="'+y+'" x2="'+(w-p)+'" y2="'+y+'" style="stroke:var(--border-light);stroke-width:1"></line>';
+  });
+  html += '<polygon points="'+poly+'" style="fill:var(--accent);opacity:.10"></polygon>';
+  html += '<polyline points="'+pts+'" style="fill:none;stroke:var(--accent);stroke-width:2"></polyline>';
+  s.forEach(function(v,i){
+    var last = i===s.length-1;
+    html += '<circle cx="'+xAt(i).toFixed(1)+'" cy="'+yAt(v).toFixed(1)+'" r="'+(last?3.5:2.2)+'" style="fill:var(--accent)"></circle>';
+  });
+  document.getElementById('trend').innerHTML = html;
+}
+
+/* ══════════ Render: VISTA KANBAN (columnas = grupos; cero drag obligatorio) ══════════ */
+function kbCard(r){
+  var v = VEND[r.vend], p = prom(r);
+  var subchips = r.sub.slice(0,2).map(function(c){
+    return '<span class="subchip'+(c.c?' '+c.c:'')+'"><svg class="ic"><use href="#i-'+c.i+'"/></svg>'+c.t+'</span>';
+  }).join('');
+  return '<button type="button" class="kb-card'+(p.tint?' due-'+p.tint:'')+'" data-id="'+r.id+'" aria-label="Ver detalle de '+r.id+' — '+r.cliente+'">'+
+    '<div class="kb-top"><span class="kb-ord">'+r.id+'</span>'+
+      '<span class="kb-prom '+p.c+'" style="margin-left:auto;font-size:10.5px">'+p.r+'</span></div>'+
+    '<div class="kb-cli">'+r.cliente+'</div>'+
+    '<div class="kb-meta"><span class="kb-av">'+v.ini+'</span>'+v.n+' · '+r.loc+' · '+r.nArts+' art.</div>'+
+    (subchips ? '<div class="kb-sub">'+subchips+'</div>' : '')+
+  '</button>';
+}
+function renderKanban(vis){
+  // columnas = grupos; si group='none', agrupa por estado (default sensato para tablero)
+  var g = state.group==='none' ? 'est' : state.group;
+  var groups = buildGroups(vis, g);
+  var host = document.getElementById('view-kanban');
+  if(!vis.length){ host.innerHTML = ''; return; }
+  host.innerHTML = groups.map(function(gr){
+    var body = gr.items.length ? gr.items.map(kbCard).join('') : '<div class="kb-empty">Sin órdenes</div>';
+    return '<div class="kb-col"><div class="kb-h">'+
+      (gr.dot ? '<span class="kb-dot" style="background:var('+gr.dot+')"></span>' : '')+
+      '<span class="kb-t">'+(gr.label||'Órdenes')+'</span><span class="kb-n">'+gr.items.length+'</span></div>'+
+      '<div class="kb-body">'+body+'</div></div>';
+  }).join('');
+}
+
+/* ══════════ Render: VISTA GRÁFICOS ══════════ */
+// Barras genéricas por la dimensión agrupada
+function chartDimBars(vis){
+  var g = state.group==='none' ? 'est' : state.group;
+  var groups = buildGroups(vis, g);
+  var dimName = {vend:'Órdenes por vendedora', est:'Órdenes por estado', loc:'Órdenes por almacén', fecha:'Órdenes por fecha de promesa'}[g];
+  var max = groups.reduce(function(m,x){ return Math.max(m, x.items.length); }, 1);
+  var bars = groups.map(function(gr){
+    return '<div class="bar-row"><span class="bar-name" title="'+(gr.label||'')+'">'+(gr.label||'—')+'</span>'+
+      '<span class="bar-track"><span class="bar" style="width:'+Math.round(gr.items.length/max*100)+'%'+
+        (gr.dot?';background:var('+gr.dot+')':'')+'"></span></span>'+
+      '<span class="bar-n">'+gr.items.length+'</span></div>';
+  }).join('');
+  return '<div class="ch-card ch-bars"><div class="ch-title">'+dimName+'</div>'+(bars||'<div class="ch-empty">Sin datos.</div>')+'</div>';
+}
+// Donut de distribución por estado (SVG por stroke-dasharray, tokens)
+function chartDonut(vis){
+  var c = {pend:0, ops:0, ruta:0, desp:0, rech:0};
+  vis.forEach(function(r){ c[r.e]++; });
+  var segs = [
+    {lbl:'Pendiente', v:c.pend, tok:'--amber-dot'}, {lbl:'En operaciones', v:c.ops, tok:'--blue-dot'},
+    {lbl:'En ruta', v:c.ruta, tok:'--sky-dot'}, {lbl:'Despachadas', v:c.desp, tok:'--green-dot'},
+    {lbl:'Rechaz./Canc.', v:c.rech, tok:'--red-dot'}
+  ];
+  var total = vis.length || 1, R = 44, C = 2*Math.PI*R, acc = 0, parts = '';
+  parts += '<circle cx="55" cy="55" r="'+R+'" style="fill:none;stroke:var(--surface-3);stroke-width:13"></circle>';
+  segs.forEach(function(s){
+    if(!s.v) return;
+    var frac = s.v/total, dash = Math.max(frac*C - 1.5, 0.5);
+    parts += '<circle cx="55" cy="55" r="'+R+'" style="fill:none;stroke:var('+s.tok+');stroke-width:13"'+
+      ' stroke-dasharray="'+dash.toFixed(2)+' '+(C-dash).toFixed(2)+'" stroke-dashoffset="'+(C*0.25 - acc*C).toFixed(2)+'"></circle>';
+    acc += frac;
+  });
+  var leg = segs.map(function(s){
+    return '<div class="dl-row"><span class="dl-dot" style="background:var('+s.tok+')"></span>'+
+      '<span class="dl-lbl">'+s.lbl+'</span><span class="dl-n">'+s.v+'</span></div>';
+  }).join('');
+  return '<div class="ch-card"><div class="ch-title">Distribución por estado</div>'+
+    '<div class="don-wrap"><div class="don-box"><svg viewBox="0 0 110 110" aria-hidden="true">'+parts+'</svg>'+
+    '<div class="don-c"><span class="don-n">'+vis.length+'</span><span class="don-l">órdenes</span></div></div>'+
+    '<div class="don-leg">'+leg+'</div></div></div>';
+}
+// Barras apiladas: despachos por día del mes visible (apiladas por estado). Responde
+// "cómo se distribuyen los despachos en el mes de un vistazo" (extensión de Gabriel).
+// El SVG usa preserveAspectRatio="none" (solo rects, sin texto); las etiquetas de día
+// van como fila HTML aparte para no deformarse con el estirado horizontal.
+function chartMonthStacked(vis){
+  var y = calState.y, m = calState.mo;
+  var dim = calState.dim; // 'prom' o 'desp'
+  var days = new Date(y, m+1, 0).getDate();
+  var buckets = [];
+  for(var i=0;i<days;i++) buckets.push({pend:0,ops:0,ruta:0,desp:0,rech:0,total:0});
+  vis.forEach(function(r){
+    var iso = dim==='desp' ? (r.ent||null) : r.fdes;
+    if(!iso) return;
+    var d = toD(iso);
+    if(d.getFullYear()!==y || d.getMonth()!==m) return;
+    var b = buckets[d.getDate()-1];
+    b[r.e]++; b.total++;
+  });
+  var max = buckets.reduce(function(mx,b){ return Math.max(mx, b.total); }, 1);
+  var order = [['desp','--green-dot'],['ruta','--sky-dot'],['ops','--blue-dot'],['pend','--amber-dot'],['rech','--red-dot']];
+  var colW = 100/days, H = 100, cols = '';
+  // líneas guía horizontales
+  [0.25,0.5,0.75].forEach(function(f){ cols += '<line x1="0" y1="'+(H*f).toFixed(1)+'" x2="100" y2="'+(H*f).toFixed(1)+'" style="stroke:var(--border-light);stroke-width:.4"></line>'; });
+  for(var di=0; di<days; di++){
+    var b = buckets[di], x = (di*colW + colW*0.14).toFixed(3), acc2 = 0;
+    order.forEach(function(pair){
+      var v = b[pair[0]]; if(!v) return;
+      var hh = v/max*H, yy = (H - acc2 - hh).toFixed(2);
+      cols += '<rect x="'+x+'" y="'+yy+'" width="'+(colW*0.72).toFixed(3)+'" height="'+hh.toFixed(2)+'" style="fill:var('+pair[1]+')"></rect>';
+      acc2 += hh;
+    });
+  }
+  // etiquetas de día como grid HTML (cada 5)
+  var dayLbls = '';
+  for(var dl=1; dl<=days; dl++){
+    dayLbls += '<span>'+((dl===1 || dl%5===0) ? dl : '')+'</span>';
+  }
+  var legend = order.map(function(p){
+    return '<span class="ch-lg"><span class="ch-lg-sw" style="background:var('+p[1]+')"></span>'+EST_GRP[p[0]].l+'</span>';
+  }).join('');
+  var has = buckets.some(function(b){ return b.total>0; });
+  return '<div class="ch-card full"><div class="ch-title">Despachos por día — '+MESES[m]+' '+y+' · '+(dim==='desp'?'por fecha de despacho':'por promesa')+'</div>'+
+    (has ? '<div class="ch-month"><svg viewBox="0 0 100 100" preserveAspectRatio="none" class="ch-month-svg">'+cols+'</svg>'+
+      '<div class="ch-month-x" style="grid-template-columns:repeat('+days+',1fr)">'+dayLbls+'</div></div>'+
+      '<div class="ch-legend">'+legend+'</div>'+
+      '<div class="an-note" style="margin-top:6px">Navega el mes en la vista <b>Calendario</b>; este gráfico sigue ese mes y su dimensión (promesa / despacho).</div>'
+      : '<div class="ch-empty">Sin órdenes en '+MESES[m]+' '+y+' para esta dimensión. Cambia de mes en la vista Calendario.</div>')+
+  '</div>';
+}
+function renderCharts(vis){
+  var host = document.getElementById('view-charts');
+  if(!vis.length){ host.innerHTML = '<div class="ch-card full"><div class="ch-empty">Ningún dato para graficar con los filtros actuales.</div></div>'; return; }
+  host.innerHTML = chartDimBars(vis) + chartDonut(vis) + chartMonthStacked(vis);
+}
+
+/* ══════════ Render: VISTA CALENDARIO ══════════
+   Dos dimensiones de fecha (concepto de Gabriel):
+   · Promesa   = qué se DEBE entregar cada día (planificación / agenda) → pasados sin cumplir en rojo.
+   · Despachado = qué SALIÓ cada día (throughput).
+   Clic en un día con órdenes → PANEL DEL DÍA (la recompensa visible): desglose + mini-lista
+   clicable que abre el detalle. La selección es estado LOCAL del calendario (calState.sel),
+   NO un filtro global — el filtro por fechas vive solo en el popover de Filtros. */
+var calState = { y:2026, mo:6, dim:'prom', sel:null }; // mo 6 = julio (0-based); sel = ISO del día del panel
+var DOW = ['L','M','M','J','V','S','D'];
+var DOW_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function calDayIso(r){ return calState.dim==='desp' ? (r.ent||null) : r.fdes; }
+function estDotToken(e){ return EST_GRP[e] ? EST_GRP[e].t : '--text-3'; }
+
+// Panel del día: título + desglose por estado (+vencidas en dim promesa) + mini-lista → modal
+function dayPanelHtml(d, list){
+  var byE = {};
+  list.forEach(function(r){ byE[r.e] = (byE[r.e]||0) + 1; });
+  // desglose legible: singular/plural solo donde aplica
+  var SUM_LBL = {pend:['pendiente de revisión','pendientes de revisión'], ops:['en operaciones','en operaciones'],
+    ruta:['en ruta','en ruta'], desp:['despachada','despachadas'], rech:['rechazada','rechazadas']};
+  var parts = EST_ORDER.filter(function(e){ return byE[e]; }).map(function(e){
+    return byE[e] + ' ' + SUM_LBL[e][byE[e]===1 ? 0 : 1];
+  });
+  if(calState.dim==='prom'){
+    var nv = list.filter(isOverdue).length;
+    if(nv) parts.push('<span class="cdp-ov">'+nv+' vencida'+(nv>1?'s':'')+'</span>');
+  }
+  var rows = list.map(function(r){
+    var p = prom(r), est = EST[r.e];
+    var extra = calState.dim==='desp'
+      ? (r.evid===null ? '' : '<span class="cdp-extra'+(r.evid===0?' amber':' green')+'"><svg class="ic" style="width:11px;height:11px"><use href="#i-image"/></svg>'+r.evid+'</span>')
+      : '<span class="cdp-extra '+p.c+'">'+p.r+'</span>';
+    return '<button type="button" class="cdp-row" data-id="'+r.id+'" aria-label="Ver detalle de '+r.id+' — '+r.cliente+'">'+
+      '<span class="cdp-ord">'+r.id+'</span>'+
+      '<span class="cdp-cli">'+r.cliente+'</span>'+
+      '<span class="sdv-badge '+est.cls+'">'+est.lbl+'</span>'+extra+
+    '</button>';
+  }).join('');
+  return '<div class="cal-day-panel">'+
+    '<div class="cdp-h">'+
+      '<span class="cdp-title">'+DOW_FULL[d.getDay()]+' '+d.getDate()+' '+MESES[d.getMonth()]+'</span>'+
+      '<span class="cdp-count">'+list.length+' órden'+(list.length===1?'':'es')+'</span>'+
+      '<button type="button" class="cdp-x" aria-label="Cerrar panel del día"><svg class="ic" style="width:13px;height:13px"><use href="#i-x"/></svg></button>'+
+    '</div>'+
+    '<div class="cdp-sum">'+parts.join(' · ')+'</div>'+
+    '<div class="cdp-rows">'+rows+'</div>'+
+  '</div>';
+}
+
+function renderCalendar(vis){
+  var host = document.getElementById('view-cal');
+  var y = calState.y, m = calState.mo;
+  // agrupar visibles por día del mes actual
+  var byDay = {};
+  vis.forEach(function(r){
+    var iso = calDayIso(r); if(!iso) return;
+    var d = toD(iso);
+    if(d.getFullYear()!==y || d.getMonth()!==m) return;
+    (byDay[d.getDate()] = byDay[d.getDate()] || []).push(r);
+  });
+  var first = new Date(y, m, 1), lead = (first.getDay()+6)%7; // lunes-inicio
+  var days = new Date(y, m+1, 0).getDate();
+  var todayD = (_today.getFullYear()===y && _today.getMonth()===m) ? _today.getDate() : -1;
+
+  // Validar la selección ANTES de pintar: si el día seleccionado quedó sin órdenes
+  // (cambio de filtros/búsqueda) o es de otro mes, se limpia — sin celdas .sel huérfanas.
+  if(calState.sel){
+    var sd0 = toD(calState.sel);
+    if(sd0.getFullYear()!==y || sd0.getMonth()!==m || !(byDay[sd0.getDate()]||[]).length) calState.sel = null;
+  }
+
+  var head = '<div class="cal-toolbar">'+
+    '<div class="cal-nav"><button type="button" class="cal-arrow" id="cal-prev" aria-label="Mes anterior"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-chev"/></svg></button>'+
+      '<span class="cal-month">'+['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m]+' '+y+'</span>'+
+      '<button type="button" class="cal-arrow" id="cal-next" aria-label="Mes siguiente"><svg class="ic"><use href="#i-chev"/></svg></button></div>'+
+    '<div class="cal-dim seg" role="group" aria-label="Dimensión de fecha">'+
+      '<button type="button" class="seg-btn'+(calState.dim==='prom'?' active':'')+'" data-dim="prom">Promesa</button>'+
+      '<button type="button" class="seg-btn'+(calState.dim==='desp'?' active':'')+'" data-dim="desp">Despachado</button>'+
+    '</div></div>'+
+    '<div class="cal-hint">'+(calState.dim==='prom'
+      ? 'Qué se debe entregar cada día — los días pasados con promesas sin cumplir salen en rojo. Haz clic en un día con órdenes para ver su detalle.'
+      : 'Qué salió a ruta / se entregó cada día (throughput del mes). Haz clic en un día con órdenes para ver su detalle.')+'</div>';
+
+  // Columna izquierda: el calendario (dow + días)
+  var cal = '<div class="cal-calendar"><div class="cal-dow">'+DOW.map(function(d){return '<span>'+d+'</span>';}).join('')+'</div><div class="cal-days">';
+  for(var i=0;i<lead;i++) cal += '<div class="cal-cell empty"></div>';
+  for(var dd=1; dd<=days; dd++){
+    var list = byDay[dd] || [], dISO = y+'-'+String(m+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
+    var isToday = dd===todayD;
+    // "vencido": día pasado con promesas de órdenes activas no despachadas (solo dim promesa)
+    var overdueDay = calState.dim==='prom' && list.some(function(r){ return isOverdue(r); });
+    var dots = list.slice(0,4).map(function(r){ return '<span class="cal-dot" style="background:var('+estDotToken(r.e)+')"></span>'; }).join('');
+    var selected = calState.sel===dISO;
+    cal += '<button type="button" class="cal-cell'+(list.length?' has':'')+(isToday?' today':'')+(overdueDay?' overdue':'')+(selected?' sel':'')+'"'+
+      (list.length? ' data-day="'+dISO+'" aria-pressed="'+(selected?'true':'false')+'"':' disabled tabindex="-1"')+
+      ' aria-label="'+dd+' · '+list.length+' órden'+(list.length===1?'':'es')+(list.length?'. Clic para ver el detalle del día.':'')+'">'+
+      '<span class="cal-num">'+dd+'</span>'+
+      (list.length? '<span class="cal-cnt">'+list.length+'</span><span class="cal-dots">'+dots+'</span>' : '')+
+    '</button>';
+  }
+  cal += '</div></div>';
+  // Panel del día: DEBAJO del grid (el clic hace auto-scroll suave hasta él).
+  var panel = '';
+  if(calState.sel){
+    var sd = toD(calState.sel);
+    panel = dayPanelHtml(sd, byDay[sd.getDate()]); // sel ya validado arriba
+  }
+  var cells = '<div class="cal-grid">'+cal+panel+'</div>';
+
+  // Variante AGENDA (móvil / degradación): lista agrupada por día — el encabezado del día
+  // es ESTÁTICO (div, no botón): la agenda ya es la lista del día, no hay chip ni panel.
+  var dayKeys = Object.keys(byDay).map(Number).sort(function(a,b){return a-b;});
+  var agenda = '<div class="cal-agenda">'+ (dayKeys.length ? dayKeys.map(function(dd){
+    var list = byDay[dd], d = new Date(y, m, dd);
+    var ov = calState.dim==='prom' && list.some(function(r){ return isOverdue(r); });
+    var head2 = '<div class="ag-day'+(ov?' overdue':'')+'">'+
+      '<span class="ag-dow">'+['dom','lun','mar','mié','jue','vie','sáb'][d.getDay()]+' '+dd+'</span>'+
+      '<span class="ag-n">'+list.length+'</span></div>';
+    var items = list.map(function(r){
+      var p = prom(r);
+      return '<button type="button" class="ag-item" data-id="'+r.id+'">'+
+        '<span class="ag-dot" style="background:var('+estDotToken(r.e)+')"></span>'+
+        '<span class="ag-cli">'+r.cliente+'</span><span class="ag-ord">'+r.id+'</span>'+
+        '<span class="ag-prom '+p.c+'">'+p.r+'</span></button>';
+    }).join('');
+    return '<div class="ag-group">'+head2+items+'</div>';
+  }).join('') : '<div class="ch-empty">Sin órdenes en '+MESES[m]+' '+y+' para esta dimensión.</div>')+'</div>';
+
+  host.innerHTML = head + cells + agenda;
+}
+
+/* ══════════ Detalle (modal) ══════════ */
+function openDet(id){
+  var r = null;
+  for(var i=0;i<DATA.length;i++){ if(DATA[i].id===id){ r = DATA[i]; break; } }
+  if(!r) return;
+  var est = EST[r.e];
+  document.getElementById('mod-title').textContent = r.id + ' — ' + r.cliente;
+  document.getElementById('mod-fol').textContent = r.folio + ' · ' + r.tipo;
+  document.getElementById('mod-badge').innerHTML = '<span class="sdv-badge '+est.cls+'">'+est.lbl+'</span>';
+
+  var arts = r.arts.map(function(a){
+    return '<div class="art"><span class="art-ph"><svg class="ic"><use href="#i-package"/></svg></span>'+
+      '<div style="flex:1;min-width:0"><div class="art-n">'+a.n+'</div><div class="art-s">'+a.s+'</div></div>'+
+      '<span class="art-q">×'+a.q+'</span></div>';
+  }).join('');
+  if(r.more) arts += '<div class="art-more">… y '+r.more+' artículo'+(r.more>1?'s':'')+' más ('+r.nArts+' en total)</div>';
+
+  var evid;
+  if(r.evid===null){
+    evid = '<div class="an-note" style="margin-top:2px">Aún no aplica — la orden no se ha despachado.</div>';
+  } else if(r.evid===0){
+    evid = '<div class="ev-warn"><svg class="ic" style="width:14px;height:14px"><use href="#i-image"/></svg>'+
+      '<span>Sin evidencia de entrega. Pide a Operaciones la foto de los documentos firmados.</span></div>';
+  } else {
+    var ph = '';
+    for(var k=0;k<Math.min(r.evid,5);k++) ph += '<span class="ev-ph"><svg class="ic"><use href="#i-image"/></svg></span>';
+    if(r.evid>5) ph += '<span class="ev-ph" style="font-size:11px;font-weight:700;color:var(--text-muted)">+'+(r.evid-5)+'</span>';
+    evid = '<div class="ev-grid">'+ph+'</div>';
+  }
+
+  var p = prom(r);
+  var datos = '';
+  function dr(l, v){ if(v) datos += '<div class="dr"><dt>'+l+'</dt><dd>'+v+'</dd></div>'; }
+  dr('Cliente', r.cliente);
+  dr('Vendedora', VEND[r.vend].full);
+  dr('Ciudad', r.ciudad);
+  dr('Dirección', r.dir);
+  dr('Receptor', r.recept);
+  dr('Solicitada', fmtD(r.cre));
+  dr('Fecha deseada', '<span style="font-weight:600">'+fmtD(r.fdes)+'</span> <span class="pr '+p.c+'" style="font-size:10.5px">'+p.r+'</span>');
+  if(r.ent) dr('Entregada', fmtD(r.ent));
+  dr('Despacho desde', r.loc);
+  dr('Despacho Odoo', r.pick);
+  dr('Observaciones', r.obs);
+
+  var hist = r.hist.map(function(hh){
+    return '<div class="tl-i"><span class="tl-dot"></span><div><div class="tl-t">'+hh.l+'</div><div class="tl-m">'+hh.w+' · '+hh.at+'</div></div></div>';
+  }).join('');
+
+  document.getElementById('mod-b').innerHTML =
+    '<div class="say"><svg class="ic"><use href="#i-msg"/></svg><div><strong>Para el cliente</strong>'+r.msg+'</div></div>'+
+    '<div class="mod-grid">'+
+      '<div><div class="ms-t">Datos de la orden</div><dl>'+datos+'</dl></div>'+
+      '<div><div class="ms-t">Artículos ('+r.nArts+')</div>'+arts+
+        '<div class="ms-t" style="margin-top:16px">Evidencia de entrega</div>'+evid+
+      '</div>'+
+    '</div>'+
+    '<div class="gapbox"><h4><svg class="ic" style="width:12px;height:12px"><use href="#i-alert"/></svg>Logística de entrega — hoja de Ventas, sin fuente viva</h4>'+
+      '<div class="gap-row"><span class="g-l">Vehículo</span><span class="g-v">—</span><span class="gap-chip">Requiere captura nueva</span></div>'+
+      '<div class="gap-row"><span class="g-l">Tipo de transporte</span><span class="g-v">—</span><span class="gap-chip">Requiere captura nueva</span></div>'+
+      '<div class="gap-row"><span class="g-l">Horario de entrega</span><span class="g-v">—</span><span class="gap-chip">Requiere captura nueva</span></div>'+
+      '<div class="gap-row"><span class="g-l">¿Lleva instalación?</span><span class="g-v">—</span><span class="gap-chip">Requiere captura nueva</span></div>'+
+      '<div class="gap-row"><span class="g-l">Días de preparación</span><span class="g-v">—</span><span class="gap-chip">Requiere captura nueva</span></div>'+
+      '<div class="gap-note">Estos campos existen hoy en la hoja de Ventas pero ninguna fuente viva (SDV / WWP / Odoo) los captura. Decisión pendiente: agregarlos al formulario SDV o a la tarea de despacho antes de jubilar la hoja.</div>'+
+    '</div>'+
+    '<div class="tl"><div class="ms-t">Seguimiento</div>'+hist+'</div>';
+
+  var ovl = document.getElementById('ovl');
+  ovl.hidden = false;
+  document.getElementById('mod-x').focus();
+}
+function closeDet(){ document.getElementById('ovl').hidden = true; }
+
+/* ══════════ Chips de filtros activos ══════════ */
+function renderChips(){
+  var f = state.f, chips = [];
+  function chip(kind, key, text){
+    return '<span class="fchip"><span class="fk">'+kind+':</span>'+text+
+      '<button type="button" data-clear="'+key+'" aria-label="Quitar filtro '+kind+'"><svg class="ic" style="width:11px;height:11px"><use href="#i-x"/></svg></button></span>';
+  }
+  if(f.loc)  chips.push(chip('Almacén','loc', f.loc));
+  if(f.vend) chips.push(chip('Vendedora','vend', VEND[f.vend].n));
+  if(f.est)  chips.push(chip('Estado','est', EST_LBL[f.est]));
+  if(f.flag) chips.push(chip('Alerta','flag', FLAG_LBL[f.flag]));
+  if(f.ord)  chips.push(chip('Orden','ord', f.ord));
+  if(f.prom) chips.push(chip('Promesa','prom', promChipText()));
+  var bar = document.getElementById('chips-bar');
+  if(chips.length){
+    bar.innerHTML = chips.join('') + '<button type="button" class="chip-clear" id="chips-clear">Limpiar todo</button>';
+    bar.className = 'chips-bar on';
+  } else { bar.innerHTML = ''; bar.className = 'chips-bar'; }
+  // badge del botón Filtros
+  var n = activeFilterCount(), badge = document.getElementById('fil-badge');
+  if(n){ badge.textContent = n; badge.hidden = false; document.getElementById('fil-btn').classList.add('on'); }
+  else { badge.hidden = true; document.getElementById('fil-btn').classList.remove('on'); }
+}
+
+/* ══════════ Vistas ══════════ */
+function setView(v){
+  state.view = v;
+  ['list','kanban','cal','charts'].forEach(function(id){
+    var host = document.getElementById('view-'+id);
+    if(host) host.hidden = (id !== v);
+  });
+  document.querySelectorAll('.view-btn').forEach(function(b){
+    var on = b.getAttribute('data-view')===v;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  apply();
+}
+
+/* ══════════ Orquestación ══════════ */
+function apply(){
+  var sub = subset();
+  var vis = visibleFrom(sub);
+  renderPulse(sub);
+  renderAlerts(sub);
+  renderChips();
+  // Zona lateral analítica: siempre sobre el subconjunto (scope+búsqueda)
+  renderDonut(sub);
+  renderBars(sub);
+  // Vista central activa
+  if(state.view==='list')        renderRows(vis, sub);
+  else if(state.view==='kanban') renderKanban(vis);
+  else if(state.view==='cal')    renderCalendar(vis);
+  else if(state.view==='charts') renderCharts(vis);
+  // Empty state central (compartido por Lista/Kanban/Gráficos; el calendario tiene su propio vacío por mes)
+  document.getElementById('empty').className = 'empty' + ((!vis.length && state.view!=='cal') ? ' on' : '');
+  // Conteo
+  var hasNarrow = state.q || activeFilterCount();
+  document.getElementById('tb-count').textContent =
+    (hasNarrow ? vis.length + ' de ' + sub.length : sub.length) + ' órdenes';
+}
+
+/* ══════════ Poblar selects de filtro (almacén / vendedora) ══════════ */
+(function(){
+  var locSel = document.getElementById('f-loc');
+  LOCS.forEach(function(l){ var o=document.createElement('option'); o.value=l; o.textContent=l; locSel.appendChild(o); });
+  var vSel = document.getElementById('f-vend');
+  Object.keys(VEND).forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=VEND[k].full; vSel.appendChild(o); });
+})();
+
+/* ══════════ Sincronizar el panel de filtros con el estado ══════════ */
+function syncFilterPanel(){
+  document.getElementById('f-loc').value  = state.f.loc;
+  document.getElementById('f-vend').value = state.f.vend;
+  document.getElementById('f-est').value  = (state.f.est==='activas' ? '' : state.f.est);
+  document.getElementById('f-ord').value  = state.f.ord;
+  document.querySelectorAll('#f-prom button').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-p')===state.f.prom);
+  });
+  document.getElementById('f-range').hidden = state.f.prom!=='rango';
+  document.getElementById('f-d1').value = state.f.d1;
+  document.getElementById('f-d2').value = state.f.d2;
+}
+
+/* ══════════ Popovers (Filtros / Agrupar) ══════════ */
+function closePops(){
+  document.getElementById('pop-fil').classList.remove('on');
+  document.getElementById('pop-grp').classList.remove('on');
+  document.getElementById('fil-btn').classList.remove('open-pop'); document.getElementById('fil-btn').setAttribute('aria-expanded','false');
+  document.getElementById('grp-btn').classList.remove('open-pop'); document.getElementById('grp-btn').setAttribute('aria-expanded','false');
+}
+document.getElementById('fil-btn').addEventListener('click', function(e){
+  e.stopPropagation();
+  var pop = document.getElementById('pop-fil'), open = pop.classList.contains('on');
+  closePops();
+  if(!open){ syncFilterPanel(); pop.classList.add('on'); this.classList.add('open-pop'); this.setAttribute('aria-expanded','true'); }
+});
+document.getElementById('grp-btn').addEventListener('click', function(e){
+  e.stopPropagation();
+  var pop = document.getElementById('pop-grp'), open = pop.classList.contains('on');
+  closePops();
+  if(!open){ pop.classList.add('on'); this.classList.add('open-pop'); this.setAttribute('aria-expanded','true'); }
+});
+document.getElementById('pop-fil').addEventListener('click', function(e){ e.stopPropagation(); });
+document.getElementById('pop-grp').addEventListener('click', function(e){ e.stopPropagation(); });
+document.addEventListener('click', closePops);
+
+/* Promesa: chips segmentados dentro del panel */
+document.getElementById('f-prom').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-p]'); if(!b) return;
+  var p = b.getAttribute('data-p');
+  if(state.f.prom===p){ state.f.prom=''; }
+  else { state.f.prom=p; }
+  document.getElementById('f-range').hidden = state.f.prom!=='rango';
+  this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-p')===state.f.prom); });
+});
+
+/* Aplicar filtros del panel */
+document.getElementById('fil-apply').addEventListener('click', function(){
+  state.f.loc  = document.getElementById('f-loc').value;
+  state.f.vend = document.getElementById('f-vend').value;
+  state.f.est  = document.getElementById('f-est').value;
+  state.f.ord  = document.getElementById('f-ord').value.trim();
+  if(state.f.prom==='rango'){ state.f.d1 = document.getElementById('f-d1').value; state.f.d2 = document.getElementById('f-d2').value; }
+  else { state.f.d1=''; state.f.d2=''; }
+  closePops();
+  apply();
+});
+document.getElementById('fil-reset').addEventListener('click', function(){ clearAllFilters(); syncFilterPanel(); });
+
+/* Agrupar por */
+document.getElementById('grp-opts').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-g]'); if(!b) return;
+  state.group = b.getAttribute('data-g');
+  this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+  var lbl = {none:'Agrupar', vend:'Por vendedora', est:'Por estado', loc:'Por almacén', fecha:'Por fecha'}[state.group];
+  document.getElementById('grp-lbl').textContent = lbl;
+  document.getElementById('grp-btn').classList.toggle('on', state.group!=='none');
+  closePops();
+  apply();
+});
+
+/* ══════════ Selector de vistas ══════════ */
+document.querySelector('.view-seg').addEventListener('click', function(e){
+  var b = e.target.closest('.view-btn'); if(b) setView(b.getAttribute('data-view'));
+});
+
+/* ══════════ Atajos: pulso + alertas escriben en state.f ══════════ */
+document.getElementById('pulse').addEventListener('click', function(e){
+  var b = e.target.closest('.pi[data-f]');
+  if(b) setF('est', b.getAttribute('data-f'));
+});
+document.getElementById('al-rows').addEventListener('click', function(e){
+  var b = e.target.closest('.al-row');
+  if(b) setF(b.getAttribute('data-fk'), b.getAttribute('data-fv'));
+});
+
+/* ══════════ Chips: quitar filtro individual / todos ══════════ */
+document.getElementById('chips-bar').addEventListener('click', function(e){
+  var x = e.target.closest('button[data-clear]');
+  if(x){ clearF(x.getAttribute('data-clear')); return; }
+  if(e.target.id==='chips-clear'){ clearAllFilters(); }
+});
+
+/* ══════════ Interacción de las vistas (delegación) ══════════ */
+document.getElementById('rows').addEventListener('click', function(e){
+  var tr = e.target.closest('tr[data-id]');
+  if(tr && !tr.classList.contains('grp-h')) openDet(tr.getAttribute('data-id'));
+});
+document.getElementById('rows').addEventListener('keydown', function(e){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  var tr = e.target.closest('tr[data-id]');
+  if(tr && !tr.classList.contains('grp-h')){ e.preventDefault(); openDet(tr.getAttribute('data-id')); }
+});
+document.getElementById('view-kanban').addEventListener('click', function(e){
+  var c = e.target.closest('.kb-card[data-id]');
+  if(c) openDet(c.getAttribute('data-id'));
+});
+document.getElementById('view-cal').addEventListener('click', function(e){
+  // navegación de mes (limpia la selección de día: el panel no debe quedar huérfano en otro mes)
+  if(e.target.closest('#cal-prev')){ calState.mo--; if(calState.mo<0){ calState.mo=11; calState.y--; } calState.sel=null; apply(); return; }
+  if(e.target.closest('#cal-next')){ calState.mo++; if(calState.mo>11){ calState.mo=0; calState.y++; } calState.sel=null; apply(); return; }
+  // dimensión de fecha (también limpia: el mismo día significa otra cosa en la otra dimensión)
+  var dim = e.target.closest('button[data-dim]');
+  if(dim){ calState.dim = dim.getAttribute('data-dim'); calState.sel=null; apply(); return; }
+  // fila del panel del día / ítem de agenda → abre el detalle (con "Para el cliente")
+  var row = e.target.closest('.cdp-row[data-id], .ag-item[data-id]');
+  if(row){ openDet(row.getAttribute('data-id')); return; }
+  // cerrar el panel del día
+  if(e.target.closest('.cdp-x')){ calState.sel=null; apply(); return; }
+  // día con órdenes → SELECCIONA ese día y muestra su panel. Idempotente: cada clic
+  // en un día se comporta IGUAL (selecciona + trae el panel a la vista), incluso si ese
+  // día ya estaba seleccionado o si el usuario movió el scroll. El cierre es solo la "×"
+  // (.cdp-x) — quitar el toggle-por-reclic evita el "le doy y no pasa nada, tengo que
+  // dar otro" que confundía (Gabriel, 2026-07-03).
+  var day = e.target.closest('.cal-cell[data-day]');
+  if(day){
+    calState.sel = day.getAttribute('data-day');
+    apply();
+    revealDayPanel();
+  }
+});
+function revealDayPanel(){
+  var panel = document.querySelector('#view-cal .cal-day-panel');
+  if(!panel) return;
+  // rAF: esperar a que el nuevo nodo esté en el layout antes de medir/scrollear.
+  requestAnimationFrame(function(){
+    var r = panel.getBoundingClientRect();
+    // Posición cómoda FIJA: el título del panel a ~70px del tope. Cada clic deja el panel
+    // en el mismo lugar → comportamiento consistente sin importar la distancia ni el scroll
+    // previo. Solo se salta si ya está prácticamente ahí (evita micro-saltos molestos).
+    var target = Math.max(0, window.scrollY + r.top - 70);
+    if (Math.abs(target - window.scrollY) < 8) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    // scrollIntoView/scrollTo con behavior:'smooth' es NO-OP en varios entornos
+    // (automatización, WebView, "reducir movimiento" del SO) → animamos a mano con rAF,
+    // que scrollea de forma fiable en todos. Si reduce-motion: salto instantáneo.
+    if (reduce) { window.scrollTo(0, target); return; }
+    var start = window.scrollY, dist = target - start, dur = 320, t0 = null;
+    (function tween(ts){
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      var e = p < 0.5 ? 2*p*p : 1 - Math.pow(-2*p + 2, 2) / 2; // easeInOutQuad
+      window.scrollTo(0, Math.round(start + dist * e));
+      if (p < 1) requestAnimationFrame(tween);
+    })(performance.now());
+  });
+}
+
+/* ══════════ Búsqueda + scope ══════════ */
+document.getElementById('q').addEventListener('input', function(){ state.q = this.value.trim(); apply(); });
+document.getElementById('empty-clear').addEventListener('click', clearAll);
+document.getElementById('sc-mine').addEventListener('click', function(){
+  state.scope = 'mine'; this.classList.add('active'); document.getElementById('sc-all').classList.remove('active'); apply();
+});
+document.getElementById('sc-all').addEventListener('click', function(){
+  state.scope = 'all'; this.classList.add('active'); document.getElementById('sc-mine').classList.remove('active'); apply();
+});
+
+/* ══════════ Modal ══════════ */
+document.getElementById('mod-x').addEventListener('click', closeDet);
+document.getElementById('ovl').addEventListener('click', function(e){ if(e.target===this) closeDet(); });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ closeDet(); closePops(); } });
+
+/* Tema claro/oscuro */
+(function(){
+  var KEY = 'mockup_eo_theme';
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch(err){}
+  if(saved==='dark') document.documentElement.setAttribute('data-theme','dark');
+  document.getElementById('theme-btn').addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', cur);
+    try { localStorage.setItem(KEY, cur); } catch(err){}
+  });
+})();
+
+renderTrend();
+apply();
+</script>
+</body>
+</html>
