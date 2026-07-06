@@ -383,6 +383,7 @@ const WWP_ROLES_FILE  = path.join(DATA_DIR, 'wwp-roles.json');
 const WWP_FOTOS_DIR   = path.join(DATA_DIR, 'wwp-fotos');
 const WWP_LUNCH_FILE        = path.join(DATA_DIR, 'wwp-lunch-breaks.json');
 const WWP_INSPECTIONS_FILE  = path.join(DATA_DIR, 'wwp-inspecciones.json');
+const WWP_VEHICLES_FILE     = path.join(DATA_DIR, 'wwp-vehicles.json');
 if (!fs.existsSync(WWP_FOTOS_DIR)) fs.mkdirSync(WWP_FOTOS_DIR, { recursive: true });
 
 function loadLunchBreaks() { return loadJson(WWP_LUNCH_FILE, []); }
@@ -390,6 +391,25 @@ function saveLunchBreaks(b) { saveJson(WWP_LUNCH_FILE, b); }
 
 function loadInspections() { return loadJson(WWP_INSPECTIONS_FILE, []); }
 function saveInspections(d) { saveJson(WWP_INSPECTIONS_FILE, d); }
+
+// ── Vehículos de la flota (inspección diaria) ────────────────────────────────
+// Los 5 originales tienen medidor de combustible dibujado a mano en el frontend
+// (VEH_FUEL_CONFIG); los que agregue un admin usan un medidor genérico según fuelType.
+const BUILTIN_VEHICLES = [
+  { id:'veh_hyundai', name:'Camión Hyundai',        placa:'A-123456', fuelType:'standard', isBuiltin:true },
+  { id:'veh_citroen', name:'Furgoneta Citroën',     placa:'B-789012', fuelType:'standard', isBuiltin:true },
+  { id:'veh_ducato',  name:'Furgoneta Fiat Ducato', placa:'E-567890', fuelType:'standard', isBuiltin:true },
+  { id:'veh_grande',  name:'Camión Grande',         placa:'C-345678', fuelType:'detailed', isBuiltin:true },
+  { id:'veh_toyota',  name:'Pick-up Toyota',        placa:'D-901234', fuelType:'standard', isBuiltin:true },
+];
+function loadVehicles() {
+  let list;
+  try { list = fs.existsSync(WWP_VEHICLES_FILE) ? loadJson(WWP_VEHICLES_FILE, null) : null; }
+  catch { list = null; }
+  if (!list || !list.length) { list = BUILTIN_VEHICLES.map(v => ({...v})); saveVehicles(list); }
+  return list;
+}
+function saveVehicles(list) { saveJson(WWP_VEHICLES_FILE, list); }
 
 function loadWwpTasks() { return loadJson(WWP_TASKS_FILE, []); }
 function saveWwpTasks(list) { saveCriticalArray(WWP_TASKS_FILE, list); }
@@ -8802,6 +8822,7 @@ const server = http.createServer(async (req, res) => {
         { key: 'wwp-users-auth', file: WWP_AUTH_FILE },
         { key: 'wwp-roles',      file: WWP_ROLES_FILE },
         { key: 'wwp-role-defs',  file: WWP_ROLE_DEFS_FILE },
+        { key: 'wwp-vehicles',   file: WWP_VEHICLES_FILE },
         { key: 'wwp-lunch-breaks', file: WWP_LUNCH_FILE },
         { key: 'wwp-notifications', file: WWP_NOTIF_FILE },
         { key: 'averias',        file: AVERIAS_FILE },
@@ -12092,6 +12113,69 @@ const server = http.createServer(async (req, res) => {
       }));
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ byStatus, byType, byUser, avgHours, total:tasks.length, recent, overdueTasks }));
+    return;
+  }
+
+  // GET /api/wwp/vehicles — listar vehículos de la flota (cualquier usuario autenticado)
+  if (reqPath === '/api/wwp/vehicles' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true, vehicles: loadVehicles()}));
+    return;
+  }
+
+  // POST /api/wwp/vehicles — crear vehículo (admin|manager)
+  if (reqPath === '/api/wwp/vehicles' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    try {
+      const d = await readBody(req);
+      const name = (d.name || '').trim();
+      if (!name) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Nombre requerido'})); return; }
+      const list = loadVehicles();
+      if (list.some(v => v.name.toLowerCase() === name.toLowerCase())) {
+        res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Ya existe un vehículo con ese nombre'})); return;
+      }
+      const veh = { id:'veh_'+Date.now().toString(36), name, placa:(d.placa||'').trim().toUpperCase(), fuelType: d.fuelType==='detailed'?'detailed':'standard', isBuiltin:false };
+      list.push(veh);
+      saveVehicles(list);
+      res.writeHead(201,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, vehicle:veh}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // PATCH /api/wwp/vehicles/:id — editar vehículo (admin|manager)
+  if (reqPath.match(/^\/api\/wwp\/vehicles\/[^/]+$/) && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    try {
+      const id = reqPath.split('/').pop();
+      const d = await readBody(req);
+      const list = loadVehicles();
+      const idx = list.findIndex(v => v.id === id);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Vehículo no encontrado'})); return; }
+      if (d.name !== undefined && d.name.trim()) list[idx].name = d.name.trim();
+      if (d.placa !== undefined) list[idx].placa = (d.placa||'').trim().toUpperCase();
+      if (d.fuelType !== undefined) list[idx].fuelType = d.fuelType==='detailed'?'detailed':'standard';
+      saveVehicles(list);
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, vehicle:list[idx]}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // DELETE /api/wwp/vehicles/:id — eliminar vehículo (admin|manager) — bloqueado para predeterminados o en uso
+  if (reqPath.match(/^\/api\/wwp\/vehicles\/[^/]+$/) && req.method === 'DELETE') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin','manager'])) return;
+    const id = reqPath.split('/').pop();
+    const list = loadVehicles();
+    const veh = list.find(v => v.id === id);
+    if (!veh) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Vehículo no encontrado'})); return; }
+    if (veh.isBuiltin) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No se pueden eliminar los vehículos predeterminados'})); return; }
+    const inUse = loadInspections().some(i => i.vehiculo === veh.name);
+    if (inUse) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tiene inspecciones registradas — no se puede eliminar'})); return; }
+    saveVehicles(list.filter(v => v.id !== id));
+    res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true}));
     return;
   }
 

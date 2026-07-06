@@ -7634,11 +7634,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <div class="veh-insp-toolbar">
           <select class="veh-filter-select" id="veh-filter-vehiculo" onchange="vehLoadList()">
             <option value="">Todos los vehículos</option>
-            <option value="Camión Hyundai">Camión Hyundai</option>
-            <option value="Furgoneta Citroën">Furgoneta Citroën</option>
-            <option value="Furgoneta Fiat Ducato">Furgoneta Fiat Ducato</option>
-            <option value="Camión Grande">Camión Grande</option>
-            <option value="Pick-up Toyota">Pick-up Toyota</option>
           </select>
           <select class="veh-filter-select" id="veh-filter-apto" onchange="vehLoadList()">
             <option value="">Todos</option>
@@ -7710,11 +7705,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               <label>Vehículo *</label>
               <select id="vf-vehiculo" onchange="vehUpdatePlaca()">
                 <option value="">— Seleccionar —</option>
-                <option value="Camión Hyundai">Camión Hyundai</option>
-                <option value="Furgoneta Citroën">Furgoneta Citroën</option>
-                <option value="Furgoneta Fiat Ducato">Furgoneta Fiat Ducato</option>
-                <option value="Camión Grande">Camión Grande</option>
-                <option value="Pick-up Toyota">Pick-up Toyota</option>
               </select>
             </div>
             <div class="veh-field">
@@ -10413,6 +10403,7 @@ function enterApp() {
   }
   // Módulo vehículos: construir checklist y pre-llenar campos
   vehBuildForm();
+  vehLoadVehiclesList();
   var cInput = document.getElementById('vf-conductor');
   if (cInput && _user) cInput.value = _user.name;
   var fFirma = document.getElementById('vf-firma');
@@ -28906,16 +28897,7 @@ async function loadAllReports(){
 
 // ── MÓDULO INSPECCIÓN DE VEHÍCULOS ───────────────────────────────────────────
 
-// Placas por defecto
-var VEH_PLACAS = {
-  'Camión Hyundai':        'A-123456',
-  'Furgoneta Citroën':     'B-789012',
-  'Furgoneta Fiat Ducato': 'E-567890',
-  'Camión Grande':         'C-345678',
-  'Pick-up Toyota':        'D-901234'
-};
-
-// Configuración de medidores de combustible por vehículo
+// Configuración de medidores de combustible por vehículo (placas y flota completa vienen del servidor — ver _vehiclesList)
 var VEH_FUEL_CONFIG = {
   'Camión Hyundai': {
     name: 'Hyundai H350',
@@ -29046,10 +29028,148 @@ function vehBuildForm() {
   container.innerHTML = html;
 }
 
+// ── Flota de vehículos (admin) — cargada desde el servidor ──────────────────
+var _vehiclesList = [];
+
+function vehGenericFuelConfig(fuelType) {
+  var detailed = fuelType === 'detailed';
+  var levels = detailed ? [0, 20, 40, 60, 80, 100] : [0, 25, 50, 75, 100];
+  var labels = detailed ? ['E', '20%', '40%', '60%', '80%', 'F'] : ['E', '1/4', '1/2', '3/4', 'F'];
+  var svg = '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><circle cx="120" cy="120" r="110" fill="var(--surface-2)" stroke="var(--border)" stroke-width="2"/><text x="35" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">E</text><text x="205" y="130" text-anchor="middle" font-size="14" font-weight="bold" fill="var(--text-secondary)">F</text><path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="var(--surface)" stroke-width="12" opacity="0.3"/><path d="M 70 120 A 50 50 0 0 1 100 70" fill="none" stroke="#ef4444" stroke-width="10" opacity="0.6"/><path d="M 100 70 A 50 50 0 0 1 170 120" fill="none" stroke="#22c55e" stroke-width="10" opacity="0.6"/><circle cx="120" cy="120" r="8" fill="var(--text-secondary)"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="45" stroke="#dc2626" stroke-width="3.5" stroke-linecap="round"/><circle cx="120" cy="120" r="5" fill="#dc2626"/></g></svg>';
+  return { name: 'Genérico', levels: levels, labels: labels, svg: svg };
+}
+
+function vehGetFuelConfig(vehName) {
+  if (VEH_FUEL_CONFIG[vehName]) return VEH_FUEL_CONFIG[vehName];
+  var veh = _vehiclesList.find(function(v){ return v.name === vehName; });
+  return veh ? vehGenericFuelConfig(veh.fuelType) : null;
+}
+
+async function vehLoadVehiclesList() {
+  try {
+    var r = await authFetch('/api/wwp/vehicles');
+    var d = await r.json();
+    if (d.ok) _vehiclesList = d.vehicles;
+  } catch(e) {}
+  vehRenderVehicleOptions();
+}
+
+function vehRenderVehicleOptions() {
+  var optsHtml = _vehiclesList.map(function(v) {
+    return '<option value="'+escH(v.name)+'">'+escH(v.name)+'</option>';
+  }).join('');
+
+  var formSel = document.getElementById('vf-vehiculo');
+  if (formSel) {
+    var current = formSel.value;
+    formSel.innerHTML = '<option value="">— Seleccionar —</option>' + optsHtml;
+    if (current && _vehiclesList.some(function(v){ return v.name === current; })) formSel.value = current;
+  }
+
+  var filterSel = document.getElementById('veh-filter-vehiculo');
+  if (filterSel) {
+    var currentF = filterSel.value;
+    filterSel.innerHTML = '<option value="">Todos los vehículos</option>' + optsHtml;
+    if (currentF && _vehiclesList.some(function(v){ return v.name === currentF; })) filterSel.value = currentF;
+  }
+
+  var adminBtn = document.getElementById('veh-admin-tools');
+  if (adminBtn) {
+    adminBtn.style.display = (_user && (_user.role === 'admin' || _user.role === 'manager')) ? '' : 'none';
+    if (adminBtn.style.display !== 'none' && !adminBtn.innerHTML) {
+      adminBtn.innerHTML = '<button class="btn-sm" onclick="vehOpenAdminPanel()"><i data-lucide="settings" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Gestionar vehículos</button>';
+      if (window.lucide) lucide.createIcons();
+    }
+  }
+}
+
+// ── Panel de administración de vehículos (admin|manager) ────────────────────
+function vehOpenAdminPanel() {
+  _trModal(vehAdminPanelHtml(), 480);
+  if (window.lucide) lucide.createIcons();
+}
+
+function vehAdminPanelHtml() {
+  var rows = _vehiclesList.map(function(v) {
+    return '<div class="veh-admin-row" style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border)">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text)">' + escH(v.name) + '</div>'
+      + '<div style="font-size:12px;color:var(--text-muted)">Placa ' + escH(v.placa || '—') + ' · Medidor: ' + (v.fuelType === 'detailed' ? 'Detallado' : 'Estándar') + (v.isBuiltin ? ' · Predeterminado' : '') + '</div>'
+      + '</div>'
+      + '<button class="btn-sm" onclick="vehAdminShowEditForm(\'' + v.id + '\')" title="Editar"><i data-lucide="pencil" style="width:13px;height:13px;stroke:currentColor"></i></button>'
+      + (v.isBuiltin ? '' : '<button class="btn-sm" style="color:#dc2626" onclick="vehAdminDelete(\'' + v.id + '\')" title="Eliminar"><i data-lucide="trash-2" style="width:13px;height:13px;stroke:currentColor"></i></button>')
+      + '</div>';
+  }).join('');
+
+  return '<h3 style="margin:0 0 4px">Vehículos de la flota</h3>'
+    + '<p style="font-size:12px;color:var(--text-muted);margin:0 0 12px">Se reflejan de inmediato en el formulario de inspección.</p>'
+    + '<div id="veh-admin-list">' + rows + '</div>'
+    + '<div style="margin-top:14px"><button class="btn-sm" onclick="vehAdminShowAddForm()"><i data-lucide="plus" style="width:13px;height:13px;stroke:currentColor;vertical-align:-2px;margin-right:2px"></i>Agregar vehículo</button></div>'
+    + '<div id="veh-admin-form-slot" style="margin-top:12px"></div>';
+}
+
+function vehAdminFormHtml(veh) {
+  veh = veh || { id:'', name:'', placa:'', fuelType:'standard' };
+  return '<div style="background:var(--surface-2);border-radius:10px;padding:14px">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    + '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Nombre del vehículo</label>'
+    + '<input type="text" id="veh-af-name" value="' + escH(veh.name) + '" placeholder="Ej. Furgoneta Renault Kangoo" style="width:100%"></div>'
+    + '<div><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Placa</label>'
+    + '<input type="text" id="veh-af-placa" value="' + escH(veh.placa) + '" placeholder="Ej. F-112233" style="width:100%;text-transform:uppercase"></div>'
+    + '</div>'
+    + '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Tipo de medidor de combustible</label>'
+    + '<select id="veh-af-fuel" style="width:100%">'
+    + '<option value="standard"' + (veh.fuelType!=='detailed'?' selected':'') + '>Estándar (E · 1/4 · 1/2 · 3/4 · F)</option>'
+    + '<option value="detailed"' + (veh.fuelType==='detailed'?' selected':'') + '>Detallado (E · 20% · 40% · 60% · 80% · F)</option>'
+    + '</select></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    + '<button class="btn-sm" onclick="document.getElementById(\'veh-admin-form-slot\').innerHTML=\'\'">Cancelar</button>'
+    + '<button class="btn-sm" style="background:var(--blue-bg);color:var(--blue-text);border:none" onclick="vehAdminSave(\'' + veh.id + '\')">Guardar vehículo</button>'
+    + '</div></div>';
+}
+
+function vehAdminShowAddForm() {
+  document.getElementById('veh-admin-form-slot').innerHTML = vehAdminFormHtml();
+}
+
+function vehAdminShowEditForm(id) {
+  var veh = _vehiclesList.find(function(v){ return v.id === id; });
+  if (!veh) return;
+  document.getElementById('veh-admin-form-slot').innerHTML = vehAdminFormHtml(veh);
+}
+
+async function vehAdminSave(id) {
+  var name = (document.getElementById('veh-af-name').value || '').trim();
+  var placa = (document.getElementById('veh-af-placa').value || '').trim();
+  var fuelType = document.getElementById('veh-af-fuel').value;
+  if (!name) { toast('El nombre del vehículo es obligatorio'); return; }
+  try {
+    var url = id ? '/api/wwp/vehicles/' + encodeURIComponent(id) : '/api/wwp/vehicles';
+    var r = await authFetch(url, { method: id ? 'PATCH' : 'POST', body: JSON.stringify({ name: name, placa: placa, fuelType: fuelType }) });
+    var d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo guardar el vehículo'); return; }
+    await vehLoadVehiclesList();
+    vehOpenAdminPanel();
+    toast('Vehículo guardado');
+  } catch(e) { toast('Error al guardar el vehículo'); }
+}
+
+async function vehAdminDelete(id) {
+  if (!await _iosConfirm('¿Eliminar este vehículo? Esta acción no se puede deshacer.')) return;
+  try {
+    var r = await authFetch('/api/wwp/vehicles/' + encodeURIComponent(id), { method: 'DELETE' });
+    var d = await r.json();
+    if (!d.ok) { toast(d.error || 'No se pudo eliminar el vehículo'); return; }
+    await vehLoadVehiclesList();
+    vehOpenAdminPanel();
+  } catch(e) { toast('Error al eliminar el vehículo'); }
+}
+
 function vehUpdatePlaca() {
   var v = document.getElementById('vf-vehiculo').value;
   var p = document.getElementById('vf-placa');
-  if (p && VEH_PLACAS[v]) p.value = VEH_PLACAS[v];
+  var veh = _vehiclesList.find(function(x){ return x.name === v; });
+  if (p && veh && veh.placa) p.value = veh.placa;
   else if (p) p.value = '';
   // Actualizar medidor de combustible
   vehUpdateFuelGauge();
@@ -29057,7 +29177,7 @@ function vehUpdatePlaca() {
 
 function vehUpdateFuelGauge() {
   var v = document.getElementById('vf-vehiculo').value;
-  var cfg = VEH_FUEL_CONFIG[v];
+  var cfg = vehGetFuelConfig(v);
   if (!cfg) {
     document.getElementById('veh-fuel-status').textContent = 'Selecciona un vehículo';
     return;
@@ -29101,7 +29221,7 @@ function vehSetApto(val) {
 // ── Medidor de combustible ──
 function vehSetFuelLevel(level) {
   const v = document.getElementById('vf-vehiculo').value;
-  const cfg = VEH_FUEL_CONFIG[v];
+  const cfg = vehGetFuelConfig(v);
   if (!cfg) return;
 
   const field = document.getElementById('vf-combustible');
