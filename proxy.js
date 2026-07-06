@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v142';
+const APP_BUILD = 'v143';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1657,6 +1657,10 @@ function sdvNextFolio() {
 // regresión. Estos son los estados válidos y las transiciones permitidas desde el PATCH
 // de Ops. La auto-despachada (WWP→SDV) y la reactivación usan sus propios caminos.
 const SDV_ESTADOS = ['pendiente_revision','en_proceso','despachada','rechazada','cancelada'];
+// Tipos válidos de solicitud. `solicitud_especial` (jul-2026): requerimiento libre de Ventas
+// a Operaciones fuera de despacho/devolución/traslado (ej. recoger artículo donde cliente
+// para validarlo en PTN, uso de vehículo por instaladores). Sin flujo Odoo, sin gates de pick.
+const SDV_TIPOS = ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'];
 const SDV_TRANSICIONES = {
   pendiente_revision: ['en_proceso','rechazada','cancelada'],
   rechazada:          ['pendiente_revision','cancelada'],
@@ -2337,6 +2341,14 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     createdAt: now,
     updatedAt: now
   };
+  // Solicitud especial: el call-site la convierte en tarea `general`; aquí el título es el
+  // asunto de la vendedora (no "Despacho …") y la descripción es su texto libre + vínculo.
+  if (sdv.tipoSolicitud === 'solicitud_especial') {
+    task.title = sdv.asunto || ('Solicitud especial ' + (sdv.folio || sdv.id));
+    task.description = (sdv.descripcion || '')
+      + (sdv.sdvAsociadaFolio ? ' · Vinculada a SDV ' + sdv.sdvAsociadaFolio : '')
+      + ' — solicitud SDV ' + sdv.id;
+  }
   return task;
 }
 
@@ -12820,12 +12832,17 @@ const server = http.createServer(async (req, res) => {
         if (_errE) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_errE})); return; }
         estructura = d.estructura;
       }
-      const conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
+      // Devolución y solicitud especial generan UNA tarea `general` (sin cadena de empaque).
+      const _esGeneral = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
+      const conEmpaque = d.conEmpaque === true && !_esGeneral;
       let nuevas, mainId;
-      if (sol.tipoSolicitud === 'devolucion') { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
+      if (_esGeneral) { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
       else { const r = createSdvTasks(sol, jp.userId, estructura !== null ? estructura : conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
-      // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar")
-      try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (crear-tarea):', e.message); }
+      // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar").
+      // La solicitud especial no tiene pick en Odoo: sus artículos (si los hay) ya vienen marcados.
+      if (sol.tipoSolicitud !== 'solicitud_especial') {
+        try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (crear-tarea):', e.message); }
+      }
       const now = new Date().toISOString();
       const tasks = loadWwpTasks();
       // seq solo para la raíz (misma convención que POST /api/wwp/tasks: subtareas sin número)
@@ -12835,11 +12852,12 @@ const server = http.createServer(async (req, res) => {
       sol.wwpTareas = sol.wwpTareas || [];
       nuevas.forEach(t => sol.wwpTareas.push({ taskId:t.id, titulo:t.title, creadoAt:now }));
       list[idx] = sol; saveSdv(list);
-      const _lblEstructura = nuevas.some(t=>t.type==='packaging')
+      const _lblEstructura = sol.tipoSolicitud === 'solicitud_especial' ? 'solicitud especial'
+        : nuevas.some(t=>t.type==='packaging')
         ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
         : 'despacho';
       const _sinEncargado = nuevas.some(t => !t.managerId);
-      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_lblEstructura}.${_sinEncargado?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
+      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblEstructura}.${_sinEncargado?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, taskId:mainId, tasks:nuevas.map(t=>({id:t.id,type:t.type,titulo:t.title,parentId:t.parentId||null}))}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -13320,6 +13338,18 @@ const server = http.createServer(async (req, res) => {
     try {
       const d = await readBody(req);
       if (!d.tipoSolicitud) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'tipoSolicitud requerido'})); return; }
+      if (!SDV_TIPOS.includes(d.tipoSolicitud)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'tipoSolicitud inválido: '+d.tipoSolicitud})); return; }
+      const _esEspecial = d.tipoSolicitud === 'solicitud_especial';
+      if (_esEspecial && (!(d.asunto||'').trim() || !(d.descripcion||'').trim())) {
+        res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'asunto y descripcion son requeridos para solicitud_especial'})); return;
+      }
+      const list = loadSdv();
+      // El folio de la SDV asociada se resuelve server-side (no se confía en el cliente).
+      let _asociada = null;
+      if (_esEspecial && d.sdvAsociadaId) {
+        _asociada = list.find(s => s.id === d.sdvAsociadaId);
+        if (!_asociada) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'SDV asociada no encontrada: '+d.sdvAsociadaId})); return; }
+      }
       const now = new Date().toISOString();
       const folio = sdvNextFolio();
       const sol = {
@@ -13353,8 +13383,13 @@ const server = http.createServer(async (req, res) => {
         fechaDespacho: null,  // Fecha cuando se validó automáticamente
         alertas: [],
         solicitudOrigenId: d.solicitudOrigenId || null, // Vínculo a la SDV original, si es una solicitud adicional
+        // Solicitud especial: asunto/descripción libres + vínculo opcional a una SDV existente
+        // (distinto de solicitudOrigenId, que dispara la lógica de "solicitud adicional").
+        asunto: (d.asunto||'').trim(),
+        descripcion: (d.descripcion||'').trim(),
+        sdvAsociadaId: _asociada ? _asociada.id : null,
+        sdvAsociadaFolio: _asociada ? (_asociada.folio || null) : null,
       };
-      const list = loadSdv();
       list.push(sol);
       saveSdv(list);
       // N-005: Notificar a Ops que hay una nueva SDV pendiente de revisión
@@ -13362,7 +13397,7 @@ const server = http.createServer(async (req, res) => {
       if (solOrigen) {
         try { notifySdvAdditionalCreated(solOrigen, sol); } catch(e) { silentCatch(e,'notifySdvAdditionalCreated'); }
       } else {
-        try { notifyOpsNewSdv(sol.id, sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e) { silentCatch(e,'notifyOpsNewSdv'); }
+        try { notifyOpsNewSdv(sol.id, sol.asunto || sol.clienteNombre || sol.odooOrderRef || 'N/A', (sol.articulosOdoo||[]).length); } catch(e) { silentCatch(e,'notifyOpsNewSdv'); }
       }
       res.writeHead(201,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,solicitud:sol}));
@@ -13536,7 +13571,8 @@ const server = http.createServer(async (req, res) => {
       
       const now = new Date().toISOString();
       const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
-        'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada'];
+        'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada',
+        'asunto','descripcion']; // solicitud_especial (sdvAsociadaId queda inmutable tras creación)
       EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
       if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
 
@@ -13583,7 +13619,9 @@ const server = http.createServer(async (req, res) => {
         // a saltarse la SDV (Pit R1).
         if (d.estado === 'en_proceso' && !sol.wwpTaskId) {
           try {
-            const _conEmpaque = d.conEmpaque === true && sol.tipoSolicitud !== 'devolucion';
+            // Devolución y solicitud especial generan UNA tarea `general` (sin cadena de empaque).
+            const _esGeneral = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
+            const _conEmpaque = d.conEmpaque === true && !_esGeneral;
             // Tarea compuesta: estructura opcional en la aprobación. Si viene inválida NO
             // se aborta la aprobación (ya transicionó): se cae al default con warning.
             let _estructura = null;
@@ -13593,15 +13631,18 @@ const server = http.createServer(async (req, res) => {
               else _estructura = d.estructura;
             }
             let nuevas, mainId;
-            if (sol.tipoSolicitud === 'devolucion') {
+            if (_esGeneral) {
               const t = createWwpTaskFromSdv(sol, jp.userId); t.type = 'general';
               nuevas = [t]; mainId = t.id;
             } else {
               const r = createSdvTasks(sol, jp.userId, _estructura !== null ? _estructura : _conEmpaque);
               nuevas = r.tasks; mainId = r.mainId;
             }
-            // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar")
-            try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (1-clic):', e.message); }
+            // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar").
+            // La solicitud especial no tiene pick en Odoo: sus artículos (si los hay) ya vienen marcados.
+            if (sol.tipoSolicitud !== 'solicitud_especial') {
+              try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (1-clic):', e.message); }
+            }
             const tasks = loadWwpTasks();
             // seq solo para la raíz (subtareas sin número, convención de POST /api/wwp/tasks)
             nuevas.forEach(t => { if (!t.parentId) t.seq = nextTaskSeq(); tasks.push(t); });
@@ -13610,11 +13651,12 @@ const server = http.createServer(async (req, res) => {
             sol.wwpTareas = sol.wwpTareas || [];
             nuevas.forEach(t => sol.wwpTareas.push({ taskId: t.id, titulo: t.title, creadoAt: now }));
             // H1-4/B2: avisar a Ops que nació la tarea (antes nacía muda y sin encargado)
-            const _lblE = nuevas.some(t=>t.type==='packaging')
+            const _lblE = sol.tipoSolicitud === 'solicitud_especial' ? 'solicitud especial'
+              : nuevas.some(t=>t.type==='packaging')
               ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
               : 'despacho';
             const _sinEnc = nuevas.some(t => !t.managerId);
-            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${sol.clienteNombre||sol.odooOrderRef||''} — ${_lblE}.${_sinEnc?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
+            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblE}.${_sinEnc?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
             console.log('[SDV→WWP] Aprobación 1-clic:', nuevas.length, 'tarea(s) para solicitud', sol.id, '(' + _lblE + ')');
           } catch (e) { console.error('[SDV→WWP] Error creando tarea en aprobación 1-clic:', e.message); }
         }
@@ -13645,7 +13687,8 @@ const server = http.createServer(async (req, res) => {
       try {
         const _campoMap = { clienteNombre:'client', direccionEntrega:'deliveryAddress', receptorContacto:'phone',
           receptorNombre:'receptorNombre', ubicacionDestino:'location', observaciones:'actionNote',
-          fechaSolicitudDeseada:'dueDate', gpsCoords:'gpsCoords' };
+          fechaSolicitudDeseada:'dueDate', gpsCoords:'gpsCoords',
+          asunto:'title', descripcion:'description' }; // solicitud_especial: solo esos tipos traen estos campos
         const _cambiados = Object.keys(_campoMap).filter(k => d[k] !== undefined);
         if (_cambiados.length) {
           const _finales = ['completed','validated','cancelled'];

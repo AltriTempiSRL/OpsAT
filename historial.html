@@ -4499,7 +4499,7 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-tab.active{color:var(--brand-primary);border-bottom-color:var(--brand-primary);font-weight:600}
 .sdv-panel{display:none}.sdv-panel.active{display:block}
 /* Tipo selector */
-.sdv-tipo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.sdv-tipo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:20px}
 .sdv-tipo-btn{border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 10px;background:var(--surface-2);cursor:pointer;text-align:center;transition:border-color .15s,background .15s;color:var(--text-1)}
 .sdv-tipo-btn:hover{border-color:var(--brand-primary)}
 .sdv-tipo-btn.selected{border-color:var(--brand-primary);background:var(--blue-bg,var(--surface-3));color:var(--brand-primary)}
@@ -6748,6 +6748,11 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
                 <span>Traslado Interno</span>
                 <small>Entre almacenes</small>
               </button>
+              <button class="sdv-tipo-btn" id="sdv-tipo-solicitud_especial" onclick="sdvSetTipo('solicitud_especial')">
+                <i data-lucide="clipboard-list" style="width:22px;height:22px"></i>
+                <span>Solicitud Especial</span>
+                <small>Otro requerimiento a Operaciones</small>
+              </button>
             </div>
           </div>
 
@@ -6930,6 +6935,80 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               <div class="sdv-field">
                 <label>Vendedor/a</label>
                 <input class="sdv-input" id="sdv-vendedora-int" placeholder="Nombre vendedor/a" readonly
+                  style="background:var(--surface-2);cursor:not-allowed;color:var(--text-2)">
+              </div>
+            </div>
+          </div>
+
+          <!-- 4c. Datos solicitud especial -->
+          <div id="sdv-especial-section" style="display:none">
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>Asunto <span class="req" style="color:var(--red-text)">*</span></label>
+                <input class="sdv-input" id="sdv-esp-asunto" placeholder="Ej: Recoger artículo con imperfectos donde el cliente" maxlength="120">
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>Descripción <span class="req" style="color:var(--red-text)">*</span></label>
+                <textarea class="sdv-ta" id="sdv-esp-descripcion" placeholder="Explica qué necesitas de Operaciones: qué hacer, dónde, y cualquier detalle relevante…"></textarea>
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>SDV Asociada <span style="color:var(--text-3);font-weight:400">(opcional — vincula esta solicitud a una SDV ya existente)</span></label>
+                <div class="ac-wrap" style="max-width:none">
+                  <input class="sdv-input" id="sdv-esp-sdv-input" placeholder="Buscar por folio, orden Odoo o cliente…" autocomplete="off"
+                    onfocus="sdvEspOnFocus()" oninput="sdvEspSearch(this.value)">
+                  <div class="ac-dropdown" id="sdv-esp-sdv-dd" role="listbox" aria-label="Solicitudes"></div>
+                </div>
+                <div id="sdv-esp-sdv-chip" style="display:none;margin-top:8px;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-light);border-radius:8px;padding:8px 12px;font-size:var(--fs-sm)">
+                  <i data-lucide="link" style="width:14px;height:14px;flex-shrink:0"></i>
+                  <span id="sdv-esp-sdv-chip-label" style="flex:1"></span>
+                  <button type="button" class="sdv-help" onclick="sdvEspClear()" aria-label="Quitar vínculo" style="cursor:pointer"><i data-lucide="x" style="width:14px;height:14px"></i></button>
+                </div>
+              </div>
+            </div>
+            <div id="sdv-esp-articulos-section" style="display:none;margin-bottom:14px">
+              <div class="sdv-items-box">
+                <div class="sdv-items-header"><span>Artículos de la SDV vinculada — marca los involucrados</span></div>
+                <div id="sdv-esp-articulos"></div>
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Ciudad <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                <input class="sdv-input" id="sdv-esp-ciudad" placeholder="Ej: Santo Domingo">
+              </div>
+              <div class="sdv-field">
+                <label>Dirección <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                <input class="sdv-input" id="sdv-esp-direccion" placeholder="Dirección completa">
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Fecha y Hora Deseada <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                <div class="sdv-fecha-row">
+                  <input class="sdv-input sdv-fecha-date" id="sdv-fecha-esp-date" type="date" style="flex:2;min-width:120px">
+                  <div class="sdv-fecha-time-wrap">
+                    <select class="sdv-time-sel" id="sdv-fecha-esp-hr">
+                      <option>01</option><option>02</option><option>03</option><option>04</option>
+                      <option>05</option><option>06</option><option>07</option><option>08</option>
+                      <option>09</option><option selected>10</option><option>11</option><option>12</option>
+                    </select>
+                    <span style="color:var(--text-2);font-weight:700">:</span>
+                    <select class="sdv-time-sel" id="sdv-fecha-esp-min">
+                      <option>00</option><option>15</option><option>30</option><option>45</option>
+                    </select>
+                    <select class="sdv-time-sel" id="sdv-fecha-esp-ampm">
+                      <option>AM</option><option selected>PM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="sdv-field">
+                <label>Vendedor/a</label>
+                <input class="sdv-input" id="sdv-vendedora-esp" placeholder="Nombre vendedor/a" readonly
                   style="background:var(--surface-2);cursor:not-allowed;color:var(--text-2)">
               </div>
             </div>
@@ -8747,7 +8826,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v142';
+var APP_BUILD = 'v143';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32068,7 +32147,8 @@ var SDV_ESTADO_LABEL = {
 var SDV_TIPO_LABEL = {
   despacho_cliente: 'Despacho a cliente',
   devolucion: 'Devolución',
-  traslado_interno: 'Traslado interno'
+  traslado_interno: 'Traslado interno',
+  solicitud_especial: 'Solicitud Especial'
 };
 function sdvBadge(estado) {
   var cls = estado==='pendiente_revision'?'sdv-badge-pendiente':
@@ -32136,8 +32216,10 @@ function sdvInitPortal() {
   var name = (_user && _user.name) || '';
   var el1 = document.getElementById('sdv-vendedora');
   var el2 = document.getElementById('sdv-vendedora-int');
+  var el3 = document.getElementById('sdv-vendedora-esp');
   if (el1) el1.value = name;
   if (el2) el2.value = name;
+  if (el3) el3.value = name;
   if (window.lucide) lucide.createIcons();
 }
 
@@ -32157,8 +32239,11 @@ function sdvSetTipo(tipo) {
   _sdvTipo = tipo;
   _sdvItems = [];
   _sdvOrderRef = '';
+  // Solicitud especial no es "adicional" de otra orden en despacho — evita que un vínculo
+  // iniciado antes de cambiar de tarjeta se cuele en el payload de esta solicitud.
+  _sdvSolicitudOrigenId = null;
   // Resaltar botón seleccionado
-  ['despacho_cliente','devolucion','traslado_interno'].forEach(function(t) {
+  ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'].forEach(function(t) {
     var btn = document.getElementById('sdv-tipo-'+t);
     if (btn) btn.classList.toggle('selected', t===tipo);
   });
@@ -32171,7 +32256,7 @@ function sdvSetTipo(tipo) {
   var lbl = document.getElementById('sdv-lookup-label');
   if (lbl) lbl.innerHTML = labels[tipo] || '';
   // Mostrar secciones
-  _sdv$('sdv-lookup-section').style.display = '';
+  _sdv$('sdv-lookup-section').style.display = (tipo==='solicitud_especial') ? 'none' : '';
   _sdv$('sdv-items-section').style.display = 'none';
   _sdv$('sdv-items-list').innerHTML = '';
   _sdv$('sdv-lookup-info').className = 'sdv-lookup-info';
@@ -32180,7 +32265,11 @@ function sdvSetTipo(tipo) {
   // Secciones de datos según tipo
   _sdv$('sdv-entrega-section').style.display = (tipo==='traslado_interno') ? 'none' : 'none';
   _sdv$('sdv-interno-section').style.display = (tipo==='traslado_interno') ? 'none' : 'none';
-  _sdv$('sdv-extra-section').style.display = 'none';
+  // Solicitud especial no depende de un lookup en Odoo: muestra su sección y las
+  // observaciones/adjuntos comunes de inmediato (los otros tipos las muestran tras buscar).
+  _sdv$('sdv-especial-section').style.display = (tipo==='solicitud_especial') ? '' : 'none';
+  _sdv$('sdv-extra-section').style.display = (tipo==='solicitud_especial') ? '' : 'none';
+  if (tipo === 'solicitud_especial') sdvEspClear();
   // Carrito de artículos adicionales para traslado interno
   _sdv$('sdv-articulo-section').style.display = (tipo==='traslado_interno') ? '' : 'none';
   if (window.lucide) lucide.createIcons();
@@ -32190,6 +32279,7 @@ function _sdv$(id) { return document.getElementById(id) || {}; }
 
 // ── Buscar en Odoo ────────────────────────────────────────────────────────
 async function sdvBuscar() {
+  if (_sdvTipo === 'solicitud_especial') return; // no depende de un lookup en Odoo
   var ref = (_sdv$('sdv-ref-input').value||'').trim();
   if (!ref) { sdvInfo('Ingresa el número de orden', 'err'); return; }
   if (!_sdvTipo) { sdvInfo('Selecciona el tipo de solicitud primero', 'err'); return; }
@@ -32435,6 +32525,117 @@ function sdvQuitarItem(idx) {
   if (!_sdvItems.length) { _sdv$('sdv-extra-section').style.display='none'; _sdv$('sdv-interno-section').style.display='none'; }
 }
 
+// ── Solicitud especial: vínculo opcional a una SDV existente (typeahead) ──
+// Reutiliza las clases .ac-wrap/.ac-dropdown/.ac-item del buscador de órdenes, pero con su
+// propio dropdown (id sdv-esp-sdv-dd) — el buscador principal es una IIFE que no expone su
+// lógica de apertura/cierre para reusar.
+var _sdvEspSols = [];         // cache de SDVs candidatas a vincular (60s)
+var _sdvEspSolsAt = 0;
+var _sdvEspAsociada = null;   // SDV vinculada seleccionada (objeto completo)
+var _sdvEspArticulosSel = {}; // { idx: true } artículos marcados de la asociada
+
+async function sdvEspLoadSols() {
+  if (_sdvEspSols.length && (Date.now()-_sdvEspSolsAt) < 60000) return _sdvEspSols;
+  try {
+    var r = await authFetch('/api/sdv');
+    var d = await r.json();
+    if (r.ok && d.ok) {
+      _sdvEspSols = (d.solicitudes||[]).filter(function(s){
+        return s.tipoSolicitud !== 'solicitud_especial' &&
+               ['pendiente_revision','en_proceso','despachada'].includes(s.estado);
+      });
+      _sdvEspSolsAt = Date.now();
+    }
+  } catch(e) { /* sin conexión: el typeahead simplemente no ofrece sugerencias */ }
+  return _sdvEspSols;
+}
+
+function sdvEspOnFocus() {
+  sdvEspLoadSols().then(function(){ sdvEspSearch(_sdv$('sdv-esp-sdv-input').value||''); });
+}
+
+function sdvEspSearch(q) {
+  var dd = document.getElementById('sdv-esp-sdv-dd');
+  if (!dd) return;
+  var norm = _sdvNorm(q).trim();
+  var matches = _sdvEspSols.filter(function(s){ return sdvMatchSol(s, q); }).slice(0, 8);
+  if (!matches.length) {
+    dd.innerHTML = '<div class="ac-empty">'+(norm ? 'Sin resultados' : (_sdvEspSols.length ? 'Escribe para buscar…' : 'Cargando…'))+'</div>';
+  } else {
+    dd.innerHTML = matches.map(function(s){
+      var tipo = SDV_TIPO_LABEL[s.tipoSolicitud] || s.tipoSolicitud;
+      var ref = s.clienteNombre || s.odooOrderRef || '';
+      return '<div class="ac-item" onclick="sdvEspSelect(\''+s.id+'\')">'+
+        '<span class="ac-item-code">'+esc(s.folio||s.id)+'</span>'+
+        '<span class="ac-item-sep">·</span>'+
+        '<span class="ac-item-detail">'+esc(tipo)+(ref?' — '+esc(ref):'')+'</span>'+
+        sdvBadge(s.estado)+
+      '</div>';
+    }).join('');
+  }
+  dd.classList.add('open');
+}
+
+function sdvEspSelect(id) {
+  var s = _sdvEspSols.find(function(x){ return x.id===id; });
+  var dd = document.getElementById('sdv-esp-sdv-dd');
+  if (dd) dd.classList.remove('open');
+  if (!s) return;
+  _sdvEspAsociada = s;
+  _sdvEspArticulosSel = {};
+  _sdv$('sdv-esp-sdv-input').value = '';
+  var chip = document.getElementById('sdv-esp-sdv-chip');
+  var chipLbl = document.getElementById('sdv-esp-sdv-chip-label');
+  if (chip) chip.style.display = 'flex';
+  if (chipLbl) chipLbl.textContent = (s.folio||s.id)+' · '+(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud)+(s.clienteNombre?' — '+s.clienteNombre:'');
+  // Autollenar dirección/ciudad (editable, no readonly, a diferencia de despacho_cliente)
+  if (s.direccionEntrega) _sdv$('sdv-esp-direccion').value = s.direccionEntrega;
+  if (s.ciudadEntrega) _sdv$('sdv-esp-ciudad').value = s.ciudadEntrega;
+  sdvEspRenderArticulos();
+  if (window.lucide) lucide.createIcons();
+}
+
+function sdvEspClear() {
+  _sdvEspAsociada = null;
+  _sdvEspArticulosSel = {};
+  var chip = document.getElementById('sdv-esp-sdv-chip');
+  if (chip) chip.style.display = 'none';
+  var sec = document.getElementById('sdv-esp-articulos-section');
+  if (sec) sec.style.display = 'none';
+  var inp = document.getElementById('sdv-esp-sdv-input'); if (inp) inp.value = '';
+  var dd = document.getElementById('sdv-esp-sdv-dd'); if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
+}
+
+function sdvEspRenderArticulos() {
+  var sec = document.getElementById('sdv-esp-articulos-section');
+  var box = document.getElementById('sdv-esp-articulos');
+  var arts = (_sdvEspAsociada && _sdvEspAsociada.articulosOdoo) || [];
+  if (!arts.length) { if (sec) sec.style.display = 'none'; return; }
+  if (sec) sec.style.display = '';
+  box.innerHTML = arts.map(function(it, i){
+    return '<label class="sdv-check-row" style="margin-bottom:6px">'+
+      '<input type="checkbox" onchange="sdvEspToggleArticulo('+i+',this.checked)">'+
+      '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+(it.quantity||1)+'</span>'+
+    '</label>';
+  }).join('');
+}
+
+function sdvEspToggleArticulo(idx, checked) {
+  if (checked) _sdvEspArticulosSel[idx] = true; else delete _sdvEspArticulosSel[idx];
+}
+
+function sdvEspGetArticulosMarcados() {
+  var arts = (_sdvEspAsociada && _sdvEspAsociada.articulosOdoo) || [];
+  return Object.keys(_sdvEspArticulosSel).map(function(i){ return arts[i]; }).filter(Boolean);
+}
+
+// Cerrar el dropdown de SDV asociada al hacer clic fuera de él
+document.addEventListener('click', function(e){
+  if (e.target.closest && (e.target.closest('#sdv-esp-sdv-input') || e.target.closest('#sdv-esp-sdv-dd'))) return;
+  var dd = document.getElementById('sdv-esp-sdv-dd');
+  if (dd) dd.classList.remove('open');
+});
+
 function sdvInfo(msg, cls) {
   var el = _sdv$('sdv-lookup-info');
   el.textContent = msg;
@@ -32444,6 +32645,7 @@ function sdvInfo(msg, cls) {
 // ── Enviar solicitud ──────────────────────────────────────────────────────
 async function sdvEnviar() {
   if (!_sdvTipo) { toast('Selecciona el tipo de solicitud'); return; }
+  if (_sdvTipo === 'solicitud_especial') { await sdvEnviarEspecial(); return; }
   // Validaciones por tipo
   if (_sdvTipo !== 'traslado_interno') {
     var cliente = (_sdv$('sdv-cliente').value||'').trim();
@@ -32515,33 +32717,66 @@ async function sdvEnviar() {
   finally { btn.disabled=false; btn.innerHTML='<i data-lucide="send" style="width:15px;height:15px;vertical-align:-2px"></i> Enviar Solicitud'; if(window.lucide)lucide.createIcons(); }
 }
 
+// ── Envío de solicitud especial — sin flujo Odoo, sin gates de pick/RET ───
+async function sdvEnviarEspecial() {
+  var asunto = (_sdv$('sdv-esp-asunto').value||'').trim();
+  var descripcion = (_sdv$('sdv-esp-descripcion').value||'').trim();
+  if (!asunto || !descripcion) { toast('Completa asunto y descripción'); return; }
+  var btn = _sdv$('sdv-submit-btn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    var body = {
+      tipoSolicitud: 'solicitud_especial',
+      asunto: asunto,
+      descripcion: descripcion,
+      articulosOdoo: sdvEspGetArticulosMarcados(),
+      clienteNombre: (_sdvEspAsociada && _sdvEspAsociada.clienteNombre) || '',
+      direccionEntrega: _sdv$('sdv-esp-direccion').value.trim(),
+      ciudadEntrega: _sdv$('sdv-esp-ciudad').value.trim(),
+      observaciones: _sdv$('sdv-observaciones').value.trim(),
+      fechaSolicitudDeseada: sdvGetFecha('sdv-fecha-esp') || null,
+    };
+    if (_sdvEspAsociada) body.sdvAsociadaId = _sdvEspAsociada.id;
+    var r = await authFetch('/api/sdv',{method:'POST',body:JSON.stringify(body)});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al enviar'); return; }
+    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones', 'success');
+    sdvReset(true);
+    sdvSwitchTab('mis');
+  } catch(e) { toast('Error: '+e.message); }
+  finally { btn.disabled=false; btn.innerHTML='<i data-lucide="send" style="width:15px;height:15px;vertical-align:-2px"></i> Enviar Solicitud'; if(window.lucide)lucide.createIcons(); }
+}
+
 function sdvReset(skipConfirm) {
   if (!skipConfirm && (_sdvTipo||_sdvItems.length)) {
     if (!confirm('¿Limpiar el formulario? Se perderán los datos ingresados.')) return;
   }
   _sdvTipo=''; _sdvItems=[]; _sdvOrderRef=''; _sdvSolicitudOrigenId=null;
-  ['despacho_cliente','devolucion','traslado_interno'].forEach(function(t){
+  ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'].forEach(function(t){
     var b=document.getElementById('sdv-tipo-'+t); if(b) b.classList.remove('selected');
   });
   ['sdv-lookup-section','sdv-items-section','sdv-entrega-section','sdv-interno-section',
-   'sdv-extra-section','sdv-articulo-section'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+   'sdv-especial-section','sdv-extra-section','sdv-articulo-section'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
   ['sdv-ref-input','sdv-art-input','sdv-cliente','sdv-ciudad','sdv-direccion',
-   'sdv-receptor-nombre','sdv-receptor-contacto','sdv-observaciones','sdv-gps'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+   'sdv-receptor-nombre','sdv-receptor-contacto','sdv-observaciones','sdv-gps',
+   'sdv-esp-asunto','sdv-esp-descripcion','sdv-esp-direccion','sdv-esp-ciudad'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  sdvEspClear();
   // Selects de almacén (traslado interno)
   var selOrigen=document.getElementById('sdv-origen'); if(selOrigen) selOrigen.value='';
   var selDestino=document.getElementById('sdv-destino'); if(selDestino) selDestino.value='';
   _sdvOrigenPrev='';
   // Limpiar fecha entrega
-  ['sdv-fecha-date','sdv-fecha-int-date'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-  ['sdv-fecha-hr','sdv-fecha-int-hr'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='10'; });
-  ['sdv-fecha-min','sdv-fecha-int-min'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='00'; });
-  ['sdv-fecha-ampm','sdv-fecha-int-ampm'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='PM'; });
+  ['sdv-fecha-date','sdv-fecha-int-date','sdv-fecha-esp-date'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  ['sdv-fecha-hr','sdv-fecha-int-hr','sdv-fecha-esp-hr'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='10'; });
+  ['sdv-fecha-min','sdv-fecha-int-min','sdv-fecha-esp-min'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='00'; });
+  ['sdv-fecha-ampm','sdv-fecha-int-ampm','sdv-fecha-esp-ampm'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='PM'; });
   var chk=document.getElementById('sdv-transporte'); if(chk) chk.checked=false;
   var info=document.getElementById('sdv-lookup-info'); if(info){info.textContent='';info.className='sdv-lookup-info';}
   // Re-llenar vendedora
   var name=(_user&&_user.name)||'';
   var v1=document.getElementById('sdv-vendedora'); if(v1) v1.value=name;
   var v2=document.getElementById('sdv-vendedora-int'); if(v2) v2.value=name;
+  var v3=document.getElementById('sdv-vendedora-esp'); if(v3) v3.value=name;
 }
 
 // ── Mapa GPS (modal SDV) ──────────────────────────────────────────────────
@@ -32713,7 +32948,7 @@ function sdvMatchSol(s, q){
   var n = _sdvNorm(q).trim();
   if (!n) return true;
   var campos = [ s.folio, s.odooOrderRef, s.clienteNombre, s.creadoNombre, s.vendedorNombre,
-    SDV_ESTADO_LABEL[s.estado], s.estado, (s.tipoSolicitud||''),
+    SDV_ESTADO_LABEL[s.estado], s.estado, (s.tipoSolicitud||''), (s.asunto||''), (s.descripcion||''),
     (s.articulosOdoo||[]).map(function(a){ return (a.product_name||'')+' '+(a.sku||''); }).join(' ') ];
   var hay = _sdvNorm(campos.join(' '));
   var refDigits = _sdvNorm(s.odooOrderRef).replace(/[^0-9]/g,'');
@@ -34469,12 +34704,15 @@ function sdvBandejaFilter(btn, estado) {
 // ── Card HTML (lista) ──────────────────────────────────────────────────────
 function sdvCardHtml(s, ctx) {
   var tipoLabel = esc(SDV_TIPO_LABEL[s.tipoSolicitud]||s.tipoSolicitud);
-  var ref = s.odooOrderRef ? (' · '+esc(s.odooOrderRef)) : (s.ubicacionOrigen?esc(s.ubicacionOrigen)+'→'+esc(s.ubicacionDestino):'');
+  var ref = s.tipoSolicitud==='solicitud_especial' ? (s.asunto?' · '+esc(s.asunto):'')
+    : s.odooOrderRef ? (' · '+esc(s.odooOrderRef)) : (s.ubicacionOrigen?esc(s.ubicacionOrigen)+'→'+esc(s.ubicacionDestino):'');
   var arts = (s.articulosOdoo||[]).length;
   // F2-1: tinte de vencimiento solo en estados activos (no en despachada/cancelada/rechazada).
   var _tier = (s.estado==='pendiente_revision'||s.estado==='en_proceso') ? sdvDueTier(s.fechaSolicitudDeseada) : null;
   var acciones = '';
-  if (ctx==='mis' && s.estado==='pendiente_revision') {
+  // Solicitud especial: el modal de edición es 100% Odoo-céntrico (v1) — para corregirla,
+  // la vendedora cancela (permitido en pendiente_revision) y crea una nueva.
+  if (ctx==='mis' && s.estado==='pendiente_revision' && s.tipoSolicitud!=='solicitud_especial') {
     acciones = '<div style="display:flex;gap:6px;margin-top:8px">'+
       '<button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();sdvOpenEditModal(\''+s.id+'\')" style="flex:1"><i data-lucide="pencil" style="width:12px;height:12px;vertical-align:-1px"></i> Editar</button>'+
     '</div>';
@@ -34485,6 +34723,7 @@ function sdvCardHtml(s, ctx) {
       sdvBadge(s.estado)+
     '</div>'+
     (s.solicitudOrigenId?'<div style="font-size:11px;color:var(--brand-primary)">↳ Adicional de '+esc(s.solicitudOrigenFolio||s.solicitudOrigenId)+'</div>':'')+
+    (s.sdvAsociadaFolio?'<div style="font-size:11px;color:var(--brand-primary)">↪ Vinculada a '+esc(s.sdvAsociadaFolio)+'</div>':'')+
     '<div class="sdv-list-meta">'+tipoLabel+ref+'</div>'+
     '<div class="sdv-list-meta" style="margin-top:3px">'+
       (s.clienteNombre?esc(s.clienteNombre)+' · ':'')+(arts?arts+' artículo(s) · ':'')+
@@ -34525,7 +34764,7 @@ async function sdvVerDetalle(id, ctx) {
     // Contexto Bandeja (Ops)
     if (ctx==='bandeja' && isOps && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
-        '<button class="btn btn-primary" onclick="sdvAprobar(\''+s.id+'\')"><i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Aprobar (crea la tarea)</button>'+
+        '<button class="btn btn-primary" onclick="sdvAprobar(\''+s.id+'\',\''+s.tipoSolicitud+'\')"><i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Aprobar (crea la tarea)</button>'+
         '<button class="btn" style="color:var(--amber-text);border-color:var(--amber-text)" onclick="sdvRechazar(\''+s.id+'\')"><i data-lucide="x-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Rechazar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
@@ -34546,21 +34785,36 @@ async function sdvVerDetalle(id, ctx) {
       } else {
         // Sin tarea activa: crear tarea (motor server-side, H1-1) + override manual con motivo (D1)
         acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
-          '<button class="btn btn-primary" onclick="sdvCrearTarea(\''+s.id+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear tarea de despacho</button>'+
+          '<button class="btn btn-primary" onclick="sdvCrearTarea(\''+s.id+'\',\''+s.tipoSolicitud+'\')"><i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Crear tarea de despacho</button>'+
           '<button class="btn btn-secondary" onclick="sdvMarcarDespachadaManual(\''+s.id+'\')"><i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Marcar despachada (sin tarea)</button>'+
         '</div>';
       }
     }
     // Contexto Mis Solicitudes (Vendedora)
-    else if (ctx==='mis' && s.estado==='pendiente_revision') {
+    // Solicitud especial (v1): el modal de edición es 100% Odoo-céntrico — para corregirla,
+    // la vendedora cancela (permitido en pendiente_revision/rechazada) y crea una nueva.
+    else if (ctx==='mis' && s.estado==='pendiente_revision' && s.tipoSolicitud==='solicitud_especial') {
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
+      '</div>';
+    } else if (ctx==='mis' && s.estado==='pendiente_revision') {
       acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
         '<button class="btn btn-secondary" onclick="sdvOpenEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Editar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
+      '</div>';
+    } else if (ctx==='mis' && s.estado==='en_proceso' && s.tipoSolicitud==='solicitud_especial') {
+      acciones = '<div style="margin-top:16px">'+
+        '<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:8px;line-height:1.5"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:-2px"></i> Esta solicitud ya está en preparación por Operaciones y no se puede editar.</div>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='en_proceso') {
       acciones = '<div style="margin-top:16px">'+
         '<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:8px;line-height:1.5"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:-2px"></i> Esta solicitud ya está en preparación por Operaciones y no se puede editar. Si necesitas agregar o cambiar artículos de esta orden, crea una solicitud adicional — el sistema la vincula automáticamente a esta.</div>'+
         '<button class="btn btn-primary" onclick="sdvCrearAdicional(\''+s.id+'\')"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px"></i> Crear solicitud adicional para esta orden</button>'+
+      '</div>';
+    } else if (ctx==='mis' && s.estado==='rechazada' && s.tipoSolicitud==='solicitud_especial') {
+      acciones = '<div style="margin-top:16px">'+
+        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px;line-height:1.5"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Cancélala y crea una nueva con los ajustes necesarios.</div>'+
+        '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada') {
       acciones = '<div style="margin-top:16px">'+
@@ -34590,6 +34844,9 @@ async function sdvVerDetalle(id, ctx) {
         (s.solicitudesAdicionales&&s.solicitudesAdicionales.length?'<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:4px">Adicionales vinculadas: '+s.solicitudesAdicionales.map(function(a){return esc(a.folio)+' ('+esc(SDV_ESTADO_LABEL[a.estado]||a.estado)+')';}).join(', ')+'</div>':'')+
         '<div class="sdv-detail-section"><h4>Artículos</h4>'+(artHtml||'<span style="color:var(--text-2)">Sin artículos</span>')+'</div>'+
         '<div class="sdv-detail-section"><h4>Datos</h4>'+
+          (s.asunto?'<div class="sdv-detail-row"><dt>Asunto</dt><dd>'+esc(s.asunto)+'</dd></div>':'')+
+          (s.descripcion?'<div class="sdv-detail-row"><dt>Descripción</dt><dd>'+esc(s.descripcion)+'</dd></div>':'')+
+          (s.sdvAsociadaFolio?'<div class="sdv-detail-row"><dt>SDV vinculada</dt><dd><a href="javascript:void(0)" onclick="sdvVerDetalle(\''+s.sdvAsociadaId+'\',\''+ctx+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">'+esc(s.sdvAsociadaFolio)+' →</a></dd></div>':'')+
           (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+esc(s.clienteNombre)+'</dd></div>':'')+
           (s.ciudadEntrega?'<div class="sdv-detail-row"><dt>Ciudad</dt><dd>'+esc(s.ciudadEntrega)+'</dd></div>':'')+
           (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+'</dd></div>':'')+
@@ -35082,7 +35339,13 @@ function sdvEditConfirmMapLocation() {
 // ── F1-1 + D3: Aprobación 1-clic con toggle de empaque ─────────────────────
 // Aprobar = un clic: el backend crea la(s) tarea(s) desde el snapshot (sin wizard). El
 // aprobador decide si lleva empaque (D3) → cadena empaque→despacho server-side.
-function sdvAprobar(id) {
+function sdvAprobar(id, tipo) {
+  // Devolución y solicitud especial siempre crean UNA tarea general — preguntar "¿empaque?"
+  // sería engañoso (el backend lo ignora para estos tipos).
+  if (tipo==='devolucion' || tipo==='solicitud_especial') {
+    if (confirm('Se creará una tarea general para esta solicitud. ¿Continuar?')) sdvAprobarConfirm(id, false);
+    return;
+  }
   var old=document.getElementById('sdvAprobarOverlay'); if(old) old.remove();
   document.body.insertAdjacentHTML('beforeend',
     '<div class="eo-det-overlay" id="sdvAprobarOverlay" onclick="if(event.target===this)this.remove()">'+
@@ -35183,7 +35446,13 @@ async function sdvEliminar(id, folio){
 // Reemplaza a sdvConvertirTarea: usa el mismo motor que la aprobación 1-clic (createSdvTasks),
 // preservando el snapshot completo de la SDV. Antes iba al wizard y perdía observaciones/
 // receptor/fecha y traía la dirección de Odoo en vez de la de la solicitud.
-function sdvCrearTarea(id) {
+function sdvCrearTarea(id, tipo) {
+  // Devolución y solicitud especial siempre crean UNA tarea general — preguntar "¿empaque?"
+  // sería engañoso (el backend lo ignora para estos tipos).
+  if (tipo==='devolucion' || tipo==='solicitud_especial') {
+    if (confirm('Se creará una tarea general para esta solicitud. ¿Continuar?')) sdvCrearTareaConfirm(id, false);
+    return;
+  }
   var old=document.getElementById('sdvCrearTareaOverlay'); if(old) old.remove();
   document.body.insertAdjacentHTML('beforeend',
     '<div class="eo-det-overlay" id="sdvCrearTareaOverlay" onclick="if(event.target===this)this.remove()">'+
