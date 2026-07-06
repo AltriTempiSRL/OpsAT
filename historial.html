@@ -7636,6 +7636,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             <option value="">Todos los vehículos</option>
             <option value="Camión Hyundai">Camión Hyundai</option>
             <option value="Furgoneta Citroën">Furgoneta Citroën</option>
+            <option value="Furgoneta Fiat Ducato">Furgoneta Fiat Ducato</option>
             <option value="Camión Grande">Camión Grande</option>
             <option value="Pick-up Toyota">Pick-up Toyota</option>
           </select>
@@ -7711,6 +7712,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
                 <option value="">— Seleccionar —</option>
                 <option value="Camión Hyundai">Camión Hyundai</option>
                 <option value="Furgoneta Citroën">Furgoneta Citroën</option>
+                <option value="Furgoneta Fiat Ducato">Furgoneta Fiat Ducato</option>
                 <option value="Camión Grande">Camión Grande</option>
                 <option value="Pick-up Toyota">Pick-up Toyota</option>
               </select>
@@ -28906,10 +28908,11 @@ async function loadAllReports(){
 
 // Placas por defecto
 var VEH_PLACAS = {
-  'Camión Hyundai':    'A-123456',
-  'Furgoneta Citroën': 'B-789012',
-  'Camión Grande':     'C-345678',
-  'Pick-up Toyota':    'D-901234'
+  'Camión Hyundai':        'A-123456',
+  'Furgoneta Citroën':     'B-789012',
+  'Furgoneta Fiat Ducato': 'E-567890',
+  'Camión Grande':         'C-345678',
+  'Pick-up Toyota':        'D-901234'
 };
 
 // Configuración de medidores de combustible por vehículo
@@ -28925,6 +28928,12 @@ var VEH_FUEL_CONFIG = {
     levels: [0, 25, 50, 75, 100],
     labels: ['E', '1/4', '1/2', '3/4', 'F'],
     svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><defs><linearGradient id="bg-berlingo" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f5f5f5;stop-opacity:1" /><stop offset="100%" style="stop-color:#e8e8e8;stop-opacity:1" /></linearGradient></defs><circle cx="120" cy="120" r="110" fill="url(#bg-berlingo)" stroke="#999" stroke-width="2"/><circle cx="120" cy="120" r="105" fill="none" stroke="#ddd" stroke-width="1"/><text x="40" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">E</text><text x="200" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#333">F</text><g stroke="#999" stroke-width="1.5"><line x1="55" y1="120" x2="70" y2="120"/><line x1="80" y1="60" x2="93" y2="73"/><line x1="120" y1="30" x2="120" y2="48"/><line x1="160" y1="60" x2="147" y2="73"/><line x1="185" y1="120" x2="170" y2="120"/></g><path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="#e5e5e5" stroke-width="12" opacity="0.5"/><path d="M 70 120 A 50 50 0 0 1 95 65" fill="none" stroke="#ff6b35" stroke-width="9" opacity="0.5"/><path d="M 95 65 A 50 50 0 0 1 170 120" fill="none" stroke="#2ecc71" stroke-width="9" opacity="0.5"/><circle cx="120" cy="120" r="6" fill="#333"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="48" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><polygon points="120,120 115,127 125,127" fill="#000"/></g></svg>'
+  },
+  'Furgoneta Fiat Ducato': {
+    name: 'Fiat Ducato',
+    levels: [0, 25, 50, 75, 100],
+    labels: ['E', '1/4', '1/2', '3/4', 'F'],
+    svg: '<svg id="veh-fuel-gauge" viewBox="0 0 240 260" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:160px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1))"><defs><linearGradient id="bg-ducato" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f2f2f2;stop-opacity:1" /><stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" /></linearGradient></defs><circle cx="120" cy="120" r="110" fill="url(#bg-ducato)" stroke="#888" stroke-width="2"/><circle cx="120" cy="120" r="105" fill="none" stroke="#ccc" stroke-width="1"/><text x="40" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#222">E</text><text x="200" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#222">F</text><g stroke="#888" stroke-width="1.5"><line x1="55" y1="120" x2="70" y2="120"/><line x1="80" y1="60" x2="93" y2="73"/><line x1="120" y1="30" x2="120" y2="48"/><line x1="160" y1="60" x2="147" y2="73"/><line x1="185" y1="120" x2="170" y2="120"/></g><path d="M 70 120 A 50 50 0 0 1 170 120" fill="none" stroke="#dddddd" stroke-width="12" opacity="0.5"/><path d="M 70 120 A 50 50 0 0 1 95 65" fill="none" stroke="#e74c3c" stroke-width="9" opacity="0.5"/><path d="M 95 65 A 50 50 0 0 1 170 120" fill="none" stroke="#27ae60" stroke-width="9" opacity="0.5"/><circle cx="120" cy="120" r="6" fill="#222"/><g id="veh-fuel-needle" transform="rotate(-90 120 120)"><line x1="120" y1="120" x2="120" y2="48" stroke="#000" stroke-width="2.5" stroke-linecap="round"/><polygon points="120,120 115,127 125,127" fill="#000"/></g></svg>'
   },
   'Camión Grande': {
     name: 'Mercedes Actros',
