@@ -473,8 +473,10 @@ function glApplyTheme(){
   // Fondo: degradé vertical simple con dos colores del token → textura de 1x2.
   const top=_tok('--scene-bg-top','#eef1f4'), bot=_tok('--scene-bg-bottom','#d4d8dd');
   s.background=_glBgTexture(top,bot);
-  if(s.fog) s.fog.color.copy(bot); else s.fog=new THREE.Fog(bot.getHex(), _glRadius()*2.2, _glRadius()*6);
-  s.fog.color.copy(bot);
+  // Sin niebla: en un mapa de inventario los racks deben verse NÍTIDOS a cualquier zoom.
+  // La THREE.Fog (near 2.2·r, far 6·r) lavaba el modelo hacia el fondo al alejarse
+  // (se percibía como "blur cuando se aleja") — decisión de Gabriel 2026-07-06.
+  s.fog=null;
   GL.hemi.color.copy(_tok('--scene-hemi-sky','#ffffff'));
   GL.hemi.groundColor.copy(_tok('--scene-hemi-ground','#b7bcc2'));
   GL.hemi.intensity=_tokNum('--scene-hemi-int',0.95);
