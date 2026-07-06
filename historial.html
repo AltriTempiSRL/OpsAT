@@ -3228,8 +3228,21 @@ body{font-family:var(--font);min-height:100dvh}
   line-height:1;display:none;
 }
 .notif-badge.show{display:flex}
+/* Disparador en el footer del sidebar (estética oscura, fila completa) — única entrada de notificaciones */
+.sidebar .notif-btn.sidebar-notif{
+  width:100%;height:auto;min-width:0;border-radius:8px;padding:8px 10px;margin-bottom:6px;
+  justify-content:flex-start;gap:7px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.7);font-size:11px;font-weight:600;letter-spacing:.2px;text-align:left;
+}
+.sidebar .notif-btn.sidebar-notif:hover{background:rgba(255,255,255,.12);color:#fff}
+.sidebar-notif .nav-icon{display:flex;align-items:center}
+.sidebar-notif .nav-icon svg,.sidebar-notif .nav-icon i{width:15px;height:15px;stroke:currentColor}
+.sidebar-notif .sidebar-notif-label{flex:1}
+/* Badge inline al final de la fila (en vez de flotante sobre un ícono) */
+.sidebar-notif .notif-badge{position:static;top:auto;right:auto;margin-left:auto;border-color:transparent}
 .notif-panel{
-  position:fixed;top:44px;right:12px;width:360px;
+  position:fixed;left:214px;bottom:14px;width:360px;
   max-height:min(540px,calc(100dvh - 56px));
   background:var(--surface);border:1px solid var(--border);
   border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);
@@ -5785,6 +5798,11 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
       <div id="hist-user-info" class="sidebar-user"></div>
+      <button class="notif-btn sidebar-notif" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="dialog">
+        <span class="nav-icon"><i data-lucide="bell"></i></span>
+        <span class="sidebar-notif-label">Notificaciones</span>
+        <span class="notif-badge" id="notif-badge" aria-hidden="true"></span>
+      </button>
       <button class="sidebar-logout" onclick="doLogout()" id="hist-logout-btn" style="display:none"><i data-lucide="log-out" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:5px"></i>Salir</button>
       <button id="theme-toggle-btn" class="theme-toggle" onclick="_toggleTheme()">
         <span class="theme-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
@@ -7317,10 +7335,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
 </div><!-- /screen-historial -->
 
-<div id="screen-app">
-
-  <!-- Notification panel -->
-  <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notificaciones">
+<!-- Centro de notificaciones — nivel body: visible en AMBAS pantallas (WWP e Historial/SDV).
+     Antes vivía dentro de #screen-app y quedaba oculto para usuarios solo-Despachos/SDV. -->
+<div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notificaciones">
     <div class="notif-panel-hdr">
       <span class="notif-panel-title"><i data-lucide="bell"></i>Notificaciones</span>
       <div class="notif-panel-actions">
@@ -7383,8 +7400,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <button class="notif-set-danger" onclick="clearReadNotifs()"><i data-lucide="trash-2"></i>Borrar notificaciones leídas</button>
       </div>
     </div>
-  </div>
+</div>
 
+<div id="screen-app">
 
   <!-- Pantalla de bienvenida + consentimiento de permisos (primera vez) -->
   <div id="wwp-welcome" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
@@ -7508,10 +7526,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <div class="presence-option" onclick="setPresence('offline')"><span class="p-opt-dot" style="background:#9ca3af"></span> Fuera de Línea</div>
       </div>
     </div>
-    <!-- Notificaciones -->
-    <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="dialog">
-      <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge" aria-hidden="true"></span>
-    </button>
+    <!-- Notificaciones: movido al footer del sidebar (única entrada, visible en todas las pantallas) -->
     <!-- Usuario + dropdown de perfil -->
     <div style="position:relative">
       <div class="user-pill" onclick="toggleProfileMenu()" id="user-pill">
@@ -8732,7 +8747,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v141';
+var APP_BUILD = 'v142';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -10663,6 +10678,8 @@ function toggleNotifPanel() {
   const btn = document.getElementById('notif-btn');
   if (btn) btn.setAttribute('aria-expanded', _notifPanelOpen ? 'true' : 'false');
   if (_notifPanelOpen) {
+    // En móvil el disparador vive dentro del drawer del sidebar: cerrarlo al abrir el panel
+    if (typeof toggleSidebar === 'function') toggleSidebar(false);
     // Siempre abrir en la lista (no en ajustes) y refrescar tiempos relativos/chips
     if (_notifSettingsOpen) {
       _notifSettingsOpen = false;
