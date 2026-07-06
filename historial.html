@@ -6971,7 +6971,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             </div>
             <div id="sdv-esp-articulos-section" style="display:none;margin-bottom:14px">
               <div class="sdv-items-box">
-                <div class="sdv-items-header"><span>Artículos de la SDV vinculada — marca los involucrados</span></div>
+                <div class="sdv-items-header"><span>Artículos de la SDV vinculada — marca los involucrados y ajusta la cantidad</span></div>
                 <div id="sdv-esp-articulos"></div>
               </div>
             </div>
@@ -8836,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v144';
+var APP_BUILD = 'v145';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32616,6 +32616,9 @@ function sdvEspClear() {
   var dd = document.getElementById('sdv-esp-sdv-dd'); if (dd) { dd.classList.remove('open'); dd.innerHTML = ''; }
 }
 
+// Cantidad editable por artículo marcado (feedback Ventas 6-jul: "traer 1 de las 4 sillas").
+// _sdvEspArticulosSel guarda { idx: cantidadElegida }; al marcar arranca en la cantidad
+// completa de la SDV asociada (semántica anterior) y el stepper permite bajarla hasta 1.
 function sdvEspRenderArticulos() {
   var sec = document.getElementById('sdv-esp-articulos-section');
   var box = document.getElementById('sdv-esp-articulos');
@@ -32623,20 +32626,47 @@ function sdvEspRenderArticulos() {
   if (!arts.length) { if (sec) sec.style.display = 'none'; return; }
   if (sec) sec.style.display = '';
   box.innerHTML = arts.map(function(it, i){
-    return '<label class="sdv-check-row" style="margin-bottom:6px">'+
-      '<input type="checkbox" onchange="sdvEspToggleArticulo('+i+',this.checked)">'+
-      '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+(it.quantity||1)+'</span>'+
-    '</label>';
+    var sel = Object.prototype.hasOwnProperty.call(_sdvEspArticulosSel, i);
+    var max = parseInt(it.quantity,10) || 1;
+    // El stepper vive FUERA del <label>: dentro, cada tap en −/+ togglearía el checkbox.
+    var stepper = sel && max > 1
+      ? '<div style="text-align:center;flex-shrink:0"><div class="sdv-qty-stepper">'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspStepQty('+i+',-1)" aria-label="Menos">−</button>'+
+          '<span class="sdv-qty-val" id="sdv-esp-qty-'+i+'">'+_sdvEspArticulosSel[i]+'</span>'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspStepQty('+i+',1)" aria-label="Más">+</button>'+
+        '</div><div class="sdv-item-qty-max">de '+max+'</div></div>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<label class="sdv-check-row" style="flex:1;min-width:0">'+
+        '<input type="checkbox" '+(sel?'checked ':'')+'onchange="sdvEspToggleArticulo('+i+',this.checked)">'+
+        '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+max+'</span>'+
+      '</label>'+stepper+
+    '</div>';
   }).join('');
 }
 
 function sdvEspToggleArticulo(idx, checked) {
-  if (checked) _sdvEspArticulosSel[idx] = true; else delete _sdvEspArticulosSel[idx];
+  var arts = (_sdvEspAsociada && _sdvEspAsociada.articulosOdoo) || [];
+  if (checked) _sdvEspArticulosSel[idx] = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  else delete _sdvEspArticulosSel[idx];
+  sdvEspRenderArticulos(); // muestra/oculta el stepper del artículo
+}
+
+function sdvEspStepQty(idx, delta) {
+  var arts = (_sdvEspAsociada && _sdvEspAsociada.articulosOdoo) || [];
+  var max = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  var n = Math.max(1, Math.min(max, (_sdvEspArticulosSel[idx]||1) + delta));
+  _sdvEspArticulosSel[idx] = n;
+  var el = document.getElementById('sdv-esp-qty-'+idx);
+  if (el) el.textContent = n;
 }
 
 function sdvEspGetArticulosMarcados() {
   var arts = (_sdvEspAsociada && _sdvEspAsociada.articulosOdoo) || [];
-  return Object.keys(_sdvEspArticulosSel).map(function(i){ return arts[i]; }).filter(Boolean);
+  return Object.keys(_sdvEspArticulosSel).map(function(i){
+    var a = arts[i]; if (!a) return null;
+    return Object.assign({}, a, { quantity: _sdvEspArticulosSel[i] });
+  }).filter(Boolean);
 }
 
 // Cerrar el dropdown de SDV asociada al hacer clic fuera de él
