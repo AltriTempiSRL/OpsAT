@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v50';
+const CACHE = 'wwp-v51';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -78,7 +78,10 @@ self.addEventListener('fetch', e => {
 
 // ── Web Push ──────────────────────────────────────────────────────────────────
 
-// Mapa de tipo de notificación → urgencia
+// Mapa de tipo de notificación → urgencia.
+// FALLBACK: desde v140 el payload push ya trae `urgency` estampada por el
+// servidor (fuente de verdad: NOTIF_META en proxy.js, espejo _NOTIF_META en
+// historial.html). Este mapa solo cubre payloads viejos sin el campo.
 const NOTIF_URGENCY = {
   // Críticas → rojo
   task_overdue:      'critical',

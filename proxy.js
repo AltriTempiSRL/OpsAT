@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v139';
+const APP_BUILD = 'v140';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4447,6 +4447,69 @@ const NOTIF_LABELS = {
   system_sync_error   : '🔴 Error de sincronización',
 };
 
+// ═══ ÚNICA FUENTE DE VERDAD: tipo → categoría + urgencia ═══════════════════
+// Se estampa en cada notificación al crearla (createNotification). Categorías:
+// tareas | sdv | operacion | chat | sistema. Urgencias: critical | alert | success | info.
+// ESPEJOS (mantener en sincronía, igual que APP_BUILD):
+//   historial.html: _NOTIF_META  ·  sw.js: NOTIF_URGENCY (solo urgencia, fallback del payload)
+const NOTIF_META = {
+  // tareas
+  task_assigned      : { cat:'tareas', urg:'info' },
+  subtask_assigned   : { cat:'tareas', urg:'info' },
+  status_changed     : { cat:'tareas', urg:'info' },
+  task_status        : { cat:'tareas', urg:'info' },
+  task_updated       : { cat:'tareas', urg:'info' },
+  ready_to_validate  : { cat:'tareas', urg:'info' },
+  task_overdue       : { cat:'tareas', urg:'critical' },
+  task_rejected      : { cat:'tareas', urg:'critical' },
+  task_completed     : { cat:'tareas', urg:'success' },
+  task_validated     : { cat:'tareas', urg:'success' },
+  task_cancelled     : { cat:'tareas', urg:'alert' },
+  // sdv
+  sdv_new_pending        : { cat:'sdv', urg:'info' },
+  sdv_task_created       : { cat:'sdv', urg:'info' },
+  sdv_cancelada          : { cat:'sdv', urg:'alert' },
+  sdv_origen_cancelada   : { cat:'sdv', urg:'alert' },
+  sdv_additional_new     : { cat:'sdv', urg:'info' },
+  sdv_additional_linked  : { cat:'sdv', urg:'info' },
+  sdv_additional_manager : { cat:'sdv', urg:'info' },
+  reactivacion_pendiente : { cat:'sdv', urg:'alert' },
+  reactivacion_procesada : { cat:'sdv', urg:'success' },
+  dev_en_ruta            : { cat:'sdv', urg:'info' },
+  // operacion (alertas de picking/empaque/stock/reposición)
+  pick_incomplete     : { cat:'operacion', urg:'critical' },
+  packing_blocked     : { cat:'operacion', urg:'critical' },
+  damage_detected     : { cat:'operacion', urg:'critical' },
+  cancel_blocked      : { cat:'operacion', urg:'critical' },
+  evidence_incomplete : { cat:'operacion', urg:'alert' },
+  missing_evidence    : { cat:'operacion', urg:'alert' },
+  stock_changed       : { cat:'operacion', urg:'alert' },
+  reposicion_nueva    : { cat:'operacion', urg:'info' },
+  reposicion_aprobada : { cat:'operacion', urg:'success' },
+  reposicion_rechazada: { cat:'operacion', urg:'alert' },
+  // chat
+  comment_new : { cat:'chat', urg:'info' },
+  task_chat   : { cat:'chat', urg:'info' },
+  // sistema
+  system_sync_error : { cat:'sistema', urg:'critical' },
+  agent_routine     : { cat:'sistema', urg:'info' },
+  lunch_ended       : { cat:'sistema', urg:'info' },
+  user_notification : { cat:'sistema', urg:'info' },
+};
+
+function notifCategoryFallback(type = '') {
+  if (/^sdv_|reactivacion|dev_en/.test(type)) return 'sdv';
+  if (/pick|pack|damage|stock|evidence|reposicion|cancel_blocked/.test(type)) return 'operacion';
+  if (/chat|comment/.test(type)) return 'chat';
+  if (/^task_|assigned|status|overdue|validated|completed/.test(type)) return 'tareas';
+  return 'sistema';
+}
+
+function notifMetaFor(type = '') {
+  if (NOTIF_META[type]) return NOTIF_META[type];
+  return { cat: notifCategoryFallback(type), urg: pushUrgencyForType(type) };
+}
+
 // Tipos rutinarios que el supervisor ya recibe como participante directo o vía opsIds/adminIds.
 // NO se propagan como copia supervisora para evitar duplicados y ruido.
 const SUPERVISOR_SKIP_TYPES = new Set([
@@ -4464,9 +4527,11 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
     : [userId];
   let primaryNotif = null;
 
+  const meta = notifMetaFor(type);
   recipientIds.forEach(uid => {
     const notif = {
       id: wwpId('notif'), userId: uid, type,
+      category: meta.cat, urgency: meta.urg,
       title: title || NOTIF_LABELS[type] || type,
       message, relatedTaskId, priority, dueDate, by,
       status: 'sent', createdAt: new Date().toISOString(), readAt: null
@@ -4491,7 +4556,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
         appTitle: 'Ops AT',
         id: notif.id,
         type: notif.type || '',
-        urgency: pushUrgencyForType(notif.type || ''),
+        urgency: notif.urgency || pushUrgencyForType(notif.type || ''),
         relatedTaskId: notif.relatedTaskId,
         url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
         actionUrl: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',

@@ -2635,7 +2635,9 @@ body{font-family:var(--font);min-height:100dvh}
   .ui-view-enter,.ui-screen-enter,
   .modal-overlay.open,.pol-editor-overlay.open,.emp-mat-editor-overlay.open,
   .modal-overlay.open .modal-card,.pol-editor-overlay.open .pol-editor-box,.emp-mat-editor-overlay.open .emp-mat-editor-box,
-  .notif-panel.open,.profile-menu.open,.presence-menu.open{animation:none!important}
+  .notif-panel.open,.profile-menu.open,.presence-menu.open,
+  .notif-toast-wrap,.notif-toast-wrap.leaving,
+  .notif-btn.has-new svg,.notif-badge.pop{animation:none!important}
 }
 
 /* ── TASKS PANEL ─────────────────────────────────────────────────── */
@@ -3240,9 +3242,25 @@ body{font-family:var(--font);min-height:100dvh}
 }
 .notif-panel-title{font-size:14px;font-weight:800;color:var(--text)}
 .notif-panel-actions{display:flex;gap:8px;align-items:center}
-.notif-panel-btn{font-size:11px;color:var(--brand-light);background:none;border:none;cursor:pointer;font-weight:600;padding:2px 4px}
-.notif-panel-btn:hover{text-decoration:underline}
-.notif-list{overflow-y:auto;flex:1}
+/* Header: botones de ícono (marcar leídas / ajustes) */
+.notif-hdr-ico{background:none;border:none;cursor:pointer;color:var(--text-3);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0}
+.notif-hdr-ico:hover{background:var(--surface-2);color:var(--text)}
+.notif-hdr-ico.active{color:var(--brand-light);background:var(--blue-bg)}
+.notif-hdr-ico svg{width:16px;height:16px;stroke:currentColor;display:block}
+.notif-hdr-ico:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Chips de filtro por categoría */
+.notif-chips{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;align-items:center}
+.notif-chips::-webkit-scrollbar{display:none}
+.notif-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background .15s,color .15s,border-color .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.notif-chip:hover{background:var(--surface-2)}
+.notif-chip.active{background:var(--blue-bg);color:var(--blue-text);border-color:var(--blue-dot)}
+.notif-chip-n{background:var(--red-dot);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px;line-height:1}
+.notif-chip-sep{width:1px;align-self:stretch;background:var(--border);flex-shrink:0;margin:2px 2px}
+/* Separador de día (sticky dentro del scroll de la lista) */
+.notif-day-sep{position:sticky;top:0;z-index:1;background:var(--surface);padding:7px 14px 5px;font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border)}
+/* Contador ×N de notificaciones agrupadas */
+.notif-count{font-size:10px;font-weight:800;color:var(--text-3);background:var(--surface-3);border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:1px}
+.notif-list{overflow-y:auto;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .notif-item{
   display:flex;gap:10px;padding:11px 14px;cursor:pointer;
   border-bottom:1px solid var(--border);transition:background .12s;
@@ -3275,24 +3293,24 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-msg{font-size:12px;color:var(--text-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .notif-time{font-size:10px;color:var(--text-3);margin-top:4px}
 .notif-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
-@media(max-width:600px){
-  .notif-panel{width:calc(100vw - 24px);right:12px}
-}
 /* — Campana: animación al llegar nueva notif — */
 @keyframes notif-ring{0%,100%{transform:rotate(0) translateY(0)}10%{transform:rotate(-22deg)}25%{transform:rotate(20deg)}40%{transform:rotate(-14deg)}55%{transform:rotate(10deg)}70%{transform:rotate(-5deg)}}
 @keyframes badge-pop{0%,100%{transform:scale(1)}50%{transform:scale(1.45)}}
 .notif-btn.has-new svg{animation:notif-ring .65s ease both;transform-origin:top center}
 .notif-badge.pop{animation:badge-pop .3s ease}
-/* — Toast agresivo + flash de pantalla — */
-@keyframes notif-toast-in{0%{transform:translate(-50%,-120%);opacity:0}100%{transform:translate(-50%,0);opacity:1}}
-@keyframes notif-toast-out{0%{transform:translate(-50%,0);opacity:1}100%{transform:translate(-50%,-120%);opacity:0}}
+/* — Toasts apilables (máx 3 visibles + pill "+N más") + flash de pantalla — */
+@keyframes nt-in{0%{transform:translateY(-16px);opacity:0}100%{transform:none;opacity:1}}
+@keyframes nt-out{to{transform:translateY(-10px);opacity:0}}
 @keyframes notif-flash{0%{opacity:0}15%{opacity:1}35%{opacity:0}55%{opacity:1}75%{opacity:0}100%{opacity:0}}
-.notif-toast-wrap{position:fixed;top:14px;left:50%;transform:translate(-50%,0);z-index:9999;min-width:290px;max-width:min(440px,calc(100vw - 24px));padding:11px 14px 11px 12px;border-radius:12px;display:flex;align-items:flex-start;gap:10px;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.25);animation:notif-toast-in .28s cubic-bezier(.34,1.4,.64,1) both;cursor:pointer;border:1.5px solid transparent}
-.notif-toast-wrap.leaving{animation:notif-toast-out .2s ease forwards}
-.notif-toast-wrap.t-task{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
-.notif-toast-wrap.t-chat{background:var(--blue-bg);color:var(--blue-text);border-color:var(--blue-dot)}
-.notif-toast-wrap.t-alert{background:var(--red-bg);color:var(--red-text);border-color:var(--red)}
-.notif-toast-wrap.t-info{background:var(--surface-2);color:var(--text-primary);border-color:var(--border)}
+.notif-toast-stack{position:fixed;top:max(14px,calc(env(safe-area-inset-top) + 8px));left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;align-items:stretch;gap:8px;width:min(440px,calc(100vw - 24px));pointer-events:none}
+.notif-toast-wrap{position:static;width:100%;padding:11px 14px 11px 12px;border-radius:12px;display:flex;align-items:flex-start;gap:10px;font-size:13px;box-shadow:0 6px 24px rgba(0,0,0,.25);animation:nt-in .28s cubic-bezier(.34,1.4,.64,1) both;cursor:pointer;border:1.5px solid transparent;pointer-events:auto}
+.notif-toast-wrap.leaving{animation:nt-out .2s ease forwards}
+.notif-toast-wrap.nt-critical{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+.notif-toast-wrap.nt-alert{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-dot)}
+.notif-toast-wrap.nt-success{background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)}
+.notif-toast-wrap.nt-info{background:var(--surface-2);color:var(--text);border-color:var(--border)}
+.notif-toast-more{align-self:center;pointer-events:auto;background:var(--surface-3);color:var(--text-2);border:1px solid var(--border);border-radius:999px;padding:5px 14px;font-size:11px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.notif-toast-more:hover{background:var(--surface-2)}
 .notif-toast-body{flex:1;min-width:0}
 .notif-toast-title{font-size:12px;font-weight:800;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .notif-toast-msg{font-size:11px;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3303,8 +3321,16 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-flash-overlay.t-chat{box-shadow:inset 0 0 0 4px var(--blue-dot)}
 .notif-flash-overlay.t-alert{box-shadow:inset 0 0 0 4px var(--red)}
 .notif-flash-overlay.t-info{box-shadow:inset 0 0 0 4px var(--border)}
-/* — Footer de sonido del panel — */
-.notif-sound-footer{padding:9px 12px;border-top:1px solid var(--border);background:var(--surface-2);flex-shrink:0;display:flex;flex-direction:column;gap:5px}
+/* — Vista de ajustes del panel (se intercambia con la lista vía .settings-open) — */
+.notif-settings{display:none;flex:1;overflow-y:auto;padding:12px;flex-direction:column;gap:10px;background:var(--surface-2)}
+.notif-panel.settings-open .notif-settings{display:flex}
+.notif-panel.settings-open .notif-list,.notif-panel.settings-open .notif-chips{display:none}
+.notif-set-group{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:7px}
+.notif-set-title{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)}
+.notif-set-hint{font-size:10px;color:var(--text-3);opacity:.85}
+.notif-set-danger{display:flex;align-items:center;gap:7px;background:var(--red-bg);color:var(--red-text);border:1px solid transparent;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;transition:filter .15s}
+.notif-set-danger:hover{filter:brightness(.96)}
+.notif-set-danger svg{width:14px;height:14px;stroke:currentColor;display:block}
 .notif-sound-row{display:flex;align-items:center;gap:7px}
 .notif-snd-toggle{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:6px;color:var(--text-3);display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;transition:background .15s,color .15s;white-space:nowrap}
 .notif-snd-toggle:hover{background:var(--surface-3)}
@@ -4425,7 +4451,23 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
   .btn-sm{min-height:40px}
   .wwp-form-input,.wwp-form-sel,.wwp-form-ta{font-size:16px;padding:10px 12px}
   .chat-input{font-size:16px}
+  /* — Centro de notificaciones como bottom sheet (patrón .rep-modal/.op-modal-card) — */
+  .notif-panel{
+    top:auto;right:0;left:0;bottom:0;width:100%;
+    max-height:calc(88dvh - env(safe-area-inset-top));
+    border-radius:18px 18px 0 0;border-bottom:none;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -12px 40px rgba(0,0,0,.28);
+  }
+  .notif-panel.open{animation:notif-sheet-up .22s cubic-bezier(.2,0,0,1) both}
+  .notif-panel::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--border);margin:8px auto 0;flex-shrink:0}
+  /* Touch targets ≥44px */
+  .notif-hdr-ico{width:44px;height:44px}
+  .notif-chip{min-height:38px;padding:8px 14px}
+  .notif-item{min-height:56px;padding:13px 14px}
 }
+@keyframes notif-sheet-up{0%{transform:translateY(24px);opacity:0}100%{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.notif-panel.open{animation:none!important}}
 
 /* ═══════════════════════════════════════
    SOLICITUDES DE DESPACHO VENTAS (SDV)
@@ -7270,46 +7312,67 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 <div id="screen-app">
 
   <!-- Notification panel -->
-  <div class="notif-panel" id="notif-panel">
+  <div class="notif-panel" id="notif-panel" role="dialog" aria-label="Notificaciones">
     <div class="notif-panel-hdr">
       <span class="notif-panel-title"><i data-lucide="bell"></i>Notificaciones</span>
       <div class="notif-panel-actions">
-        <button class="notif-panel-btn" onclick="markAllRead()">Marcar leídas</button>
-        <button class="notif-panel-btn" onclick="clearReadNotifs()" style="color:var(--text-3)">Limpiar</button>
+        <button class="notif-hdr-ico" onclick="markAllRead()" title="Marcar todas como leídas" aria-label="Marcar todas como leídas"><i data-lucide="check-check"></i></button>
+        <button class="notif-hdr-ico" id="notif-gear" onclick="toggleNotifSettings()" title="Ajustes de notificaciones" aria-label="Ajustes de notificaciones"><i data-lucide="settings-2"></i></button>
       </div>
     </div>
+    <div class="notif-chips" id="notif-chips" role="toolbar" aria-label="Filtrar notificaciones"></div>
     <div class="notif-list" id="notif-list"><div class="notif-empty">Sin notificaciones</div></div>
-    <div class="notif-sound-footer">
-      <div class="notif-sound-row">
-        <button class="notif-snd-toggle" id="notif-snd-toggle" onclick="_notifToggleSound()">
-          <i id="notif-snd-icon" data-lucide="bell-off" style="width:13px;height:13px;stroke:currentColor;display:inline-block"></i>
-          <span id="notif-snd-label">Sonido</span>
-        </button>
-        <select class="notif-snd-sel" id="notif-snd-sel" onchange="_notifChangeTone(this.value)">
-          <option value="campana">Campana</option>
-          <option value="melodia">Melodía</option>
-          <option value="radio">Ding ×3</option>
-          <option value="suave">Ding-dong</option>
-          <option value="pop">Chirp</option>
-          <option value="alerta">Alerta</option>
-        </select>
-        <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
+    <div class="notif-settings" id="notif-settings">
+      <div class="notif-set-group">
+        <div class="notif-set-title">Sonido</div>
+        <div class="notif-sound-row">
+          <button class="notif-snd-toggle" id="notif-snd-toggle" onclick="_notifToggleSound()">
+            <i id="notif-snd-icon" data-lucide="bell-off" style="width:13px;height:13px;stroke:currentColor;display:inline-block"></i>
+            <span id="notif-snd-label">Sonido</span>
+          </button>
+          <select class="notif-snd-sel" id="notif-snd-sel" onchange="_notifChangeTone(this.value)">
+            <option value="campana">Campana</option>
+            <option value="melodia">Melodía</option>
+            <option value="radio">Ding ×3</option>
+            <option value="suave">Ding-dong</option>
+            <option value="pop">Chirp</option>
+            <option value="alerta">Alerta</option>
+          </select>
+          <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
+        </div>
+        <div class="notif-snd-hours" id="notif-snd-hours" style="display:none">
+          <span>Sonar entre</span>
+          <input type="time" id="notif-snd-from" onchange="_notifSndHoursChange()">
+          <span>y</span>
+          <input type="time" id="notif-snd-to" onchange="_notifSndHoursChange()">
+          <span class="notif-snd-hours-hint">(vacío = siempre)</span>
+        </div>
       </div>
-      <div class="notif-snd-hours" id="notif-snd-hours" style="display:none">
-        <span>Sonar entre</span>
-        <input type="time" id="notif-snd-from" onchange="_notifSndHoursChange()">
-        <span>y</span>
-        <input type="time" id="notif-snd-to" onchange="_notifSndHoursChange()">
-        <span class="notif-snd-hours-hint">(vacío = siempre)</span>
+      <div class="notif-set-group">
+        <div class="notif-set-title">Notificaciones push</div>
+        <div class="notif-push-row" id="notif-push-row" style="display:none">
+          <i data-lucide="smartphone" style="width:10px;height:10px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>
+          <span>Notificaciones aunque el tab esté minimizado —</span>
+          <button onclick="_notifRequestPush()">Activar</button>
+        </div>
+        <div class="notif-push-row" id="notif-install-row" style="display:none">
+          <i data-lucide="share" style="width:11px;height:11px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>
+          <span>En iPhone/iPad, para recibir notificaciones instala la app —</span>
+          <button onclick="_iosShowInstallHelp()">Ver pasos</button>
+        </div>
+        <div class="notif-push-row" id="notif-push-status" style="display:flex;margin-top:4px;flex-wrap:wrap;gap:6px">
+          <button onclick="_notifPushTest()">Enviar prueba a este dispositivo</button>
+          <span id="notif-push-devices" style="color:var(--text-3)"></span>
+        </div>
       </div>
-      <div class="notif-push-row" id="notif-push-row" style="display:none">
-        <i data-lucide="smartphone" style="width:10px;height:10px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>
-        <span>Notificaciones aunque el tab esté minimizado —</span>
-        <button onclick="_notifRequestPush()">Activar</button>
+      <div class="notif-set-group" id="notif-prefs-group" style="display:none">
+        <div class="notif-set-title">Preferencias por categoría</div>
+        <div id="notif-prefs-rows"></div>
+        <div class="notif-set-hint">Las alertas críticas de operación siempre se entregan.</div>
       </div>
-      <div class="notif-push-row" id="notif-push-status" style="display:flex;margin-top:4px;flex-wrap:wrap;gap:6px">
-        <button onclick="_notifPushTest()">Enviar prueba a este dispositivo</button>
-        <span id="notif-push-devices" style="color:var(--text-3)"></span>
+      <div class="notif-set-group">
+        <div class="notif-set-title">Mantenimiento</div>
+        <button class="notif-set-danger" onclick="clearReadNotifs()"><i data-lucide="trash-2"></i>Borrar notificaciones leídas</button>
       </div>
     </div>
   </div>
@@ -7438,8 +7501,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
     <!-- Notificaciones -->
-    <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
-      <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge"></span>
+    <button class="notif-btn" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="dialog">
+      <i data-lucide="bell"></i><span class="notif-badge" id="notif-badge" aria-hidden="true"></span>
     </button>
     <!-- Usuario + dropdown de perfil -->
     <div style="position:relative">
@@ -8560,6 +8623,34 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 var _iosPwa = (window.navigator.standalone === true) ||
               window.matchMedia('(display-mode: standalone)').matches;
 
+// iPadOS moderno se reporta como "MacIntel" pero con multi-touch
+function _isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// Instructivo A2HS para iPhone/iPad: en Safari iOS el push solo funciona
+// con la app instalada en pantalla de inicio (iOS 16.4+).
+function _iosShowInstallHelp() {
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:22px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.35)">'
+    + '<div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:4px">Instalar Ops AT en tu iPhone/iPad</div>'
+    + '<div style="font-size:12px;color:var(--text-3);margin-bottom:14px">Para recibir notificaciones push, la app debe estar instalada en la pantalla de inicio (iOS 16.4 o superior).</div>'
+    + '<ol style="margin:0 0 16px;padding-left:20px;display:flex;flex-direction:column;gap:10px;font-size:13px;color:var(--text);line-height:1.5">'
+    +   '<li>Abre esta página en <b>Safari</b> y toca el botón <b>Compartir</b> <i data-lucide="share" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i> en la barra inferior.</li>'
+    +   '<li>Desliza y elige <b>«Añadir a pantalla de inicio»</b>.</li>'
+    +   '<li>Abre <b>Ops AT</b> desde el ícono nuevo y toca <b>Activar</b> en Notificaciones → Ajustes.</li>'
+    + '</ol>'
+    + '<div style="display:flex;justify-content:flex-end">'
+    + '<button style="padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;min-height:44px" id="_iosInstallOk">Entendido</button>'
+    + '</div></div>';
+  document.body.appendChild(ov);
+  if (window.lucide) lucide.createIcons();
+  document.getElementById('_iosInstallOk').onclick = function() { document.body.removeChild(ov); };
+  ov.addEventListener('click', function(e) { if (e.target === ov) document.body.removeChild(ov); });
+}
+
 function _iosAlert(msg) {
   if (!_iosPwa) { alert(msg); return Promise.resolve(); }
   return new Promise(function(resolve) {
@@ -8633,7 +8724,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v139';
+var APP_BUILD = 'v140';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9475,6 +9566,9 @@ var _audioCtx = null;
 var _notifSoundEnabled = localStorage.getItem('wwp_notif_sound') !== 'off';
 var _notifSoundTone    = localStorage.getItem('wwp_notif_tone') || 'campana';
 var _lastUnread        = null; // null = primera carga, no suena
+var _notifFilterCat    = 'all'; // filtro de categoría — por sesión, cada apertura arranca en Todas
+var _notifUnreadOnly   = localStorage.getItem('wwp_notif_unread_only') === '1';
+var _notifSettingsOpen = false;
 
 // Desbloquear AudioContext en el primer gesto del usuario
 (function() {
@@ -9490,10 +9584,122 @@ var _lastUnread        = null; // null = primera carga, no suena
 // Mapa de tono por tipo de notificación
 var _NOTIF_TONE_MAP = {
   task_assigned: 'radio', subtask_assigned: 'radio',
-  comment_new: 'alarma',
+  comment_new: 'alarma', task_chat: 'alarma',
   task_overdue: 'urgente', task_rejected: 'urgente',
   task_completed: 'suave', task_validated: 'suave', status_changed: 'suave'
 };
+
+// ═══ ESPEJO de NOTIF_META en proxy.js (~4453) — mantener en sincronía (igual que APP_BUILD) ═══
+// El servidor estampa category/urgency en cada notif nueva; este espejo deriva
+// los campos para notificaciones históricas persistidas antes del cambio.
+var _NOTIF_META = {
+  // tareas
+  task_assigned:{cat:'tareas',urg:'info'}, subtask_assigned:{cat:'tareas',urg:'info'},
+  status_changed:{cat:'tareas',urg:'info'}, task_status:{cat:'tareas',urg:'info'},
+  task_updated:{cat:'tareas',urg:'info'}, ready_to_validate:{cat:'tareas',urg:'info'},
+  task_overdue:{cat:'tareas',urg:'critical'}, task_rejected:{cat:'tareas',urg:'critical'},
+  task_completed:{cat:'tareas',urg:'success'}, task_validated:{cat:'tareas',urg:'success'},
+  task_cancelled:{cat:'tareas',urg:'alert'},
+  // sdv
+  sdv_new_pending:{cat:'sdv',urg:'info'}, sdv_task_created:{cat:'sdv',urg:'info'},
+  sdv_cancelada:{cat:'sdv',urg:'alert'}, sdv_origen_cancelada:{cat:'sdv',urg:'alert'},
+  sdv_additional_new:{cat:'sdv',urg:'info'}, sdv_additional_linked:{cat:'sdv',urg:'info'},
+  sdv_additional_manager:{cat:'sdv',urg:'info'},
+  reactivacion_pendiente:{cat:'sdv',urg:'alert'}, reactivacion_procesada:{cat:'sdv',urg:'success'},
+  dev_en_ruta:{cat:'sdv',urg:'info'},
+  // operacion
+  pick_incomplete:{cat:'operacion',urg:'critical'}, packing_blocked:{cat:'operacion',urg:'critical'},
+  damage_detected:{cat:'operacion',urg:'critical'}, cancel_blocked:{cat:'operacion',urg:'critical'},
+  evidence_incomplete:{cat:'operacion',urg:'alert'}, missing_evidence:{cat:'operacion',urg:'alert'},
+  stock_changed:{cat:'operacion',urg:'alert'},
+  reposicion_nueva:{cat:'operacion',urg:'info'}, reposicion_aprobada:{cat:'operacion',urg:'success'},
+  reposicion_rechazada:{cat:'operacion',urg:'alert'},
+  // chat
+  comment_new:{cat:'chat',urg:'info'}, task_chat:{cat:'chat',urg:'info'},
+  // sistema
+  system_sync_error:{cat:'sistema',urg:'critical'}, agent_routine:{cat:'sistema',urg:'info'},
+  lunch_ended:{cat:'sistema',urg:'info'}, user_notification:{cat:'sistema',urg:'info'}
+};
+
+var _NOTIF_CATS = [
+  { id:'all',       label:'Todas'     },
+  { id:'tareas',    label:'Tareas'    },
+  { id:'sdv',       label:'SDV'       },
+  { id:'operacion', label:'Operación' },
+  { id:'chat',      label:'Chat'      },
+  { id:'sistema',   label:'Sistema'   }
+];
+
+function _notifCategoryFallback(type) {
+  type = type || '';
+  if (/^sdv_|reactivacion|dev_en/.test(type)) return 'sdv';
+  if (/pick|pack|damage|stock|evidence|reposicion|cancel_blocked/.test(type)) return 'operacion';
+  if (/chat|comment/.test(type)) return 'chat';
+  if (/^task_|assigned|status|overdue|validated|completed/.test(type)) return 'tareas';
+  return 'sistema';
+}
+
+// Categoría/urgencia de una notif: usa el campo estampado por el servidor;
+// deriva del espejo para notifs históricas sin campo.
+function notifCategory(n) {
+  if (n && n.category) return n.category;
+  var m = n && _NOTIF_META[n.type];
+  if (m) return m.cat;
+  return _notifCategoryFallback(n && n.type);
+}
+function notifUrgency(n) {
+  if (n && n.urgency) return n.urgency;
+  var m = n && _NOTIF_META[n.type];
+  if (m) return m.urg;
+  return 'info';
+}
+
+// Ícono + color por tipo — constante de módulo (antes se recreaba en cada render)
+var _NOTIF_ICONS = {
+  // Tareas WWP
+  task_assigned    : { icon:'clipboard-list', cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+  subtask_assigned : { icon:'paperclip',      cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+  status_changed   : { icon:'refresh-cw',     cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  task_status      : { icon:'refresh-cw',     cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  task_updated     : { icon:'refresh-cw',     cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  ready_to_validate: { icon:'clipboard-check',cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+  task_overdue     : { icon:'alert-triangle', cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  task_completed   : { icon:'check-circle',   cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+  task_validated   : { icon:'award',          cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+  task_rejected    : { icon:'x-circle',       cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  task_cancelled   : { icon:'slash',          cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+  // Chat
+  comment_new      : { icon:'message-square', cls:'ni-chat',    bg:'--purple-bg', color:'--purple-text' },
+  task_chat        : { icon:'message-square', cls:'ni-chat',    bg:'--purple-bg', color:'--purple-text' },
+  // SDV
+  sdv_new_pending  : { icon:'inbox',          cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+  sdv_task_created : { icon:'clipboard-list', cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
+  sdv_cancelada    : { icon:'x-circle',       cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+  sdv_origen_cancelada   : { icon:'x-circle',    cls:'ni-alert', bg:'--amber-bg', color:'--amber-text'  },
+  sdv_additional_new     : { icon:'inbox',       cls:'ni-info',  bg:'--blue-bg',  color:'--blue-text'   },
+  sdv_additional_linked  : { icon:'link',        cls:'ni-info',  bg:'--blue-bg',  color:'--blue-text'   },
+  sdv_additional_manager : { icon:'inbox',       cls:'ni-info',  bg:'--blue-bg',  color:'--blue-text'   },
+  reactivacion_pendiente : { icon:'rotate-ccw',  cls:'ni-alert', bg:'--amber-bg', color:'--amber-text'  },
+  reactivacion_procesada : { icon:'check-circle',cls:'ni-success',bg:'--green-bg',color:'--green-text'  },
+  dev_en_ruta      : { icon:'truck',          cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  // Operación (picking/empaque/stock/reposición)
+  pick_incomplete  : { icon:'alert-triangle', cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  packing_blocked  : { icon:'shield-alert',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  damage_detected  : { icon:'alert-circle',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  cancel_blocked   : { icon:'x-circle',       cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  evidence_incomplete:{ icon:'camera',        cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+  missing_evidence : { icon:'camera',         cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+  stock_changed    : { icon:'package',        cls:'ni-alert',   bg:'--orange-bg', color:'--orange-text' },
+  reposicion_nueva : { icon:'package-plus',   cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  reposicion_aprobada:{ icon:'check-circle',  cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
+  reposicion_rechazada:{ icon:'x-circle',     cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
+  // Sistema
+  system_sync_error: { icon:'alert-octagon',  cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
+  agent_routine    : { icon:'cpu',            cls:'ni-info',    bg:'--purple-bg', color:'--purple-text' },
+  lunch_ended      : { icon:'utensils',       cls:'ni-info',    bg:'--surface-3', color:'--text-3'      },
+  user_notification: { icon:'bell',           cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    }
+};
+var _NOTIF_ICON_DEFAULT = { icon:'bell', cls:'ni-info', bg:'--sky-bg', color:'--sky-text' };
 
 function _playTone(tone) {
   try {
@@ -9630,15 +9836,62 @@ function _notifToastType(notif) {
   return 't-info';
 }
 
-function _notifShowToast(notif) {
-  var existing = document.getElementById('notif-toast-active');
-  if (existing) {
-    existing.classList.add('leaving');
-    setTimeout(function(){ if (existing.parentNode) existing.parentNode.removeChild(existing); }, 200);
+// Toasts apilables: máx 3 visibles; el resto se acumula en un pill "+N más".
+// TTL por urgencia — las críticas no se auto-ocultan (requieren dismiss o click).
+var _NOTIF_TOAST_TTL = { critical: 0, alert: 10000, success: 6000, info: 6000 };
+var _notifToastQueued = 0;
+
+function _notifToastContainer() {
+  var c = document.getElementById('notif-toast-stack');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'notif-toast-stack';
+    c.className = 'notif-toast-stack';
+    c.setAttribute('role', 'status');
+    c.setAttribute('aria-live', 'polite');
+    document.body.appendChild(c);
   }
+  return c;
+}
+
+function _notifUpdateMorePill() {
+  var c = _notifToastContainer();
+  var pill = document.getElementById('notif-toast-more');
+  if (_notifToastQueued <= 0) { if (pill && pill.parentNode) pill.parentNode.removeChild(pill); return; }
+  if (!pill) {
+    pill = document.createElement('button');
+    pill.id = 'notif-toast-more';
+    pill.className = 'notif-toast-more';
+    pill.onclick = function() {
+      _notifToastQueued = 0;
+      var stack = document.getElementById('notif-toast-stack');
+      if (stack) stack.querySelectorAll('.notif-toast-wrap').forEach(function(w){ if (w.parentNode) w.parentNode.removeChild(w); });
+      _notifUpdateMorePill();
+      if (!_notifPanelOpen) toggleNotifPanel();
+    };
+    c.appendChild(pill);
+  }
+  pill.textContent = '+' + _notifToastQueued + ' más — ver todas';
+}
+
+function _notifDismissToast(wrap) {
+  if (!wrap || !wrap.parentNode) return;
+  if (wrap.classList.contains('leaving')) return;
+  wrap.classList.add('leaving');
+  setTimeout(function() {
+    if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    if (_notifToastQueued > 0) { _notifToastQueued--; _notifUpdateMorePill(); }
+  }, 220);
+}
+
+function _notifShowToast(notif) {
+  var c = _notifToastContainer();
+  var visible = c.querySelectorAll('.notif-toast-wrap:not(.leaving)').length;
+  if (visible >= 3) { _notifToastQueued++; _notifUpdateMorePill(); return; }
+  var urg = notifUrgency(notif);
   var wrap = document.createElement('div');
-  wrap.id = 'notif-toast-active';
-  wrap.className = 'notif-toast-wrap ' + _notifToastType(notif);
+  wrap.className = 'notif-toast-wrap nt-' + urg;
+  if (urg === 'critical') wrap.setAttribute('role', 'alert');
   var title = (notif && (notif.title || '')) || 'Nueva notificación';
   var msg   = (notif && (notif.message || notif.body || '')) || '';
   wrap.innerHTML =
@@ -9646,22 +9899,21 @@ function _notifShowToast(notif) {
       '<div class="notif-toast-title">' + escHtml(title) + '</div>' +
       (msg ? '<div class="notif-toast-msg">' + escHtml(msg) + '</div>' : '') +
     '</div>' +
-    '<button class="notif-toast-x" onclick="this.closest(\'.notif-toast-wrap\').remove()" aria-label="Cerrar">\xd7</button>';
+    '<button class="notif-toast-x" aria-label="Cerrar">\xd7</button>';
   wrap.addEventListener('click', function(e) {
-    if (e.target.classList.contains('notif-toast-x')) return;
+    if (e.target.classList.contains('notif-toast-x')) { _notifDismissToast(wrap); return; }
     if (notif) openNotification(notif);
-    wrap.classList.add('leaving');
-    setTimeout(function(){ if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 200);
+    _notifDismissToast(wrap);
   });
-  document.body.appendChild(wrap);
-  setTimeout(function() {
-    if (!wrap.parentNode) return;
-    wrap.classList.add('leaving');
-    setTimeout(function(){ if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 220);
-  }, 6000);
+  // El pill "+N más" siempre queda al final del stack
+  var pill = document.getElementById('notif-toast-more');
+  if (pill) c.insertBefore(wrap, pill); else c.appendChild(wrap);
+  var ttl = (_NOTIF_TOAST_TTL[urg] != null) ? _NOTIF_TOAST_TTL[urg] : 6000;
+  if (ttl) setTimeout(function(){ _notifDismissToast(wrap); }, ttl);
 }
 
 function _notifFlashScreen(notif) {
+  if (window.matchMedia('(prefers-reduced-motion:reduce)').matches) return;
   var existing = document.getElementById('notif-flash-active');
   if (existing) existing.parentNode.removeChild(existing);
   var el = document.createElement('div');
@@ -9676,23 +9928,51 @@ function _notifUpdateTitle() {
   document.title = unread > 0 ? '(' + unread + ') Ops AT' : 'Ops AT';
 }
 
+// Capacidad de push del dispositivo/navegador actual:
+//   'granted-auto'  → permiso concedido: (re)suscribir en silencio
+//   'needs-gesture' → soportado pero requiere click del usuario (Safari lo exige; en Chrome evita el quiet-prompt)
+//   'needs-install' → iPhone/iPad en navegador: solo funciona instalada como PWA (A2HS)
+//   'blocked'       → permiso denegado en el navegador
+//   'unsupported'   → sin APIs de push
+function getPushCapability() {
+  var hasPush = typeof Notification !== 'undefined' &&
+                ('serviceWorker' in navigator) && ('PushManager' in window);
+  if (!hasPush) return (_isIosDevice() && !_iosPwa) ? 'needs-install' : 'unsupported';
+  if (Notification.permission === 'granted') return 'granted-auto';
+  if (Notification.permission === 'denied')  return 'blocked';
+  return 'needs-gesture';
+}
+
 function _notifShowBrowserBanner() {
   var row = document.getElementById('notif-push-row');
+  var installRow = document.getElementById('notif-install-row');
   if (!row) return;
   _notifLoadPushStatus();
-  if (typeof Notification === 'undefined' || !('PushManager' in window)) { row.style.display = 'none'; return; }
-  // Mostrar si: aún no concedido, O si ya granted pero no hay suscripción push activa
-  if (Notification.permission === 'denied') { row.style.display = 'none'; return; }
-  if (Notification.permission === 'default') { row.style.display = 'flex'; return; }
-  // permission === 'granted' — ver si hay sub push activa
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(function(reg) {
-      return reg.pushManager.getSubscription();
-    }).then(function(sub) {
-      row.style.display = sub ? 'none' : 'flex';
-    }).catch(function() { row.style.display = 'none'; });
-  } else {
-    row.style.display = 'none';
+  var cap = getPushCapability();
+  if (installRow) installRow.style.display = (cap === 'needs-install') ? 'flex' : 'none';
+  switch (cap) {
+    case 'needs-install':
+    case 'unsupported':
+      row.style.display = 'none';
+      return;
+    case 'blocked':
+      row.style.display = 'flex';
+      row.innerHTML = '<i data-lucide="bell-off" style="width:10px;height:10px;stroke:currentColor;display:inline-block;flex-shrink:0"></i>'
+        + '<span>Notificaciones bloqueadas — actívalas en los ajustes del sitio de tu navegador'
+        + (_iosPwa ? ' (en iPhone: Ajustes → Notificaciones → Ops AT)' : '') + '</span>';
+      if (window.lucide) lucide.createIcons();
+      return;
+    case 'needs-gesture':
+      row.style.display = 'flex';
+      return;
+    case 'granted-auto':
+      // Mostrar el botón solo si falta la suscripción en este dispositivo
+      navigator.serviceWorker.ready.then(function(reg) {
+        return reg.pushManager.getSubscription();
+      }).then(function(sub) {
+        row.style.display = sub ? 'none' : 'flex';
+      }).catch(function() { row.style.display = 'none'; });
+      return;
   }
 }
 
@@ -9748,25 +10028,20 @@ function _notifDoSubscribe() {
   });
 }
 
-// Auto-activación al entrar a la app: si ya hay permiso, suscribe en silencio.
-// Si nunca se ha pedido, lo pide (el login cuenta como gesto del usuario).
+// Auto-activación al entrar a la app: SOLO si el permiso ya fue concedido,
+// (re)suscribe en silencio. Nunca pide permiso sin gesto del usuario —
+// Safari lo ignora y en Chrome degrada al quiet-prompt / bloqueo permanente.
+// El prompt vive en el botón "Activar" del panel y en el welcome (gestos reales).
 function _notifAutoEnablePush() {
-  if (typeof Notification === 'undefined') return;
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  function _ensure() {
-    navigator.serviceWorker.ready.then(function(reg){
-      return reg.pushManager.getSubscription();
-    }).then(function(sub){
-      if (sub) return; // ya suscrito en este dispositivo
-      _notifDoSubscribe().then(function(){
-        _notifShowBrowserBanner();
-      }).catch(function(err){});
-    }).catch(function(){});
-  }
-  if (Notification.permission === 'granted') { _ensure(); return; }
-  if (Notification.permission === 'default') {
-    Notification.requestPermission().then(function(perm){ if (perm === 'granted') _ensure(); });
-  }
+  if (getPushCapability() !== 'granted-auto') return;
+  navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription();
+  }).then(function(sub){
+    if (sub) return; // ya suscrito en este dispositivo
+    _notifDoSubscribe().then(function(){
+      _notifShowBrowserBanner();
+    }).catch(function(err){});
+  }).catch(function(){});
 }
 
 function _notifRequestPush() {
@@ -9798,6 +10073,7 @@ function _notifPushTest() {
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   if (st) st.innerHTML = '<span style="color:var(--text-3)">Preparando este dispositivo…</span>';
   Promise.resolve().then(function(){
+    if (getPushCapability() === 'needs-install') throw new Error('En iPhone/iPad instala la app (Compartir → Añadir a pantalla de inicio) para poder recibir push.');
     if (typeof Notification === 'undefined') throw new Error('Este navegador no soporta notificaciones.');
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Este navegador no soporta Web Push.');
     if (Notification.permission === 'denied') throw new Error('Las notificaciones están bloqueadas en el navegador.');
@@ -9839,21 +10115,36 @@ function _notifLoadPushStatus() {
 function _notifFireBrowser(notif) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   if (!document.hidden) return; // solo cuando el tab está en segundo plano
-  var type = notif.type || '';
-  var urgency = /overdue|rejected|incomplete|blocked|damage|sync_error/i.test(type) ? 'critical'
-    : /evidence|stock|cancel|reactivacion_pendiente/i.test(type) ? 'alert'
-    : /completed|validated|aprobada|procesada/i.test(type) ? 'success'
-    : 'info';
-  var n = new Notification(notif.title || 'Ops AT', {
+  var urgency = notifUrgency(notif);
+  var title = notif.title || 'Ops AT';
+  var opts = {
     body: notif.message || '',
     icon: '/icon-192.png',
     badge: '/badge-' + urgency + '.svg',
     tag: notif.relatedTaskId || notif.id,
     renotify: true,
     requireInteraction: urgency === 'critical',
-    data: { url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html' }
+    data: {
+      taskId: notif.relatedTaskId || null, // sw.js lo lee en notificationclick
+      url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+      urgency: urgency
+    }
+  };
+  // Camino principal: vía Service Worker — obligatorio en Chrome Android,
+  // donde `new Notification()` lanza "Illegal constructor".
+  var viaSw = ('serviceWorker' in navigator)
+    ? navigator.serviceWorker.getRegistration('/').then(function(reg) {
+        if (reg && reg.active) return reg.showNotification(title, opts);
+        throw new Error('no-sw');
+      })
+    : Promise.reject(new Error('no-sw'));
+  viaSw.catch(function() {
+    // Fallback desktop sin SW activo; el try/catch absorbe el constructor ilegal
+    try {
+      var n = new Notification(title, opts);
+      n.onclick = function() { window.focus(); openNotification(notif); n.close(); };
+    } catch(e) {}
   });
-  n.onclick = function() { window.focus(); openNotification(notif); n.close(); };
 }
 
 function _notifUpdateSoundUI() {
@@ -9904,6 +10195,9 @@ function connectSSE() {
   const url = wwpServerUrl('/api/wwp/notifications/stream?token=' + encodeURIComponent(_token));
   const es = new EventSource(url);
   _sseSource = es;
+
+  // Cada (re)conexión implica que pudimos perder eventos mientras estuvo caída
+  es.onopen = function() { refreshNotifications(); };
 
   es.onmessage = function(e) {
     try {
@@ -9961,6 +10255,8 @@ function connectWwpRealtime() {
     : (location.protocol === 'https:' ? 'wss://' + location.host : 'ws://' + location.host);
   const ws = new WebSocket(proto + '/ws/wwp?client=wwp');
   _wwpSocket = ws;
+
+  ws.onopen = function() { refreshNotifications(); };
 
   ws.onmessage = function(e) {
     try {
@@ -10091,6 +10387,9 @@ function connectWwpRealtime() {
     if (now - _lastVisibilityFetch < 3000) return;
     _lastVisibilityFetch = now;
     _doFetch();
+    refreshNotifications();
+    // El EventSource no siempre revive solo tras una suspensión larga (readyState 2 = CLOSED)
+    if (!_sseSource || _sseSource.readyState === 2) connectSSE();
   });
 
   // Capa 2: bfcache iOS Safari (restauración de página congelada)
@@ -10101,6 +10400,8 @@ function connectWwpRealtime() {
       connectWwpRealtime();
     }
     _doFetch();
+    refreshNotifications();
+    if (!_sseSource || _sseSource.readyState === 2) connectSSE();
   });
 
   // Capa 3: polling cada 60s — red de seguridad cuando WS y eventos fallan
@@ -10114,6 +10415,7 @@ function connectWwpRealtime() {
 })();
 
 async function loadNotificationsFromServer() {
+  _lastNotifRefresh = Date.now(); // suprime el refresh del onopen inicial del SSE (debounce)
   try {
     const r = await authFetch('/api/wwp/notifications');
     if (!r.ok) return;
@@ -10125,66 +10427,125 @@ async function loadNotificationsFromServer() {
   } catch(e) {}
 }
 
+// Catch-up: recarga la lista al volver de background / reconectar SSE-WS.
+// Sin esto, las notifs emitidas con el dispositivo suspendido (Safari/Android
+// matan SSE y WS en background) no aparecían hasta recargar la página.
+var _lastNotifRefresh = 0;
+function refreshNotifications() {
+  if (!_token) return;
+  var now = Date.now();
+  if (now - _lastNotifRefresh < 5000) return; // debounce entre triggers (visibility+onopen suelen coincidir)
+  _lastNotifRefresh = now;
+  loadNotificationsFromServer().then(function() {
+    // maybeChime tiene su propio guard (unread > _lastUnread): suena UNA vez
+    // solo si el catch-up trajo notifs nuevas sin leer.
+    var newest = _notifications.find(function(n){ return !n.readAt; });
+    if (newest) { maybeChime(newest); _notifRingBell(); }
+  });
+}
+
+function _notifDayLabel(iso) {
+  if (!iso) return '';
+  var d = new Date(iso), now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Hoy';
+  var ayer = new Date(now.getTime() - 86400000);
+  if (d.toDateString() === ayer.toDateString()) return 'Ayer';
+  try { return d.toLocaleDateString('es-DO', { weekday:'short', day:'numeric', month:'short' }); }
+  catch(e) { return d.toLocaleDateString(); }
+}
+
+function _notifItemHtml(n) {
+  const def = _NOTIF_ICONS[n.type] || _NOTIF_ICON_DEFAULT;
+  const time = n.createdAt ? timeSince(n.createdAt) : '';
+  const unread = !n.readAt;
+  const itemCls = 'notif-item' + (unread ? (' unread ' + def.cls) : '');
+  const countBadge = (n.count > 1) ? ' <span class="notif-count">×' + n.count + '</span>' : '';
+  // Ícono coloreado: usa CSS vars del proyecto
+  const iconStyle = `style="--ni-bg:var(${def.bg});--ni-color:var(${def.color})"`;
+  const iconWrap = `<div class="notif-icon-wrap" ${iconStyle}><i data-lucide="${def.icon}"></i></div>`;
+  return `<div class="${itemCls}" data-notif-id="${esc(n.id)}" onclick="openNotificationById(this)">
+    ${iconWrap}
+    <div class="notif-content">
+      <div class="notif-title">${esc(n.title||n.type)}${countBadge}</div>
+      <div class="notif-msg">${esc(n.message||'')}</div>
+      <div class="notif-time">${time}</div>
+    </div>
+  </div>`;
+}
+
+function _notifEmptyHtml() {
+  if (_notifUnreadOnly) return '<div class="notif-empty">Nada sin leer — todo al día ✓</div>';
+  if (_notifFilterCat !== 'all') {
+    var cat = _NOTIF_CATS.find(function(c){ return c.id === _notifFilterCat; });
+    return '<div class="notif-empty">Sin notificaciones de ' + (cat ? cat.label.toLowerCase() : _notifFilterCat) + '</div>';
+  }
+  return '<div class="notif-empty">Sin notificaciones</div>';
+}
+
+function _renderNotifChips(counts) {
+  var bar = document.getElementById('notif-chips');
+  if (!bar) return;
+  var html = '<button class="notif-chip notif-chip-unread' + (_notifUnreadOnly ? ' active' : '') + '"' +
+    ' onclick="toggleNotifUnreadOnly()" aria-pressed="' + (_notifUnreadOnly ? 'true' : 'false') + '">Sin leer' +
+    (counts.all > 0 ? ' <span class="notif-chip-n">' + (counts.all > 99 ? '99+' : counts.all) + '</span>' : '') +
+    '</button><span class="notif-chip-sep" aria-hidden="true"></span>';
+  html += _NOTIF_CATS.map(function(c) {
+    var n = c.id === 'all' ? 0 : (counts[c.id] || 0); // "Todas" no repite el total (ya está en Sin leer)
+    return '<button class="notif-chip' + (_notifFilterCat === c.id ? ' active' : '') + '"' +
+      ' onclick="setNotifFilter(\'' + c.id + '\')" aria-pressed="' + (_notifFilterCat === c.id ? 'true' : 'false') + '">' +
+      c.label + (n > 0 ? ' <span class="notif-chip-n">' + (n > 99 ? '99+' : n) + '</span>' : '') +
+      '</button>';
+  }).join('');
+  bar.innerHTML = html;
+}
+
+function setNotifFilter(cat) {
+  _notifFilterCat = cat;
+  renderNotifications();
+}
+
+function toggleNotifUnreadOnly() {
+  _notifUnreadOnly = !_notifUnreadOnly;
+  try { localStorage.setItem('wwp_notif_unread_only', _notifUnreadOnly ? '1' : '0'); } catch(e) {}
+  renderNotifications();
+}
+
+function toggleNotifSettings() {
+  _notifSettingsOpen = !_notifSettingsOpen;
+  var panel = document.getElementById('notif-panel');
+  if (panel) panel.classList.toggle('settings-open', _notifSettingsOpen);
+  var gear = document.getElementById('notif-gear');
+  if (gear) gear.classList.toggle('active', _notifSettingsOpen);
+  if (_notifSettingsOpen) { _notifUpdateSoundUI(); _notifShowBrowserBanner(); _notifLoadPushStatus(); }
+}
+
 function renderNotifications() {
   updateNotifBadge();
   const list = document.getElementById('notif-list');
   if (!list) return;
-  if (_notifications.length === 0) {
-    list.innerHTML = '<div class="notif-empty">Sin notificaciones</div>';
-    return;
+  // Contadores de no-leídas por categoría — una sola pasada
+  var counts = { all:0, tareas:0, sdv:0, operacion:0, chat:0, sistema:0 };
+  _notifications.forEach(function(n) {
+    if (!n.readAt) {
+      counts.all++;
+      var c = notifCategory(n);
+      if (counts[c] != null) counts[c]++;
+    }
+  });
+  _renderNotifChips(counts);
+  // Filtrar ANTES del corte de 50 para que el filtro vea todo el historial
+  var items = _notifications;
+  if (_notifFilterCat !== 'all') items = items.filter(function(n){ return notifCategory(n) === _notifFilterCat; });
+  if (_notifUnreadOnly) items = items.filter(function(n){ return !n.readAt; });
+  items = items.slice(0, 50);
+  if (!items.length) { list.innerHTML = _notifEmptyHtml(); return; }
+  var html = '', lastDay = '';
+  for (var i = 0; i < items.length; i++) {
+    var day = _notifDayLabel(items[i].createdAt);
+    if (day && day !== lastDay) { html += '<div class="notif-day-sep">' + day + '</div>'; lastDay = day; }
+    html += _notifItemHtml(items[i]);
   }
-  // Diseño unificado: ícono Lucide coloreado por tipo para TODAS las notificaciones
-  const NOTIF_ICONS = {
-    // Tareas WWP
-    task_assigned    : { icon:'clipboard-list', cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
-    subtask_assigned : { icon:'paperclip',      cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
-    status_changed   : { icon:'refresh-cw',     cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
-    task_overdue     : { icon:'alert-triangle',  cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    task_completed   : { icon:'check-circle',    cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
-    task_validated   : { icon:'award',           cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
-    task_rejected    : { icon:'x-circle',        cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    comment_new      : { icon:'message-square',  cls:'ni-chat',    bg:'--purple-bg', color:'--purple-text' },
-    lunch_ended      : { icon:'utensils',        cls:'ni-info',    bg:'--surface-3', color:'--text-3'      },
-    // SDV y operaciones críticas
-    sdv_new_pending  : { icon:'inbox',           cls:'ni-info',    bg:'--blue-bg',   color:'--blue-text'   },
-    pick_incomplete  : { icon:'alert-triangle',  cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    packing_blocked  : { icon:'shield-alert',    cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    damage_detected  : { icon:'alert-circle',    cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    cancel_blocked   : { icon:'x-circle',        cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    evidence_incomplete:{ icon:'camera',         cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
-    stock_changed    : { icon:'package',         cls:'ni-alert',   bg:'--orange-bg', color:'--orange-text' },
-    system_sync_error: { icon:'alert-octagon',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
-    // Reposición
-    reposicion_nueva : { icon:'package-plus',    cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
-    reposicion_aprobada:{ icon:'check-circle',   cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
-    reposicion_rechazada:{ icon:'x-circle',      cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
-    // Agentes y sistema
-    agent_routine    : { icon:'cpu',             cls:'ni-info',    bg:'--purple-bg', color:'--purple-text' },
-    task_cancelled   : { icon:'slash',           cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
-    task_status      : { icon:'refresh-cw',      cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
-    reactivacion_pendiente: { icon:'rotate-ccw', cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
-    reactivacion_procesada: { icon:'check-circle',cls:'ni-success',bg:'--green-bg',  color:'--green-text'  },
-    sdv_cancelada    : { icon:'x-circle',        cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
-  };
-  const NOTIF_DEFAULT = { icon:'bell', cls:'ni-info', bg:'--sky-bg', color:'--sky-text' };
-
-  list.innerHTML = _notifications.slice(0, 50).map(n => {
-    const def = NOTIF_ICONS[n.type] || NOTIF_DEFAULT;
-    const time = n.createdAt ? timeSince(n.createdAt) : '';
-    const unread = !n.readAt;
-    const itemCls = 'notif-item' + (unread ? (' unread ' + def.cls) : '');
-    // Ícono coloreado: usa CSS vars del proyecto
-    const iconStyle = `style="--ni-bg:var(${def.bg});--ni-color:var(${def.color})"`;
-    const iconWrap = `<div class="notif-icon-wrap" ${iconStyle}><i data-lucide="${def.icon}"></i></div>`;
-    return `<div class="${itemCls}" data-notif-id="${esc(n.id)}" onclick="openNotificationById(this)">
-      ${iconWrap}
-      <div class="notif-content">
-        <div class="notif-title">${esc(n.title||n.type)}</div>
-        <div class="notif-msg">${esc(n.message||'')}</div>
-        <div class="notif-time">${time}</div>
-      </div>
-    </div>`;
-  }).join('');
+  list.innerHTML = html;
   if (window.lucide) lucide.createIcons();
 }
 
@@ -10198,6 +10559,8 @@ function updateNotifBadge() {
   } else {
     badge.classList.remove('show');
   }
+  const btn = document.getElementById('notif-btn');
+  if (btn) btn.setAttribute('aria-label', unread > 0 ? ('Notificaciones, ' + unread + ' sin leer') : 'Notificaciones');
   // App icon badge (PWA instalada)
   if ('setAppBadge' in navigator) {
     if (unread > 0) navigator.setAppBadge(unread).catch(function(){});
@@ -10210,7 +10573,20 @@ function toggleNotifPanel() {
   _notifPanelOpen = !_notifPanelOpen;
   const panel = document.getElementById('notif-panel');
   if (panel) panel.classList.toggle('open', _notifPanelOpen);
-  if (_notifPanelOpen) { _notifUpdateSoundUI(); _lastUnread = _notifications.filter(function(n){ return !n.readAt; }).length; }
+  const btn = document.getElementById('notif-btn');
+  if (btn) btn.setAttribute('aria-expanded', _notifPanelOpen ? 'true' : 'false');
+  if (_notifPanelOpen) {
+    // Siempre abrir en la lista (no en ajustes) y refrescar tiempos relativos/chips
+    if (_notifSettingsOpen) {
+      _notifSettingsOpen = false;
+      if (panel) panel.classList.remove('settings-open');
+      var gear = document.getElementById('notif-gear');
+      if (gear) gear.classList.remove('active');
+    }
+    renderNotifications();
+    _notifUpdateSoundUI();
+    _lastUnread = _notifications.filter(function(n){ return !n.readAt; }).length;
+  }
 }
 
 function closeNotifPanel() {
@@ -19827,9 +20203,13 @@ function maybeShowWelcome(){
 async function acceptWelcome(){
   try{ localStorage.setItem(_WELCOME_VER,'1'); }catch(e){}
   const el=document.getElementById('wwp-welcome'); if(el) el.style.display='none';
-  // 1) Notificaciones (todos los usuarios) — pedir permiso y suscribir push
+  // 1) Notificaciones (todos los usuarios) — pedir permiso y suscribir push.
+  // OJO: requestPermission debe ser el PRIMER await del handler para conservar
+  // el gesto del click (Safari lo exige). No insertar awaits antes.
   try{ if('Notification' in window && Notification.permission==='default'){ await Notification.requestPermission(); } }catch(e){}
   try{ _notifAutoEnablePush(); }catch(e){}
+  // iPhone/iPad en navegador: el push solo funciona instalada — mostrar instructivo una vez
+  try{ if (getPushCapability() === 'needs-install') _iosShowInstallHelp(); }catch(e){}
   // 2) Ubicación — solo si el rol del usuario tiene rastreo GPS (auxiliares)
   try{
     if(_user && (_user.sectionPerms||{})['wwp.rastreo_gps'] && navigator.geolocation){
@@ -20251,6 +20631,12 @@ if ('serviceWorker' in navigator) {
   // Fallback: el SW pide reload por postMessage si navigate() no está soportado
   navigator.serviceWorker.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'SW_RELOAD' && !_swRefreshing) { _swRefreshing = true; window.location.reload(); }
+    // Click en una notificación push con la app ya abierta: el SW enfoca esta
+    // ventana y manda el taskId — sin este handler el mensaje se perdía y la
+    // tarea nunca se abría.
+    if (e.data && e.data.type === 'NOTIFICATION_CLICK' && e.data.taskId && _token) {
+      try { openDrawer(e.data.taskId); } catch(err) {}
+    }
   });
 }
 
