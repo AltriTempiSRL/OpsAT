@@ -2410,8 +2410,13 @@ function validarEstructuraSdv(e, sdv) {
 const _repoCache = new Map(); // showroomId → { json, ts }
 const REPO_CACHE_TTL = 10 * 60 * 1000; // 10 minutos en ms
 
-// Secreto JWT persistente
-const JWT_SECRET = (() => {
+// Secreto JWT persistente. QW2 (auditoría 6-jul): si existe la env JWT_SECRET
+// se usa esa (el secreto no toca disco); si no, el archivo en DATA_DIR como
+// siempre. Guarda: solo se confía en la env con >=32 chars — un placeholder
+// corto sería un secreto de firma débil (peor que el archivo de 64 hex).
+// OJO: usar la env por primera vez invalida los tokens vivos (relogin).
+const _envJwtSecret = (process.env.JWT_SECRET || '').trim();
+const JWT_SECRET = (_envJwtSecret.length >= 32 ? _envJwtSecret : '') || (() => {
   const secretFile = path.join(DATA_DIR, '.jwt-secret');
   if (fs.existsSync(secretFile)) return fs.readFileSync(secretFile,'utf-8').trim();
   const s = crypto.randomBytes(32).toString('hex');
@@ -6007,6 +6012,34 @@ const server = http.createServer(async (req, res) => {
 
     health.allOk = health.odoo.ok && health.sheets.ok && health.contenedores.ok;
 
+    // QW6 (auditoría 6-jul): footprint de la evidencia en disco. Los backups NO cubren
+    // las fotos (snapshotAllCritical solo copia .json) → el volumen es la única copia.
+    // Esta es la señal temprana para dimensionar el volumen de Railway antes de que un
+    // disco lleno rompa la subida de evidencia y el cierre de tareas sin aviso.
+    try {
+      const _fotoDirs = { 'wwp-fotos': WWP_FOTOS_DIR, 'av-fotos': AV_FOTOS_DIR, 'desp-fotos': DESP_FOTOS_DIR, 'emp-fotos': EMP_FOTOS_DIR };
+      const _mb = b => Math.round(b/1048576*10)/10;
+      const carpetas = {}; let _totB = 0, _totN = 0;
+      for (const [_n, _dir] of Object.entries(_fotoDirs)) {
+        let _bytes = 0, _count = 0;
+        try {
+          for (const _f of fs.readdirSync(_dir)) {
+            try { const _st = fs.statSync(path.join(_dir, _f)); if (_st.isFile()) { _bytes += _st.size; _count++; } } catch(e) {}
+          }
+        } catch(e) {}
+        carpetas[_n] = { archivos: _count, mb: _mb(_bytes) };
+        _totB += _bytes; _totN += _count;
+      }
+      health.evidencia = { totalArchivos: _totN, totalMb: _mb(_totB), carpetas, backupCubreFotos: false };
+      // Espacio del volumen (Node >= 18.15; guardado por si la plataforma no lo soporta)
+      try {
+        if (typeof fs.statfsSync === 'function') {
+          const _sf = fs.statfsSync(DATA_DIR);
+          health.evidencia.disco = { libreMb: _mb(_sf.bavail * _sf.bsize), totalMb: _mb(_sf.blocks * _sf.bsize) };
+        }
+      } catch(e) {}
+    } catch(e) { health.evidencia = { error: e.message }; }
+
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify(health));
     return;
@@ -8271,8 +8304,19 @@ const server = http.createServer(async (req, res) => {
         user.resetToken       = crypto.randomBytes(32).toString('hex');
         user.resetTokenExpiry = new Date(Date.now()+60*60*1000).toISOString();
         saveAuthUsers(users);
-        const resetUrl = `http://localhost:3000/historial.html?reset=${user.resetToken}`;
-        console.warn(`\n📧 Reset password → ${user.name}\n   URL: ${resetUrl}\n`);
+        // QW1 (auditoría 6-jul): el token NUNCA va a logs de producción — en Railway
+        // quedaba legible para cualquiera con acceso a los logs (equivale a poder tomar
+        // la cuenta). En local sí se imprime (única forma de probar el flujo sin SMTP),
+        // con URL construida del Host real, no localhost fijo. En prod la recuperación
+        // operativa es el admin desde Usuarios; el correo real queda en roadmap (R7).
+        try { appendAuditLog('password_reset_requested', { userId: user.id, email: user.email }); } catch(e) { silentCatch(e,'auditResetRequested'); }
+        if (!process.env.RAILWAY_ENVIRONMENT) {
+          const _proto = String(req.headers['x-forwarded-proto']||'http').split(',')[0].trim();
+          const _host  = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+          console.warn(`\n📧 Reset password → ${user.name}\n   URL: ${_proto}://${_host}/historial.html?reset=${user.resetToken}\n`);
+        } else {
+          console.warn(`📧 Reset password solicitado → ${user.name} (token generado; por seguridad no se imprime en logs)`);
+        }
       }
     } catch {}
     res.writeHead(200,{'Content-Type':'application/json'});
@@ -8292,6 +8336,9 @@ const server = http.createServer(async (req, res) => {
       user.resetToken       = null;
       user.resetTokenExpiry = null;
       saveAuthUsers(users);
+      // QW3 (auditoría 6-jul): credencial cambiada → mueren todas las sesiones previas
+      // del usuario (refresh tokens). Antes una sesión robada sobrevivía al cambio.
+      try { saveSessions(loadSessions().filter(s => s.userId !== user.id)); } catch(e) { silentCatch(e,'invalidateSessionsReset'); }
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,message:'Contraseña actualizada correctamente'}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -8956,6 +9003,9 @@ const server = http.createServer(async (req, res) => {
         clearSelfPwAttempts(userId);
         users[idx].passwordHash = hashPassword(d.password);
         saveAuthUsers(users);
+        // QW3 (auditoría 6-jul): cierra las sesiones previas del usuario. Su access
+        // token actual (8h) sigue válido; al vencer, re-login con la clave nueva.
+        try { saveSessions(loadSessions().filter(s => s.userId !== users[idx].id)); } catch(e) { silentCatch(e,'invalidateSessionsSelfPw'); }
         try { appendAuditLog('self_password_change', { by: jwtPayload.userId, userId }); } catch(e) { silentCatch(e,'self_password_change'); }
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:true,user:{id:users[idx].id,name:users[idx].name,email:users[idx].email,role:users[idx].role}}));
@@ -8968,7 +9018,11 @@ const server = http.createServer(async (req, res) => {
       if (d.odooId !== undefined) users[idx].odooId = d.odooId;
       if (d.active !== undefined) users[idx].active = d.active;
       if (d.categoria !== undefined) users[idx].categoria = d.categoria;
-      if (d.password) users[idx].passwordHash = hashPassword(d.password);
+      if (d.password) {
+        users[idx].passwordHash = hashPassword(d.password);
+        // QW3 (auditoría 6-jul): reset por admin → cierra las sesiones del usuario afectado.
+        try { saveSessions(loadSessions().filter(s => s.userId !== users[idx].id)); } catch(e) { silentCatch(e,'invalidateSessionsAdminPw'); }
+      }
       // photoData no longer used — avatar is generated from initials
       if (d.lunchTimeAllowed !== undefined) users[idx].lunchTimeAllowed = Math.max(0, parseInt(d.lunchTimeAllowed)||60);
       if (d.workSchedule !== undefined) {
@@ -9299,6 +9353,25 @@ const server = http.createServer(async (req, res) => {
       }
       const now = new Date().toISOString();
       const isSubtask = !!(d.parentId);
+      // QW5 (auditoría 6-jul): ninguna tarea nace sin compromiso de fecha. Si el creador
+      // no manda dueDate: subtarea hereda la del padre; staffing usa su fecha fin;
+      // despacho vence HOY; el resto mañana. Fechas con componentes LOCALES del proceso
+      // (RD en prod), nunca toISOString — ver nota de eoLocalDaySerial. Se marca
+      // dueDateAuto para que la analítica distinga "la puso el sistema, no un humano".
+      let _dueAuto = false;
+      if (!d.dueDate) {
+        _dueAuto = true;
+        let _inherit = null;
+        if (isSubtask) { try { _inherit = (loadWwpTasks().find(t => t.id === d.parentId) || {}).dueDate || null; } catch(e) { silentCatch(e,'dueDateInherit'); } }
+        if (_inherit) d.dueDate = _inherit;
+        else if (d.type === 'staffing' && /^\d{4}-\d{2}-\d{2}$/.test(String(d.staffEnd||''))) d.dueDate = d.staffEnd;
+        else {
+          const _dd = new Date();
+          if (d.type !== 'dispatch_order') _dd.setDate(_dd.getDate() + 1);
+          const _p = n => String(n).padStart(2,'0');
+          d.dueDate = `${_dd.getFullYear()}-${_p(_dd.getMonth()+1)}-${_p(_dd.getDate())}`;
+        }
+      }
       const task = {
         id: wwpId('wt'),
         seq: isSubtask ? null : nextTaskSeq(),   // número de secuencia (solo tareas principales)
@@ -9321,6 +9394,7 @@ const server = http.createServer(async (req, res) => {
         phone: d.phone||'',                   // teléfono del destinatario
         location: d.location||'',
         dueDate: d.dueDate||null,
+        dueDateAuto: _dueAuto || undefined,   // true = fecha puesta por el sistema (QW5)
         actionNote: d.actionNote||'',
         // ── Solicitud de Personal (type staffing) ──
         requester: d.requester||'',           // solicitante (texto libre)
@@ -9670,6 +9744,11 @@ const server = http.createServer(async (req, res) => {
               }
             } catch(e) {
               // Fail-open: Odoo caído no bloquea la validación (no podemos comprobar).
+              // QW4 (auditoría 6-jul): el fail-open queda AUDITABLE — antes era invisible
+              // y la divergencia "WWP validada / OUT sin comprobar" no se podía medir.
+              const _refFO = (tasks[idx].outPendiente && tasks[idx].outPendiente.confirmedOutRef) || null;
+              tasks[idx].outGateFailOpen = { at: new Date().toISOString(), outRef: _refFO, error: String(e.message||'').slice(0,200) };
+              try { appendAuditLog('out_gate_fail_open', { taskId: tasks[idx].id, odooRef: tasks[idx].odooRef, outRef: _refFO, error: String(e.message||'').slice(0,200), by: jp.userId }); } catch(_a) { silentCatch(_a,'auditOutGateFailOpen'); }
               try { notifyAdminSyncError('OUT validate gate: '+(e.message||'')); } catch(_e) { silentCatch(_e,'notifyAdminSyncErrorOutGate'); }
             }
           }

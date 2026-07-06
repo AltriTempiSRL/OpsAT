@@ -115,6 +115,18 @@ Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada
 - Cerebro canónico: `C:\Users\Gabriel Ramirez\OneDrive\Documentos\GitHub\Agentes\Agentes-Estandar\_DECISIONES-DESPACHO-2026-06-20.md`
 - QA-WWP expediente actualizado con audit strategy 2026-06-20
 
+## Auditoría integral WWP (6-jul-2026)
+- Informe formal: `AUDITORIA-WWP-2026-07-06.md` — veredicto: plataforma madura y en producción; 6 fronteras de oportunidad (F0 evidencia, F1 Odoo, F2 cierre de lazo, F3 seguridad, F4 analítica, F5 escala) + backlog R0a-R10.
+- Quick-wins aplicados en `proxy.js` (verificados 19/19 en local, pendiente deploy con OK):
+  - QW1: token de reset fuera de logs de prod (en local sí, con host dinámico) + audit `password_reset_requested`.
+  - QW2: `JWT_SECRET` acepta env (⚠️ activarla en Railway = relogin de todos).
+  - QW3: cambio/reset de contraseña invalida las sesiones del usuario (3 rutas).
+  - QW4: fail-open del OUT-gate auditable (`task.outGateFailOpen` + evento `out_gate_fail_open`).
+  - QW5: `dueDate` default al crear (subtarea hereda, staffing=fecha fin, despacho=hoy, resto=mañana; `dueDateAuto:true`).
+  - QW6: `/api/health?deep=true` reporta footprint de fotos por carpeta + espacio del volumen (`fs.statfsSync`).
+- Hallazgo crítico: los backups automáticos NO cubren las fotos (solo .json) — el volumen de Railway es la única copia de la evidencia (→ R0a backup offsite, severidad crítica).
+- Pendiente manual (Gabriel): confirmar en Railway tamaño y uso del volumen `DATA_DIR`.
+
 ## Pendientes / notas abiertas
-- (Ninguno crítico al cierre de esta sesión.)
+- Deploy de los quick-wins de la auditoría: espera OK explícito (commit+push antes de `railway up`).
 - Posibles mejoras sugeridas no implementadas: ubicación al subir cada evidencia individual de artículo (ya se captura en fotos de despacho).
