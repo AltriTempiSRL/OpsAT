@@ -8836,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v145';
+var APP_BUILD = 'v146';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32669,6 +32669,152 @@ function sdvEspGetArticulosMarcados() {
   }).filter(Boolean);
 }
 
+// ── Solicitud especial: corregir y reenviar tras rechazo ──────────────────
+// El PATCH /api/sdv/:id ya regresa una SDV 'rechazada' a 'pendiente_revision' cuando
+// la dueña (no Ops) edita cualquier campo (proxy.js ~13630) — aquí solo falta el form.
+// Estado propio (NO reutiliza _sdvEspAsociada/_sdvEspArticulosSel del formulario de
+// creación, que son globales de "nueva solicitud" y se pisarían entre sí).
+var _sdvEspEditAsociada = null;
+var _sdvEspEditArticulosSel = {}; // { idx: cantidad } sobre articulosOdoo de la asociada
+
+async function sdvOpenEspecialEditModal(id) {
+  var modal = document.getElementById('sdv-esp-edit-modal');
+  if (!modal) return;
+  document.getElementById('sdv-espedit-current-id').value = id;
+  _sdvEspEditAsociada = null; _sdvEspEditArticulosSel = {};
+  try {
+    var r = await authFetch('/api/sdv/'+id);
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast('Error al cargar la solicitud'); return; }
+    var s = d.solicitud;
+    document.getElementById('sdv-espedit-folio').textContent = s.folio||s.id;
+    document.getElementById('sdv-espedit-estado').textContent = SDV_ESTADO_LABEL[s.estado]||s.estado;
+    var motivo = (s.statusHistory||[]).slice().reverse().find(function(h){ return h.estado==='rechazada'; });
+    document.getElementById('sdv-espedit-motivo').textContent = (motivo && motivo.nota) || 'sin motivo registrado';
+    document.getElementById('sdv-espedit-asunto').value = s.asunto||'';
+    document.getElementById('sdv-espedit-descripcion').value = s.descripcion||'';
+    document.getElementById('sdv-espedit-ciudad').value = s.ciudadEntrega||'';
+    document.getElementById('sdv-espedit-direccion').value = s.direccionEntrega||'';
+    document.getElementById('sdv-espedit-observaciones').value = s.observaciones||'';
+    if (s.fechaSolicitudDeseada) {
+      var dt = new Date(s.fechaSolicitudDeseada);
+      var yyyy=dt.getFullYear(), mm=String(dt.getMonth()+1).padStart(2,'0'), dd=String(dt.getDate()).padStart(2,'0');
+      document.getElementById('sdv-espedit-fecha-date').value = yyyy+'-'+mm+'-'+dd;
+      var hr12 = dt.getHours()%12||12;
+      document.getElementById('sdv-espedit-fecha-hr').value = String(hr12).padStart(2,'0');
+      document.getElementById('sdv-espedit-fecha-min').value = String(dt.getMinutes()).padStart(2,'0');
+      document.getElementById('sdv-espedit-fecha-ampm').value = dt.getHours()>=12 ? 'PM' : 'AM';
+    } else {
+      document.getElementById('sdv-espedit-fecha-date').value = '';
+      document.getElementById('sdv-espedit-fecha-hr').value = '10';
+      document.getElementById('sdv-espedit-fecha-min').value = '00';
+      document.getElementById('sdv-espedit-fecha-ampm').value = 'PM';
+    }
+    var artSec = document.getElementById('sdv-espedit-articulos-section');
+    if (s.sdvAsociadaId) {
+      try {
+        var r2 = await authFetch('/api/sdv/'+s.sdvAsociadaId);
+        var d2 = await r2.json();
+        if (r2.ok && d2.ok) {
+          _sdvEspEditAsociada = d2.solicitud;
+          // Pre-marcar según lo que ya traía la especial (match por sku) para no perder la selección previa.
+          var arts = _sdvEspEditAsociada.articulosOdoo || [];
+          (s.articulosOdoo||[]).forEach(function(a){
+            var idxFound = arts.findIndex(function(x){ return x.sku===a.sku; });
+            if (idxFound>=0) _sdvEspEditArticulosSel[idxFound] = a.quantity||1;
+          });
+          document.getElementById('sdv-espedit-articulos-folio').textContent = _sdvEspEditAsociada.folio||_sdvEspEditAsociada.id;
+          artSec.style.display = '';
+          sdvEspEditRenderArticulos();
+        } else { artSec.style.display = 'none'; }
+      } catch(e) { artSec.style.display = 'none'; }
+    } else { artSec.style.display = 'none'; }
+    modal.style.display = 'flex';
+    if (window.lucide) lucide.createIcons();
+  } catch(e) { toast('Error: '+e.message); }
+}
+
+function sdvEspEditRenderArticulos() {
+  var box = document.getElementById('sdv-espedit-articulos');
+  var arts = (_sdvEspEditAsociada && _sdvEspEditAsociada.articulosOdoo) || [];
+  if (!box || !arts.length) return;
+  box.innerHTML = arts.map(function(it, i){
+    var sel = Object.prototype.hasOwnProperty.call(_sdvEspEditArticulosSel, i);
+    var max = parseInt(it.quantity,10) || 1;
+    var stepper = sel && max > 1
+      ? '<div style="text-align:center;flex-shrink:0"><div class="sdv-qty-stepper">'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspEditStepQty('+i+',-1)" aria-label="Menos">−</button>'+
+          '<span class="sdv-qty-val" id="sdv-espedit-qty-'+i+'">'+_sdvEspEditArticulosSel[i]+'</span>'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspEditStepQty('+i+',1)" aria-label="Más">+</button>'+
+        '</div><div class="sdv-item-qty-max">de '+max+'</div></div>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<label class="sdv-check-row" style="flex:1;min-width:0">'+
+        '<input type="checkbox" '+(sel?'checked ':'')+'onchange="sdvEspEditToggleArticulo('+i+',this.checked)">'+
+        '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+max+'</span>'+
+      '</label>'+stepper+
+    '</div>';
+  }).join('');
+}
+
+function sdvEspEditToggleArticulo(idx, checked) {
+  var arts = (_sdvEspEditAsociada && _sdvEspEditAsociada.articulosOdoo) || [];
+  if (checked) _sdvEspEditArticulosSel[idx] = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  else delete _sdvEspEditArticulosSel[idx];
+  sdvEspEditRenderArticulos();
+}
+
+function sdvEspEditStepQty(idx, delta) {
+  var arts = (_sdvEspEditAsociada && _sdvEspEditAsociada.articulosOdoo) || [];
+  var max = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  var n = Math.max(1, Math.min(max, (_sdvEspEditArticulosSel[idx]||1) + delta));
+  _sdvEspEditArticulosSel[idx] = n;
+  var el = document.getElementById('sdv-espedit-qty-'+idx);
+  if (el) el.textContent = n;
+}
+
+function sdvEspEditGetArticulosMarcados() {
+  var arts = (_sdvEspEditAsociada && _sdvEspEditAsociada.articulosOdoo) || [];
+  return Object.keys(_sdvEspEditArticulosSel).map(function(i){
+    var a = arts[i]; if (!a) return null;
+    return Object.assign({}, a, { quantity: _sdvEspEditArticulosSel[i] });
+  }).filter(Boolean);
+}
+
+function sdvEspEditClose() {
+  var modal = document.getElementById('sdv-esp-edit-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function sdvSaveEspecialEdit() {
+  var id = document.getElementById('sdv-espedit-current-id').value;
+  if (!id) return;
+  var asunto = (document.getElementById('sdv-espedit-asunto').value||'').trim();
+  var descripcion = (document.getElementById('sdv-espedit-descripcion').value||'').trim();
+  if (!asunto || !descripcion) { toast('Completa asunto y descripción'); return; }
+  var btn = document.getElementById('sdv-espedit-save-btn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    var body = {
+      asunto: asunto,
+      descripcion: descripcion,
+      ciudadEntrega: (document.getElementById('sdv-espedit-ciudad').value||'').trim(),
+      direccionEntrega: (document.getElementById('sdv-espedit-direccion').value||'').trim(),
+      observaciones: (document.getElementById('sdv-espedit-observaciones').value||'').trim(),
+      fechaSolicitudDeseada: sdvGetFecha('sdv-espedit-fecha') || null,
+      articulosOdoo: sdvEspEditGetArticulosMarcados(),
+    };
+    var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify(body)});
+    var d = await r.json();
+    if (!r.ok||!d.ok) { toast(d.error||'Error al guardar'); return; }
+    toast('Solicitud corregida y reenviada a operaciones', 'success');
+    sdvEspEditClose();
+    sdvCloseDrawer();
+    sdvCargarMis();
+  } catch(e) { toast('Error: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='Corregir y reenviar'; }
+}
+
 // Cerrar el dropdown de SDV asociada al hacer clic fuera de él
 document.addEventListener('click', function(e){
   if (e.target.closest && (e.target.closest('#sdv-esp-sdv-input') || e.target.closest('#sdv-esp-sdv-dd'))) return;
@@ -34955,8 +35101,9 @@ async function sdvVerDetalle(id, ctx) {
         '<button class="btn btn-primary" onclick="sdvCrearAdicional(\''+s.id+'\')"><i data-lucide="plus" style="width:14px;height:14px;vertical-align:-2px"></i> Crear solicitud adicional para esta orden</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada' && s.tipoSolicitud==='solicitud_especial') {
-      acciones = '<div style="margin-top:16px">'+
-        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:8px;line-height:1.5"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Cancélala y crea una nueva con los ajustes necesarios.</div>'+
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<div style="font-size:var(--fs-sm);color:var(--amber-text);margin-bottom:2px;line-height:1.5;flex-basis:100%"><i data-lucide="alert-triangle" style="width:14px;height:14px;vertical-align:-2px"></i> Operaciones devolvió esta solicitud. Corrígela y reenvíala, o cancélala.</div>'+
+        '<button class="btn btn-primary" onclick="sdvOpenEspecialEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Corregir y reenviar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
       '</div>';
     } else if (ctx==='mis' && s.estado==='rechazada') {
@@ -36107,6 +36254,87 @@ async function loadCancelacionesKPIs() {
   </div>
 </div>
 <input type="hidden" id="sdv-edit-current-id">
+
+<!-- Modal: Corregir y reenviar Solicitud Especial (tras rechazo). El modal genérico de arriba
+     es Odoo-céntrico (exige Receptor/Contacto, muestra artículos de Odoo read-only) y no aplica
+     a un texto libre — esta versión edita asunto/descripción/artículos marcados/fecha/dirección. -->
+<div id="sdv-esp-edit-modal" class="sdv-edit-modal-overlay">
+  <div class="sdv-edit-modal-card" role="dialog" aria-modal="true">
+    <div class="sdv-edit-modal-header">
+      <h2 class="sdv-edit-modal-title">Corregir Solicitud Especial</h2>
+      <button onclick="sdvEspEditClose()" class="sdv-edit-modal-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="sdv-edit-modal-body">
+      <div class="sdv-edit-modal-info">
+        <div><strong id="sdv-espedit-folio"></strong> · <span id="sdv-espedit-estado"></span></div>
+        <div style="font-size:var(--fs-sm);color:var(--amber-text);margin-top:6px;line-height:1.4"><i data-lucide="alert-triangle" style="width:13px;height:13px;vertical-align:-2px"></i> Motivo del rechazo: <span id="sdv-espedit-motivo"></span></div>
+      </div>
+      <div class="sdv-edit-modal-local-section">
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Asunto <span class="req" style="color:var(--red-text)">*</span></label>
+            <input class="sdv-input" id="sdv-espedit-asunto" maxlength="120">
+          </div>
+        </div>
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Descripción <span class="req" style="color:var(--red-text)">*</span></label>
+            <textarea class="sdv-ta" id="sdv-espedit-descripcion"></textarea>
+          </div>
+        </div>
+        <div id="sdv-espedit-articulos-section" style="display:none;margin-bottom:14px">
+          <div class="sdv-items-box">
+            <div class="sdv-items-header"><span>Artículos de <span id="sdv-espedit-articulos-folio"></span> — marca los involucrados y ajusta la cantidad</span></div>
+            <div id="sdv-espedit-articulos"></div>
+          </div>
+        </div>
+        <div class="sdv-form-grid" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Ciudad <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <input class="sdv-input" id="sdv-espedit-ciudad">
+          </div>
+          <div class="sdv-field">
+            <label>Dirección <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <input class="sdv-input" id="sdv-espedit-direccion">
+          </div>
+        </div>
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Fecha y Hora Deseada <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <div class="sdv-fecha-row">
+              <input class="sdv-input sdv-fecha-date" id="sdv-espedit-fecha-date" type="date" style="flex:2;min-width:120px">
+              <div class="sdv-fecha-time-wrap">
+                <select class="sdv-time-sel" id="sdv-espedit-fecha-hr">
+                  <option>01</option><option>02</option><option>03</option><option>04</option>
+                  <option>05</option><option>06</option><option>07</option><option>08</option>
+                  <option>09</option><option selected>10</option><option>11</option><option>12</option>
+                </select>
+                <span style="color:var(--text-2);font-weight:700">:</span>
+                <select class="sdv-time-sel" id="sdv-espedit-fecha-min">
+                  <option>00</option><option>15</option><option>30</option><option>45</option>
+                </select>
+                <select class="sdv-time-sel" id="sdv-espedit-fecha-ampm">
+                  <option>AM</option><option selected>PM</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sdv-form-grid cols1">
+          <div class="sdv-field">
+            <label>Observaciones <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <textarea class="sdv-ta" id="sdv-espedit-observaciones"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sdv-edit-modal-footer">
+      <button onclick="sdvEspEditClose()" class="sdv-edit-modal-btn">Cancelar</button>
+      <button onclick="sdvSaveEspecialEdit()" class="sdv-edit-modal-btn sdv-edit-modal-btn-primary" id="sdv-espedit-save-btn">Corregir y reenviar</button>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="sdv-espedit-current-id">
 
 <!-- Modal: Mapa SDV Edit -->
 <div id="sdv-edit-map-overlay" class="sdv-map-overlay" style="display:none">
