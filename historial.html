@@ -8836,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v146';
+var APP_BUILD = 'v147';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32794,6 +32794,7 @@ async function sdvSaveEspecialEdit() {
   if (!asunto || !descripcion) { toast('Completa asunto y descripción'); return; }
   var btn = document.getElementById('sdv-espedit-save-btn');
   btn.disabled = true; btn.textContent = 'Enviando…';
+  var _esOps = _user && (_user.role==='admin' || _user.role==='manager');
   try {
     var body = {
       asunto: asunto,
@@ -32804,13 +32805,19 @@ async function sdvSaveEspecialEdit() {
       fechaSolicitudDeseada: sdvGetFecha('sdv-espedit-fecha') || null,
       articulosOdoo: sdvEspEditGetArticulosMarcados(),
     };
+    // El auto-reenvío rechazada→pendiente_revision del backend solo aplica cuando quien
+    // edita es la dueña (no-ops). Si corrige Ops, hay que pedir la transición explícita
+    // (válida: SDV_TRANSICIONES.rechazada incluye pendiente_revision).
+    if (_esOps) { body.estado = 'pendiente_revision'; body.razon = 'Corregida por Operaciones y reenviada al flujo'; }
     var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify(body)});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al guardar'); return; }
-    toast('Solicitud corregida y reenviada a operaciones', 'success');
+    toast(_esOps ? 'Solicitud corregida y devuelta al flujo (pendiente de revisión)' : 'Solicitud corregida y reenviada a operaciones', 'success');
     sdvEspEditClose();
     sdvCloseDrawer();
-    sdvCargarMis();
+    // Recargar la vista desde la que se corrigió (Ops: Bandeja; vendedora: Mis Solicitudes).
+    if (_esOps && typeof sdvBandejaCargar==='function') sdvBandejaCargar();
+    else if (typeof sdvCargarMis==='function') sdvCargarMis();
   } catch(e) { toast('Error: '+e.message); }
   finally { btn.disabled=false; btn.textContent='Corregir y reenviar'; }
 }
@@ -35056,6 +35063,14 @@ async function sdvVerDetalle(id, ctx) {
         '<button class="btn btn-primary" onclick="sdvAprobar(\''+s.id+'\',\''+s.tipoSolicitud+'\')"><i data-lucide="check-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Aprobar (crea la tarea)</button>'+
         '<button class="btn" style="color:var(--amber-text);border-color:var(--amber-text)" onclick="sdvRechazar(\''+s.id+'\')"><i data-lucide="x-circle" style="width:14px;height:14px;vertical-align:-2px"></i> Rechazar</button>'+
         '<button class="btn" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvOpenCancelModal(\''+s.id+'\',\''+s.estado+'\',\''+s.tipoSolicitud+'\')">Cancelar</button>'+
+      '</div>';
+    } else if (ctx==='bandeja' && isOps && s.estado==='rechazada' && s.tipoSolicitud==='solicitud_especial') {
+      // Ops puede corregir una especial rechazada y devolverla al flujo (vuelve a
+      // pendiente_revision). Mismo modal que usa la vendedora; el guardado detecta el
+      // rol y, si es Ops, fuerza la transición rechazada→pendiente_revision.
+      acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+
+        '<div style="font-size:var(--fs-sm);color:var(--text-2);margin-bottom:2px;line-height:1.5;flex-basis:100%"><i data-lucide="info" style="width:14px;height:14px;vertical-align:-2px"></i> La devolviste a la vendedora. Puedes corregirla tú y reenviarla al flujo, o dejar que la corrija ella desde «Mis Solicitudes».</div>'+
+        '<button class="btn btn-primary" onclick="sdvOpenEspecialEditModal(\''+s.id+'\')"><i data-lucide="edit" style="width:14px;height:14px;vertical-align:-2px"></i> Corregir y reenviar</button>'+
       '</div>';
     } else if (ctx==='bandeja' && isOps && s.estado==='en_proceso') {
       if (s.wwpTareaActiva) {
