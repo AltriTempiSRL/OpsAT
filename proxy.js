@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v143';
+const APP_BUILD = 'v144';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -401,6 +401,10 @@ const WWP_LUNCH_FILE        = path.join(DATA_DIR, 'wwp-lunch-breaks.json');
 const WWP_INSPECTIONS_FILE  = path.join(DATA_DIR, 'wwp-inspecciones.json');
 const WWP_VEHICLES_FILE     = path.join(DATA_DIR, 'wwp-vehicles.json');
 if (!fs.existsSync(WWP_FOTOS_DIR)) fs.mkdirSync(WWP_FOTOS_DIR, { recursive: true });
+// Adjuntos de SDV (fotos/videos que la vendedora sube al crear la solicitud) — separados de
+// wwp-fotos porque su ciclo de vida es de la SDV, no de las tareas.
+const SDV_ADJ_DIR = path.join(DATA_DIR, 'sdv-adjuntos');
+if (!fs.existsSync(SDV_ADJ_DIR)) fs.mkdirSync(SDV_ADJ_DIR, { recursive: true });
 
 function loadLunchBreaks() { return loadJson(WWP_LUNCH_FILE, []); }
 function saveLunchBreaks(b) { saveJson(WWP_LUNCH_FILE, b); }
@@ -5193,6 +5197,10 @@ const MIME = {
   '.webp': 'image/webp',
   '.svg':  'image/svg+xml',
   '.ico':  'image/x-icon',
+  '.mp4':  'video/mp4',
+  '.webm': 'video/webm',
+  '.mov':  'video/quicktime',
+  '.m4v':  'video/x-m4v',
 };
 
 // ── Leer body JSON de una request (con límite de tamaño) ────────────────────
@@ -13426,6 +13434,59 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/sdv/:id/adjuntos — subir foto o video a la solicitud [ventas dueña, manager, admin]
+  // Un archivo por request (base64): imagen ≤5 MB (validatePhoto) o video mp4/webm/mov/m4v
+  // ≤30 MB (mismas reglas que el chat de tareas). Se sirven como /sdv-adjuntos/<archivo>.
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/adjuntos$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['ventas','manager','admin'])) return;
+    const id = reqPath.split('/')[3];
+    try {
+      const list = loadSdv();
+      const idx = list.findIndex(s => s.id === id);
+      if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      const sol = list[idx];
+      const isOps = ['admin','manager'].includes(jp.role);
+      if (!isOps && sol.creadoPor !== jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      if (sol.estado === 'cancelada') { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La solicitud está cancelada; no admite adjuntos.'})); return; }
+      const d = await readBody(req);
+      if (!d.data) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'data (base64) requerido'})); return; }
+      const rawExt = ((d.ext||'').replace(/[^a-zA-Z0-9]/g,'')||'jpg').toLowerCase();
+      const VIDEO_EXTS = ['mp4','webm','mov','m4v'];
+      let fname, tipo;
+      const ts = Date.now();
+      const rand = Math.random().toString(36).slice(2,8);
+      if (VIDEO_EXTS.includes(rawExt)) {
+        const b64 = String(d.data).replace(/^data:[^;]+;base64,/, '');
+        const bytes = Math.ceil(b64.length * 0.75);
+        if (bytes > 30 * 1024 * 1024) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:`Video demasiado grande (${(bytes/1024/1024).toFixed(1)} MB, máx 30 MB)`})); return; }
+        fname = `${sol.id}_adj_${ts}_${rand}.${rawExt}`; tipo = 'video';
+        fs.writeFileSync(path.join(SDV_ADJ_DIR, fname), Buffer.from(b64,'base64'));
+      } else {
+        let vp;
+        try { vp = validatePhoto({ data: d.data, ext: rawExt }); }
+        catch(e) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
+        fname = `${sol.id}_adj_${ts}_${rand}.${vp.ext}`; tipo = 'imagen';
+        fs.writeFileSync(path.join(SDV_ADJ_DIR, fname), Buffer.from(vp.b64,'base64'));
+      }
+      const adjunto = {
+        url: '/sdv-adjuntos/' + fname,
+        tipo,
+        nombre: String(d.nombre||'').slice(0,120),
+        subidoPor: jp.userId,
+        subidoNombre: jp.name,
+        at: new Date().toISOString()
+      };
+      sol.adjuntos = sol.adjuntos || [];
+      sol.adjuntos.push(adjunto);
+      list[idx] = sol; saveSdv(list);
+      try { appendAuditLog('sdv_adjunto', { sdvId: sol.id, folio: sol.folio||'', url: adjunto.url, tipo, by: jp.userId }); } catch(e) { silentCatch(e,'auditSdvAdjunto'); }
+      res.writeHead(201,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, adjunto}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
   // GET /api/sdv/:id/fotos — evidencias de TODAS las tareas del vínculo (multi-despacho v117),
   // agrupadas por tarea y clasificadas por tipo. Sirve URLs /wwp-fotos/… (nunca base64).
   // RBAC: admin/manager ven todo; 'ventas' (dueña) solo entrega + vehículo — la evidencia de
@@ -15704,6 +15765,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath.startsWith('/av-fotos/'))  filePath = path.join(AV_FOTOS_DIR,  path.basename(reqPath));
   if (reqPath.startsWith('/desp-fotos/')) filePath = path.join(DESP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));
+  if (reqPath.startsWith('/sdv-adjuntos/')) filePath = path.join(SDV_ADJ_DIR, path.basename(reqPath));
 
   // ── Protección: path traversal + archivos sensibles ──────────────────────
   const _realPath = path.resolve(filePath);
@@ -15724,7 +15786,7 @@ const server = http.createServer(async (req, res) => {
   const _ALLOWED_EXT = new Set([
     '.html', '.css', '.js', '.json', '.ico', '.png', '.jpg',
     '.jpeg', '.gif', '.webp', '.svg', '.woff', '.woff2', '.ttf',
-    '.eot', '.map', '.csv'
+    '.eot', '.map', '.csv', '.mp4', '.webm', '.mov', '.m4v'
   ]);
   const _fname = path.basename(_realPath);
   const _fext  = path.extname(_realPath).toLowerCase();
@@ -15761,6 +15823,30 @@ const server = http.createServer(async (req, res) => {
       headers['Cache-Control'] = 'public, max-age=3600';
     } else {
       headers['Cache-Control'] = 'public, max-age=3600';
+    }
+    // Video: streaming con soporte de Range (206) — iOS Safari NO reproduce <video>
+    // sin rangos, y bufferear 30 MB para gzipear (que no comprime video) es desperdicio.
+    if (['.mp4','.webm','.mov','.m4v'].includes(ext)) {
+      headers['Accept-Ranges'] = 'bytes';
+      const _rng = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+      let start = 0, end = stat.size - 1;
+      if (_rng && (_rng[1] || _rng[2])) {
+        if (_rng[1]) { start = parseInt(_rng[1], 10); if (_rng[2]) end = Math.min(parseInt(_rng[2], 10), end); }
+        else { start = Math.max(0, stat.size - parseInt(_rng[2], 10)); } // sufijo: últimos N bytes
+        if (start > end || start >= stat.size) {
+          res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` }); res.end(); return;
+        }
+        headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+        headers['Content-Length'] = end - start + 1;
+        res.writeHead(206, headers);
+      } else {
+        headers['Content-Length'] = stat.size;
+        res.writeHead(200, headers);
+      }
+      const stream = fs.createReadStream(filePath, { start, end });
+      stream.on('error', () => { try { res.end(); } catch(e) {} });
+      stream.pipe(res);
+      return;
     }
     const acceptsGzip = (req.headers['accept-encoding'] || '').includes('gzip');
     const sendGz = (gz) => {

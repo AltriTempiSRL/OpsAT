@@ -7022,6 +7022,16 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
                 <textarea class="sdv-ta" id="sdv-observaciones" placeholder="Indicaciones especiales, condición, cuidados…"></textarea>
               </div>
             </div>
+            <div class="sdv-form-grid cols1" style="margin-bottom:14px">
+              <div class="sdv-field">
+                <label>Fotos o Videos <span style="color:var(--text-3);font-weight:400">(opcional — condición de la mercancía, lugar de recogida…)</span></label>
+                <input type="file" id="sdv-adj-input" accept="image/*,video/*" multiple style="display:none" onchange="sdvAdjOnPick(this)">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('sdv-adj-input').click()">
+                  <i data-lucide="paperclip" style="width:14px;height:14px;vertical-align:-2px"></i> Agregar fotos o videos
+                </button>
+                <div id="sdv-adj-previews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+              </div>
+            </div>
             <div class="sdv-submit-row">
               <button class="btn btn-secondary" onclick="sdvReset()">Limpiar</button>
               <button class="btn btn-primary" onclick="sdvEnviar()" id="sdv-submit-btn">
@@ -8826,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v143';
+var APP_BUILD = 'v144';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32636,6 +32646,102 @@ document.addEventListener('click', function(e){
   if (dd) dd.classList.remove('open');
 });
 
+// ── Adjuntos de la solicitud (fotos/videos, común a los 4 tipos) ──────────
+// Se seleccionan en el formulario y se suben DESPUÉS del 201 de creación, uno por
+// request (mismo patrón base64 del chat de tareas). Límites espejo del server:
+// imagen ≤5 MB, video mp4/webm/mov/m4v ≤30 MB, máx 6 archivos por solicitud.
+var _sdvAdjuntos = []; // {dataUrl, ext, tipo:'imagen'|'video', nombre, mb}
+var SDV_ADJ_MAX = 6;
+var SDV_ADJ_VIDEO_EXTS = ['mp4','webm','mov','m4v'];
+
+function sdvAdjOnPick(inp) {
+  var files = Array.prototype.slice.call(inp.files || []);
+  inp.value = ''; // permitir re-seleccionar el mismo archivo tras quitarlo
+  files.forEach(function(f) {
+    if (_sdvAdjuntos.length >= SDV_ADJ_MAX) { toast('Máximo '+SDV_ADJ_MAX+' adjuntos por solicitud'); return; }
+    var ext = (f.name.split('.').pop() || '').toLowerCase();
+    var esVideo = SDV_ADJ_VIDEO_EXTS.includes(ext) || /^video\//.test(f.type);
+    if (esVideo && !SDV_ADJ_VIDEO_EXTS.includes(ext)) { toast(f.name+': formato de video no permitido (usa MP4, WebM o MOV)'); return; }
+    if (!esVideo && !/^image\//.test(f.type)) { toast(f.name+': solo se permiten fotos o videos'); return; }
+    var maxMb = esVideo ? 30 : 5;
+    if (f.size > maxMb*1024*1024) { toast(f.name+': demasiado grande ('+(f.size/1024/1024).toFixed(1)+' MB, máx '+maxMb+' MB para '+(esVideo?'video':'foto')+')'); return; }
+    var rd = new FileReader();
+    rd.onload = function() {
+      _sdvAdjuntos.push({ dataUrl: rd.result, ext: esVideo ? ext : (ext||'jpg'), tipo: esVideo?'video':'imagen', nombre: f.name, mb: (f.size/1024/1024).toFixed(1) });
+      sdvAdjRender();
+    };
+    rd.readAsDataURL(f);
+  });
+}
+
+function sdvAdjRender() {
+  var box = document.getElementById('sdv-adj-previews');
+  if (!box) return;
+  box.innerHTML = _sdvAdjuntos.map(function(a, i) {
+    var inner = a.tipo === 'imagen'
+      ? '<img src="'+a.dataUrl+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">'
+      : '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface-3)">'+
+          '<i data-lucide="video" style="width:22px;height:22px;color:var(--text-2)"></i>'+
+          '<span style="font-size:9px;color:var(--text-2);max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.nombre)+'</span>'+
+          '<span style="font-size:9px;color:var(--text-3)">'+a.mb+' MB</span>'+
+        '</div>';
+    return '<div style="position:relative;width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;background:var(--surface-2)">'+inner+
+      '<button type="button" onclick="sdvAdjQuitar('+i+')" aria-label="Quitar adjunto" '+
+        'style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+    '</div>';
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function sdvAdjQuitar(i) { _sdvAdjuntos.splice(i, 1); sdvAdjRender(); }
+
+function sdvAdjClear() {
+  _sdvAdjuntos = [];
+  var box = document.getElementById('sdv-adj-previews'); if (box) box.innerHTML = '';
+  var inp = document.getElementById('sdv-adj-input'); if (inp) inp.value = '';
+}
+
+// Sube los adjuntos a la SDV recién creada. La SDV ya existe: un fallo aquí NO revierte
+// la creación — se reporta cuántos quedaron fuera para que la vendedora reintente/avise.
+async function sdvSubirAdjuntos(sdvId, btn) {
+  if (!_sdvAdjuntos.length) return { subidos: 0, fallidos: 0 };
+  var subidos = 0, fallidos = 0;
+  for (var i = 0; i < _sdvAdjuntos.length; i++) {
+    var a = _sdvAdjuntos[i];
+    if (btn) btn.textContent = 'Subiendo adjunto '+(i+1)+'/'+_sdvAdjuntos.length+'…';
+    try {
+      var r = await authFetch('/api/sdv/'+sdvId+'/adjuntos', { method:'POST',
+        body: JSON.stringify({ data: a.dataUrl, ext: a.ext, nombre: a.nombre }) });
+      var d = await r.json();
+      if (r.ok && d.ok) subidos++; else { fallidos++; console.warn('[SDV adjunto]', a.nombre, d.error); }
+    } catch(e) { fallidos++; console.warn('[SDV adjunto]', a.nombre, e.message); }
+  }
+  return { subidos: subidos, fallidos: fallidos };
+}
+
+// ── Adjuntos en el detalle: miniaturas (foto → lightbox) + video inline ──
+function sdvAdjuntosHtml(s) {
+  var adj = s.adjuntos || [];
+  if (!adj.length) return '';
+  var imgs = adj.filter(function(a){ return a.tipo === 'imagen'; });
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+  adj.forEach(function(a) {
+    if (a.tipo === 'imagen') {
+      var idx = imgs.indexOf(a);
+      html += '<button type="button" title="'+esc(a.nombre||'')+'" '+
+        'onclick=\'avLightboxOpen(null,null,'+JSON.stringify(imgs.map(function(x){ return { url:x.url, cap:(x.nombre||'')+(x.subidoNombre?' · '+x.subidoNombre:'') }; })).replace(/'/g,'&#39;')+','+idx+')\' '+
+        'style="width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;padding:0;cursor:pointer;background:var(--surface-2)">'+
+        '<img loading="lazy" src="'+esc(a.url)+'" alt="'+esc(a.nombre||'')+'" style="width:100%;height:100%;object-fit:cover;display:block"></button>';
+    } else {
+      html += '<video controls preload="metadata" src="'+esc(a.url)+'" '+
+        'style="width:100%;max-width:320px;border-radius:8px;border:1px solid var(--border);background:#000"></video>';
+    }
+  });
+  html += '</div>';
+  var quien = adj[0].subidoNombre ? '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Subido por '+esc(adj[0].subidoNombre)+'</div>' : '';
+  return html + quien;
+}
+
 function sdvInfo(msg, cls) {
   var el = _sdv$('sdv-lookup-info');
   el.textContent = msg;
@@ -32710,7 +32816,10 @@ async function sdvEnviar() {
     var r = await authFetch('/api/sdv',{method:'POST',body:JSON.stringify(body)});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al enviar'); return; }
-    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones', 'success');
+    // Adjuntos: la SDV ya existe — un fallo de subida no revierte, solo se avisa.
+    var _adj = await sdvSubirAdjuntos(d.solicitud.id, btn);
+    if (_adj.fallidos) toast(_adj.fallidos+' adjunto(s) no se pudieron subir; la solicitud '+d.solicitud.folio+' fue creada sin ellos.', 9000);
+    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones'+(_adj.subidos?' con '+_adj.subidos+' adjunto(s)':''), 'success');
     sdvReset(true);
     sdvSwitchTab('mis');
   } catch(e) { toast('Error: '+e.message); }
@@ -32740,7 +32849,10 @@ async function sdvEnviarEspecial() {
     var r = await authFetch('/api/sdv',{method:'POST',body:JSON.stringify(body)});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al enviar'); return; }
-    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones', 'success');
+    // Adjuntos: la SDV ya existe — un fallo de subida no revierte, solo se avisa.
+    var _adj = await sdvSubirAdjuntos(d.solicitud.id, btn);
+    if (_adj.fallidos) toast(_adj.fallidos+' adjunto(s) no se pudieron subir; la solicitud '+d.solicitud.folio+' fue creada sin ellos.', 9000);
+    toast('Solicitud '+d.solicitud.folio+' enviada a operaciones'+(_adj.subidos?' con '+_adj.subidos+' adjunto(s)':''), 'success');
     sdvReset(true);
     sdvSwitchTab('mis');
   } catch(e) { toast('Error: '+e.message); }
@@ -32761,6 +32873,7 @@ function sdvReset(skipConfirm) {
    'sdv-receptor-nombre','sdv-receptor-contacto','sdv-observaciones','sdv-gps',
    'sdv-esp-asunto','sdv-esp-descripcion','sdv-esp-direccion','sdv-esp-ciudad'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   sdvEspClear();
+  sdvAdjClear();
   // Selects de almacén (traslado interno)
   var selOrigen=document.getElementById('sdv-origen'); if(selOrigen) selOrigen.value='';
   var selDestino=document.getElementById('sdv-destino'); if(selDestino) selDestino.value='';
@@ -34864,6 +34977,7 @@ async function sdvVerDetalle(id, ctx) {
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.wwpTaskId && isOps?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
         (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+esc(t.titulo||'')+(t.status?' · <span class="eo-ops-chip">'+(STATUS_LABELS[t.status]||t.status)+'</span>':'')+'</dd></div>'; }).join('')+'</div>':'')+
+        (s.adjuntos&&s.adjuntos.length?'<div class="sdv-detail-section"><h4>Adjuntos de la solicitud</h4>'+sdvAdjuntosHtml(s)+'</div>':'')+
         '<div class="sdv-detail-section" id="sdv-fotos-section"><h4>Fotos del despacho</h4><div id="sdv-drawer-fotos"><div style="color:var(--text-2);font-size:12px;padding:4px 0">Cargando evidencias…</div></div></div>'+
         acciones+
         ((ctx==='bandeja' && _user && _user.role==='admin') ? '<div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border-light)"><button class="btn btn-sm" style="color:var(--red-text);border-color:var(--red-text)" onclick="sdvEliminar(\''+s.id+'\',\''+esc(s.folio||'')+'\')"><i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:-2px"></i> Eliminar solicitud (admin)</button></div>' : '')+
