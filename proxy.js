@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v140';
+const APP_BUILD = 'v141';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -219,6 +219,22 @@ const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 
 function loadPushSubs()       { return loadJson(PUSH_SUBS_FILE, []); }
 function savePushSubs(list)   { saveJson(PUSH_SUBS_FILE, list); }
+
+// Envía un payload Web Push a TODAS las suscripciones de un usuario y limpia
+// las expiradas (410/404). `payloadObj` es un objeto (se serializa aquí).
+// No filtra por preferencias — el caller decide si debe enviar.
+function sendWebPushToUser(userId, payloadObj) {
+  if (!webpush || !userId) return;
+  const payload = JSON.stringify(payloadObj);
+  loadPushSubs().filter(s => s.userId === userId).forEach(s => {
+    webpush.sendNotification(s.subscription, payload).catch(err => {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        const rest = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
+        savePushSubs(rest);
+      }
+    });
+  });
+}
 function pushServiceLabel(endpoint = '') {
   return /fcm|googleapis/i.test(endpoint) ? 'Chrome/Android (FCM)'
        : /web\.push\.apple/i.test(endpoint) ? 'iOS/Safari'
@@ -4510,6 +4526,25 @@ function notifMetaFor(type = '') {
   return { cat: notifCategoryFallback(type), urg: pushUrgencyForType(type) };
 }
 
+// ── Preferencias de notificación por usuario y categoría ─────────────────────
+// Niveles: 'all' (panel + sonido + push) · 'panel' (solo panel) · 'off' (oculta).
+// Persistencia propia (patrón push-subscriptions.json), NO en el archivo de auth.
+const NOTIF_CATEGORIES  = ['tareas','sdv','operacion','chat','sistema'];
+const NOTIF_PREF_LEVELS = ['all','panel','off'];
+const NOTIF_PREFS_FILE  = path.join(DATA_DIR, 'wwp-notif-prefs.json');
+function loadNotifPrefs()  { return loadJson(NOTIF_PREFS_FILE, {}); }   // { userId: {tareas:'all',...,updatedAt} }
+function saveNotifPrefs(p) { saveJson(NOTIF_PREFS_FILE, p); }
+
+// Nivel efectivo de entrega para un usuario/categoría. Las urgencias 'critical'
+// SIEMPRE se entregan (all), sin importar la preferencia ni el rol: son alertas
+// operacionales curadas y bloqueantes. Default sin preferencia = 'all'.
+function effectiveNotifLevel(userId, category, urgency) {
+  if (urgency === 'critical') return 'all';
+  const p = loadNotifPrefs()[userId];
+  const lvl = p && p[category];
+  return NOTIF_PREF_LEVELS.includes(lvl) ? lvl : 'all';
+}
+
 // Tipos rutinarios que el supervisor ya recibe como participante directo o vía opsIds/adminIds.
 // NO se propagan como copia supervisora para evitar duplicados y ruido.
 const SUPERVISOR_SKIP_TYPES = new Set([
@@ -4517,6 +4552,38 @@ const SUPERVISOR_SKIP_TYPES = new Set([
   'task_completed','task_validated','task_cancelled','task_rejected',
   'task_chat','comment_new','lunch_ended','agent_routine'
 ]);
+
+// Tipos "ruidosos" que se agrupan (×N) si llega otro igual sin leer para la misma
+// tarea dentro de la ventana. Las asignaciones y las críticas NO se agrupan.
+const COALESCE_TYPES  = new Set(['status_changed','stock_changed','task_chat','comment_new']);
+const COALESCE_WINDOW = 10 * 60 * 1000; // 10 min, deslizante (ancla en coalescedAt)
+
+// Emite una notif por SSE + WS (si el nivel la muestra) y por Web Push (solo 'all').
+function _emitNotif(uid, notif, level, coalesced) {
+  if (level !== 'off') {
+    const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
+    (sseClients.get(uid)||new Set()).forEach(res => { try { res.write(data); } catch {} });
+    broadcastWwp('notification', { notif, userId: uid });
+  }
+  if (level === 'all') {
+    // Sin icon/badge en el payload — el SW usa sus defaults (icon-192.png, badge por urgencia).
+    sendWebPushToUser(uid, {
+      title: notif.title,
+      message: notif.message || '',
+      body: notif.message || '',
+      appTitle: 'Ops AT',
+      id: notif.id,
+      type: notif.type || '',
+      urgency: notif.urgency || pushUrgencyForType(notif.type || ''),
+      count: notif.count || 1,
+      coalesced: !!coalesced,
+      relatedTaskId: notif.relatedTaskId,
+      url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+      actionUrl: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+      tag: notif.relatedTaskId || notif.id
+    });
+  }
+}
 
 function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null}) {
   if (!userId) return null;
@@ -4529,50 +4596,44 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
 
   const meta = notifMetaFor(type);
   recipientIds.forEach(uid => {
+    // Nivel de entrega según preferencias del destinatario (críticas siempre 'all')
+    const level = effectiveNotifLevel(uid, meta.cat, meta.urg);
+
+    // ── Coalescing: doblar sobre la notif ruidosa sin leer del mismo tipo+tarea ──
+    if (level !== 'off' && COALESCE_TYPES.has(type) && relatedTaskId) {
+      const all = loadNotifications();
+      const nowMs = Date.now();
+      const idx = all.findIndex(n => n.userId === uid && n.type === type &&
+        n.relatedTaskId === relatedTaskId && !n.readAt && !n.muted &&
+        (nowMs - Date.parse(n.coalescedAt || n.createdAt)) < COALESCE_WINDOW);
+      if (idx >= 0) {
+        const prev = all.splice(idx, 1)[0];
+        const nowIso = new Date().toISOString();
+        const upd = { ...prev, message, deliver: level,
+          count: (prev.count || 1) + 1,
+          firstAt: prev.firstAt || prev.createdAt,
+          createdAt: nowIso, coalescedAt: nowIso };
+        all.unshift(upd); // re-flotar al tope
+        saveNotifications(all.slice(0, 2000));
+        _emitNotif(uid, upd, level, true);
+        if (uid === userId) primaryNotif = upd;
+        return; // por este uid — no crear notif nueva
+      }
+    }
+
     const notif = {
       id: wwpId('notif'), userId: uid, type,
-      category: meta.cat, urgency: meta.urg,
+      category: meta.cat, urgency: meta.urg, deliver: level,
       title: title || NOTIF_LABELS[type] || type,
       message, relatedTaskId, priority, dueDate, by,
       status: 'sent', createdAt: new Date().toISOString(), readAt: null
     };
+    if (level === 'off') notif.muted = true; // se persiste (auditoría) pero no se emite ni muestra
     const all = loadNotifications();
     all.unshift(notif);
     // Mantener máx 200 notificaciones por usuario (trim total a 2000)
-    const trimmed = all.slice(0, 2000);
-    saveNotifications(trimmed);
-    // Push SSE a todos los clientes del usuario
-    const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
-    (sseClients.get(uid)||new Set()).forEach(res => { try { res.write(data); } catch {} });
-    broadcastWwp('notification', { notif, userId: uid });
-    // Web Push a las subscripciones del usuario
-    if (webpush) {
-      // Payload simple y probado. Sin icon/badge en payload — el SW
-      // usa defaults que están en sw.js (icon-192.png, favicon-32.png con OpsAT).
-      const payload = JSON.stringify({
-        title: notif.title,
-        message: notif.message || '',
-        body: notif.message || '',
-        appTitle: 'Ops AT',
-        id: notif.id,
-        type: notif.type || '',
-        urgency: notif.urgency || pushUrgencyForType(notif.type || ''),
-        relatedTaskId: notif.relatedTaskId,
-        url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
-        actionUrl: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
-        tag: notif.relatedTaskId || notif.id
-      });
-      const subs = loadPushSubs().filter(s => s.userId === uid);
-      subs.forEach(s => {
-        webpush.sendNotification(s.subscription, payload).catch(err => {
-          if (err.statusCode === 410 || err.statusCode === 404) {
-            // Subscription expirada — limpiar
-            const all = loadPushSubs().filter(x => x.subscription.endpoint !== s.subscription.endpoint);
-            savePushSubs(all);
-          }
-        });
-      });
-    }
+    saveNotifications(all.slice(0, 2000));
+    _emitNotif(uid, notif, level, false);
     if (uid === userId) primaryNotif = notif;
   });
 
@@ -8026,9 +8087,41 @@ const server = http.createServer(async (req, res) => {
   // GET /api/wwp/notifications — listar notificaciones del usuario actual
   if (reqPath === '/api/wwp/notifications' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    const all = loadNotifications().filter(n => n.userId === jp.userId);
+    const includeMuted = (parsed.query||{}).includeMuted === '1' && jp.role === 'admin';
+    const all = loadNotifications().filter(n => n.userId === jp.userId && (includeMuted || !n.muted));
     const limit = parseInt((parsed.query||{}).limit)||60;
     sendGzipJson(req, res, 200, {ok:true, notifications:all.slice(0, limit)});
+    return;
+  }
+
+  // GET /api/wwp/notif-prefs — preferencias de entrega por categoría del usuario
+  if (reqPath === '/api/wwp/notif-prefs' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const saved = loadNotifPrefs()[jp.userId] || {};
+    const prefs = {};
+    NOTIF_CATEGORIES.forEach(c => { prefs[c] = NOTIF_PREF_LEVELS.includes(saved[c]) ? saved[c] : 'all'; });
+    sendJson(res, 200, { ok:true, prefs, categories: NOTIF_CATEGORIES, levels: NOTIF_PREF_LEVELS });
+    return;
+  }
+
+  // PUT /api/wwp/notif-prefs — actualizar (merge) preferencias del usuario
+  if (reqPath === '/api/wwp/notif-prefs' && req.method === 'PUT') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const d = await readBody(req);
+      const incoming = (d && d.prefs) || {};
+      for (const [cat, lvl] of Object.entries(incoming)) {
+        if (!NOTIF_CATEGORIES.includes(cat)) { sendJson(res, 400, { ok:false, error:'Categoría inválida: '+cat }); return; }
+        if (!NOTIF_PREF_LEVELS.includes(lvl)) { sendJson(res, 400, { ok:false, error:'Nivel inválido: '+lvl }); return; }
+      }
+      const store = loadNotifPrefs();
+      const cur = store[jp.userId] || {};
+      store[jp.userId] = { ...cur, ...incoming, updatedAt: new Date().toISOString() };
+      saveNotifPrefs(store);
+      const prefs = {};
+      NOTIF_CATEGORIES.forEach(c => { prefs[c] = NOTIF_PREF_LEVELS.includes(store[jp.userId][c]) ? store[jp.userId][c] : 'all'; });
+      sendJson(res, 200, { ok:true, prefs });
+    } catch(e) { sendJson(res, 400, { ok:false, error:e.message }); }
     return;
   }
 
@@ -15849,36 +15942,28 @@ async function notifySdvToOps(sdv_id, tipo, cliente, detalles = {}) {
   notifs.push(mensaje);
   saveJson(path.join(DATA_DIR, 'ops-notifications.json'), notifs);
 
-  // Si webpush está disponible, enviar PUSH a supervisores/ops
+  // PUSH a supervisores/ops que tengan la categoría SDV en nivel 'all'
   if (webpush && supervisorUserIds.length > 0) {
-    const subs = loadPushSubs();
-    const opsMessages = subs.filter(s => supervisorUserIds.includes(s.userId));
-    opsMessages.forEach(sub => {
-      try {
-        const title = tipo === 'sdv_cancelada' ? 'SDV cancelada'
-          : tipo === 'reactivacion_procesada' ? 'Reactivación procesada'
-          : 'Reactivación pendiente';
-        const body = `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || detalles.cuando || ''}`;
-        const payload = JSON.stringify({
-          appTitle: 'Ops AT',
-          title,
-          message: body,
-          body,
-          id: mensaje.id,
-          type: tipo,
-          urgency: pushUrgencyForType(tipo),
-          relatedTaskId: detalles.nueva_tarea_id || null,
-          tag: sdv_id + '-' + tipo,
-          url: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html',
-          actionUrl: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html'
-        });
-        webpush.sendNotification(sub.subscription, payload).catch(err => {
-          if (err.statusCode === 410 || err.statusCode === 404) {
-            const all = loadPushSubs().filter(x => x.subscription.endpoint !== sub.subscription.endpoint);
-            savePushSubs(all);
-          }
-        });
-      } catch (e) { /* PUSH fallida, ignorar */ }
+    const meta = notifMetaFor(tipo);
+    const title = tipo === 'sdv_cancelada' ? 'SDV cancelada'
+      : tipo === 'reactivacion_procesada' ? 'Reactivación procesada'
+      : 'Reactivación pendiente';
+    const body = `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || detalles.cuando || ''}`;
+    const payloadObj = {
+      appTitle: 'Ops AT',
+      title,
+      message: body,
+      body,
+      id: mensaje.id,
+      type: tipo,
+      urgency: meta.urg,
+      relatedTaskId: detalles.nueva_tarea_id || null,
+      tag: sdv_id + '-' + tipo,
+      url: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html',
+      actionUrl: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html'
+    };
+    supervisorUserIds.forEach(uid => {
+      if (effectiveNotifLevel(uid, meta.cat, meta.urg) === 'all') sendWebPushToUser(uid, payloadObj);
     });
   }
 

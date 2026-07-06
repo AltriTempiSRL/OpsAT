@@ -3331,6 +3331,14 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-set-danger{display:flex;align-items:center;gap:7px;background:var(--red-bg);color:var(--red-text);border:1px solid transparent;border-radius:8px;padding:8px 11px;font-size:12px;font-weight:700;cursor:pointer;transition:filter .15s}
 .notif-set-danger:hover{filter:brightness(.96)}
 .notif-set-danger svg{width:14px;height:14px;stroke:currentColor;display:block}
+/* Preferencias por categoría — control segmentado de 3 estados */
+.notif-pref-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.notif-pref-label{font-size:12px;color:var(--text);font-weight:600;flex-shrink:0}
+.notif-pref-segs{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.notif-pref-seg{background:var(--surface);color:var(--text-3);border:none;border-left:1px solid var(--border);padding:5px 9px;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.notif-pref-seg:first-child{border-left:none}
+.notif-pref-seg.active{background:var(--blue-bg);color:var(--blue-text)}
+.notif-pref-seg:hover:not(.active){background:var(--surface-2)}
 .notif-sound-row{display:flex;align-items:center;gap:7px}
 .notif-snd-toggle{background:none;border:none;cursor:pointer;padding:3px 6px;border-radius:6px;color:var(--text-3);display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;transition:background .15s,color .15s;white-space:nowrap}
 .notif-snd-toggle:hover{background:var(--surface-3)}
@@ -8724,7 +8732,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v140';
+var APP_BUILD = 'v141';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9569,6 +9577,21 @@ var _lastUnread        = null; // null = primera carga, no suena
 var _notifFilterCat    = 'all'; // filtro de categoría — por sesión, cada apertura arranca en Todas
 var _notifUnreadOnly   = localStorage.getItem('wwp_notif_unread_only') === '1';
 var _notifSettingsOpen = false;
+var _notifPrefs        = null;  // {tareas:'all'|'panel'|'off', ...} — cargado del servidor
+try { _notifPrefs = JSON.parse(localStorage.getItem('wwp_notif_prefs') || 'null'); } catch(e) {}
+var _notifPrefsSaveTimer = null;
+var _NOTIF_PREF_ROWS = [
+  { id:'tareas',    label:'Tareas' },
+  { id:'sdv',       label:'Solicitudes SDV' },
+  { id:'operacion', label:'Operación' },
+  { id:'chat',      label:'Chat' },
+  { id:'sistema',   label:'Sistema' }
+];
+var _NOTIF_PREF_OPTS = [
+  { id:'all',   label:'Todo' },
+  { id:'panel', label:'Solo panel' },
+  { id:'off',   label:'Apagar' }
+];
 
 // Desbloquear AudioContext en el primer gesto del usuario
 (function() {
@@ -10203,13 +10226,7 @@ function connectSSE() {
     try {
       const data = JSON.parse(e.data);
       if (data.event === 'notification' && data.notif) {
-        if (!_notifications.some(n => n.id === data.notif.id)) {
-          _notifications.unshift(data.notif);
-          renderNotifications();
-          maybeChime(data.notif);
-          _notifRingBell();
-          _notifFireBrowser(data.notif);
-        }
+        _handleIncomingNotif(data.notif);
       }
       // Cambio de presencia en tiempo real
       if (data.event === 'presence_changed' && data.userId) {
@@ -10304,13 +10321,7 @@ function connectWwpRealtime() {
       }
 
       if (msg.event === 'notification' && msg.notif && msg.userId === (_user && _user.id)) {
-        if (!_notifications.some(n => n.id === msg.notif.id)) {
-          _notifications.unshift(msg.notif);
-          renderNotifications();
-          maybeChime(msg.notif);
-          _notifRingBell();
-          _notifFireBrowser(msg.notif);
-        }
+        _handleIncomingNotif(msg.notif);
       }
     } catch(err) {}
   };
@@ -10444,6 +10455,33 @@ function refreshNotifications() {
   });
 }
 
+// Inserta o actualiza una notif por id. Devuelve 'new' | 'updated' | 'dup'.
+// 'dup' preserva el dedup entre canales: SSE y WS entregan el mismo objeto
+// (mismo count+createdAt) y el segundo canal cae aquí sin re-render.
+function _notifUpsert(notif) {
+  var idx = _notifications.findIndex(function(n){ return n.id === notif.id; });
+  if (idx === -1) { _notifications.unshift(notif); return 'new'; }
+  var cur = _notifications[idx];
+  if ((notif.count||1) === (cur.count||1) && notif.createdAt === cur.createdAt) return 'dup';
+  _notifications.splice(idx, 1);
+  _notifications.unshift(notif);
+  return 'updated';
+}
+
+// Maneja una notif entrante (SSE o WS). Respeta el nivel de entrega estampado
+// por el servidor (deliver): 'panel' = sin sonido/toast/OS-notif.
+function _handleIncomingNotif(notif) {
+  var r = _notifUpsert(notif);
+  if (r === 'dup') return;
+  renderNotifications();
+  _notifRingBell();
+  if (r === 'new' && notif.deliver !== 'panel') {
+    maybeChime(notif);       // sonido + toast + flash
+    _notifFireBrowser(notif);
+  }
+  // 'updated' (fold ×N): sin sonido ni toast — el pendiente ya se avisó
+}
+
 function _notifDayLabel(iso) {
   if (!iso) return '';
   var d = new Date(iso), now = new Date();
@@ -10516,7 +10554,56 @@ function toggleNotifSettings() {
   if (panel) panel.classList.toggle('settings-open', _notifSettingsOpen);
   var gear = document.getElementById('notif-gear');
   if (gear) gear.classList.toggle('active', _notifSettingsOpen);
-  if (_notifSettingsOpen) { _notifUpdateSoundUI(); _notifShowBrowserBanner(); _notifLoadPushStatus(); }
+  if (_notifSettingsOpen) { _notifUpdateSoundUI(); _notifShowBrowserBanner(); _notifLoadPushStatus(); _renderNotifPrefs(); }
+}
+
+function _notifPrefLevel(cat) {
+  return (_notifPrefs && _notifPrefs[cat]) || 'all';
+}
+
+function _renderNotifPrefs() {
+  var group = document.getElementById('notif-prefs-group');
+  var rows  = document.getElementById('notif-prefs-rows');
+  if (!group || !rows) return;
+  group.style.display = 'flex';
+  rows.innerHTML = _NOTIF_PREF_ROWS.map(function(r) {
+    var cur = _notifPrefLevel(r.id);
+    var segs = _NOTIF_PREF_OPTS.map(function(o) {
+      return '<button class="notif-pref-seg' + (cur === o.id ? ' active' : '') + '"' +
+        ' onclick="setNotifPref(\'' + r.id + '\',\'' + o.id + '\')"' +
+        ' aria-pressed="' + (cur === o.id ? 'true' : 'false') + '">' + o.label + '</button>';
+    }).join('');
+    return '<div class="notif-pref-row"><span class="notif-pref-label">' + r.label + '</span>' +
+      '<div class="notif-pref-segs">' + segs + '</div></div>';
+  }).join('');
+}
+
+function setNotifPref(cat, level) {
+  if (!_notifPrefs) _notifPrefs = {};
+  _notifPrefs[cat] = level;
+  try { localStorage.setItem('wwp_notif_prefs', JSON.stringify(_notifPrefs)); } catch(e) {}
+  _renderNotifPrefs();
+  // PUT con debounce — evita una llamada por cada toque rápido
+  if (_notifPrefsSaveTimer) clearTimeout(_notifPrefsSaveTimer);
+  _notifPrefsSaveTimer = setTimeout(function() {
+    _notifPrefsSaveTimer = null;
+    var body = {}; body[cat] = level;
+    authFetch('/api/wwp/notif-prefs', { method:'PUT', body: JSON.stringify({ prefs: _notifPrefs }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (d && d.ok && d.prefs) { _notifPrefs = d.prefs; try { localStorage.setItem('wwp_notif_prefs', JSON.stringify(_notifPrefs)); } catch(e) {} } })
+      .catch(function(){});
+  }, 800);
+}
+
+function loadNotifPrefsFromServer() {
+  if (!_token) return;
+  authFetch('/api/wwp/notif-prefs').then(function(r){ return r.json(); }).then(function(d){
+    if (d && d.ok && d.prefs) {
+      _notifPrefs = d.prefs;
+      try { localStorage.setItem('wwp_notif_prefs', JSON.stringify(_notifPrefs)); } catch(e) {}
+      if (_notifSettingsOpen) _renderNotifPrefs();
+    }
+  }).catch(function(){});
 }
 
 function renderNotifications() {
@@ -10806,6 +10893,7 @@ function enterApp() {
   vehGateCheck();    // gate de inspección de vehículo: bloquea tareas si la inspección de hoy falta
   // Notifications
   loadNotificationsFromServer();
+  loadNotifPrefsFromServer();
   connectSSE();
   connectWwpRealtime();
   // Pantalla de bienvenida + auto-activación de notificaciones push.

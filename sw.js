@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v51';
+const CACHE = 'wwp-v52';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -150,7 +150,8 @@ self.addEventListener('push', e => {
     data = { title: 'Ops AT', body: e.data ? e.data.text() : '' };
   }
 
-  const title    = data.title || data.appTitle || 'Ops AT';
+  const count    = data.count || 1;
+  const title    = (data.title || data.appTitle || 'Ops AT') + (count > 1 ? ' ×' + count : '');
   const body     = data.message || data.body || '';
   const tag      = data.tag     || 'wwp-notif';
   const taskId   = data.relatedTaskId || null;
@@ -164,6 +165,10 @@ self.addEventListener('push', e => {
   // requireInteraction solo para críticas (la notif no desaparece sola)
   const requireInteraction = urgency === 'critical';
 
+  // Un fold (coalesced) actualiza la notif existente del OS sin volver a vibrar/alertar;
+  // la primera de la cadena sí re-alerta (renotify true).
+  const renotify = !data.coalesced;
+
   // Vibración por urgencia (Android)
   const vibrate = urgency === 'critical' ? [200, 100, 200, 100, 200]
                 : urgency === 'alert'    ? [150, 75, 150]
@@ -175,7 +180,7 @@ self.addEventListener('push', e => {
       icon:  '/icon-192.png',
       badge: assets.badge,
       tag,
-      renotify: true,
+      renotify,
       requireInteraction,
       vibrate,
       actions,
