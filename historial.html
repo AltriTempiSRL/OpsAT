@@ -8878,7 +8878,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v154';
+var APP_BUILD = 'v155';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32868,6 +32868,7 @@ var _sdvEspEditAsociada = null;
 var _sdvEspEditArticulosSel = {}; // { idx: cantidad } sobre articulosOdoo de la asociada
 var _sdvEspEditOrden = null;      // resultado del lookup de Odoo hecho DURANTE esta corrección
 var _sdvEspEditOrdenSel = {};     // { idx: cantidad } sobre _sdvEspEditOrden.items
+var _sdvEspEditAdjuntos = [];     // adjuntos nuevos elegidos DURANTE esta corrección (mismo formato que _sdvAdjuntos)
 
 async function sdvOpenEspecialEditModal(id) {
   var modal = document.getElementById('sdv-esp-edit-modal');
@@ -32910,6 +32911,16 @@ async function sdvOpenEspecialEditModal(id) {
           s.articulosOdoo.map(function(a){ return esc(a.product_name||a.sku||'')+' ×'+esc(a.quantity); }).join(', ')+
           '. Para cambiarlos, vuelve a traer la orden arriba.';
       } else { guardadosEl.style.display = 'none'; guardadosEl.innerHTML = ''; }
+    }
+    // Adjuntos: mostrar los ya subidos (reusa el render del detalle) + limpiar el picker
+    // de "nuevos" para esta corrección (estado propio, no pisa el form de creación).
+    _sdvEspEditAdjuntos = [];
+    var adjPrevEl = document.getElementById('sdv-espedit-adj-previews'); if (adjPrevEl) adjPrevEl.innerHTML = '';
+    var adjInputEl = document.getElementById('sdv-espedit-adj-input'); if (adjInputEl) adjInputEl.value = '';
+    var adjExistEl = document.getElementById('sdv-espedit-adj-existentes');
+    if (adjExistEl) {
+      var _adjHtml = sdvAdjuntosHtml(s);
+      adjExistEl.innerHTML = _adjHtml ? '<div style="font-size:11px;color:var(--text-3);margin-bottom:6px">Ya subidos:</div>'+_adjHtml : '';
     }
     if (s.fechaSolicitudDeseada) {
       var dt = new Date(s.fechaSolicitudDeseada);
@@ -33077,6 +33088,49 @@ function sdvEspEditOrdenGetArticulos() {
   }).filter(Boolean);
 }
 
+// Adjuntos nuevos durante la corrección — mismas reglas/formato que sdvAdjOnPick de creación,
+// pero sobre _sdvEspEditAdjuntos (arreglo propio) e ids -espedit- (no pisa el form de creación).
+function sdvEspEditAdjOnPick(inp) {
+  var files = Array.prototype.slice.call(inp.files || []);
+  inp.value = '';
+  files.forEach(function(f) {
+    if (_sdvEspEditAdjuntos.length >= SDV_ADJ_MAX) { toast('Máximo '+SDV_ADJ_MAX+' adjuntos por solicitud'); return; }
+    var ext = (f.name.split('.').pop() || '').toLowerCase();
+    var esVideo = SDV_ADJ_VIDEO_EXTS.includes(ext) || /^video\//.test(f.type);
+    if (esVideo && !SDV_ADJ_VIDEO_EXTS.includes(ext)) { toast(f.name+': formato de video no permitido (usa MP4, WebM o MOV)'); return; }
+    if (!esVideo && !/^image\//.test(f.type)) { toast(f.name+': solo se permiten fotos o videos'); return; }
+    var maxMb = esVideo ? 30 : 5;
+    if (f.size > maxMb*1024*1024) { toast(f.name+': demasiado grande ('+(f.size/1024/1024).toFixed(1)+' MB, máx '+maxMb+' MB para '+(esVideo?'video':'foto')+')'); return; }
+    var rd = new FileReader();
+    rd.onload = function() {
+      _sdvEspEditAdjuntos.push({ dataUrl: rd.result, ext: esVideo ? ext : (ext||'jpg'), tipo: esVideo?'video':'imagen', nombre: f.name, mb: (f.size/1024/1024).toFixed(1) });
+      sdvEspEditAdjRender();
+    };
+    rd.readAsDataURL(f);
+  });
+}
+
+function sdvEspEditAdjRender() {
+  var box = document.getElementById('sdv-espedit-adj-previews');
+  if (!box) return;
+  box.innerHTML = _sdvEspEditAdjuntos.map(function(a, i) {
+    var inner = a.tipo === 'imagen'
+      ? '<img src="'+a.dataUrl+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block">'
+      : '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface-3)">'+
+          '<i data-lucide="video" style="width:22px;height:22px;color:var(--text-2)"></i>'+
+          '<span style="font-size:9px;color:var(--text-2);max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(a.nombre)+'</span>'+
+          '<span style="font-size:9px;color:var(--text-3)">'+a.mb+' MB</span>'+
+        '</div>';
+    return '<div style="position:relative;width:76px;height:76px;border-radius:8px;border:1px solid var(--border);overflow:hidden;background:var(--surface-2)">'+inner+
+      '<button type="button" onclick="sdvEspEditAdjQuitar('+i+')" aria-label="Quitar adjunto" '+
+        'style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>'+
+    '</div>';
+  }).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function sdvEspEditAdjQuitar(i) { _sdvEspEditAdjuntos.splice(i, 1); sdvEspEditAdjRender(); }
+
 function sdvEspEditClose() {
   var modal = document.getElementById('sdv-esp-edit-modal');
   if (modal) modal.style.display = 'none';
@@ -33120,7 +33174,11 @@ async function sdvSaveEspecialEdit() {
     var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify(body)});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al guardar'); return; }
-    toast(_esOps ? 'Solicitud corregida y devuelta al flujo (pendiente de revisión)' : 'Solicitud corregida y reenviada a operaciones', 'success');
+    // Adjuntos nuevos de esta corrección — la SDV ya existe; un fallo aquí no revierte el guardado.
+    var _adj = await sdvSubirAdjuntos(id, btn, _sdvEspEditAdjuntos);
+    if (_adj.fallidos) toast(_adj.fallidos+' adjunto(s) no se pudieron subir; el resto de la corrección sí se guardó.', 9000);
+    toast((_esOps ? 'Solicitud corregida y devuelta al flujo (pendiente de revisión)' : 'Solicitud corregida y reenviada a operaciones')+(_adj.subidos?' con '+_adj.subidos+' adjunto(s) nuevo(s)':''), 'success');
+    _sdvEspEditAdjuntos = [];
     sdvEspEditClose();
     sdvCloseDrawer();
     // Recargar la vista desde la que se corrigió (Ops: Bandeja; vendedora: Mis Solicitudes).
@@ -33192,14 +33250,17 @@ function sdvAdjClear() {
   var inp = document.getElementById('sdv-adj-input'); if (inp) inp.value = '';
 }
 
-// Sube los adjuntos a la SDV recién creada. La SDV ya existe: un fallo aquí NO revierte
-// la creación — se reporta cuántos quedaron fuera para que la vendedora reintente/avise.
-async function sdvSubirAdjuntos(sdvId, btn) {
-  if (!_sdvAdjuntos.length) return { subidos: 0, fallidos: 0 };
+// Sube los adjuntos a la SDV recién creada (o a una ya existente, ej. al corregirla).
+// Un fallo aquí NO revierte nada — se reporta cuántos quedaron fuera para reintentar/avisar.
+// `arr` es opcional: por defecto usa los de creación (_sdvAdjuntos); el modal de corregir
+// pasa su propio arreglo (_sdvEspEditAdjuntos) para no pisar el form de creación.
+async function sdvSubirAdjuntos(sdvId, btn, arr) {
+  arr = arr || _sdvAdjuntos;
+  if (!arr.length) return { subidos: 0, fallidos: 0 };
   var subidos = 0, fallidos = 0;
-  for (var i = 0; i < _sdvAdjuntos.length; i++) {
-    var a = _sdvAdjuntos[i];
-    if (btn) btn.textContent = 'Subiendo adjunto '+(i+1)+'/'+_sdvAdjuntos.length+'…';
+  for (var i = 0; i < arr.length; i++) {
+    var a = arr[i];
+    if (btn) btn.textContent = 'Subiendo adjunto '+(i+1)+'/'+arr.length+'…';
     try {
       var r = await authFetch('/api/sdv/'+sdvId+'/adjuntos', { method:'POST',
         body: JSON.stringify({ data: a.dataUrl, ext: a.ext, nombre: a.nombre }) });
@@ -36704,10 +36765,21 @@ async function loadCancelacionesKPIs() {
             </div>
           </div>
         </div>
-        <div class="sdv-form-grid cols1">
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
           <div class="sdv-field">
             <label>Observaciones <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
             <textarea class="sdv-ta" id="sdv-espedit-observaciones"></textarea>
+          </div>
+        </div>
+        <div class="sdv-form-grid cols1">
+          <div class="sdv-field">
+            <label>Fotos o Videos <span style="color:var(--text-3);font-weight:400">(opcional — condición de la mercancía, lugar de recogida…)</span></label>
+            <div id="sdv-espedit-adj-existentes" style="margin-bottom:8px"></div>
+            <input type="file" id="sdv-espedit-adj-input" accept="image/*,video/*" multiple style="display:none" onchange="sdvEspEditAdjOnPick(this)">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('sdv-espedit-adj-input').click()">
+              <i data-lucide="paperclip" style="width:14px;height:14px;vertical-align:-2px"></i> Agregar fotos o videos
+            </button>
+            <div id="sdv-espedit-adj-previews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
           </div>
         </div>
       </div>
