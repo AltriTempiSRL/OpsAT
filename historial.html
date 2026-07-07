@@ -8878,7 +8878,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v152';
+var APP_BUILD = 'v153';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32870,6 +32870,9 @@ var _sdvEspEditArticulosSel = {}; // { idx: cantidad } sobre articulosOdoo de la
 async function sdvOpenEspecialEditModal(id) {
   var modal = document.getElementById('sdv-esp-edit-modal');
   if (!modal) return;
+  // El detalle (z-index 19000) tapa este modal (3000): cerrarlo antes de abrir,
+  // y de paso se evita que quede con datos viejos tras guardar la corrección.
+  sdvCloseDrawer();
   document.getElementById('sdv-espedit-current-id').value = id;
   _sdvEspEditAsociada = null; _sdvEspEditArticulosSel = {};
   try {
@@ -35478,6 +35481,8 @@ var _sdvEditDiffData = null; // último diff calculado (para aplicar)
 async function sdvOpenEditModal(id) {
   var modal = document.getElementById('sdv-edit-modal');
   if (!modal) return;
+  // El detalle (z-index 19000) tapa este modal (3000): cerrarlo antes de abrir.
+  sdvCloseDrawer();
   document.getElementById('sdv-edit-current-id').value = id;
   _sdvEditOdooApplied = false;
   _sdvEditDiffData = null;
@@ -36029,6 +36034,8 @@ async function sdvMarcarDespachadaManualConfirm(id) {
 async function sdvOpenCancelModal(id, estado, tipoSolicitud) {
   var modal = document.getElementById('sdv-cancel-modal-overlay');
   if (!modal) return;
+  // El detalle (z-index 19000) tapa este modal (1000): cerrarlo antes de abrir.
+  sdvCloseDrawer();
   // Guardar id y contexto
   document.getElementById('sdv-cancel-current-id').value = id;
   document.getElementById('sdv-cancel-estado').value = estado;
@@ -36158,6 +36165,8 @@ function sdvContactarOps() {
 function sdvOpenReactivateModal(id) {
   var modal = document.getElementById('sdv-reactivate-modal-overlay');
   if (!modal) return;
+  // El detalle (z-index 19000) tapa este modal (1000): cerrarlo antes de abrir.
+  sdvCloseDrawer();
   document.getElementById('sdv-reactivate-current-id').value = id;
   document.getElementById('sdv-reactivate-fecha').value = '';
   document.getElementById('sdv-reactivate-razon').value = '';
