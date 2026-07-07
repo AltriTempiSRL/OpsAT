@@ -14945,7 +14945,7 @@ function renderDrawer(t) {
             <span style="font-size:9px;font-weight:700;text-align:center;color:${isItemConf?'#16a34a':'var(--text-3)'}">${isItemConf?confirmedShortLabel:pendingShortLabel}</span>
           </label>
           ${it.image?`<img class="item-thumb" src="${it.image}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`:''}
-          <div class="item-thumb-ph" style="${it.image?'display:none':''}"><i data-lucide="package" style="width:22px;height:22px;stroke:currentColor;opacity:.4"></i></div>
+          <div class="item-thumb-ph"${(!it.image && it.odoo_product_id)?` data-oprodimg="${esc(String(it.odoo_product_id))}"`:''} style="${it.image?'display:none':''}"><i data-lucide="package" style="width:22px;height:22px;stroke:currentColor;opacity:.4"></i></div>
           <div style="flex:1;min-width:0">
             <div class="item-name">${esc(it.product_name||it.sku||'')}${(it.unit_total>1)?`<span style="font-size:10px;font-weight:700;color:var(--accent);margin-left:6px">Unidad ${it.unit_index}/${it.unit_total}</span>`:''}${it.esDemo?`<span class="demo-chip"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block"></i> DEMO</span>`:''}</div>
             ${it.esDemo?(()=>{const _ds=it.demoStatus||'en_demo';return `<div class="demo-status-line">${_ds==='facturado'?'✓ Facturado':_ds==='retiro_solicitado'?'↩ Retiro solicitado':_ds==='retirado'?'📦 Retirado':'⏳ Pendiente confirmación'}</div>`})():''}
@@ -15575,6 +15575,10 @@ function renderDrawer(t) {
   if (_savedDrawerScroll > 0 && _drawerBodyEl) _drawerBodyEl.scrollTop = _savedDrawerScroll;
   // Fotos de Odoo en responsable / auxiliares del drawer (chat se hidrata aparte)
   hydrateOdooAvatars(document.getElementById('drawer-body'));
+  // Fotos de PRODUCTO on-demand: los artículos sin imagen guardada (p. ej. solicitud
+  // especial, cuyo articulosOdoo no persiste el base64) traen data-oprodimg="<pid>" en su
+  // placeholder → traer la foto desde Odoo por odoo_product_id, igual que la SDV.
+  hydrateProductImgs(document.getElementById('drawer-body'));
   // Cargar mensajes de forma asíncrona para no bloquear render
   loadChatMessages(t.id);
   // Enriquecer artículos con materiales de empaque
