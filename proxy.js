@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v153';
+const APP_BUILD = 'v154';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -13883,9 +13883,17 @@ const server = http.createServer(async (req, res) => {
       const _wasRechazada = (!isOps && sol.estado==='rechazada');
       
       const now = new Date().toISOString();
+      // Sub-tipo de solicitud especial: mismo enum que en creación, validado solo si se envía
+      // (permite corregir una especial vieja que se creó antes de v152, sin sub-tipo).
+      if (d.subtipoEspecial!==undefined && sol.tipoSolicitud==='solicitud_especial') {
+        if (!SDV_SUBTIPOS_ESP.includes(d.subtipoEspecial||'')) {
+          res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'subtipoEspecial inválido: '+(d.subtipoEspecial||'(vacío)')})); return;
+        }
+        sol.subtipoEspecial = d.subtipoEspecial;
+      }
       const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
         'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada',
-        'asunto','descripcion']; // solicitud_especial (sdvAsociadaId queda inmutable tras creación)
+        'asunto','descripcion','ordenOrigenOdoo']; // solicitud_especial (sdvAsociadaId queda inmutable tras creación)
       EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
       if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
 

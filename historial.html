@@ -8878,7 +8878,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v153';
+var APP_BUILD = 'v154';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32866,6 +32866,8 @@ function sdvEspOrdenClear() {
 // creación, que son globales de "nueva solicitud" y se pisarían entre sí).
 var _sdvEspEditAsociada = null;
 var _sdvEspEditArticulosSel = {}; // { idx: cantidad } sobre articulosOdoo de la asociada
+var _sdvEspEditOrden = null;      // resultado del lookup de Odoo hecho DURANTE esta corrección
+var _sdvEspEditOrdenSel = {};     // { idx: cantidad } sobre _sdvEspEditOrden.items
 
 async function sdvOpenEspecialEditModal(id) {
   var modal = document.getElementById('sdv-esp-edit-modal');
@@ -32875,6 +32877,7 @@ async function sdvOpenEspecialEditModal(id) {
   sdvCloseDrawer();
   document.getElementById('sdv-espedit-current-id').value = id;
   _sdvEspEditAsociada = null; _sdvEspEditArticulosSel = {};
+  _sdvEspEditOrden = null; _sdvEspEditOrdenSel = {};
   try {
     var r = await authFetch('/api/sdv/'+id);
     var d = await r.json();
@@ -32884,11 +32887,30 @@ async function sdvOpenEspecialEditModal(id) {
     document.getElementById('sdv-espedit-estado').textContent = SDV_ESTADO_LABEL[s.estado]||s.estado;
     var motivo = (s.statusHistory||[]).slice().reverse().find(function(h){ return h.estado==='rechazada'; });
     document.getElementById('sdv-espedit-motivo').textContent = (motivo && motivo.nota) || 'sin motivo registrado';
+    document.getElementById('sdv-espedit-subtipo').value = s.subtipoEspecial||'';
+    sdvEspEditSubtipoChange();
     document.getElementById('sdv-espedit-asunto').value = s.asunto||'';
     document.getElementById('sdv-espedit-descripcion').value = s.descripcion||'';
+    document.getElementById('sdv-espedit-cliente').value = s.clienteNombre||'';
+    document.getElementById('sdv-espedit-contacto').value = s.receptorContacto||'';
     document.getElementById('sdv-espedit-ciudad').value = s.ciudadEntrega||'';
     document.getElementById('sdv-espedit-direccion').value = s.direccionEntrega||'';
     document.getElementById('sdv-espedit-observaciones').value = s.observaciones||'';
+    // Orden de Odoo (fuente separada de "SDV Asociada"): prellenar el N° si ya la trajo al
+    // crear, y avisar qué artículos quedaron guardados (no se pueden re-marcar sin re-traer
+    // la orden — Odoo es solo-lectura y no guardamos el detalle completo del lookup).
+    document.getElementById('sdv-espedit-orden-input').value = s.ordenOrigenOdoo||'';
+    document.getElementById('sdv-espedit-orden-status').textContent = '';
+    var ordenArtSec = document.getElementById('sdv-espedit-orden-articulos-section'); if (ordenArtSec) ordenArtSec.style.display = 'none';
+    var guardadosEl = document.getElementById('sdv-espedit-orden-guardados');
+    if (guardadosEl) {
+      if (!s.sdvAsociadaId && (s.articulosOdoo||[]).length) {
+        guardadosEl.style.display = '';
+        guardadosEl.innerHTML = '<i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px"></i> Artículos ya guardados: '+
+          s.articulosOdoo.map(function(a){ return esc(a.product_name||a.sku||'')+' ×'+esc(a.quantity); }).join(', ')+
+          '. Para cambiarlos, vuelve a traer la orden arriba.';
+      } else { guardadosEl.style.display = 'none'; guardadosEl.innerHTML = ''; }
+    }
     if (s.fechaSolicitudDeseada) {
       var dt = new Date(s.fechaSolicitudDeseada);
       var yyyy=dt.getFullYear(), mm=String(dt.getMonth()+1).padStart(2,'0'), dd=String(dt.getDate()).padStart(2,'0');
@@ -32974,6 +32996,87 @@ function sdvEspEditGetArticulosMarcados() {
   }).filter(Boolean);
 }
 
+function sdvEspEditSubtipoChange() {
+  var v = (document.getElementById('sdv-espedit-subtipo')||{}).value || '';
+  var hint = document.getElementById('sdv-espedit-subtipo-hint');
+  if (hint) { if (v && SDV_ESP_SUBTIPO_HINT[v]) { hint.textContent = SDV_ESP_SUBTIPO_HINT[v]; hint.style.display=''; } else { hint.style.display='none'; } }
+}
+
+// ── Orden de Odoo dentro de la corrección (misma fuente que en creación — órdenes sin SDV) ──
+async function sdvEspEditBuscarOrden() {
+  var inp = document.getElementById('sdv-espedit-orden-input');
+  var ref = (inp && inp.value || '').trim();
+  var st = document.getElementById('sdv-espedit-orden-status');
+  if (!ref) { if(st){st.style.color='var(--red-text)';st.textContent='Escribe el N° de orden.';} return; }
+  if (st) { st.style.color='var(--text-3)'; st.innerHTML='<i data-lucide="loader-2" class="do-spin" style="width:13px;height:13px;vertical-align:-2px"></i> Buscando en Odoo…'; if(window.lucide)lucide.createIcons(); }
+  try {
+    var r = await authFetch('/api/sdv/lookup?ref='+encodeURIComponent(ref)+'&tipo=orden_historica');
+    var d = await r.json();
+    if (!r.ok || !d.ok) { if(st){st.style.color='var(--red-text)';st.textContent=d.error||'No se pudo traer la orden.';} return; }
+    _sdvEspEditOrden = d; _sdvEspEditOrdenSel = {};
+    var setIf = function(id, val){ var el=document.getElementById(id); if(el && val) el.value=val; };
+    setIf('sdv-espedit-cliente', d.client);
+    setIf('sdv-espedit-direccion', d.deliveryAddress);
+    setIf('sdv-espedit-ciudad', d.city);
+    setIf('sdv-espedit-contacto', d.phone);
+    var faltan = [!d.city&&'ciudad', !d.phone&&'contacto'].filter(Boolean);
+    if (st) {
+      st.style.color = faltan.length ? 'var(--amber-text)' : 'var(--green-text)';
+      st.innerHTML = '<i data-lucide="'+(faltan.length?'alert-triangle':'check-circle')+'" style="width:13px;height:13px;vertical-align:-2px"></i> Orden '+esc(d.orderRef)+' · '+(d.items||[]).length+' artículo(s)'+(faltan.length?(' — completa '+faltan.join(' y ')+' a mano (no está en Odoo).'):'.');
+      if(window.lucide)lucide.createIcons();
+    }
+    // La orden recién traída sustituye a lo que hubiera guardado antes — ya no aplica el aviso.
+    var guardadosEl = document.getElementById('sdv-espedit-orden-guardados'); if (guardadosEl) guardadosEl.style.display='none';
+    sdvEspEditOrdenRenderArticulos();
+  } catch(e) { if(st){st.style.color='var(--red-text)';st.textContent='Error: '+e.message;} }
+}
+
+function sdvEspEditOrdenRenderArticulos() {
+  var sec = document.getElementById('sdv-espedit-orden-articulos-section');
+  var box = document.getElementById('sdv-espedit-orden-articulos');
+  var arts = (_sdvEspEditOrden && _sdvEspEditOrden.items) || [];
+  if (!arts.length) { if (sec) sec.style.display = 'none'; return; }
+  if (sec) sec.style.display = '';
+  box.innerHTML = arts.map(function(it, i){
+    var sel = Object.prototype.hasOwnProperty.call(_sdvEspEditOrdenSel, i);
+    var max = parseInt(it.quantity,10) || 1;
+    var stepper = sel && max > 1
+      ? '<div style="text-align:center;flex-shrink:0"><div class="sdv-qty-stepper">'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspEditOrdenStepQty('+i+',-1)" aria-label="Menos">−</button>'+
+          '<span class="sdv-qty-val" id="sdv-espedit-orden-qty-'+i+'">'+_sdvEspEditOrdenSel[i]+'</span>'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspEditOrdenStepQty('+i+',1)" aria-label="Más">+</button>'+
+        '</div><div class="sdv-item-qty-max">de '+max+'</div></div>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<label class="sdv-check-row" style="flex:1;min-width:0">'+
+        '<input type="checkbox" '+(sel?'checked ':'')+'onchange="sdvEspEditOrdenToggle('+i+',this.checked)">'+
+        '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+max+'</span>'+
+      '</label>'+stepper+
+    '</div>';
+  }).join('');
+}
+function sdvEspEditOrdenToggle(idx, checked) {
+  var arts = (_sdvEspEditOrden && _sdvEspEditOrden.items) || [];
+  if (checked) _sdvEspEditOrdenSel[idx] = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  else delete _sdvEspEditOrdenSel[idx];
+  sdvEspEditOrdenRenderArticulos();
+}
+function sdvEspEditOrdenStepQty(idx, delta) {
+  var arts = (_sdvEspEditOrden && _sdvEspEditOrden.items) || [];
+  var max = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  var n = Math.max(1, Math.min(max, (_sdvEspEditOrdenSel[idx]||1) + delta));
+  _sdvEspEditOrdenSel[idx] = n;
+  var el = document.getElementById('sdv-espedit-orden-qty-'+idx);
+  if (el) el.textContent = n;
+}
+function sdvEspEditOrdenGetArticulos() {
+  var arts = (_sdvEspEditOrden && _sdvEspEditOrden.items) || [];
+  return Object.keys(_sdvEspEditOrdenSel).map(function(i){
+    var a = arts[i]; if (!a) return null;
+    return Object.assign({}, a, { quantity: _sdvEspEditOrdenSel[i] });
+  }).filter(Boolean);
+}
+
 function sdvEspEditClose() {
   var modal = document.getElementById('sdv-esp-edit-modal');
   if (modal) modal.style.display = 'none';
@@ -32982,6 +33085,8 @@ function sdvEspEditClose() {
 async function sdvSaveEspecialEdit() {
   var id = document.getElementById('sdv-espedit-current-id').value;
   if (!id) return;
+  var subtipo = (document.getElementById('sdv-espedit-subtipo')||{}).value || '';
+  if (!subtipo) { toast('Elige el tipo de solicitud'); return; }
   var asunto = (document.getElementById('sdv-espedit-asunto').value||'').trim();
   var descripcion = (document.getElementById('sdv-espedit-descripcion').value||'').trim();
   if (!asunto || !descripcion) { toast('Completa asunto y descripción'); return; }
@@ -32990,14 +33095,24 @@ async function sdvSaveEspecialEdit() {
   var _esOps = _user && (_user.role==='admin' || _user.role==='manager');
   try {
     var body = {
+      subtipoEspecial: subtipo,
       asunto: asunto,
       descripcion: descripcion,
+      clienteNombre: (document.getElementById('sdv-espedit-cliente').value||'').trim(),
+      receptorContacto: (document.getElementById('sdv-espedit-contacto').value||'').trim(),
       ciudadEntrega: (document.getElementById('sdv-espedit-ciudad').value||'').trim(),
       direccionEntrega: (document.getElementById('sdv-espedit-direccion').value||'').trim(),
+      ordenOrigenOdoo: (_sdvEspEditOrden && _sdvEspEditOrden.orderRef) || (document.getElementById('sdv-espedit-orden-input').value||'').trim(),
       observaciones: (document.getElementById('sdv-espedit-observaciones').value||'').trim(),
       fechaSolicitudDeseada: sdvGetFecha('sdv-espedit-fecha') || null,
-      articulosOdoo: sdvEspEditGetArticulosMarcados(),
     };
+    // Artículos: solo se tocan si esta corrección los marcó (SDV asociada y/o orden recién
+    // traída). Si no se interactuó con ninguna sección, NO se envía articulosOdoo — así no
+    // se borran en silencio los artículos que ya traía la solicitud (bug real: antes SIEMPRE
+    // se mandaba articulosOdoo:[] cuando la especial venía de "Traer orden" sin SDV asociada).
+    if (_sdvEspEditAsociada || _sdvEspEditOrden) {
+      body.articulosOdoo = sdvEspEditGetArticulosMarcados().concat(sdvEspEditOrdenGetArticulos());
+    }
     // El auto-reenvío rechazada→pendiente_revision del backend solo aplica cuando quien
     // edita es la dueña (no-ops). Si corrige Ops, hay que pedir la transición explícita
     // (válida: SDV_TRANSICIONES.rechazada incluye pendiente_revision).
@@ -36498,6 +36613,20 @@ async function loadCancelacionesKPIs() {
       <div class="sdv-edit-modal-local-section">
         <div class="sdv-form-grid cols1" style="margin-bottom:12px">
           <div class="sdv-field">
+            <label>Tipo de solicitud <span class="req" style="color:var(--red-text)">*</span></label>
+            <select class="sdv-input" id="sdv-espedit-subtipo" onchange="sdvEspEditSubtipoChange()">
+              <option value="" disabled>Elige el tipo…</option>
+              <option value="cambio_defecto">Cambio por defecto / garantía</option>
+              <option value="retiro_revision">Retiro (revisión / taller)</option>
+              <option value="recogida_cliente">Recogida donde el cliente</option>
+              <option value="pieza_faltante">Pieza o accesorio faltante</option>
+              <option value="otro">Otro</option>
+            </select>
+            <div id="sdv-espedit-subtipo-hint" style="display:none;margin-top:6px;font-size:12px;color:var(--text-3);line-height:1.4"></div>
+          </div>
+        </div>
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
+          <div class="sdv-field">
             <label>Asunto <span class="req" style="color:var(--red-text)">*</span></label>
             <input class="sdv-input" id="sdv-espedit-asunto" maxlength="120">
           </div>
@@ -36512,6 +36641,35 @@ async function loadCancelacionesKPIs() {
           <div class="sdv-items-box">
             <div class="sdv-items-header"><span>Artículos de <span id="sdv-espedit-articulos-folio"></span> — marca los involucrados y ajusta la cantidad</span></div>
             <div id="sdv-espedit-articulos"></div>
+          </div>
+        </div>
+        <!-- Traer orden de Odoo (para órdenes SIN SDV — ej. despachadas antes del go-live) -->
+        <div class="sdv-form-grid cols1" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Orden de Odoo <span style="color:var(--text-3);font-weight:400">(opcional — para órdenes sin SDV; trae artículos y cliente)</span></label>
+            <div style="display:flex;gap:8px;align-items:stretch">
+              <input class="sdv-input" id="sdv-espedit-orden-input" placeholder="N° de orden, ej. S09664" autocomplete="off" spellcheck="false" style="flex:1"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();sdvEspEditBuscarOrden();}">
+              <button type="button" class="btn btn-secondary sdv-lookup-btn" onclick="sdvEspEditBuscarOrden()" style="white-space:nowrap;flex-shrink:0"><i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Traer orden</button>
+            </div>
+            <div id="sdv-espedit-orden-guardados" style="display:none;margin-top:6px;font-size:12px;color:var(--text-2);line-height:1.5"></div>
+            <div id="sdv-espedit-orden-status" style="margin-top:6px;font-size:12px;line-height:1.4"></div>
+          </div>
+        </div>
+        <div id="sdv-espedit-orden-articulos-section" style="display:none;margin-bottom:14px">
+          <div class="sdv-items-box">
+            <div class="sdv-items-header"><span>Artículos de la orden — marca el/los que se procesan en esta solicitud</span></div>
+            <div id="sdv-espedit-orden-articulos"></div>
+          </div>
+        </div>
+        <div class="sdv-form-grid" style="margin-bottom:12px">
+          <div class="sdv-field">
+            <label>Cliente <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <input class="sdv-input" id="sdv-espedit-cliente" placeholder="Nombre del cliente">
+          </div>
+          <div class="sdv-field">
+            <label>Contacto <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+            <input class="sdv-input" id="sdv-espedit-contacto" placeholder="Teléfono del receptor">
           </div>
         </div>
         <div class="sdv-form-grid" style="margin-bottom:12px">
