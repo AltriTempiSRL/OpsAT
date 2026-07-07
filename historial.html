@@ -5747,6 +5747,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
       <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
     </a>
+    <a class="nav-item" id="nav-inventario-salud" href="#" onclick="navTo('inventario-salud');return false;">
+      <span class="nav-icon"><i data-lucide="package-x"></i></span>Salud de Inventario
+    </a>
 
     <div class="sidebar-group" id="navg-plataforma">Plataforma</div>
     <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
@@ -5829,6 +5832,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Workforce</button>
     <button class="mob-nav-btn"        id="mob-nav-reportes"      onclick="navTo('reportes')"><i data-lucide="bar-chart-2"></i>Reportes</button>
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
+    <button class="mob-nav-btn"        id="mob-nav-inventario-salud" onclick="navTo('inventario-salud')"><i data-lucide="package-x"></i>Salud Inventario</button>
     <button class="mob-nav-btn"        id="mob-nav-devoluciones"  onclick="navTo('devoluciones')"><i data-lucide="rotate-ccw"></i>Devoluciones</button>
     <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="scan-line"></i>Validación</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
@@ -6494,6 +6498,47 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
     </div>
     </div><!-- /section-dev-cdp -->
+
+    <!-- ══════════════════════════════════════════════════
+         SALUD DE INVENTARIO — negativos Odoo + casos con seguimiento (v156)
+         ══════════════════════════════════════════════════ -->
+    <div id="section-inventario-salud" class="page-section" style="display:none">
+
+      <!-- Header + Actualizar -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div>
+          <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text)">
+            <i data-lucide="package-x" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
+            Salud de Inventario — Negativos
+          </h2>
+          <p style="margin:0;font-size:12px;color:var(--text-3)">
+            Stock negativo en ubicaciones físicas de Odoo y recepciones de tránsito sin validar. Los <strong>casos</strong> agrupan artículos con su causa raíz y seguimiento hasta corregirlos.
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="inv-updated" style="font-size:11px;color:var(--text-3)"></span>
+          <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="invSaludCargar(true)">
+            <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- Banner de error / datos stale -->
+      <div id="inv-banner"></div>
+
+      <!-- KPIs -->
+      <div id="inv-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+      <!-- Negativos sin caso (callout) -->
+      <div id="inv-sincaso" style="margin-bottom:16px"></div>
+
+      <!-- Recepciones de tránsito pendientes -->
+      <div id="inv-recepciones" style="margin-bottom:16px"></div>
+
+      <!-- Casos con seguimiento -->
+      <div id="inv-casos"></div>
+
+    </div><!-- /section-inventario-salud -->
 
     <!-- ══════════════════════════════════════════════════
          DESPACHO DE OBSOLETO — conduce documental (OBSOLETO / NAVE 2)
@@ -8878,7 +8923,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v155';
+var APP_BUILD = 'v156';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8964,11 +9009,12 @@ function canSection(key) {
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes' || key === 'kpis-despacho')) {
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes' || key === 'kpis-despacho' || key === 'inventario-salud')) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
   }
-  // kpis-despacho: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
+  // kpis-despacho e inventario-salud: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
   if (key === 'kpis-despacho') return false;
+  if (key === 'inventario-salud') return false;
   // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
   if (key === 'estado-ordenes') {
     return Object.prototype.hasOwnProperty.call(sp, 'estado-ordenes') ? !!sp['estado-ordenes'] : (!!sp['sdv-portal'] || !!sp['sdv-bandeja']);
@@ -9010,7 +9056,7 @@ function applyNavPerms() {
   var sections = [
     'dashboard-ventas','estado-ordenes','kpis-despacho','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'validacion','averias','reportes','wwp',
+    'validacion','averias','inventario-salud','reportes','wwp',
     'sdv-portal','sdv-bandeja'
   ];
   sections.forEach(function(s) {
@@ -9027,7 +9073,7 @@ function applyNavPerms() {
   var GROUPS = {
     'navg-consultar':   ['buscar'],
     'navg-reportes':    ['reportes'],
-    'navg-analisis':    ['devoluciones','validacion','averias'],
+    'navg-analisis':    ['devoluciones','validacion','averias','inventario-salud'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto'],
@@ -9781,6 +9827,7 @@ var _NOTIF_META = {
   damage_detected:{cat:'operacion',urg:'critical'}, cancel_blocked:{cat:'operacion',urg:'critical'},
   evidence_incomplete:{cat:'operacion',urg:'alert'}, missing_evidence:{cat:'operacion',urg:'alert'},
   stock_changed:{cat:'operacion',urg:'alert'},
+  inventario_negativo:{cat:'operacion',urg:'critical'},
   reposicion_nueva:{cat:'operacion',urg:'info'}, reposicion_aprobada:{cat:'operacion',urg:'success'},
   reposicion_rechazada:{cat:'operacion',urg:'alert'},
   // chat
@@ -9859,6 +9906,7 @@ var _NOTIF_ICONS = {
   evidence_incomplete:{ icon:'camera',        cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
   missing_evidence : { icon:'camera',         cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
   stock_changed    : { icon:'package',        cls:'ni-alert',   bg:'--orange-bg', color:'--orange-text' },
+  inventario_negativo : { icon:'package-x',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
   reposicion_nueva : { icon:'package-plus',   cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
   reposicion_aprobada:{ icon:'check-circle',  cls:'ni-success', bg:'--green-bg',  color:'--green-text'  },
   reposicion_rechazada:{ icon:'x-circle',     cls:'ni-alert',   bg:'--amber-bg',  color:'--amber-text'  },
@@ -26078,7 +26126,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','reportes','dashboard-ventas','estado-ordenes','kpis-despacho','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','inventario-salud','reportes','dashboard-ventas','estado-ordenes','kpis-despacho','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -26093,6 +26141,7 @@ var NAV_SECTION_MAP={
   'sin-adjuntos':            'sin-adjuntos',
   'validacion':              'validacion',
   'averias':                 'averias',
+  'inventario-salud':        'inventario-salud',
   'reportes':                'reportes',
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
@@ -26324,6 +26373,475 @@ function devCdpCrearTareaSeleccion() {
   }, 350);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// SALUD DE INVENTARIO — negativos Odoo + casos con seguimiento (v156)
+// Loader único: /api/inventario/salud (foto Odoo + casos + conciliación).
+// Causas: A=kit phantom · B=sin recepción previa · C=salida antes de entrada.
+// ═══════════════════════════════════════════════════════════════════════
+var _invData = null;            // última respuesta de /api/inventario/salud
+var _invSel  = new Set();       // refs seleccionados en "sin caso"
+var _invDrawerMov = {};         // itemId → {moves,causa,kit} (cache del drawer)
+
+var _INV_CAUSAS = {
+  'A': { lbl:'A · Kit phantom',        bg:'--purple-bg', tx:'--purple-text', hint:'Componente de kit despachado de más' },
+  'B': { lbl:'B · Sin recepción',      bg:'--amber-bg',  tx:'--amber-text',  hint:'Salida sin entrada previa en la ubicación' },
+  'C': { lbl:'C · Salida antes de IN', bg:'--sky-bg',    tx:'--sky-text',    hint:'La salida se validó antes que la recepción' },
+  '?': { lbl:'Sin clasificar',         bg:'--surface-2', tx:'--text-3',      hint:'Abrir el detalle para clasificar' }
+};
+var _INV_SEG = {
+  pendiente:  { lbl:'Pendiente',  bg:'--amber-bg', tx:'--amber-text' },
+  verificado: { lbl:'Verificado', bg:'--sky-bg',   tx:'--sky-text'   },
+  corregido:  { lbl:'Corregido',  bg:'--green-bg', tx:'--green-text' }
+};
+
+function invCausaBadge(code) {
+  var c = _INV_CAUSAS[code] || _INV_CAUSAS['?'];
+  return '<span title="' + esc(c.hint) + '" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;white-space:nowrap;background:var(' + c.bg + ');color:var(' + c.tx + ')">' + esc(c.lbl) + '</span>';
+}
+function invSegBadge(it) {
+  var s = _INV_SEG[it.seguimiento] || _INV_SEG.pendiente;
+  var auto = (it.seguimiento === 'corregido' && it.corregidoAuto) ? ' · auto' : '';
+  return '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;white-space:nowrap;background:var(' + s.bg + ');color:var(' + s.tx + ')">' + esc(s.lbl + auto) + '</span>';
+}
+function invFmtDt(iso) {
+  if (!iso) return '—';
+  try { var d = new Date(iso); return d.toLocaleDateString('es-DO', {day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('es-DO', {hour:'2-digit',minute:'2-digit'}); }
+  catch(e) { return String(iso).slice(0, 16); }
+}
+
+async function invSaludCargar(force) {
+  var kpis = document.getElementById('inv-kpis');
+  if (!kpis) return;
+  var banner = document.getElementById('inv-banner');
+  banner.innerHTML = '';
+  if (!_invData) {
+    kpis.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Consultando Odoo…</div>';
+    document.getElementById('inv-sincaso').innerHTML = '';
+    document.getElementById('inv-recepciones').innerHTML = '';
+    document.getElementById('inv-casos').innerHTML = '';
+  }
+  try {
+    var r = await authFetch('/api/inventario/salud' + (force ? '?refresh=1' : ''));
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Error al cargar');
+    _invData = d;
+    _invSel.clear();
+    invRenderAll();
+  } catch(e) {
+    if (!_invData) kpis.innerHTML = '';
+    banner.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;margin-bottom:16px">No se pudo cargar Salud de Inventario: ' + esc(e.message) + '</div>';
+  }
+}
+
+function invRenderAll() {
+  if (!_invData) return;
+  var upd = document.getElementById('inv-updated');
+  if (upd) upd.textContent = _invData.ts ? ('Foto Odoo: ' + invFmtDt(new Date(_invData.ts).toISOString())) : '';
+  var banner = document.getElementById('inv-banner');
+  banner.innerHTML = (!_invData.odooOk)
+    ? '<div style="padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px;margin-bottom:16px"><strong>Odoo no respondió</strong> — mostrando la última foto disponible. ' + esc(_invData.odooError || '') + '</div>'
+    : '';
+  invRenderKpis();
+  invRenderSinCaso();
+  invRenderRecepciones();
+  invRenderCasos();
+  if (window.lucide) lucide.createIcons();
+}
+
+function invRenderKpis() {
+  var d = _invData, k = d.kpis || {};
+  function chip(val, lbl, sub, bgVar, txVar, icon) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(' + (bgVar || '--surface-2') + ');border:1px solid var(--border);border-radius:10px;min-width:130px">' +
+      (icon ? '<i data-lucide="' + icon + '" style="width:16px;height:16px;stroke:var(' + (txVar || '--text') + ');flex-shrink:0"></i>' : '') +
+      '<div><div style="font-size:20px;font-weight:800;color:var(' + (txVar || '--text') + ')">' + val + '</div>' +
+      '<div style="font-size:11px;color:var(' + (txVar || '--text-3') + ');font-weight:600">' + lbl + (sub ? ' <span style="font-weight:400;opacity:.8">· ' + sub + '</span>' : '') + '</div></div></div>';
+  }
+  var html =
+    chip(k.activos || 0, 'negativos activos', (k.skus || 0) + ' SKUs', (k.activos ? '--red-bg' : '--green-bg'), (k.activos ? '--red-text' : '--green-text'), 'package-x') +
+    chip(k.sinCaso || 0, 'sin caso', null, (k.sinCaso ? '--amber-bg' : '--surface-2'), (k.sinCaso ? '--amber-text' : '--text'), 'inbox') +
+    chip(k.recepPend || 0, 'recepciones tránsito', (k.recepPend24h || 0) + ' con >24h', ((k.recepPend24h) ? '--amber-bg' : '--surface-2'), ((k.recepPend24h) ? '--amber-text' : '--text'), 'truck');
+  if (k.avanceCasoPct !== null && k.avanceCasoPct !== undefined) {
+    html += chip(k.avanceCasoPct + '%', 'avance', esc((k.avanceCasoTitulo || '').slice(0, 30)), '--surface-2', '--text', 'target');
+  }
+  document.getElementById('inv-kpis').innerHTML = html;
+}
+
+function invRenderSinCaso() {
+  var zone = document.getElementById('inv-sincaso');
+  var d = _invData;
+  var sin = d.sinCaso || [];
+  var casosAbiertos = (d.casos || []).filter(function(c){ return c.estado === 'abierto'; });
+
+  // Empty-state con seed (solo admin, solo si los casos semilla no existen aún)
+  var seedHtml = '';
+  if (d.seedDisponible && _user && _user.role === 'admin') {
+    seedHtml = '<div style="padding:14px 16px;background:var(--surface-2);border:1px dashed var(--border);border-radius:10px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+      '<span style="font-size:13px;color:var(--text-2)">Los casos de la auditoría del 30-jun aún no están creados.</span>' +
+      '<button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="invSeed()"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Crear casos iniciales (46 + 5)</button>' +
+    '</div>';
+  }
+
+  if (!sin.length) { zone.innerHTML = seedHtml; return; }
+
+  var rows = sin.map(function(s) {
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;background:var(--surface)">' +
+      '<input type="checkbox" data-ref="' + esc(s.ref) + '" onchange="invToggleSel(this)"' + (_invSel.has(s.ref) ? ' checked' : '') + ' style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">' +
+      '<span style="font-size:12px;font-weight:700;color:var(--amber-text);white-space:nowrap">' + s.qtyTotal + '</span>' +
+      '<span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(s.ref) + '</span>' +
+      '<span style="font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="' + esc(s.name) + '">' + esc(s.name) + '</span>' +
+      '<span style="font-size:11px;color:var(--text-3);white-space:nowrap">' + esc((s.locs || []).map(function(l){ return l.split('/').slice(2).join('/'); }).join(' · ')) + '</span>' +
+    '</label>';
+  }).join('');
+
+  var opts = casosAbiertos.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.titulo.slice(0, 45)) + '</option>'; }).join('');
+
+  zone.innerHTML = seedHtml +
+    '<div style="padding:14px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
+        '<i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:var(--amber-text)"></i>' +
+        '<strong style="font-size:13px;color:var(--amber-text)">' + sin.length + ' SKU' + (sin.length !== 1 ? 's' : '') + ' en negativo sin caso de seguimiento</strong>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;margin-bottom:10px">' + rows + '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        (casosAbiertos.length
+          ? '<select id="inv-caso-dest" class="form-select" style="font-size:12px;padding:6px 10px;max-width:280px">' + opts + '</select>' +
+            '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAgregarACaso()">Agregar al caso</button>'
+          : '') +
+        '<input type="text" id="inv-nuevo-titulo" class="form-input" placeholder="Título del caso nuevo…" style="max-width:240px;font-size:12px;padding:6px 10px">' +
+        '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invCrearCaso()">Crear caso nuevo</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function invToggleSel(cb) {
+  var ref = cb.getAttribute('data-ref');
+  if (cb.checked) _invSel.add(ref); else _invSel.delete(ref);
+}
+
+function invSelRefs() {
+  if (!_invSel.size) { toast('Marca al menos un SKU de la lista'); return null; }
+  var byRef = {};
+  (_invData.sinCaso || []).forEach(function(s){ byRef[s.ref] = s; });
+  return Array.from(_invSel).map(function(ref) {
+    var s = byRef[ref] || {};
+    return { ref: ref, causa: '?', productId: s.productId || null, productName: s.name || null };
+  });
+}
+
+async function invCrearCaso() {
+  var items = invSelRefs(); if (!items) return;
+  var titulo = (document.getElementById('inv-nuevo-titulo').value || '').trim();
+  if (!titulo) { toast('Escribe el título del caso'); return; }
+  try {
+    var r = await authFetch('/api/inventario/casos', { method: 'POST', body: JSON.stringify({ titulo: titulo, items: items }) });
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo crear');
+    toast('Caso creado con ' + (d.caso.items || []).length + ' artículo(s)');
+    invSaludCargar();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function invAgregarACaso() {
+  var items = invSelRefs(); if (!items) return;
+  var sel = document.getElementById('inv-caso-dest');
+  if (!sel || !sel.value) { toast('Selecciona el caso destino'); return; }
+  try {
+    var r = await authFetch('/api/inventario/casos/' + encodeURIComponent(sel.value) + '/items', { method: 'POST', body: JSON.stringify({ items: items }) });
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo agregar');
+    toast(d.added + ' artículo(s) agregado(s)' + ((d.omitidos || []).length ? ' · ' + d.omitidos.length + ' ya estaban en un caso' : ''));
+    invSaludCargar();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+async function invSeed() {
+  try {
+    var r = await authFetch('/api/inventario/seed-caso-inicial', { method: 'POST', body: JSON.stringify({}) });
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo sembrar');
+    toast((d.created || []).length ? 'Casos iniciales creados' : 'Los casos ya existían');
+    invSaludCargar();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+function invRenderRecepciones() {
+  var zone = document.getElementById('inv-recepciones');
+  var recs = (_invData.recepciones || []);
+  if (!recs.length) { zone.innerHTML = ''; return; }
+  var STATE_LBL = { assigned: 'Listo para validar', confirmed: 'En espera', waiting: 'En espera', draft: 'Borrador' };
+  var rows = recs.map(function(p) {
+    var age = (p.ageHours === null || p.ageHours === undefined) ? '—'
+      : (p.ageHours >= 48 ? Math.round(p.ageHours / 24) + ' días' : p.ageHours + ' h');
+    var ageStyle = (p.ageHours >= 72) ? 'background:var(--red-bg);color:var(--red-text)'
+      : (p.ageHours >= 24) ? 'background:var(--amber-bg);color:var(--amber-text)'
+      : 'background:var(--surface-2);color:var(--text-2)';
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--accent);white-space:nowrap">' + esc(p.name) + '</td>' +
+      '<td style="padding:8px 12px;font-size:12px;color:var(--text-2);white-space:nowrap">' + esc(STATE_LBL[p.state] || p.state) + '</td>' +
+      '<td style="padding:8px 12px;font-size:12px;color:var(--text-3);white-space:nowrap">' + esc((p.createDate || '').slice(0, 10)) + '</td>' +
+      '<td style="padding:8px 12px;font-size:12px;color:var(--text-2)">' + esc(p.destino) + '</td>' +
+      '<td style="padding:8px 12px;white-space:nowrap"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;' + ageStyle + '">' + age + '</span></td>' +
+    '</tr>';
+  }).join('');
+  zone.innerHTML =
+    '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">' +
+      '<div style="padding:10px 14px;background:var(--surface-2);display:flex;align-items:center;gap:8px">' +
+        '<i data-lucide="truck" style="width:14px;height:14px;stroke:var(--text-2)"></i>' +
+        '<strong style="font-size:13px;color:var(--text)">Recepciones de tránsito pendientes (' + recs.length + ')</strong>' +
+        '<span style="font-size:11px;color:var(--text-3)">— validar la recepción ANTES de mover la mercancía evita los negativos</span>' +
+      '</div>' +
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Transferencia</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Estado</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Creada</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Destino</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Antigüedad</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '</div>';
+}
+
+function invRenderCasos() {
+  var zone = document.getElementById('inv-casos');
+  var casos = (_invData.casos || []).slice().sort(function(a, b) {
+    if (a.estado !== b.estado) return a.estado === 'abierto' ? -1 : 1;
+    return (a.creadoAt || '').localeCompare(b.creadoAt || '');
+  });
+  if (!casos.length) {
+    zone.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;border:1px dashed var(--border);border-radius:10px">Sin casos de seguimiento todavía.</div>';
+    return;
+  }
+  var SEG_ORDER = { pendiente: 0, verificado: 1, corregido: 2 };
+  zone.innerHTML = casos.map(function(c) {
+    var items = (c.items || []).slice().sort(function(a, b) {
+      var d = (SEG_ORDER[a.seguimiento] || 0) - (SEG_ORDER[b.seguimiento] || 0);
+      return d !== 0 ? d : a.ref.localeCompare(b.ref);
+    });
+    var tot = items.length || 1;
+    var corr = items.filter(function(i){ return i.seguimiento === 'corregido'; }).length;
+    var pct = Math.round(100 * corr / tot);
+    var cerrado = c.estado === 'cerrado';
+    var rows = items.map(function(it) {
+      var locsShort = (it.locs || []).map(function(l){ return l.split('/').slice(2).join('/'); }).join(' · ');
+      return '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="invAbrirDetalle(\'' + esc(c.id) + '\',\'' + esc(it.itemId) + '\')">' +
+        '<td style="padding:8px 12px;max-width:260px"><div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(it.ref) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(it.productName || '') + '">' + esc(it.productName || '') + '</div></td>' +
+        '<td style="padding:8px 10px;white-space:nowrap">' + invCausaBadge(it.causa) + '</td>' +
+        '<td style="padding:8px 12px;font-size:11px;color:var(--text-3);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((it.locs || []).join(' · ')) + '">' + esc(locsShort || '—') + '</td>' +
+        '<td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:700;color:' + (it.qtyNeg < 0 ? 'var(--red-text)' : 'var(--green-text)') + '">' + (it.qtyNeg === null ? '—' : it.qtyNeg) + '</td>' +
+        '<td style="padding:8px 10px;white-space:nowrap">' + invSegBadge(it) + '</td>' +
+        '<td style="padding:8px 12px;font-size:11px;color:var(--text-2);white-space:nowrap">' + esc(it.responsableNombre || '—') + '</td>' +
+        '<td style="padding:8px 10px;text-align:center"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td>' +
+      '</tr>';
+    }).join('');
+    return '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px' + (cerrado ? ';opacity:.65' : '') + '">' +
+      '<div style="padding:12px 14px;background:var(--surface-2)">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+            '<strong style="font-size:13px;color:var(--text)">' + esc(c.titulo) + '</strong>' +
+            (cerrado ? '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--surface-3);color:var(--text-3)">CERRADO</span>' : '') +
+            '<span style="font-size:11px;color:var(--text-3)">' + corr + '/' + items.length + ' corregidos</span>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            (cerrado
+              ? '<button style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer" onclick="invCerrarCaso(\'' + esc(c.id) + '\',true)">Reabrir</button>'
+              : '<button style="font-size:11px;padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer" onclick="invCerrarCaso(\'' + esc(c.id) + '\',false)">Cerrar caso</button>') +
+          '</div>' +
+        '</div>' +
+        (c.descripcion ? '<div style="font-size:11px;color:var(--text-3);margin-top:4px">' + esc(c.descripcion) + '</div>' : '') +
+        (c.cierreNota ? '<div style="font-size:11px;color:var(--amber-text);margin-top:4px">' + esc(c.cierreNota) + '</div>' : '') +
+        '<div style="height:6px;background:var(--surface-3);border-radius:3px;margin-top:8px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--green-dot);border-radius:3px"></div></div>' +
+      '</div>' +
+      '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Artículo</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Causa</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Ubicación</th>' +
+          '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-2)">Qty</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Seguimiento</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Responsable</th>' +
+          '<th style="padding:8px 10px"></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '</div>';
+  }).join('');
+}
+
+async function invCerrarCaso(casoId, reabrir) {
+  var body = reabrir ? { accion: 'reabrir' } : {};
+  try {
+    var r = await authFetch('/api/inventario/casos/' + encodeURIComponent(casoId) + '/cerrar', { method: 'POST', body: JSON.stringify(body) });
+    var d = await r.json();
+    if (r.status === 409 && d.pendientes) {
+      if (!confirm('Hay ' + d.pendientes + ' artículo(s) sin corregir. ¿Cerrar el caso de todos modos?')) return;
+      r = await authFetch('/api/inventario/casos/' + encodeURIComponent(casoId) + '/cerrar', { method: 'POST', body: JSON.stringify({ force: true }) });
+      d = await r.json();
+    }
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo');
+    toast(reabrir ? 'Caso reabierto' : 'Caso cerrado');
+    invSaludCargar();
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── Drawer de detalle por SKU: movimientos + causa sugerida + acciones ──────
+function invFindItem(casoId, itemId) {
+  var caso = (_invData && _invData.casos || []).find(function(c){ return c.id === casoId; });
+  var it = caso && (caso.items || []).find(function(i){ return i.itemId === itemId; });
+  return { caso: caso, it: it };
+}
+
+async function invAbrirDetalle(casoId, itemId) {
+  var f = invFindItem(casoId, itemId);
+  if (!f.it) return;
+  var old = document.getElementById('invDetOverlay');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="invDetOverlay" onclick="if(event.target===this)this.remove()">' +
+      '<div class="eo-det-modal" id="invDetModal" style="padding:0;max-width:640px"><div style="padding:30px;text-align:center;color:var(--text-2)">Cargando movimientos…</div></div>' +
+    '</div>');
+  var mov = _invDrawerMov[itemId];
+  if (!mov) {
+    try {
+      if (!f.it.productId) throw new Error('SKU sin productId (aún no visto en Odoo)');
+      // locId: la ubicación negativa activa de este ref (de la foto actual)
+      var negRow = (_invData.negativos || []).find(function(n){ return n.ref === f.it.ref; });
+      var qs = '?loc=' + (negRow ? negRow.locId : '') + '&caso=' + encodeURIComponent(casoId) + '&item=' + encodeURIComponent(itemId);
+      var r = await authFetch('/api/inventario/sku/' + f.it.productId + '/movimientos' + qs);
+      var d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.error || 'Error consultando movimientos');
+      mov = { moves: d.moves || [], causa: d.causa || null, kit: d.kit || null, totalMoves: d.totalMoves || 0 };
+      _invDrawerMov[itemId] = mov;
+      if (mov.causa && f.it.causaAuto !== mov.causa.code) f.it.causaAuto = mov.causa.code;
+      if (mov.kit && mov.kit.kitPadre) f.it.kitPadre = mov.kit.kitPadre;
+    } catch(e) {
+      mov = { moves: [], causa: null, kit: null, error: e.message };
+    }
+  }
+  invRenderDrawer(casoId, itemId, mov);
+}
+
+function invRenderDrawer(casoId, itemId, mov) {
+  var modal = document.getElementById('invDetModal');
+  if (!modal) return;
+  var f = invFindItem(casoId, itemId);
+  if (!f.it) { modal.parentElement.remove(); return; }
+  var it = f.it;
+
+  var movRows = (mov.moves || []).map(function(m) {
+    return '<tr style="border-bottom:1px solid var(--border)">' +
+      '<td style="padding:6px 10px;font-size:11px;color:var(--text-3);white-space:nowrap">' + esc((m.date || '').slice(0, 16)) + '</td>' +
+      '<td style="padding:6px 10px;font-size:11px;font-weight:600;color:var(--accent);white-space:nowrap">' + esc(m.ref) + '</td>' +
+      '<td style="padding:6px 10px;font-size:11px;color:var(--text-2)">' + esc((m.from || '').replace('ALVEN/Stock/', '')) + ' <span style="color:var(--text-3)">→</span> ' + esc((m.to || '').replace('ALVEN/Stock/', '')) + '</td>' +
+      '<td style="padding:6px 8px;font-size:11px;font-weight:700;text-align:center;color:var(--text)">' + m.qty + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var causaHtml = '';
+  if (mov.error) {
+    causaHtml = '<div style="padding:10px 12px;background:var(--amber-bg);border-radius:8px;font-size:12px;color:var(--amber-text)">' + esc(mov.error) + '</div>';
+  } else if (mov.causa) {
+    var sugerida = mov.causa.code !== it.causa && mov.causa.code !== '?';
+    causaHtml = '<div style="padding:10px 12px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text-2)">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--text-3)">CAUSA SUGERIDA:</span>' + invCausaBadge(mov.causa.code) +
+        (sugerida ? '<button style="font-size:10px;padding:3px 8px;border:1px solid var(--accent);border-radius:5px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'causa\',{causa:\'' + mov.causa.code + '\'})">Aplicar</button>' : '') +
+      '</div>' + esc(mov.causa.razon || '') +
+      (mov.kit && mov.kit.kitPadre ? '<div style="margin-top:4px;font-size:11px;color:var(--purple-text)"><strong>Kit padre:</strong> ' + esc(mov.kit.kitPadre) + '</div>' : '') +
+    '</div>';
+  }
+
+  var usuarios = (_invData.usuarios || []).filter(function(u){ return u.role === 'admin' || u.role === 'manager' || u.role === 'assistant'; });
+  var respOpts = '<option value="">— sin responsable —</option>' + usuarios.map(function(u) {
+    return '<option value="' + esc(u.id) + '"' + (it.responsable === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>';
+  }).join('');
+
+  var notasHtml = (it.notas || []).slice().reverse().map(function(n) {
+    return '<div style="padding:7px 10px;background:var(--surface-2);border-radius:7px;margin-bottom:6px">' +
+      '<div style="font-size:10px;color:var(--text-3);margin-bottom:2px">' + esc(n.nombre || n.by || '') + ' · ' + invFmtDt(n.at) + '</div>' +
+      '<div style="font-size:12px;color:var(--text)">' + esc(n.texto) + '</div>' +
+    '</div>';
+  }).join('') || '<div style="font-size:12px;color:var(--text-3)">Sin notas.</div>';
+
+  var causaSel = ['A', 'B', 'C', '?'].map(function(cc) {
+    return '<button style="font-size:10px;padding:4px 9px;border-radius:5px;border:1.5px solid ' + (it.causa === cc ? 'var(--accent)' : 'var(--border)') + ';background:' + (it.causa === cc ? 'var(--accent-bg, var(--surface-2))' : 'transparent') + ';color:var(--text);cursor:pointer;font-weight:700" ' +
+      'onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'causa\',{causa:\'' + cc + '\'})">' + cc + '</button>';
+  }).join('');
+
+  modal.innerHTML =
+    '<div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
+      '<div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">' +
+          '<strong style="font-size:15px;color:var(--text)">' + esc(it.ref) + '</strong>' + invCausaBadge(it.causa) + invSegBadge(it) +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--text-2)">' + esc(it.productName || '') + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' +
+          ((it.locs || []).length ? esc(it.locs.join(' · ')) + ' · ' : '') +
+          'Stock: <strong style="color:' + (it.qtyNeg < 0 ? 'var(--red-text)' : 'var(--green-text)') + '">' + (it.qtyNeg === null ? '—' : it.qtyNeg) + '</strong>' +
+          (it.qtyContada !== null ? ' · Contado físico: <strong>' + it.qtyContada + '</strong>' : '') +
+        '</div>' +
+      '</div>' +
+      '<button onclick="document.getElementById(\'invDetOverlay\').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:4px"><i data-lucide="x" style="width:18px;height:18px"></i></button>' +
+    '</div>' +
+    '<div style="padding:16px 20px">' +
+      causaHtml +
+      '<div class="eo-det-sec-title" style="margin-top:14px">Causa raíz (fijar manualmente)</div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:12px">' + causaSel + '</div>' +
+      '<div class="eo-det-sec-title">Últimos movimientos' + (mov.totalMoves ? ' (' + (mov.moves || []).length + ' de ' + mov.totalMoves + ')' : '') + '</div>' +
+      ((mov.moves || []).length
+        ? '<div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"><table style="width:100%;border-collapse:collapse"><tbody>' + movRows + '</tbody></table></div>'
+        : '<div style="font-size:12px;color:var(--text-3);margin-bottom:14px">Sin movimientos disponibles.</div>') +
+      '<div class="eo-det-sec-title">Acciones</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">' +
+        '<input type="number" min="0" id="inv-qty-fisico" placeholder="Qty física" class="form-input" style="width:100px;font-size:12px;padding:6px 10px" value="' + (it.qtyContada !== null ? it.qtyContada : '') + '">' +
+        '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAccionVerificar(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\')">Marcar verificado físico</button>' +
+        (it.seguimiento === 'corregido'
+          ? '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'reabrir\',{})">Reabrir</button>'
+          : '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--green-dot);border-radius:7px;background:transparent;color:var(--green-text);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'corregir\',{})">Marcar corregido</button>') +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">' +
+        '<label style="font-size:11px;color:var(--text-3);font-weight:600">Responsable:</label>' +
+        '<select id="inv-resp-sel" class="form-select" style="font-size:12px;padding:6px 10px;max-width:220px" onchange="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'responsable\',{userId:this.value})">' + respOpts + '</select>' +
+      '</div>' +
+      '<div class="eo-det-sec-title">Notas</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+        '<input type="text" id="inv-nota-txt" class="form-input" placeholder="Agregar nota…" style="flex:1;font-size:12px;padding:6px 10px" onkeydown="if(event.key===\'Enter\')invAccionNota(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\')">' +
+        '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invAccionNota(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\')">Guardar</button>' +
+      '</div>' +
+      '<div style="max-height:180px;overflow-y:auto">' + notasHtml + '</div>' +
+    '</div>';
+  if (window.lucide) lucide.createIcons();
+}
+
+function invAccionVerificar(casoId, itemId) {
+  var q = document.getElementById('inv-qty-fisico').value;
+  if (q === '' || isNaN(parseInt(q, 10)) || parseInt(q, 10) < 0) { toast('Indica la cantidad física contada (0 o más)'); return; }
+  invAccion(casoId, itemId, 'verificar', { qtyContada: parseInt(q, 10) });
+}
+
+function invAccionNota(casoId, itemId) {
+  var t = (document.getElementById('inv-nota-txt').value || '').trim();
+  if (!t) { toast('Escribe la nota'); return; }
+  invAccion(casoId, itemId, 'nota', { texto: t });
+}
+
+async function invAccion(casoId, itemId, accion, extra) {
+  try {
+    var body = Object.assign({ accion: accion }, extra || {});
+    var r = await authFetch('/api/inventario/casos/' + encodeURIComponent(casoId) + '/items/' + encodeURIComponent(itemId), { method: 'PATCH', body: JSON.stringify(body) });
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo aplicar');
+    // Actualizar el item local sin re-pegar a Odoo y re-render en sitio
+    var f = invFindItem(casoId, itemId);
+    if (f.caso && f.it) {
+      var idx = f.caso.items.findIndex(function(i){ return i.itemId === itemId; });
+      if (idx >= 0) f.caso.items[idx] = d.item;
+    }
+    invRenderCasos();
+    invRenderKpis();
+    if (window.lucide) lucide.createIcons();
+    if (document.getElementById('invDetModal')) invRenderDrawer(casoId, itemId, _invDrawerMov[itemId] || { moves: [], causa: null, kit: null });
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
 /* Drawer móvil: abre/cierra el sidebar global como menú deslizante.
    En desktop no tiene efecto visible (las reglas del drawer viven en @media ≤767px). */
 function toggleSidebar(open){
@@ -26347,6 +26865,7 @@ function navTo(section){
   if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
+  if(target==='inventario-salud') invSaludCargar();
   if(target==='nuevos-despachos') ndCargarLista();
   if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='sdv-portal') sdvInitPortal();

@@ -130,3 +130,10 @@ Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada
 ## Pendientes / notas abiertas
 - Deploy de los quick-wins de la auditoría: espera OK explícito (commit+push antes de `railway up`).
 - Posibles mejoras sugeridas no implementadas: ubicación al subir cada evidencia individual de artículo (ya se captura en fotos de despacho).
+
+## Salud de Inventario — negativos Odoo con casos (v156, 7-jul-2026)
+- Contexto: auditoría 30-jun (46 negativos A-CDP/PTN, `CORRECCION-INVENTARIO-2026-06-30.md`) + verificación 7-jul (45/46 vigentes + 5 nuevos por recepción de tránsito tardía). Odoo es SaaS → no se puede instalar `stock_no_negative`; el control vive en la plataforma. Plan: `PLAN-ACCION-NEGATIVOS-2026-07-07.md`.
+- Sección nueva `inventario-salud` (sidebar Análisis Operacional, solo admin+manager): negativos vivos (excluye legacy "sistema anterior"), recepciones de tránsito pendientes con antigüedad, y casos con seguimiento por SKU (pendiente → verificado físico → corregido) + notas + responsable.
+- Backend: `wwp-inventario-casos.json` (saveCriticalArray), 8 endpoints `/api/inventario/*`, cache Odoo TTL 5 min (force 30s), auto-conciliación (corregido-auto al desaparecer el negativo, reabre si reaparece), heurística de causa (A=kit phantom vía mrp.bom, B=sin IN previo, C=salida antes de entrada por balance corriente), seed idempotente de los 2 casos iniciales (46+5).
+- Watchdog diario 08:00 RD (`INV_WATCHDOG`, default ON) → notificación `inventario_negativo` (operacion/critical, en NOTIF_META + espejos historial/sw) a admin+manager si hay negativos sin caso o recepciones >24h. `POST /api/inventario/watchdog-run` (admin) lo fuerza para verificar tras deploy.
+- Verificado en local (curl + navegador): RBAC 401/403, seed idempotente, conciliación (Irva + MOR.LILO corregidos-auto), heurística A con kit exacto `GE.KAYLE.SOFA.BG.K3` y B en `AN-05100S201/M`, PATCH acciones con auditoría, gate 409 al cerrar con pendientes, watchdog E2E con notificación, fail-open sin Odoo (banner + casos persistidos).

@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v155';
+const APP_BUILD = 'v156';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4538,6 +4538,7 @@ const NOTIF_LABELS = {
   task_chat       : '💬 Mensaje nuevo en tarea',
   comment_new     : '💬 Comentario nuevo',
   lunch_ended     : '🍴 Almuerzo terminado',
+  inventario_negativo : '📉 Inventario — stock negativo',
   // ── Notificaciones críticas nuevas (Fase 1 go-live) ──────────────────────
   sdv_new_pending     : '📋 Nueva SDV pendiente',
   pick_incomplete     : '🚨 Pick incompleto',
@@ -4586,6 +4587,7 @@ const NOTIF_META = {
   evidence_incomplete : { cat:'operacion', urg:'alert' },
   missing_evidence    : { cat:'operacion', urg:'alert' },
   stock_changed       : { cat:'operacion', urg:'alert' },
+  inventario_negativo : { cat:'operacion', urg:'critical' },
   reposicion_nueva    : { cat:'operacion', urg:'info' },
   reposicion_aprobada : { cat:'operacion', urg:'success' },
   reposicion_rechazada: { cat:'operacion', urg:'alert' },
@@ -4636,7 +4638,9 @@ function effectiveNotifLevel(userId, category, urgency) {
 const SUPERVISOR_SKIP_TYPES = new Set([
   'task_assigned','subtask_assigned','status_changed',
   'task_completed','task_validated','task_cancelled','task_rejected',
-  'task_chat','comment_new','lunch_ended','agent_routine'
+  'task_chat','comment_new','lunch_ended','agent_routine',
+  // el watchdog de inventario ya notifica directo a admin+manager — sin copia extra
+  'inventario_negativo'
 ]);
 
 // Tipos "ruidosos" que se agrupan (×N) si llega otro igual sin leer para la misma
@@ -5172,6 +5176,260 @@ async function reconcileOutPendiente() {
 }
 setTimeout(() => { reconcileOutPendiente(); }, 90 * 1000);
 setInterval(() => { reconcileOutPendiente(); }, 10 * 60 * 1000);
+
+// ═══ Salud de Inventario — negativos Odoo con seguimiento por caso (v156) ═══
+// Odoo es SaaS (no se puede instalar stock_no_negative), así que la plataforma
+// detecta y da seguimiento: quants negativos en ubicaciones internas físicas +
+// recepciones de tránsito pendientes (la causa activa: se valida la salida antes
+// que la recepción). Los "casos" agrupan SKUs con causa raíz (A=kit phantom,
+// B=sin recepción previa, C=salida antes de entrada) y avance de seguimiento
+// (pendiente → verificado físico → corregido). SOLO LECTURA contra Odoo.
+// Origen: CORRECCION-INVENTARIO-2026-06-30.md + PLAN-ACCION-NEGATIVOS-2026-07-07.md.
+
+const INV_CASOS_FILE = path.join(DATA_DIR, 'wwp-inventario-casos.json');
+function loadInvCasos()     { return loadJson(INV_CASOS_FILE, []); }
+function saveInvCasos(list) { return saveCriticalArray(INV_CASOS_FILE, list); }
+
+// Seed de los casos iniciales (idempotente por seedKey, se dispara desde la UI).
+// Refs tomados de Odoo en vivo el 7-jul (el espacio en "MOTA-02C .P" es literal).
+const INV_SEED_CASES = [
+  {
+    seedKey: 'audit-2026-06-30',
+    titulo: 'Auditoría 30-jun — negativos A-CDP/PTN',
+    descripcion: 'Los 46 negativos de la auditoría del 30-jun-2026. Guía de corrección por artículo: CORRECCION-INVENTARIO-2026-06-30.md · Plan: PLAN-ACCION-NEGATIVOS-2026-07-07.md',
+    items: {
+      'GE.KAYLE.SOFA.CX.BG.C2':'A','GE.KAYLE.SOFA.RX.BG.C3':'A','GE.KAYLE.SOFA.LX.BG.C1':'A',
+      'GZF.KAES.COFFTBL.130.PART3.BLK.C3':'A','GZF.WEAVER.SOFA.RX.PARIS90-D.C7':'A',
+      'GZF.WEAVER.SDTBL.WH.MARB.TOP.C2':'A','GZF.WEAVER.SOFA.RX.HENNES-60A.C7':'A',
+      'GVF.IRVA.SDTBL45.BASE.BLK.C2':'A','GVF.IRVA.SDTBL45.DKEMPER.TOP.C1':'A',
+      'GVF.MERA.COFFTBL.BIG.LAUREN.BLK.BASE.C2':'A','GDF.CLOVE.DTBL160.OAK.BASE.BRW.C2':'A',
+      'HGI.TERRAZO.COFFTBL50.GRY.TOP.C1':'A','NAT.MELPOT.CABINET.BRW.DRAWER.C5':'A',
+      'CF-BR-BG003/GL':'A','MA-MD80160-1-800':'A','HN-C6Z51-C-1/2':'A','HN-C6Z51-C-2/2':'A',
+      'TD-MES01CO':'A','BH-H8242':'A','FSV.JOWIL.SOFA.BG.RAWRX.C1':'A',
+      'AN-05100S201/M':'B','LD-359817':'B','TW-AC1065/W':'B','SEL-18.457':'B','FSV-S6760/C':'B',
+      'BH-Z8208':'B','SMI-CM-315':'B','SJ-FK-0731/P':'B','NI-XL3120/B':'B','NZ-DC1193/BR':'B',
+      'WF-P103':'B','SD-081D':'B','CC-P-235-T':'B',
+      'SJ-FK-0731B':'C','MA-MD80160-1-380':'C','FG.TABITHA.OTT.WH.P':'C','WF-SE130C/G':'C',
+      'ARD-RB9046-1':'C','SI-TRAN105/W':'C','BH-08002':'C','TEMPO-107':'C','SU-676T':'C',
+      'TEMPO-150':'C','TEMPO-126':'C','HGI.ELLEN.SDTBL50.GRY.P':'C','RG-LD4622':'C'
+    }
+  },
+  {
+    seedKey: 'nuevos-2026-07-03',
+    titulo: 'Negativos nuevos 3–6 jul — recepción de tránsito tardía',
+    descripcion: 'SKUs en negativo porque el putaway/pick se validó antes que la recepción desde tránsito (CDP/INT/05534). Patrón salida-antes-de-entrada.',
+    items: {
+      'HON.DELY.CHAIR.BG.P':'C','JH.NALTO.RUG.300X400.WSAND.P':'C',
+      'GZF.RHAYE.OTT.MOTA-02C .P':'C','ZN.KEA.CEILAMP.GOLD.100.P':'C',
+      'MOR.LILO.WING.ARMCH.BLUE.RED.BG.P':'C'
+    }
+  }
+];
+
+// Item nuevo de caso con todos los campos del modelo (productId/nombre se
+// hidratan al sembrar si Odoo responde; si no, en la primera conciliación).
+function invNuevoItem(ref, causa, productId, productName, now) {
+  return {
+    itemId: wwpId('invitem'), ref,
+    productId: productId || null, productName: productName || null,
+    locs: [], qtyNeg: null,
+    causa: ['A', 'B', 'C', '?'].includes(causa) ? causa : '?',
+    causaAuto: null, kitPadre: null,
+    seguimiento: 'pendiente', qtyContada: null,
+    verificadoAt: null, verificadoBy: null, verificadoNombre: null,
+    corregidoAt: null, corregidoBy: null, corregidoAuto: false,
+    responsable: null, responsableNombre: null,
+    notas: [], addedAt: now
+  };
+}
+
+// ── Foto Odoo (negativos + recepciones de tránsito) con cache TTL ─────────────
+// Un solo punto de contacto con Odoo para toda la sección. force respeta un
+// throttle de 30s para no permitir martillar con el botón Actualizar.
+let _invNegCache = { ts: 0, data: null };
+let _invNegBusy  = null; // promesa en vuelo — coalescing de llamadas concurrentes
+const INV_NEG_TTL   = 5 * 60 * 1000;
+const INV_FORCE_MIN = 30 * 1000;
+
+async function invFetchOdooNegativos(force) {
+  const age = Date.now() - _invNegCache.ts;
+  if (_invNegCache.data && age < (force ? INV_FORCE_MIN : INV_NEG_TTL)) {
+    return { ..._invNegCache.data, ts: _invNegCache.ts, stale: false };
+  }
+  if (_invNegBusy) return _invNegBusy;
+  _invNegBusy = (async () => {
+    try {
+      const quants = await odooCall('stock.quant', 'search_read',
+        [[['quantity', '<', 0], ['location_id.usage', '=', 'internal']]],
+        { fields: ['id', 'product_id', 'location_id', 'quantity'], limit: 1000 });
+      // Excluir el residuo de la migración ("Devoluciones y despachos sistema
+      // anterior"): son ~115 negativos virtuales, no ubicaciones físicas reales.
+      const rows = (quants || []).filter(q => !/sistema anterior/i.test(q.location_id[1] || ''));
+      const prodIds = [...new Set(rows.map(q => q.product_id[0]))];
+      const prods = prodIds.length ? await odooCall('product.product', 'search_read',
+        [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name'], limit: 1000 }) : [];
+      const pMap = new Map((prods || []).map(p => [p.id, p]));
+      const negativos = rows.map(q => {
+        const p = pMap.get(q.product_id[0]) || {};
+        return {
+          productId: q.product_id[0],
+          ref: p.default_code || ('id:' + q.product_id[0]),
+          name: p.name || q.product_id[1] || '',
+          loc: q.location_id[1], locId: q.location_id[0], qty: q.quantity
+        };
+      });
+      // Recepciones pendientes desde el tránsito CDP (validarlas tarde ES la causa raíz)
+      let recepciones = [];
+      const transit = await odooCall('stock.location', 'search_read',
+        [[['complete_name', 'like', '%CDP Transferencias Internas%']]], { fields: ['id'], limit: 10 });
+      if ((transit || []).length) {
+        const picks = await odooCall('stock.picking', 'search_read',
+          [[['location_id', 'in', transit.map(l => l.id)], ['state', 'not in', ['done', 'cancel']]]],
+          { fields: ['name', 'state', 'create_date', 'location_dest_id'], order: 'create_date asc', limit: 100 });
+        recepciones = (picks || []).map(p => ({
+          name: p.name, state: p.state, createDate: p.create_date || '',
+          destino: p.location_dest_id ? p.location_dest_id[1] : '',
+          // create_date de Odoo es UTC naive ("YYYY-MM-DD HH:MM:SS") → anexar Z
+          ageHours: p.create_date ? Math.max(0, Math.round((Date.now() - Date.parse(p.create_date.replace(' ', 'T') + 'Z')) / 36e5)) : null
+        }));
+      }
+      _invNegCache = { ts: Date.now(), data: { negativos, recepciones } };
+      return { negativos, recepciones, ts: _invNegCache.ts, stale: false };
+    } catch (e) {
+      if (/denied|uid|session/i.test(String(e.message || ''))) odooUid = null; // forzar re-auth
+      if (_invNegCache.data) return { ..._invNegCache.data, ts: _invNegCache.ts, stale: true, error: e.message };
+      throw e;
+    } finally {
+      _invNegBusy = null;
+    }
+  })();
+  return _invNegBusy;
+}
+
+// ── Auto-conciliación de casos contra la foto Odoo ────────────────────────────
+// - ref sin quant negativo → 'corregido' automático (corregidoAuto, rastro manual intacto)
+// - ref que reaparece negativo → reabre a 'pendiente' con nota de sistema
+// - hidrata productId/nombre/locs/qtyNeg (snapshot informativo del último refresh)
+function invConciliar(casos, negativos) {
+  const negByRef = new Map();
+  negativos.forEach(n => {
+    if (!negByRef.has(n.ref)) negByRef.set(n.ref, []);
+    negByRef.get(n.ref).push(n);
+  });
+  let changed = false;
+  const now = new Date().toISOString();
+  casos.forEach(c => {
+    if (c.estado !== 'abierto') return;
+    (c.items || []).forEach(it => {
+      const vivos = negByRef.get(it.ref) || [];
+      if (vivos.length) {
+        const qty  = vivos.reduce((s, n) => s + n.qty, 0);
+        const locs = vivos.map(n => n.loc);
+        if (it.productId !== vivos[0].productId || it.productName !== vivos[0].name ||
+            it.qtyNeg !== qty || JSON.stringify(it.locs || []) !== JSON.stringify(locs)) {
+          it.productId = vivos[0].productId; it.productName = vivos[0].name;
+          it.qtyNeg = qty; it.locs = locs; changed = true;
+        }
+        if (it.seguimiento === 'corregido') {
+          it.seguimiento = 'pendiente';
+          it.corregidoAt = null; it.corregidoBy = null; it.corregidoAuto = false;
+          (it.notas = it.notas || []).push({ at: now, by: 'system', nombre: 'Sistema', texto: 'Reabierto: el SKU volvió a quedar negativo en Odoo (' + qty + ').' });
+          changed = true;
+        }
+      } else if (it.seguimiento !== 'corregido') {
+        it.seguimiento = 'corregido';
+        it.corregidoAt = now; it.corregidoBy = 'system:recon'; it.corregidoAuto = true;
+        it.qtyNeg = 0;
+        (it.notas = it.notas || []).push({ at: now, by: 'system', nombre: 'Sistema', texto: 'Corregido automáticamente: ya no hay stock negativo de este SKU en Odoo.' });
+        changed = true;
+      }
+    });
+  });
+  return changed;
+}
+
+// Negativos vivos que no pertenecen a ningún caso abierto (agrupados por ref).
+function invComputeSinCaso(casos, negativos) {
+  const enCaso = new Set();
+  casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+  const byRef = new Map();
+  negativos.forEach(n => {
+    if (enCaso.has(n.ref)) return;
+    if (!byRef.has(n.ref)) byRef.set(n.ref, { ref: n.ref, name: n.name, productId: n.productId, locs: [], qtyTotal: 0 });
+    const e = byRef.get(n.ref); e.locs.push(n.loc); e.qtyTotal += n.qty;
+  });
+  return [...byRef.values()].sort((a, b) => a.qtyTotal - b.qtyTotal);
+}
+
+// ¿Es componente de un kit (BoM phantom)? Fail-soft: si mrp no es accesible
+// con esta API key, devuelve esComponente:null y la causa se decide con B/C.
+async function invKitInfo(pid) {
+  try {
+    const bomLines = await odooCall('mrp.bom.line', 'search_read',
+      [[['product_id', '=', pid]]], { fields: ['bom_id'], limit: 10 });
+    if (!(bomLines || []).length) return { esComponente: false, kitPadre: null, phantom: false };
+    const bomIds = [...new Set(bomLines.map(l => l.bom_id[0]))];
+    const boms = await odooCall('mrp.bom', 'search_read',
+      [[['id', 'in', bomIds]]], { fields: ['type', 'product_tmpl_id'], limit: 10 });
+    const ph = (boms || []).find(b => b.type === 'phantom');
+    const first = ph || (boms || [])[0];
+    return {
+      esComponente: true,
+      kitPadre: first && first.product_tmpl_id ? first.product_tmpl_id[1] : null,
+      phantom: !!ph
+    };
+  } catch (e) {
+    return { esComponente: null, kitPadre: null, phantom: false };
+  }
+}
+
+// ── Watchdog diario 08:00 RD — detecta casos futuros sin esperar auditorías ──
+// Notifica (crítica, categoría operación) a admin+manager cuando hay negativos
+// sin caso o recepciones de tránsito >24h. Gate por env INV_WATCHDOG (default ON).
+// Fail-open: Odoo caído → no alerta con datos viejos, reintenta en la ventana.
+let _invWatchdogFiredDate = null;
+let _invWatchdogBusy = false;
+async function invWatchdog(forceRun) {
+  if (String(process.env.INV_WATCHDOG || '1') === '0') return null;
+  if (!forceRun) {
+    const rdNow = nowRD();
+    const today = rdNow.toISOString().slice(0, 10);
+    const h = rdNow.getUTCHours(), m = rdNow.getUTCMinutes();
+    if (h !== 8 || m > 5) return null;
+    if (_invWatchdogFiredDate === today) return null;
+  }
+  if (_invWatchdogBusy) return null;
+  _invWatchdogBusy = true;
+  try {
+    const foto = await invFetchOdooNegativos(false);
+    if (foto.stale) { console.warn('[inv-watchdog] Odoo no disponible — reintento en la ventana'); return null; }
+    const casos = loadInvCasos();
+    if (invConciliar(casos, foto.negativos)) saveInvCasos(casos);
+    const sinCaso = invComputeSinCaso(casos, foto.negativos);
+    const recepViejas = foto.recepciones.filter(r => (r.ageHours || 0) >= 24);
+    if (!forceRun) _invWatchdogFiredDate = nowRD().toISOString().slice(0, 10);
+    if (!sinCaso.length && !recepViejas.length) { console.log('[inv-watchdog] sin novedades'); return { sinCaso: 0, recepViejas: 0 }; }
+    const managers = loadAuthUsers()
+      .filter(u => u.active !== false && ['admin', 'manager'].includes(u.role))
+      .map(u => u.id);
+    const parts = [];
+    if (sinCaso.length) parts.push(sinCaso.length + ' SKU(s) negativos sin caso: ' + sinCaso.slice(0, 5).map(s => s.ref).join(', ') + (sinCaso.length > 5 ? '…' : ''));
+    if (recepViejas.length) parts.push(recepViejas.length + ' recepción(es) de tránsito pendientes >24h: ' + recepViejas.map(r => r.name).join(', '));
+    notifyMany(managers, {
+      type: 'inventario_negativo',
+      title: '📉 Salud de Inventario — atención',
+      message: parts.join(' · ') + '. Revisar la sección Salud de Inventario.'
+    });
+    console.log('[inv-watchdog] alerta enviada: ' + parts.join(' | '));
+    return { sinCaso: sinCaso.length, recepViejas: recepViejas.length };
+  } catch (e) {
+    console.warn('[inv-watchdog]', e.message);
+    return null;
+  } finally {
+    _invWatchdogBusy = false;
+  }
+}
+setInterval(() => { invWatchdog(false); }, 60_000);
 
 // ── Estado de sesión Odoo ────────────────────────────────────────────────────
 let odooUid  = null;
@@ -7544,6 +7802,364 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       res.writeHead(502, {'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:false, error:e.message }));
+    }
+    return;
+  }
+
+  // ═══ Salud de Inventario — negativos Odoo con seguimiento (admin+manager) ══
+
+  // ── GET /api/inventario/salud — loader único de la sección ─────────────────
+  // Foto Odoo (cache TTL 5 min, ?refresh=1 con throttle 30s) + auto-conciliación
+  // de casos (solo con datos frescos) + negativos sin caso + KPIs.
+  if (reqPath === '/api/inventario/salud' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const force = parsed.query.refresh === '1';
+      let foto, odooOk = true, odooError = null;
+      try {
+        foto = await invFetchOdooNegativos(force);
+        if (foto.stale) { odooOk = false; odooError = foto.error || 'Odoo no disponible'; }
+      } catch (e) {
+        odooOk = false; odooError = e.message;
+        foto = { negativos: [], recepciones: [], ts: 0, stale: true };
+      }
+      const casos = loadInvCasos();
+      if (odooOk && invConciliar(casos, foto.negativos)) saveInvCasos(casos);
+      const sinCaso = invComputeSinCaso(casos, foto.negativos);
+      const abiertos = casos.filter(c => c.estado === 'abierto');
+      const casoRef = abiertos[0] || null; // el abierto más antiguo (orden de creación)
+      const avance = (casoRef && (casoRef.items || []).length)
+        ? Math.round(100 * casoRef.items.filter(i => i.seguimiento === 'corregido').length / casoRef.items.length)
+        : null;
+      const usuarios = loadAuthUsers().filter(u => u.active !== false)
+        .map(u => ({ id: u.id, name: u.name, role: u.role }));
+      sendGzipJson(req, res, 200, {
+        ok: true, ts: foto.ts || null, stale: !!foto.stale, odooOk, odooError,
+        negativos: foto.negativos, recepciones: foto.recepciones,
+        casos, sinCaso, usuarios,
+        kpis: {
+          activos: foto.negativos.length,
+          skus: new Set(foto.negativos.map(n => n.ref)).size,
+          sinCaso: sinCaso.length,
+          recepPend: foto.recepciones.length,
+          recepPend24h: foto.recepciones.filter(r => (r.ageHours || 0) >= 24).length,
+          avanceCasoPct: avance,
+          avanceCasoTitulo: casoRef ? casoRef.titulo : null
+        },
+        seedDisponible: INV_SEED_CASES.some(s => !casos.some(c => c.seedKey === s.seedKey))
+      });
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/watchdog-run — solo admin: fuerza una corrida ─────
+  // Para verificar la alerta tras un deploy sin esperar a las 08:00 RD.
+  if (reqPath === '/api/inventario/watchdog-run' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const out = await invWatchdog(true);
+      sendGzipJson(req, res, 200, { ok: true, resultado: out, gateOff: String(process.env.INV_WATCHDOG || '1') === '0' });
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/seed-caso-inicial — solo admin, idempotente ───────
+  if (reqPath === '/api/inventario/seed-caso-inicial' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const casos = loadInvCasos();
+      const created = [], already = [];
+      // Hidratar productId/nombre por ref en una sola llamada (fail-soft: si Odoo
+      // no responde, la primera conciliación hidrata después).
+      let prodByRef = new Map();
+      try {
+        const allRefs = [...new Set(INV_SEED_CASES.flatMap(s => Object.keys(s.items)))];
+        const prods = await odooCall('product.product', 'search_read',
+          [[['default_code', 'in', allRefs]]], { fields: ['id', 'default_code', 'name'], limit: 200 });
+        prodByRef = new Map((prods || []).map(p => [p.default_code, p]));
+      } catch (e) { console.warn('[inv-seed] sin hidratación Odoo:', e.message); }
+      const now = new Date().toISOString();
+      INV_SEED_CASES.forEach(seed => {
+        if (casos.some(c => c.seedKey === seed.seedKey)) { already.push(seed.seedKey); return; }
+        const items = Object.entries(seed.items).map(([ref, causa]) => {
+          const p = prodByRef.get(ref);
+          const it = invNuevoItem(ref, causa, p && p.id, p && p.name, now);
+          if (prodByRef.size && !p) it.notas.push({ at: now, by: 'system', nombre: 'Sistema', texto: 'Ref no encontrado en Odoo al sembrar — verificar el código.' });
+          return it;
+        });
+        casos.push({
+          id: wwpId('invcase'), seedKey: seed.seedKey, titulo: seed.titulo,
+          descripcion: seed.descripcion, estado: 'abierto',
+          creadoAt: now, creadoBy: jp.userId, creadoNombre: jp.name || '',
+          cerradoAt: null, cerradoBy: null, items
+        });
+        created.push(seed.seedKey);
+      });
+      if (created.length) saveInvCasos(casos);
+      try { appendAuditLog('inv_seed', { created, already, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, { ok: true, created, already, casos });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/casos — crear caso ────────────────────────────────
+  if (reqPath === '/api/inventario/casos' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const d = await readBody(req);
+      const titulo = String(d.titulo || '').trim();
+      if (!titulo) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'titulo requerido' })); return; }
+      const casos = loadInvCasos();
+      const enOtroCaso = new Set();
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enOtroCaso.add(it.ref)); });
+      const now = new Date().toISOString();
+      const omitidos = [], items = [], vistos = new Set();
+      (Array.isArray(d.items) ? d.items : []).forEach(raw => {
+        const ref = String((raw && raw.ref) || '').trim();
+        if (!ref || vistos.has(ref)) return;
+        vistos.add(ref);
+        if (enOtroCaso.has(ref)) { omitidos.push(ref); return; }
+        items.push(invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now));
+      });
+      const caso = {
+        id: wwpId('invcase'), seedKey: null, titulo,
+        descripcion: String(d.descripcion || '').trim(), estado: 'abierto',
+        creadoAt: now, creadoBy: jp.userId, creadoNombre: jp.name || '',
+        cerradoAt: null, cerradoBy: null, items
+      };
+      casos.push(caso);
+      saveInvCasos(casos);
+      try { appendAuditLog('inv_caso_creado', { casoId: caso.id, titulo, items: items.length, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, { ok: true, caso, omitidos });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/casos/:id/items — agregar refs a un caso ──────────
+  if (reqPath.startsWith('/api/inventario/casos/') && reqPath.endsWith('/items') && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const parts = reqPath.split('/'); // ['','api','inventario','casos',id,'items']
+      if (parts.length !== 6) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return; }
+      const d = await readBody(req);
+      const casos = loadInvCasos();
+      const caso = casos.find(c => c.id === parts[4]);
+      if (!caso) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Caso no encontrado' })); return; }
+      if (caso.estado !== 'abierto') { res.writeHead(409, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'El caso está cerrado' })); return; }
+      const enCaso = new Set();
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+      const now = new Date().toISOString();
+      const added = [], omitidos = [];
+      (Array.isArray(d.items) ? d.items : []).forEach(raw => {
+        const ref = String((raw && raw.ref) || '').trim();
+        if (!ref) return;
+        if (enCaso.has(ref)) { omitidos.push(ref); return; }
+        enCaso.add(ref);
+        const it = invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now);
+        caso.items.push(it);
+        added.push(it.itemId);
+      });
+      if (added.length) saveInvCasos(casos);
+      try { appendAuditLog('inv_items_agregados', { casoId: caso.id, added: added.length, omitidos, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, { ok: true, added: added.length, omitidos, caso });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/casos/:id/cerrar — cerrar (o body accion:reabrir) ─
+  if (reqPath.startsWith('/api/inventario/casos/') && reqPath.endsWith('/cerrar') && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const parts = reqPath.split('/');
+      if (parts.length !== 6) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return; }
+      const d = await readBody(req).catch(() => ({}));
+      const casos = loadInvCasos();
+      const caso = casos.find(c => c.id === parts[4]);
+      if (!caso) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Caso no encontrado' })); return; }
+      const now = new Date().toISOString();
+      if (d.accion === 'reabrir') {
+        caso.estado = 'abierto'; caso.cerradoAt = null; caso.cerradoBy = null; caso.cierreNota = null;
+      } else {
+        const pendientes = (caso.items || []).filter(i => i.seguimiento !== 'corregido').length;
+        if (pendientes && !d.force) {
+          res.writeHead(409, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Hay ' + pendientes + ' artículo(s) sin corregir. Usa force para cerrar de todos modos.', pendientes }));
+          return;
+        }
+        caso.estado = 'cerrado'; caso.cerradoAt = now; caso.cerradoBy = jp.userId;
+        caso.cierreNota = pendientes ? ('Cerrado forzado con ' + pendientes + ' pendiente(s) por ' + (jp.name || jp.userId) + '.') : null;
+      }
+      saveInvCasos(casos);
+      try { appendAuditLog('inv_caso_' + (d.accion === 'reabrir' ? 'reabierto' : 'cerrado'), { casoId: caso.id, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, { ok: true, caso });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── PATCH /api/inventario/casos/:id/items/:itemId — acciones de seguimiento ─
+  if (reqPath.startsWith('/api/inventario/casos/') && req.method === 'PATCH') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    const parts = reqPath.split('/'); // ['','api','inventario','casos',id,'items',itemId]
+    if (parts.length !== 7 || parts[5] !== 'items') {
+      res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return;
+    }
+    try {
+      const d = await readBody(req);
+      const bad = (msg) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: msg })); };
+      const casos = loadInvCasos();
+      const caso = casos.find(c => c.id === parts[4]);
+      if (!caso) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Caso no encontrado' })); return; }
+      const it = (caso.items || []).find(i => i.itemId === parts[6]);
+      if (!it) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Artículo no encontrado' })); return; }
+      const now = new Date().toISOString();
+      const quien = jp.name || jp.userId;
+      const nota = (texto) => { (it.notas = it.notas || []).push({ at: now, by: jp.userId, nombre: quien, texto }); };
+      switch (d.accion) {
+        case 'verificar': {
+          const q = parseInt(d.qtyContada, 10);
+          if (isNaN(q) || q < 0) { bad('qtyContada inválida (entero ≥ 0)'); return; }
+          it.qtyContada = q;
+          it.verificadoAt = now; it.verificadoBy = jp.userId; it.verificadoNombre = quien;
+          if (it.seguimiento !== 'corregido') it.seguimiento = 'verificado';
+          nota('Verificación física: ' + q + ' unidad(es) contadas.');
+          break;
+        }
+        case 'corregir':
+          it.seguimiento = 'corregido';
+          it.corregidoAt = now; it.corregidoBy = jp.userId; it.corregidoAuto = false;
+          nota('Marcado como corregido manualmente.');
+          break;
+        case 'reabrir':
+          it.seguimiento = 'pendiente';
+          it.corregidoAt = null; it.corregidoBy = null; it.corregidoAuto = false;
+          nota('Reabierto manualmente.');
+          break;
+        case 'responsable': {
+          if (d.userId) {
+            const u = loadAuthUsers().find(x => x.id === d.userId);
+            if (!u) { bad('Usuario no encontrado'); return; }
+            it.responsable = u.id; it.responsableNombre = u.name;
+          } else if (d.nombre) {
+            it.responsable = null; it.responsableNombre = String(d.nombre).trim();
+          } else {
+            it.responsable = null; it.responsableNombre = null;
+          }
+          nota('Responsable: ' + (it.responsableNombre || '(sin responsable)') + '.');
+          break;
+        }
+        case 'nota': {
+          const t = String(d.texto || '').trim();
+          if (!t) { bad('texto requerido'); return; }
+          nota(t);
+          break;
+        }
+        case 'causa': {
+          if (!['A', 'B', 'C', '?'].includes(d.causa)) { bad('causa inválida (A|B|C|?)'); return; }
+          it.causa = d.causa;
+          nota('Causa fijada en ' + d.causa + '.');
+          break;
+        }
+        default:
+          bad('accion inválida'); return;
+      }
+      saveInvCasos(casos);
+      try { appendAuditLog('inv_item_' + d.accion, { casoId: caso.id, itemId: it.itemId, ref: it.ref, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, { ok: true, item: it });
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── GET /api/inventario/sku/:pid/movimientos — drawer: historial + causa ───
+  if (reqPath.startsWith('/api/inventario/sku/') && reqPath.endsWith('/movimientos') && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const parts = reqPath.split('/'); // ['','api','inventario','sku',pid,'movimientos']
+      const pid = parseInt(parts[4], 10);
+      if (parts.length !== 6 || !pid) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'productId inválido' })); return; }
+      const locId = parseInt(parsed.query.loc || '', 10) || null;
+
+      // Últimos 200 movimientos hechos (desc para no perder los recientes en
+      // productos con historial largo); el balance se computa en orden cronológico.
+      const mlsDesc = await odooCall('stock.move.line', 'search_read',
+        [[['product_id', '=', pid], ['state', '=', 'done']]],
+        { fields: ['date', 'reference', 'location_id', 'location_dest_id', 'qty_done'], order: 'date desc', limit: 200 });
+      const asc = (mlsDesc || []).slice().reverse();
+
+      const kit = await invKitInfo(pid);
+
+      let causa = { code: '?', razon: 'Patrón no concluyente — revisar los movimientos.' };
+      if (kit.phantom) {
+        causa = { code: 'A', razon: 'Componente del kit "' + (kit.kitPadre || '?') + '" — revisar si el kit se despachó más veces de las que entró.' };
+      } else if (locId) {
+        let bal = 0, primerNegAt = null, inCount = 0, outCount = 0, inDespuesNeg = false;
+        asc.forEach(ml => {
+          const esIn  = ml.location_dest_id && ml.location_dest_id[0] === locId;
+          const esOut = ml.location_id && ml.location_id[0] === locId;
+          if (esIn)  { inCount++;  bal += (ml.qty_done || 0); if (primerNegAt) inDespuesNeg = true; }
+          if (esOut) { outCount++; bal -= (ml.qty_done || 0); }
+          if (bal < 0 && !primerNegAt) primerNegAt = ml.date;
+        });
+        if (outCount && !inCount) causa = { code: 'B', razon: 'Salidas sin ninguna entrada registrada en esta ubicación — se usó como origen sin recepción previa.' };
+        else if (primerNegAt && inDespuesNeg) causa = { code: 'C', razon: 'La salida se validó antes que la entrada (primer negativo: ' + primerNegAt + ').' };
+        else if (primerNegAt && bal < 0) causa = { code: 'B', razon: 'El balance quedó negativo y no llegó ninguna entrada posterior.' };
+      } else {
+        causa = { code: '?', razon: 'El SKU ya no tiene ubicación negativa activa — ver los movimientos para el histórico.' };
+      }
+
+      // Hidratación informativa de causaAuto/kitPadre en el item (si se indica)
+      const casoId = String(parsed.query.caso || ''), itemId = String(parsed.query.item || '');
+      if (casoId && itemId) {
+        try {
+          const casos = loadInvCasos();
+          const caso = casos.find(c => c.id === casoId);
+          const it = caso && (caso.items || []).find(i => i.itemId === itemId);
+          if (it && (it.causaAuto !== causa.code || (kit.kitPadre && it.kitPadre !== kit.kitPadre))) {
+            it.causaAuto = causa.code;
+            if (kit.kitPadre) it.kitPadre = kit.kitPadre;
+            saveInvCasos(casos);
+          }
+        } catch (e) { /* informativo — no bloquea el drawer */ }
+      }
+
+      const moves = (mlsDesc || []).slice(0, 12).map(ml => ({
+        date: ml.date, ref: ml.reference || '',
+        from: ml.location_id ? ml.location_id[1] : '',
+        to: ml.location_dest_id ? ml.location_dest_id[1] : '',
+        qty: ml.qty_done || 0
+      }));
+      sendGzipJson(req, res, 200, { ok: true, moves, totalMoves: (mlsDesc || []).length, causa, kit });
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
     }
     return;
   }

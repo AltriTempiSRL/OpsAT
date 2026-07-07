@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v53';
+const CACHE = 'wwp-v54';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -91,6 +91,7 @@ const NOTIF_URGENCY = {
   damage_detected:   'critical',
   cancel_blocked:    'critical',
   system_sync_error: 'critical',
+  inventario_negativo: 'critical',
   // Alertas → ámbar
   evidence_incomplete:    'alert',
   stock_changed:          'alert',
