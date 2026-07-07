@@ -6944,6 +6944,20 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <div id="sdv-especial-section" style="display:none">
             <div class="sdv-form-grid cols1">
               <div class="sdv-field">
+                <label>Tipo de solicitud <span class="req" style="color:var(--red-text)">*</span></label>
+                <select class="sdv-input" id="sdv-esp-subtipo" onchange="sdvEspSubtipoChange()">
+                  <option value="" disabled selected>Elige el tipo…</option>
+                  <option value="cambio_defecto">Cambio por defecto / garantía</option>
+                  <option value="retiro_revision">Retiro (revisión / taller)</option>
+                  <option value="recogida_cliente">Recogida donde el cliente</option>
+                  <option value="pieza_faltante">Pieza o accesorio faltante</option>
+                  <option value="otro">Otro</option>
+                </select>
+                <div id="sdv-esp-subtipo-hint" style="display:none;margin-top:6px;font-size:12px;color:var(--text-3);line-height:1.4"></div>
+              </div>
+            </div>
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
                 <label>Asunto <span class="req" style="color:var(--red-text)">*</span></label>
                 <input class="sdv-input" id="sdv-esp-asunto" placeholder="Ej: Recoger artículo con imperfectos donde el cliente" maxlength="120">
               </div>
@@ -6973,6 +6987,34 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               <div class="sdv-items-box">
                 <div class="sdv-items-header"><span>Artículos de la SDV vinculada — marca los involucrados y ajusta la cantidad</span></div>
                 <div id="sdv-esp-articulos"></div>
+              </div>
+            </div>
+            <!-- Traer orden de Odoo (para órdenes SIN SDV — ej. despachadas antes del go-live) -->
+            <div class="sdv-form-grid cols1">
+              <div class="sdv-field">
+                <label>Orden de Odoo <span style="color:var(--text-3);font-weight:400">(opcional — para órdenes sin SDV; trae artículos y cliente)</span></label>
+                <div style="display:flex;gap:8px;align-items:stretch">
+                  <input class="sdv-input" id="sdv-esp-orden-input" placeholder="N° de orden, ej. S09664" autocomplete="off" spellcheck="false" style="flex:1"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();sdvEspBuscarOrden();}">
+                  <button type="button" class="btn btn-secondary sdv-lookup-btn" onclick="sdvEspBuscarOrden()" style="white-space:nowrap;flex-shrink:0"><i data-lucide="search" style="width:15px;height:15px;vertical-align:-2px"></i> Traer orden</button>
+                </div>
+                <div id="sdv-esp-orden-status" style="margin-top:6px;font-size:12px;line-height:1.4"></div>
+              </div>
+            </div>
+            <div id="sdv-esp-orden-articulos-section" style="display:none;margin-bottom:14px">
+              <div class="sdv-items-box">
+                <div class="sdv-items-header"><span>Artículos de la orden — marca el/los que se procesan en esta solicitud</span></div>
+                <div id="sdv-esp-orden-articulos"></div>
+              </div>
+            </div>
+            <div class="sdv-form-grid">
+              <div class="sdv-field">
+                <label>Cliente <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                <input class="sdv-input" id="sdv-esp-cliente" placeholder="Nombre del cliente">
+              </div>
+              <div class="sdv-field">
+                <label>Contacto <span style="color:var(--text-3);font-weight:400">(opcional)</span></label>
+                <input class="sdv-input" id="sdv-esp-contacto" placeholder="Teléfono del receptor">
               </div>
             </div>
             <div class="sdv-form-grid">
@@ -8836,7 +8878,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v151';
+var APP_BUILD = 'v152';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32713,6 +32755,110 @@ function sdvEspGetArticulosMarcados() {
   }).filter(Boolean);
 }
 
+// ── Solicitud especial: sub-tipo + traer orden de Odoo (orden SIN SDV) ─────────
+// Fuente ADICIONAL a "SDV Asociada" (que NO se toca): para órdenes despachadas antes del
+// go-live de SDV. Lookup tipo=orden_historica (sale.order.line, solo lectura de Odoo).
+var _sdvEspOrden = null;      // resultado del lookup { orderRef, client, items, ... }
+var _sdvEspOrdenSel = {};     // { idx: cantidadElegida } sobre _sdvEspOrden.items
+
+var SDV_ESP_SUBTIPO_HINT = {
+  cambio_defecto: 'Sale el artículo defectuoso y entra el reemplazo. Trae la orden, elige el artículo a cambiar y adjunta la foto del defecto (evidencia de garantía).',
+  retiro_revision: 'Recoger mercancía del cliente para revisar o reparar, sin reemplazo inmediato.',
+  recogida_cliente: 'Ir a buscar algo donde el cliente. Completa dirección y contacto.',
+  pieza_faltante: 'Entregar una pieza o accesorio que faltó de un despacho previo. Trae la orden e indica qué faltó.',
+  otro: 'Describe libremente qué necesitas de Operaciones.'
+};
+function sdvEspSubtipoChange() {
+  var v = (_sdv$('sdv-esp-subtipo')||{}).value || '';
+  var hint = document.getElementById('sdv-esp-subtipo-hint');
+  if (hint) { if (v && SDV_ESP_SUBTIPO_HINT[v]) { hint.textContent = SDV_ESP_SUBTIPO_HINT[v]; hint.style.display=''; } else { hint.style.display='none'; } }
+}
+
+async function sdvEspBuscarOrden() {
+  var inp = _sdv$('sdv-esp-orden-input');
+  var ref = (inp && inp.value || '').trim();
+  var st = document.getElementById('sdv-esp-orden-status');
+  if (!ref) { if(st){st.style.color='var(--red-text)';st.textContent='Escribe el N° de orden.';} return; }
+  if (st) { st.style.color='var(--text-3)'; st.innerHTML='<i data-lucide="loader-2" class="do-spin" style="width:13px;height:13px;vertical-align:-2px"></i> Buscando en Odoo…'; if(window.lucide)lucide.createIcons(); }
+  try {
+    var r = await authFetch('/api/sdv/lookup?ref='+encodeURIComponent(ref)+'&tipo=orden_historica');
+    var d = await r.json();
+    if (!r.ok || !d.ok) { if(st){st.style.color='var(--red-text)';st.textContent=d.error||'No se pudo traer la orden.';} return; }
+    _sdvEspOrden = d; _sdvEspOrdenSel = {};
+    // Prellenar cliente/dirección/ciudad/contacto (EDITABLES). Ciudad/contacto no son fiables
+    // en órdenes viejas (Ron) → si vienen vacíos, avisamos que se completen a mano.
+    var setIf = function(id, val){ var el=_sdv$(id); if(el && val) el.value=val; };
+    setIf('sdv-esp-cliente', d.client);
+    setIf('sdv-esp-direccion', d.deliveryAddress);
+    setIf('sdv-esp-ciudad', d.city);
+    setIf('sdv-esp-contacto', d.phone);
+    var faltan = [!d.city&&'ciudad', !d.phone&&'contacto'].filter(Boolean);
+    if (st) {
+      st.style.color = faltan.length ? 'var(--amber-text)' : 'var(--green-text)';
+      st.innerHTML = '<i data-lucide="'+(faltan.length?'alert-triangle':'check-circle')+'" style="width:13px;height:13px;vertical-align:-2px"></i> Orden '+esc(d.orderRef)+' · '+(d.items||[]).length+' artículo(s)'+(faltan.length?(' — completa '+faltan.join(' y ')+' a mano (no está en Odoo).'):'.');
+      if(window.lucide)lucide.createIcons();
+    }
+    sdvEspOrdenRenderArticulos();
+    // Autocompletar asunto si está vacío (comodidad; editable).
+    var asu=_sdv$('sdv-esp-asunto'); if (asu && !asu.value.trim()) asu.value = 'Orden '+d.orderRef+' — '+((_sdv$('sdv-esp-subtipo')||{}).value==='cambio_defecto'?'cambio por defecto':'gestión');
+  } catch(e) { if(st){st.style.color='var(--red-text)';st.textContent='Error: '+e.message;} }
+}
+
+function sdvEspOrdenRenderArticulos() {
+  var sec = document.getElementById('sdv-esp-orden-articulos-section');
+  var box = document.getElementById('sdv-esp-orden-articulos');
+  var arts = (_sdvEspOrden && _sdvEspOrden.items) || [];
+  if (!arts.length) { if (sec) sec.style.display = 'none'; return; }
+  if (sec) sec.style.display = '';
+  box.innerHTML = arts.map(function(it, i){
+    var sel = Object.prototype.hasOwnProperty.call(_sdvEspOrdenSel, i);
+    var max = parseInt(it.quantity,10) || 1;
+    var stepper = sel && max > 1
+      ? '<div style="text-align:center;flex-shrink:0"><div class="sdv-qty-stepper">'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspOrdenStepQty('+i+',-1)" aria-label="Menos">−</button>'+
+          '<span class="sdv-qty-val" id="sdv-esp-orden-qty-'+i+'">'+_sdvEspOrdenSel[i]+'</span>'+
+          '<button type="button" class="sdv-qty-btn" onclick="sdvEspOrdenStepQty('+i+',1)" aria-label="Más">+</button>'+
+        '</div><div class="sdv-item-qty-max">de '+max+'</div></div>'
+      : '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<label class="sdv-check-row" style="flex:1;min-width:0">'+
+        '<input type="checkbox" '+(sel?'checked ':'')+'onchange="sdvEspOrdenToggle('+i+',this.checked)">'+
+        '<span>'+esc(it.product_name||it.sku||'')+(it.sku?' <span style="color:var(--text-2)">('+esc(it.sku)+')</span>':'')+' · cant. '+max+'</span>'+
+      '</label>'+stepper+
+    '</div>';
+  }).join('');
+}
+function sdvEspOrdenToggle(idx, checked) {
+  var arts = (_sdvEspOrden && _sdvEspOrden.items) || [];
+  if (checked) _sdvEspOrdenSel[idx] = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  else delete _sdvEspOrdenSel[idx];
+  sdvEspOrdenRenderArticulos();
+}
+function sdvEspOrdenStepQty(idx, delta) {
+  var arts = (_sdvEspOrden && _sdvEspOrden.items) || [];
+  var max = (arts[idx] && parseInt(arts[idx].quantity,10)) || 1;
+  var n = Math.max(1, Math.min(max, (_sdvEspOrdenSel[idx]||1) + delta));
+  _sdvEspOrdenSel[idx] = n;
+  var el = document.getElementById('sdv-esp-orden-qty-'+idx);
+  if (el) el.textContent = n;
+}
+function sdvEspOrdenGetArticulos() {
+  var arts = (_sdvEspOrden && _sdvEspOrden.items) || [];
+  return Object.keys(_sdvEspOrdenSel).map(function(i){
+    var a = arts[i]; if (!a) return null;
+    return Object.assign({}, a, { quantity: _sdvEspOrdenSel[i] });
+  }).filter(Boolean);
+}
+function sdvEspOrdenClear() {
+  _sdvEspOrden = null; _sdvEspOrdenSel = {};
+  var sec = document.getElementById('sdv-esp-orden-articulos-section'); if (sec) sec.style.display='none';
+  var box = document.getElementById('sdv-esp-orden-articulos'); if (box) box.innerHTML='';
+  var st = document.getElementById('sdv-esp-orden-status'); if (st) { st.textContent=''; st.removeAttribute('style'); st.style.marginTop='6px'; st.style.fontSize='12px'; }
+  var hint = document.getElementById('sdv-esp-subtipo-hint'); if (hint) hint.style.display='none';
+  ['sdv-esp-orden-input','sdv-esp-cliente','sdv-esp-contacto'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  var sub=document.getElementById('sdv-esp-subtipo'); if(sub) sub.value='';
+}
+
 // ── Solicitud especial: corregir y reenviar tras rechazo ──────────────────
 // El PATCH /api/sdv/:id ya regresa una SDV 'rechazada' a 'pendiente_revision' cuando
 // la dueña (no Ops) edita cualquier campo (proxy.js ~13630) — aquí solo falta el form.
@@ -33055,20 +33201,30 @@ async function sdvEnviar() {
 
 // ── Envío de solicitud especial — sin flujo Odoo, sin gates de pick/RET ───
 async function sdvEnviarEspecial() {
+  var subtipo = (_sdv$('sdv-esp-subtipo')||{}).value || '';
+  if (!subtipo) { toast('Elige el tipo de solicitud'); return; }
   var asunto = (_sdv$('sdv-esp-asunto').value||'').trim();
   var descripcion = (_sdv$('sdv-esp-descripcion').value||'').trim();
   if (!asunto || !descripcion) { toast('Completa asunto y descripción'); return; }
   var btn = _sdv$('sdv-submit-btn');
   btn.disabled = true; btn.textContent = 'Enviando…';
   try {
+    // Los artículos pueden venir de la SDV asociada (sin tocar) O de la orden Odoo traída.
+    var _artsAsociada = sdvEspGetArticulosMarcados();
+    var _artsOrden = sdvEspOrdenGetArticulos();
+    // Cliente: input editable (prellenado por el lookup) tiene prioridad; si no, el de la SDV asociada.
+    var _cliente = (_sdv$('sdv-esp-cliente') && _sdv$('sdv-esp-cliente').value.trim()) || (_sdvEspAsociada && _sdvEspAsociada.clienteNombre) || '';
     var body = {
       tipoSolicitud: 'solicitud_especial',
+      subtipoEspecial: subtipo,
       asunto: asunto,
       descripcion: descripcion,
-      articulosOdoo: sdvEspGetArticulosMarcados(),
-      clienteNombre: (_sdvEspAsociada && _sdvEspAsociada.clienteNombre) || '',
+      articulosOdoo: _artsAsociada.concat(_artsOrden),
+      clienteNombre: _cliente,
       direccionEntrega: _sdv$('sdv-esp-direccion').value.trim(),
       ciudadEntrega: _sdv$('sdv-esp-ciudad').value.trim(),
+      receptorContacto: (_sdv$('sdv-esp-contacto') && _sdv$('sdv-esp-contacto').value.trim()) || '',
+      ordenOrigenOdoo: (_sdvEspOrden && _sdvEspOrden.orderRef) || (_sdv$('sdv-esp-orden-input') && _sdv$('sdv-esp-orden-input').value.trim()) || '',
       observaciones: _sdv$('sdv-observaciones').value.trim(),
       fechaSolicitudDeseada: sdvGetFecha('sdv-fecha-esp') || null,
     };
@@ -33098,8 +33254,10 @@ function sdvReset(skipConfirm) {
    'sdv-especial-section','sdv-extra-section','sdv-articulo-section'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
   ['sdv-ref-input','sdv-art-input','sdv-cliente','sdv-ciudad','sdv-direccion',
    'sdv-receptor-nombre','sdv-receptor-contacto','sdv-observaciones','sdv-gps',
-   'sdv-esp-asunto','sdv-esp-descripcion','sdv-esp-direccion','sdv-esp-ciudad'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+   'sdv-esp-asunto','sdv-esp-descripcion','sdv-esp-direccion','sdv-esp-ciudad',
+   'sdv-esp-cliente','sdv-esp-contacto','sdv-esp-orden-input'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   sdvEspClear();
+  sdvEspOrdenClear();
   sdvAdjClear();
   // Selects de almacén (traslado interno)
   var selOrigen=document.getElementById('sdv-origen'); if(selOrigen) selOrigen.value='';

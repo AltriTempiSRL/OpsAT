@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v151';
+const APP_BUILD = 'v152';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1689,6 +1689,10 @@ const SDV_ESTADOS = ['pendiente_revision','en_proceso','despachada','rechazada',
 // a Operaciones fuera de despacho/devolución/traslado (ej. recoger artículo donde cliente
 // para validarlo en PTN, uso de vehículo por instaladores). Sin flujo Odoo, sin gates de pick.
 const SDV_TIPOS = ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'];
+// Sub-tipos de solicitud especial (obligatorio — estructura la sección, Vera/Pit 7-jul-2026):
+// cambio por defecto/garantía · retiro para revisión/taller · recogida donde el cliente ·
+// pieza/accesorio faltante · otro (texto libre). Todos comparten el lookup de orden Odoo.
+const SDV_SUBTIPOS_ESP = ['cambio_defecto','retiro_revision','recogida_cliente','pieza_faltante','otro'];
 const SDV_TRANSICIONES = {
   pendiente_revision: ['en_proceso','rechazada','cancelada'],
   rechazada:          ['pendiente_revision','cancelada'],
@@ -13489,6 +13493,50 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // ── Orden histórica (solicitud especial de orden SIN SDV, ya despachada) ──
+      // Ron (7-jul): las órdenes viejas tienen el PICK 'done', no 'assigned' → el path de
+      // despacho_cliente responde 422. Aquí armamos los artículos desde sale.order.line
+      // (fuente estable), filtrando lo realmente despachado (qty_delivered>0). Cliente y
+      // dirección fiables; ciudad/teléfono NO en órdenes viejas (editable + aviso en el
+      // front). SOLO LECTURA de Odoo: no crea ni toca movimientos (gobernanza).
+      if (tipo === 'orden_historica') {
+        const sosH = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],
+          {fields:['id','name','partner_id','partner_shipping_id','user_id'],limit:1});
+        if (!sosH || !sosH.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Orden no encontrada en Odoo'})); return; }
+        const soH = sosH[0];
+        let addrH='', cityH='', phoneH='';
+        try {
+          const shipId=(soH.partner_shipping_id&&soH.partner_shipping_id[0])||(soH.partner_id&&soH.partner_id[0]);
+          if(shipId){
+            const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
+            if(ps&&ps.length){const p=ps[0];addrH=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();cityH=p.city||'';phoneH=p.phone||p.mobile||'';}
+          }
+        } catch {}
+        // Líneas realmente despachadas (qty_delivered>0), sin secciones/notas (display_type=false).
+        const lines = await odooCall('sale.order.line','search_read',
+          [[['order_id','=',soH.id],['display_type','=',false],['qty_delivered','>',0]]],
+          {fields:['id','product_id','name','product_uom_qty','qty_delivered'],limit:200});
+        const pidsH=[...new Set((lines||[]).filter(l=>l.product_id).map(l=>l.product_id[0]))];
+        const prodsH = pidsH.length ? await odooCall('product.product','read',[pidsH],{fields:['id','default_code','barcode','image_128']}) : [];
+        const prodMapH={}; prodsH.forEach(p=>{ prodMapH[p.id]=p; });
+        const itemsH = (lines||[]).filter(l=>l.product_id).map((l,i)=>{
+          const p=prodMapH[l.product_id[0]]||{};
+          const qty=Math.max(1,Math.round(l.qty_delivered||l.product_uom_qty||1));
+          return { item_id:'ord_'+l.product_id[0]+'_'+i, odoo_product_id:l.product_id[0],
+            product_name:composeItemName(l.name, l.product_id[1], p.default_code),
+            sku:p.default_code||p.barcode||'', quantity:qty,
+            image:p.image_128?'data:image/png;base64,'+p.image_128:null,
+            selected:false, status:'pending' };
+        });
+        const _ordPayload = {ok:true,tipo:'orden_historica',orderRef:soH.name,
+          client:soH.partner_id?soH.partner_id[1]:'',salesperson:soH.user_id?soH.user_id[1]:'',
+          deliveryAddress:addrH,city:cityH,phone:phoneH,items:itemsH};
+        global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_ordPayload});
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(_ordPayload));
+        return;
+      }
+
       // ── Despacho a cliente / Traslado interno por orden ────────────────────
       // Reutilizar la lógica ya verificada: sale.order → PICK assigned → artículos
       const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],
@@ -13547,6 +13595,10 @@ const server = http.createServer(async (req, res) => {
       if (_esEspecial && (!(d.asunto||'').trim() || !(d.descripcion||'').trim())) {
         res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'asunto y descripcion son requeridos para solicitud_especial'})); return;
       }
+      // Sub-tipo obligatorio en solicitud especial (estructura la sección — Vera/Pit 7-jul).
+      if (_esEspecial && !SDV_SUBTIPOS_ESP.includes(d.subtipoEspecial||'')) {
+        res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'subtipoEspecial requerido e inválido: '+(d.subtipoEspecial||'(vacío)')})); return;
+      }
       const list = loadSdv();
       // El folio de la SDV asociada se resuelve server-side (no se confía en el cliente).
       let _asociada = null;
@@ -13591,6 +13643,10 @@ const server = http.createServer(async (req, res) => {
         // (distinto de solicitudOrigenId, que dispara la lógica de "solicitud adicional").
         asunto: (d.asunto||'').trim(),
         descripcion: (d.descripcion||'').trim(),
+        subtipoEspecial: _esEspecial ? d.subtipoEspecial : null,
+        // Vínculo a la orden de Odoo cuando la especial NO tiene SDV (orden vieja pre-SDV).
+        // Distinto de sdvAsociadaId (SDV existente). Solo lectura de Odoo, sin movimientos.
+        ordenOrigenOdoo: _esEspecial ? (d.ordenOrigenOdoo||d.odooOrderRef||'').trim() : '',
         sdvAsociadaId: _asociada ? _asociada.id : null,
         sdvAsociadaFolio: _asociada ? (_asociada.folio || null) : null,
       };
