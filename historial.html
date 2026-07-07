@@ -8836,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v149';
+var APP_BUILD = 'v150';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15870,7 +15870,14 @@ async function changeStatus(taskId, status, note) {
     if (note) body.note = note;
     const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify(body)});
     const d = await r.json();
-    if (!d.ok) { toast((d.error||'Error')); return; }
+    if (!d.ok) {
+      // Gate del OUT al completar despacho: el encargado debe registrar y VALIDAR (done)
+      // el OUT en Odoo antes de cerrar. Refrescamos el drawer para que aparezca el picker
+      // "¿Cuál OUT despachaste?" (el backend acaba de abrir la obligación) y mostramos la
+      // instrucción exacta con más tiempo en pantalla.
+      if (d.needsOutConfirm || d.needsOutValidation) { toast(d.error||'Falta cerrar el OUT en Odoo', 9000); openDrawer(taskId); return; }
+      toast((d.error||'Error')); return;
+    }
     // Capturar ubicación al iniciar o completar una tarea (trazabilidad de campo)
     if (status==='in_progress'||status==='completed') _captureGeo(status, taskId);
     toast('Estado actualizado');

@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v149';
+const APP_BUILD = 'v150';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -887,6 +887,30 @@ function deriveOutBadge(task, outStateLive) {
     confirmed: !!op.confirmedOutRef,
     outState: st || null,
   };
+}
+
+// ── Abrir/rellenar la obligación outPendiente de una tarea de despacho ────────
+// Candidatos = TODOS los OUT no-cancel de la orden (el encargado elige cuál despachó);
+// sugerido = único OUT done. Idempotente: si ya existe outPendiente, solo recomputa
+// candidatos vacíos. Lo usan el gate de COMPLETAR (para tener el picker antes de cerrar)
+// y la apertura de obligación al marcar completada. Fail-open: Odoo caído → candidatos
+// vacíos (el picker avisa "reintentar"), no lanza.
+async function ensureOutPendienteCandidatos(task, nowIso) {
+  const now = nowIso || new Date().toISOString();
+  if (!task.outPendiente) {
+    task.outPendiente = { since: now, confirmedOutRef: null, confirmedAt: null, candidatos: [], reconOk: null };
+  }
+  if ((!task.outPendiente.candidatos || !task.outPendiente.candidatos.length) && task.odooRef) {
+    try {
+      const _ps = await sdvComputePickStatus(task.odooRef);
+      task.outPendiente.candidatos = (_ps.outs||[])
+        .filter(o => o.state !== 'cancel')
+        .map(o => ({ name:o.name, state:o.state, date_done:o.date_done||null }));
+      const _done = task.outPendiente.candidatos.filter(o => o.state === 'done');
+      if (_done.length === 1) task.outPendiente.sugerido = _done[0].name;
+    } catch(e) { silentCatch(e,'ensureOutPendienteCandidatos'); }
+  }
+  return task.outPendiente;
 }
 
 // ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
@@ -10037,6 +10061,54 @@ const server = http.createServer(async (req, res) => {
             }
           }
         }
+        // ── Gate de OUT al COMPLETAR el despacho (decisión Gabriel 7-jul) ─────────
+        // Revierte el "NO gate en completed" del 4-jul: el ENCARGADO no puede marcar
+        // COMPLETADA una tarea de despacho hasta que el OUT esté REGISTRADO y VALIDADO
+        // (done) en Odoo. El botón "Terminé mi parte" del chofer/aux queda intacto (no
+        // se gatea ahí); el gate corre cuando el encargado cierra. NO seleccionar el OUT
+        // basta: debe estar done en Odoo. SIN override (gate duro). Se abre outPendiente
+        // aquí para que el picker del drawer aparezca al bloquear (openDrawer refetcha).
+        // Fail-open SOLO ante Odoo inalcanzable (no podemos verificar → no trabar la
+        // operación de campo por una caída del ERP; queda auditado). Un OUT que Odoo SÍ
+        // reporta y no está done = bloqueo duro.
+        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
+          await ensureOutPendienteCandidatos(tasks[idx], now);
+          const _op = tasks[idx].outPendiente;
+          const _cands = (_op && _op.candidatos) || [];
+          if (_op && _op.confirmedOutRef) {
+            // Ya eligió un OUT: verificar que esté done en Odoo.
+            try {
+              const _out = await odooCall('stock.picking','search_read',
+                [[['name','=',_op.confirmedOutRef],['picking_type_code','=','outgoing']]],
+                {fields:['name','state'],limit:1});
+              const _st = (_out && _out.length) ? _out[0].state : null;
+              if (_st !== 'done') {
+                _op.outState = _st || _op.outState || null;
+                saveWwpTasks(tasks);
+                res.writeHead(422,{'Content-Type':'application/json'});
+                res.end(JSON.stringify({ok:false,
+                  error:`El OUT ${_op.confirmedOutRef} aún no está validado (done) en Odoo (estado: ${_st||'no encontrado'}). Valídalo en Odoo antes de marcar completada.`,
+                  outRef:_op.confirmedOutRef, outState:_st, needsOutValidation:true}));
+                return;
+              }
+              _op.outState = 'done'; // self-heal: apaga el badge en todas las superficies
+            } catch(e) {
+              // Odoo inalcanzable → fail-open auditable (no trabar el cierre por caída del ERP).
+              tasks[idx].outGateFailOpen = { at: new Date().toISOString(), phase:'completed', outRef:_op.confirmedOutRef, error:String(e.message||'').slice(0,200) };
+              try { appendAuditLog('out_complete_gate_fail_open', { taskId: tasks[idx].id, odooRef: tasks[idx].odooRef, outRef:_op.confirmedOutRef, error:String(e.message||'').slice(0,200), by: jp.userId }); } catch(_a) { silentCatch(_a,'auditOutCompleteGateFailOpen'); }
+              try { notifyAdminSyncError('OUT complete gate: '+(e.message||'')); } catch(_e) { silentCatch(_e,'notifyAdminSyncErrorOutCompleteGate'); }
+            }
+          } else if (_cands.length) {
+            // Hay OUT candidatos que elegir pero no confirmó ninguno → bloquear y mostrar picker.
+            saveWwpTasks(tasks);
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,
+              error:'Antes de marcar completada, registra en el despacho cuál OUT de Odoo despachaste y valídalo (done) en Odoo.',
+              needsOutConfirm:true}));
+            return;
+          }
+          // Sin candidatos (Odoo caído o la orden no tiene OUT visibles) → fail-open: no trabar.
+        }
         // ── Gate de VALIDACIÓN sobre el OUT en Odoo (Decisión 17, solo admin) ─────
         // Simétrico al gate de PICK (timing inverso): PICK done gatea el INICIO del
         // despacho; el OUT done (validado en Odoo) gatea la VALIDACIÓN final de la
@@ -10148,33 +10220,11 @@ const server = http.createServer(async (req, res) => {
         if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
           tasks[idx].dispatchCompletedAt = now;
           // ── Obligación de cierre del OUT en Odoo (Decisión 17) ────────────────
-          // Al completar el despacho (ya exige checklist de 3 fotos = entrega
-          // confirmada), abrimos la obligación de validar el OUT en Odoo. NO es un
-          // gate sobre 'completed' (Pit): el despacho físico ya ocurrió. Es una deuda
-          // anclada a ESTA tarea, resuelta por el OUT ESPECÍFICO de SUS artículos.
-          // Multi-viaje (S07639 = 7 OUT): candidatos = TODOS los OUT no-cancel de la
-          // orden; el encargado ELIGE cuál cargó (front lo captura después). El backend
-          // acepta/persiste el outRef vía POST /out-confirm. Aquí solo prefill + since.
-          // Fail-open: si Odoo cae, se abre la obligación sin candidatos (se confirman
-          // luego) — no bloqueamos el cierre del despacho por caída del ERP.
-          if (!tasks[idx].outPendiente) {
-            tasks[idx].outPendiente = { since: now, confirmedOutRef: null, confirmedAt: null, candidatos: [], reconOk: null };
-            try {
-              if (tasks[idx].odooRef) {
-                const _ps = await sdvComputePickStatus(tasks[idx].odooRef);
-                // Candidatos = OUT activos (no cancel). El front prefila esta lista y el
-                // encargado confirma cuál despachó. Guardamos name + state para la UI.
-                tasks[idx].outPendiente.candidatos = (_ps.outs||[])
-                  .filter(o => o.state !== 'cancel')
-                  .map(o => ({ name:o.name, state:o.state, date_done:o.date_done||null }));
-                // Prefill inteligente: si hay EXACTAMENTE un OUT done candidato, lo
-                // proponemos como sugerido (el front puede pre-seleccionarlo). No lo
-                // confirmamos solos (regla: el encargado elige — multi-viaje ambiguo).
-                const _done = tasks[idx].outPendiente.candidatos.filter(o => o.state === 'done');
-                tasks[idx].outPendiente.sugerido = _done.length === 1 ? _done[0].name : null;
-              }
-            } catch(e) { silentCatch(e,'outPendientePrefill'); }
-          }
+          // La obligación ya se abrió en el gate de completar (arriba, que exige el OUT
+          // done antes de llegar aquí). Este ensure es idempotente: garantiza candidatos
+          // aunque el gate hubiera hecho fail-open por Odoo caído. Multi-viaje (S07639 =
+          // 7 OUT): candidatos = TODOS los OUT no-cancel de la orden; el encargado elige.
+          await ensureOutPendienteCandidatos(tasks[idx], now);
         }
         // by derivado del JWT (no del body) + límites de longitud: evita spoofing
         // y reduce superficie de XSS almacenado (el escape real va en el render).
