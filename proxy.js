@@ -2292,6 +2292,44 @@ function sdvDerivePriority(fecha) {
   return 'medium';
 }
 
+// ── Helper: artículos de una solicitud especial → items de tarea WWP ──────────
+// La solicitud especial no tiene pick de Odoo que surta items; los artículos que la
+// vendedora capturó (articulosOdoo) deben sembrarse como items reales `selected` para
+// que aparezcan en la sección ARTÍCULOS de la tarea y entren al flujo de evidencia.
+// Antes solo iban a `sdvArticulos` (snapshot de comparación con el pick, que la vista NO
+// renderiza) → el artículo quedaba invisible en WWP (SD-2026-0009 / tarea #0154).
+function sdvEspecialItems(sdv) {
+  return (sdv.articulosOdoo || []).map(function(a, i) {
+    var iid = a.item_id || ('esp_' + (a.odoo_product_id || a.sku || i));
+    return {
+      item_id: iid,
+      odoo_line_id: a.odoo_line_id || null,
+      odoo_product_id: a.odoo_product_id || null,
+      sku: a.sku || '',
+      barcode: a.barcode || '',
+      product_name: a.product_name || a.sku || 'Artículo',
+      quantity: a.quantity || 1,
+      image: a.image || '',
+      units: a.quantity || 1,
+      unit_index: null,
+      unit_total: null,
+      group_ref: iid,
+      fromPick: false,
+      pickName: '',
+      selected: true,
+      locations: [],
+      selected_location: null,
+      selected_location_name: null,
+      condition: '',
+      damageType: '',
+      evidence_images: [],
+      comments: '',
+      confirmado: false,
+      status: 'pending'
+    };
+  });
+}
+
 // ── Helper: Crear tarea WWP desde solicitud SDV ──────────────────────────────
 // Crea una tarea de tipo 'dispatch_order' vinculada a una solicitud SDV.
 // H2-3: el snapshot lleva TODO lo que la vendedora ya capturó (receptor, GPS, transporte,
@@ -2352,6 +2390,10 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     task.description = (sdv.descripcion || '')
       + (sdv.sdvAsociadaFolio ? ' · Vinculada a SDV ' + sdv.sdvAsociadaFolio : '')
       + ' — solicitud SDV ' + sdv.id;
+    // Los artículos capturados por la vendedora (p. ej. "retiro de silla") deben VIAJAR a
+    // WWP como items reales para que Ops sepa qué recoger (ver sdvEspecialItems).
+    task.items = sdvEspecialItems(sdv);
+    if (task.items.length) task.itemsUpdatedAt = now;
   }
   return task;
 }
@@ -5051,6 +5093,58 @@ function checkDueTodayAlert() {
 
 setInterval(() => { try { checkDueTodayAlert(); } catch(e) { console.warn('[due-today-alert]', e.message); } }, 60_000);
 
+// ── Reconciliación periódica de outPendiente contra Odoo ─────────────────────
+// El badge "OUT pendiente en Odoo" (tarjeta WWP + drawer + fila de Estado de Órdenes)
+// deriva de `outPendiente.outState`, que se capturaba UNA sola vez en /out-confirm y no
+// se refrescaba. Cuando Odoo valida el OUT DESPUÉS de esa captura, el badge quedaba
+// "pending" para siempre → falso positivo (caso S09664/SD-2026-0008). El drawer y el gate
+// de validación ya hacen self-heal al tocarse; la fila de Estado de Órdenes NO repega a
+// Odoo (lee el shape guardado), así que sin este job una orden ya cerrada en Odoo seguiría
+// marcada. Este job relee el estado real del OUT (por confirmedOutRef || sugerido) de las
+// tareas dispatch completed/validated cuyo outState aún no es 'done' y lo flippea a 'done'
+// cuando Odoo lo confirma; auto-ancla el sugerido no ambiguo (único OUT done candidato).
+// Batch único a Odoo, fail-open (Odoo caído → no toca nada), sin doble-run concurrente.
+let _outReconBusy = false;
+async function reconcileOutPendiente() {
+  if (_outReconBusy) return;
+  _outReconBusy = true;
+  try {
+    const list = loadWwpTasks();
+    const targets = list.filter(t =>
+      t && t.type === 'dispatch_order' && t.outPendiente &&
+      t.outPendiente.outState !== 'done' &&
+      (t.status === 'completed' || t.status === 'validated') &&
+      (t.outPendiente.confirmedOutRef || t.outPendiente.sugerido));
+    if (!targets.length) return;
+    const refs = [...new Set(targets.map(t => t.outPendiente.confirmedOutRef || t.outPendiente.sugerido))];
+    const outs = await odooCall('stock.picking','search_read',
+      [[['name','in',refs],['picking_type_code','=','outgoing']]],
+      {fields:['name','state'],limit:5000});
+    const stByName = new Map((outs||[]).map(o => [o.name, o.state]));
+    let changed = 0;
+    targets.forEach(t => {
+      const ref = t.outPendiente.confirmedOutRef || t.outPendiente.sugerido;
+      if (stByName.get(ref) === 'done') {
+        t.outPendiente.outState = 'done';
+        if (!t.outPendiente.confirmedOutRef && t.outPendiente.sugerido === ref) {
+          t.outPendiente.confirmedOutRef = ref;
+          t.outPendiente.confirmedAt = new Date().toISOString();
+          t.outPendiente.confirmedBy = 'system:recon';
+        }
+        changed++;
+        try { appendAuditLog('out_recon_done', { taskId: t.id, odooRef: t.odooRef||'', outRef: ref }); } catch(_e) {}
+      }
+    });
+    if (changed) { saveWwpTasks(list); broadcastWwpTasks('out_reconciled', null, { count: changed }); console.log(`[out-recon] ${changed} OUT cerrado(s) en Odoo → badge apagado`); }
+  } catch(e) {
+    console.warn('[out-recon]', e.message); // fail-open: Odoo caído no toca nada
+  } finally {
+    _outReconBusy = false;
+  }
+}
+setTimeout(() => { reconcileOutPendiente(); }, 90 * 1000);
+setInterval(() => { reconcileOutPendiente(); }, 10 * 60 * 1000);
+
 // ── Estado de sesión Odoo ────────────────────────────────────────────────────
 let odooUid  = null;
 let authBusy = false;
@@ -5696,6 +5790,47 @@ const server = http.createServer(async (req, res) => {
       saveJson(DESPACHOS_FILE, despachos);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, reset: resetCount, folio: 'CO-0001' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/_fix/backfill-especial-items — sembrar items en tareas de solicitud especial ──
+  // Repara tareas `general` nacidas de una solicitud_especial ANTES del fix: sus artículos
+  // se quedaron en `sdvArticulos` (no renderizado) y nunca llegaron a `items`, así que la
+  // vendedora los capturó pero no aparecen en WWP (SD-2026-0009 / tarea #0154). Idempotente:
+  // solo toca tareas SIN items cuya SDV especial vinculada SÍ tiene articulosOdoo. Admin JWT.
+  if (reqPath === '/api/_fix/backfill-especial-items' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const sdvList = loadSdv();
+      const tasks = loadWwpTasks();
+      const especiales = sdvList.filter(s => s.tipoSolicitud === 'solicitud_especial' && (s.articulosOdoo||[]).length);
+      const reparadas = [];
+      especiales.forEach(sol => {
+        const items = sdvEspecialItems(sol);
+        if (!items.length) return;
+        // Todas las tareas vinculadas a esta SDV (puntero principal + wwpTareas).
+        const linkedIds = new Set([sol.wwpTaskId, ...((sol.wwpTareas||[]).map(w => w.taskId))].filter(Boolean));
+        tasks.forEach(t => {
+          if (!linkedIds.has(t.id)) return;
+          if ((t.items||[]).length) return;           // ya tiene items → no tocar
+          if (['completed','validated','cancelled'].includes(t.status)) return; // no re-abrir cerradas
+          t.items = items.map(x => ({ ...x }));
+          t.itemsUpdatedAt = new Date().toISOString();
+          t.updatedAt = t.itemsUpdatedAt;
+          reparadas.push({ taskId: t.id, seq: t.seq || null, folio: sol.folio || sol.id, items: items.length });
+        });
+      });
+      if (reparadas.length) {
+        saveWwpTasks(tasks);
+        reparadas.forEach(r => { const t = tasks.find(x => x.id === r.taskId); if (t) broadcastWwpTasks('items_updated', t, { taskId: r.taskId, items: t.items }); });
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, reparadas: reparadas.length, detalle: reparadas }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
@@ -9941,6 +10076,12 @@ const server = http.createServer(async (req, res) => {
                   outRef:_outRef, outState:_st, needsOutValidation:true}));
                 return;
               }
+              // El OUT está done: persistir el estado real en outPendiente. Antes esto NO
+              // se guardaba y el badge "OUT pendiente en Odoo" quedaba encendido para siempre
+              // tras validar (outState se capturaba una sola vez en out-confirm, con el estado
+              // que Odoo reportara en ESE instante — típicamente 'assigned' — y nunca se
+              // refrescaba). Al persistir 'done' aquí, deriveOutBadge devuelve 'closed'.
+              tasks[idx].outPendiente.outState = 'done';
             } catch(e) {
               // Fail-open: Odoo caído no bloquea la validación (no podemos comprobar).
               // QW4 (auditoría 6-jul): el fail-open queda AUDITABLE — antes era invisible
@@ -14496,6 +14637,28 @@ const server = http.createServer(async (req, res) => {
               {fields:['name','state'],limit:1});
             outStateLive = (_out && _out.length) ? _out[0].state : null;
           } catch(e) { odooError = true; silentCatch(e,'outBadgeLive'); }
+        }
+        // Self-heal: si Odoo confirma que el OUT ya está done, persistir outState='done'
+        // en la tarea para que el badge quede cerrado en TODAS las superficies (incluida la
+        // fila de Estado de Órdenes, que lee el shape guardado sin repegar a Odoo). Si el
+        // OUT estaba sin confirmar pero el sugerido (único OUT done candidato) es el que
+        // Odoo reporta done, anclarlo — cierre no ambiguo del ciclo.
+        if (outStateLive === 'done' && op && op.outState !== 'done') {
+          try {
+            const list = loadWwpTasks();
+            const stored = list.find(t => t.id === taskId);
+            if (stored && stored.outPendiente) {
+              stored.outPendiente.outState = 'done';
+              if (!stored.outPendiente.confirmedOutRef && stored.outPendiente.sugerido === refToCheck) {
+                stored.outPendiente.confirmedOutRef = refToCheck;
+                stored.outPendiente.confirmedAt = new Date().toISOString();
+                stored.outPendiente.confirmedBy = 'system:out-badge-recon';
+              }
+              saveWwpTasks(list);
+              task.outPendiente = stored.outPendiente; // reflejar en el badge que devolvemos
+              broadcastWwpTasks('out_reconciled', stored, { taskId });
+            }
+          } catch(e) { silentCatch(e,'outBadgePersistDone'); }
         }
         const badge = deriveOutBadge(task, outStateLive);
         res.writeHead(200,{'Content-Type':'application/json'});
