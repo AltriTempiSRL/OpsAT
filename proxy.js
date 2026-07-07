@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v150';
+const APP_BUILD = 'v151';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -10039,7 +10039,12 @@ const server = http.createServer(async (req, res) => {
               }
             }
           } else {
-            const missing=selItems.filter(it=>!it.evidence_images||it.evidence_images.length===0);
+            // Evidencia por artículo: una unidad queda cubierta por su propia foto O por la
+            // foto de GRUPO idéntico (groupEvidence) — una sola captura vale para las N
+            // unidades del mismo producto (empaque de lote idéntico, caso #0119). El conteo
+            // se preserva (cada unidad sigue confirmada); no se copia la foto (respeta el
+            // anti-duplicado): la foto real vive en la unidad representativa del grupo.
+            const missing=selItems.filter(it=>(!it.evidence_images||it.evidence_images.length===0) && !it.groupEvidence);
             if (missing.length>0) {
               // N-010: Notificar a Ops que faltan fotos antes de bloquear el cierre
               try { notifyOpsEvidenceIncomplete(tasks[idx].id, missing.length); } catch(e) { silentCatch(e,'notifyOpsEvidenceIncomplete'); }
@@ -14228,8 +14233,9 @@ const server = http.createServer(async (req, res) => {
       if (!task.auxDone) task.auxDone = {};
       if (d.done) {
         // Requiere fotos completas (igual que la compuerta de completar, sin confirmaciones)
+        // Una unidad queda cubierta por su foto propia O por la foto de grupo idéntico.
         const sel = (task.items||[]).filter(it=>it.selected);
-        const faltan = sel.filter(it=>!it.evidence_images||it.evidence_images.length===0);
+        const faltan = sel.filter(it=>(!it.evidence_images||it.evidence_images.length===0) && !it.groupEvidence);
         const genEv = !sel.length && !(task.evidence||[]).length && !(task.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
         if (faltan.length>0 || genEv) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sube todas las fotos antes de marcar terminado'})); return; }
         task.auxDone[jp.userId] = { name: jp.name, at: new Date().toISOString() };
@@ -14324,6 +14330,63 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('items_updated', tasks[idx], { taskId, itemId });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, condition, damageType}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // POST /api/wwp/tasks/:id/items/group-confirm — evidencia por GRUPO idéntico [participante]
+  // Una sola captura (1 foto + condición) cubre las N unidades del mismo producto (group_ref)
+  // en un empaque de lote idéntico (caso #0119): elimina la repetición SIN perder trazabilidad.
+  // La foto real se guarda UNA vez en la unidad representativa; las demás quedan marcadas con
+  // `groupEvidence` (NO se copia la foto → respeta el guard anti-duplicado de abajo). Cada
+  // unidad queda confirmada con su condición → el CONTEO se preserva (N ítems confirmados).
+  // Excepción (regla Pit): una unidad averiada se maneja INDIVIDUAL (se edita esa unidad
+  // después, lo que sobrescribe su groupEvidence). Solo empaque/almacenamiento.
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items\/group-confirm$/) && req.method === 'POST') {
+    const _jpGc = requireJwt(req, res); if (!_jpGc) return;
+    const taskId = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t=>t.id===taskId);
+      if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const task = tasks[idx];
+      if (!['packaging','warehouse_move'].includes(task.type)) {
+        res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La evidencia por grupo solo aplica a empaque o almacenamiento.'})); return;
+      }
+      const gref = String(d.group_ref||'').trim();
+      if (!gref) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'group_ref requerido'})); return; }
+      const condition = (d.condition==='damaged') ? 'damaged' : 'good';
+      const units = (task.items||[]).filter(it => it.selected && !it.isKit && (it.group_ref||it.item_id)===gref);
+      if (!units.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Grupo sin unidades'})); return; }
+      const foto = d.photo || (Array.isArray(d.fotos) && d.fotos[0]);
+      if (!foto || !foto.data) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Falta la foto del grupo (una evidencia representa al lote).'})); return; }
+      const { b64, ext } = validatePhoto(foto);
+      const hash = crypto.createHash('sha256').update(Buffer.from(b64,'base64')).digest('hex');
+      const existingHashes = new Set();
+      (task.items||[]).forEach(it => (it.evidence_images||[]).forEach(e => { if (e.hash) existingHashes.add(e.hash); }));
+      if (existingHashes.has(hash)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Esta foto ya fue subida en esta tarea. Toma una foto distinta.'})); return; }
+      const ts = Date.now();
+      const fname = `${taskId}_grp_${ts}.${ext}`;
+      fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64,'base64'));
+      const url = `/wwp-fotos/${fname}`;
+      const entry = { id:`ev_grp_${ts}`, url, hash, caption:foto.caption||'', uploaded_by:_jpGc.name||'', uploaded_at:new Date().toISOString(), group:true };
+      const now = new Date().toISOString();
+      const ge = { by:_jpGc.userId, byName:_jpGc.name||'', at:now, photoUrl:url, group_ref:gref, count:units.length };
+      units.forEach((it, i) => {
+        if (i===0) { it.evidence_images = it.evidence_images||[]; it.evidence_images.push(entry); }
+        it.groupEvidence = ge;
+        it.condition = condition;
+        it.damageType = condition==='damaged' ? String(d.damageType||'').slice(0,120) : '';
+        it.confirmado = true;
+        it.status = 'confirmed';
+      });
+      task.updatedAt = now;
+      saveWwpTasks(tasks);
+      try { appendAuditLog('item_group_confirmed', { taskId, odooRef: task.odooRef||'', group_ref:gref, count:units.length, condition, by:_jpGc.userId }); } catch(_e) { silentCatch(_e,'auditGroupConfirm'); }
+      broadcastWwpTasks('item_group_confirmed', task, { taskId, group_ref:gref, count:units.length });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, count:units.length, photoUrl:url }));
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }

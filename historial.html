@@ -8836,7 +8836,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v150';
+var APP_BUILD = 'v151';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -14764,7 +14764,7 @@ function renderDrawer(t) {
       : '';
     // Fotos obligatorias: por articulo cuando hay articulos, o evidencia general si no hay articulos.
     const selItems = (t.items||[]).filter(i=>i.selected);
-    const missingEv = isStorageFlow ? selItems.filter(i=>!i.evidence_images||!i.evidence_images.length) : [];
+    const missingEv = isStorageFlow ? selItems.filter(i=>(!i.evidence_images||!i.evidence_images.length) && !i.groupEvidence) : [];
     const missingCond = isStorageFlow ? selItems.filter(i=>!i.condition) : [];
     const missingConf = selItems.filter(i=>!i.confirmado);
     const hasGuiaEvidencia = (t.fotos_guia||[]).some(fg=>(fg.evidencias||[]).length>0);
@@ -14885,7 +14885,7 @@ function renderDrawer(t) {
   const items = (t.items||[]).filter(i=>i.selected);
   let itemsHtml = '';
   if (items.length) {
-    const missing    = items.filter(i=>!i.evidence_images||!i.evidence_images.length).length;
+    const missing    = items.filter(i=>(!i.evidence_images||!i.evidence_images.length) && !i.groupEvidence).length;
     const sinConfirm = items.filter(i=>!i.confirmado).length;
     const canConfirmItem = !isClosedTask && canParticipate;
     const _pickName = (items.find(i=>i.pickName)||{}).pickName || '';
@@ -14914,11 +14914,17 @@ function renderDrawer(t) {
       const _first = units[0];
       // El editor de "Unidades" no aplica a artículos del pick ni componentes de kit (cantidad fija de Odoo)
       const _editableUnits = _canEditUnits && !_first.fromPick && !_first.kitId && !_first.isKit;
-      const _grpHdr = (units.length>1 || _editableUnits) ? `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:6px 10px;background:var(--surface-2);border-radius:7px">
+      // Evidencia por GRUPO idéntico (solo empaque/almacén, ≥2 unidades del mismo producto):
+      // una foto (buen estado) cubre las N unidades. Se oculta si ya están cubiertas por grupo.
+      const _grpCanUpload = !isClosedTask && (_user.role!=='assistant' || (t.executors||[]).includes(myId) || taskAuxiliaryIds(t).includes(_user.id));
+      const _grpCovered = isStorageFlow && units.length>1 && units.every(u=>u.groupEvidence);
+      const _grpCanGroupPhoto = isStorageFlow && units.length>1 && _grpCanUpload && !_grpCovered;
+      const _grpHdr = (units.length>1 || _editableUnits) ? `<div style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;padding:6px 10px;background:var(--surface-2);border-radius:7px;flex-wrap:wrap">
         <span style="font-size:11px;font-weight:700;color:var(--text-2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(_first.product_name||_first.sku||'')}</span>
-        <span style="font-size:10px;color:var(--text-3);white-space:nowrap">${units.length} unidad${units.length>1?'es':''} · ${units.length} foto${units.length>1?'s':''}</span>
+        <span style="font-size:10px;color:var(--text-3);white-space:nowrap">${units.length} unidad${units.length>1?'es':''}${_grpCovered?' · 1 foto de grupo':''}</span>
         ${_editableUnits?`<button class="btn-sm" onclick="changeUnitsPrompt('${t.id}','${gref}')" title="Editar cantidad de unidades" style="padding:2px 9px"><i data-lucide="pencil" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Unidades</button>`:''}
-      </div>` : '';
+        ${_grpCanGroupPhoto?`<button class="btn-sm" onclick="wwpGroupConfirm('${t.id}','${gref}',${units.length})" title="Lote idéntico: una foto en buen estado cubre las ${units.length} unidades. Marca aparte cualquier unidad averiada." style="padding:2px 9px;background:var(--green-bg);color:var(--green-text);border-color:var(--green-dot)"><i data-lucide="images" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>1 foto para las ${units.length}</button>`:''}
+      </div>${_grpCovered?`<div style="font-size:10.5px;color:var(--green-text);margin:-2px 0 7px;padding:0 4px;display:flex;align-items:flex-start;gap:5px;line-height:1.35"><i data-lucide="check-circle" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0;margin-top:1px"></i><span>Lote idéntico confirmado con 1 foto de grupo (buen estado). Si alguna unidad viene averiada, márcala aparte con su propia foto.</span></div>`:''}` : '';
       return _grpHdr + units.map(it=>{
       const evs = it.evidence_images||[];
       const isItemConf = !!it.confirmado;
@@ -14970,7 +14976,7 @@ function renderDrawer(t) {
               return '';
             })()}
           </div>
-          <span class="${evs.length?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):emptyPhotoBadge}</span>
+          <span class="${(evs.length||it.groupEvidence)?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):(it.groupEvidence?'✓ Foto de grupo':emptyPhotoBadge)}</span>
         </div>
         ${(()=>{ const dmg=it.condition==='damaged'; const good=it.condition==='good'; const unset=!it.condition; const DMG=['Rayado','Con golpe','Desperfecto de pintura','Defecto de fábrica'];
           const _bord = dmg?'var(--red-dot)':(unset?'var(--amber-dot)':'var(--border)');
@@ -16679,6 +16685,33 @@ async function deleteItemEvidence(taskId, itemId, evId) {
     await authFetch('/api/wwp/tasks/'+taskId+'/items/'+itemId+'/evidence/'+evId,{method:'DELETE',body:JSON.stringify({by:_user.name})});
     toast('Foto eliminada'); openDrawer(taskId);
   } catch(e) { toast(e.message); }
+}
+
+// Evidencia por GRUPO idéntico (empaque/almacén): UNA foto + buen estado cubre las N
+// unidades del mismo producto (lote idéntico, caso #0119). Elimina la repetición sin perder
+// trazabilidad — cada unidad queda confirmada, el conteo se preserva. Las averías se marcan
+// por unidad aparte (el flujo por unidad sobrescribe la unidad averiada).
+function wwpGroupConfirm(taskId, groupRef, count) {
+  _openPhotoSource({
+    title: 'Foto para las ' + count + ' unidades idénticas',
+    multiple: false,
+    onFiles: async function(files) {
+      if (!files || !files.length) return;
+      toast('Aplicando a ' + count + ' unidad' + (count>1?'es':'') + '…');
+      var b64 = await _compressImage(files[0]);
+      if (!b64) { toast('No se pudo procesar la foto'); return; }
+      try {
+        var r = await authFetch('/api/wwp/tasks/'+taskId+'/items/group-confirm', {
+          method: 'POST',
+          body: JSON.stringify({ group_ref: groupRef, condition: 'good', photo: {data:b64, ext:'jpg', caption:''}, by: _user.name })
+        });
+        var d = await r.json();
+        if (!d.ok) { toast(d.error || 'Error'); return; }
+        toast(d.count + ' unidad' + (d.count>1?'es':'') + ' confirmada' + (d.count>1?'s':'') + ' con 1 foto de grupo', 'success');
+        openDrawer(taskId);
+      } catch(e) { toast(e.message); }
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
