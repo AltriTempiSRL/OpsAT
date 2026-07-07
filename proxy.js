@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v156';
+const APP_BUILD = 'v157';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -5228,19 +5228,35 @@ const INV_SEED_CASES = [
 
 // Item nuevo de caso con todos los campos del modelo (productId/nombre se
 // hidratan al sembrar si Odoo responde; si no, en la primera conciliación).
-function invNuevoItem(ref, causa, productId, productName, now) {
+function invNuevoItem(ref, causa, productId, productName, now, barcode) {
   return {
     itemId: wwpId('invitem'), ref,
-    productId: productId || null, productName: productName || null,
+    productId: productId || null, productName: productName || null, barcode: barcode || null,
     locs: [], qtyNeg: null,
     causa: ['A', 'B', 'C', '?'].includes(causa) ? causa : '?',
     causaAuto: null, kitPadre: null,
+    causaFecha: null, causaOrigen: null, causaDestino: null, causaRef: null,
     seguimiento: 'pendiente', qtyContada: null,
     verificadoAt: null, verificadoBy: null, verificadoNombre: null,
     corregidoAt: null, corregidoBy: null, corregidoAuto: false,
     responsable: null, responsableNombre: null,
     notas: [], addedAt: now
   };
+}
+
+// Aplica el resultado de invClasificarItem sobre un item (SOLO metadata: causaAuto,
+// kitPadre, causaFecha/Origen/Destino/Ref y barcode si se provee). Nunca toca causa,
+// seguimiento ni el rastro manual — eso es decisión del usuario o de invConciliar.
+function invAplicarClasificacion(it, result, barcode) {
+  it.causaAuto = result.causa.code;
+  if (result.kit && result.kit.kitPadre) it.kitPadre = result.kit.kitPadre;
+  if (result.causingMove) {
+    it.causaFecha = result.causingMove.date;
+    it.causaOrigen = result.causingMove.from;
+    it.causaDestino = result.causingMove.to;
+    it.causaRef = result.causingMove.ref;
+  }
+  if (barcode) it.barcode = barcode;
 }
 
 // ── Foto Odoo (negativos + recepciones de tránsito) con cache TTL ─────────────
@@ -5267,14 +5283,14 @@ async function invFetchOdooNegativos(force) {
       const rows = (quants || []).filter(q => !/sistema anterior/i.test(q.location_id[1] || ''));
       const prodIds = [...new Set(rows.map(q => q.product_id[0]))];
       const prods = prodIds.length ? await odooCall('product.product', 'search_read',
-        [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name'], limit: 1000 }) : [];
+        [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name', 'barcode'], limit: 1000 }) : [];
       const pMap = new Map((prods || []).map(p => [p.id, p]));
       const negativos = rows.map(q => {
         const p = pMap.get(q.product_id[0]) || {};
         return {
           productId: q.product_id[0],
           ref: p.default_code || ('id:' + q.product_id[0]),
-          name: p.name || q.product_id[1] || '',
+          name: p.name || q.product_id[1] || '', barcode: p.barcode || null,
           loc: q.location_id[1], locId: q.location_id[0], qty: q.quantity
         };
       });
@@ -5328,6 +5344,7 @@ function invConciliar(casos, negativos) {
         if (it.productId !== vivos[0].productId || it.productName !== vivos[0].name ||
             it.qtyNeg !== qty || JSON.stringify(it.locs || []) !== JSON.stringify(locs)) {
           it.productId = vivos[0].productId; it.productName = vivos[0].name;
+          if (vivos[0].barcode) it.barcode = vivos[0].barcode;
           it.qtyNeg = qty; it.locs = locs; changed = true;
         }
         if (it.seguimiento === 'corregido') {
@@ -5355,7 +5372,7 @@ function invComputeSinCaso(casos, negativos) {
   const byRef = new Map();
   negativos.forEach(n => {
     if (enCaso.has(n.ref)) return;
-    if (!byRef.has(n.ref)) byRef.set(n.ref, { ref: n.ref, name: n.name, productId: n.productId, locs: [], qtyTotal: 0 });
+    if (!byRef.has(n.ref)) byRef.set(n.ref, { ref: n.ref, name: n.name, productId: n.productId, barcode: n.barcode || null, locs: [], qtyTotal: 0 });
     const e = byRef.get(n.ref); e.locs.push(n.loc); e.qtyTotal += n.qty;
   });
   return [...byRef.values()].sort((a, b) => a.qtyTotal - b.qtyTotal);
@@ -5381,6 +5398,75 @@ async function invKitInfo(pid) {
   } catch (e) {
     return { esComponente: null, kitPadre: null, phantom: false };
   }
+}
+
+// Camina el historial de movimientos de (producto, ubicación) en orden cronológico
+// y encuentra la transacción que inició la RACHA NEGATIVA VIGENTE (no la primera
+// vez que haya ocurrido en todo el historial — un SKU con movimientos de hace
+// meses puede haber caído y recuperado varias veces; solo importa desde cuándo
+// está negativo SIN INTERRUPCIÓN hasta hoy). Cada vez que el balance se recupera
+// a ≥0, la racha anterior queda resuelta y se descarta. Sin locId no hay balance
+// que caminar (el SKU ya no tiene ubicación negativa activa).
+async function invBalanceWalk(pid, locId) {
+  const mlsDesc = await odooCall('stock.move.line', 'search_read',
+    [[['product_id', '=', pid], ['state', '=', 'done']]],
+    { fields: ['date', 'reference', 'location_id', 'location_dest_id', 'qty_done'], order: 'date desc', limit: 300 });
+  const asc = (mlsDesc || []).slice().reverse();
+  let bal = 0, causingMove = null, inCount = 0, outCount = 0, huboInEnRacha = false;
+  if (locId) {
+    asc.forEach(ml => {
+      const esIn  = ml.location_dest_id && ml.location_dest_id[0] === locId;
+      const esOut = ml.location_id && ml.location_id[0] === locId;
+      const estabaNeg = bal < 0;
+      if (esIn)  { inCount++;  bal += (ml.qty_done || 0); }
+      if (esOut) { outCount++; bal -= (ml.qty_done || 0); }
+      if (bal < 0 && !estabaNeg) {
+        // Arranca una racha negativa nueva — este movimiento la generó (pisa cualquier racha vieja ya resuelta)
+        causingMove = { date: ml.date, ref: ml.reference || '', from: ml.location_id ? ml.location_id[1] : '', to: ml.location_dest_id ? ml.location_dest_id[1] : '' };
+        huboInEnRacha = false;
+      } else if (bal >= 0 && estabaNeg) {
+        causingMove = null; // se recuperó — esa racha ya no es la vigente
+      } else if (esIn && causingMove) {
+        huboInEnRacha = true; // llegó una entrada DESPUÉS de que arrancara la racha vigente
+      }
+    });
+  }
+  let causa;
+  if (!locId) causa = { code: '?', razon: 'El SKU ya no tiene ubicación negativa activa — ver los movimientos para el histórico.' };
+  else if (outCount && !inCount) causa = { code: 'B', razon: 'Salidas sin ninguna entrada registrada en esta ubicación — se usó como origen sin recepción previa.' };
+  else if (causingMove && huboInEnRacha) causa = { code: 'C', razon: 'La salida se validó antes que la entrada (negativo desde: ' + causingMove.date + ').' };
+  else if (causingMove) causa = { code: 'B', razon: 'El balance quedó negativo y no llegó ninguna entrada posterior.' };
+  else causa = { code: '?', razon: 'Patrón no concluyente — revisar los movimientos.' };
+  return { causa, causingMove, movesRaw: (mlsDesc || []).slice(0, 12), totalMoves: (mlsDesc || []).length };
+}
+
+// Clasificación completa de un SKU+ubicación: causa (A vía kit phantom, B/C vía
+// balance), transacción causante y movimientos recientes. A precede a B/C: si es
+// componente de kit, la causa raíz declarada es A aunque el balance sugiera otra.
+async function invClasificarItem(pid, locId) {
+  const kit = await invKitInfo(pid);
+  const walk = await invBalanceWalk(pid, locId);
+  const causa = kit.phantom
+    ? { code: 'A', razon: 'Componente del kit "' + (kit.kitPadre || '?') + '" — revisar si el kit se despachó más veces de las que entró.' }
+    : walk.causa;
+  return { causa, kit, causingMove: walk.causingMove, movesRaw: walk.movesRaw, totalMoves: walk.totalMoves };
+}
+
+function invMapMoves(movesRaw) {
+  return (movesRaw || []).map(ml => ({
+    date: ml.date, ref: ml.reference || '',
+    from: ml.location_id ? ml.location_id[1] : '',
+    to: ml.location_dest_id ? ml.location_dest_id[1] : '',
+    qty: ml.qty_done || 0
+  }));
+}
+
+// Divide un array en bloques — usado por la auditoría global para limitar la
+// concurrencia contra Odoo (no martillar con 50+ llamadas simultáneas).
+function invChunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 // ── Watchdog diario 08:00 RD — detecta casos futuros sin esperar auditorías ──
@@ -7884,7 +7970,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const allRefs = [...new Set(INV_SEED_CASES.flatMap(s => Object.keys(s.items)))];
         const prods = await odooCall('product.product', 'search_read',
-          [[['default_code', 'in', allRefs]]], { fields: ['id', 'default_code', 'name'], limit: 200 });
+          [[['default_code', 'in', allRefs]]], { fields: ['id', 'default_code', 'name', 'barcode'], limit: 200 });
         prodByRef = new Map((prods || []).map(p => [p.default_code, p]));
       } catch (e) { console.warn('[inv-seed] sin hidratación Odoo:', e.message); }
       const now = new Date().toISOString();
@@ -7892,7 +7978,7 @@ const server = http.createServer(async (req, res) => {
         if (casos.some(c => c.seedKey === seed.seedKey)) { already.push(seed.seedKey); return; }
         const items = Object.entries(seed.items).map(([ref, causa]) => {
           const p = prodByRef.get(ref);
-          const it = invNuevoItem(ref, causa, p && p.id, p && p.name, now);
+          const it = invNuevoItem(ref, causa, p && p.id, p && p.name, now, p && p.barcode);
           if (prodByRef.size && !p) it.notas.push({ at: now, by: 'system', nombre: 'Sistema', texto: 'Ref no encontrado en Odoo al sembrar — verificar el código.' });
           return it;
         });
@@ -7932,7 +8018,7 @@ const server = http.createServer(async (req, res) => {
         if (!ref || vistos.has(ref)) return;
         vistos.add(ref);
         if (enOtroCaso.has(ref)) { omitidos.push(ref); return; }
-        items.push(invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now));
+        items.push(invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now, raw.barcode));
       });
       const caso = {
         id: wwpId('invcase'), seedKey: null, titulo,
@@ -7972,7 +8058,7 @@ const server = http.createServer(async (req, res) => {
         if (!ref) return;
         if (enCaso.has(ref)) { omitidos.push(ref); return; }
         enCaso.add(ref);
-        const it = invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now);
+        const it = invNuevoItem(ref, raw.causa, raw.productId, raw.productName, now, raw.barcode);
         caso.items.push(it);
         added.push(it.itemId);
       });
@@ -8107,56 +8193,98 @@ const server = http.createServer(async (req, res) => {
       if (parts.length !== 6 || !pid) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'productId inválido' })); return; }
       const locId = parseInt(parsed.query.loc || '', 10) || null;
 
-      // Últimos 200 movimientos hechos (desc para no perder los recientes en
-      // productos con historial largo); el balance se computa en orden cronológico.
-      const mlsDesc = await odooCall('stock.move.line', 'search_read',
-        [[['product_id', '=', pid], ['state', '=', 'done']]],
-        { fields: ['date', 'reference', 'location_id', 'location_dest_id', 'qty_done'], order: 'date desc', limit: 200 });
-      const asc = (mlsDesc || []).slice().reverse();
+      const result = await invClasificarItem(pid, locId);
 
-      const kit = await invKitInfo(pid);
-
-      let causa = { code: '?', razon: 'Patrón no concluyente — revisar los movimientos.' };
-      if (kit.phantom) {
-        causa = { code: 'A', razon: 'Componente del kit "' + (kit.kitPadre || '?') + '" — revisar si el kit se despachó más veces de las que entró.' };
-      } else if (locId) {
-        let bal = 0, primerNegAt = null, inCount = 0, outCount = 0, inDespuesNeg = false;
-        asc.forEach(ml => {
-          const esIn  = ml.location_dest_id && ml.location_dest_id[0] === locId;
-          const esOut = ml.location_id && ml.location_id[0] === locId;
-          if (esIn)  { inCount++;  bal += (ml.qty_done || 0); if (primerNegAt) inDespuesNeg = true; }
-          if (esOut) { outCount++; bal -= (ml.qty_done || 0); }
-          if (bal < 0 && !primerNegAt) primerNegAt = ml.date;
-        });
-        if (outCount && !inCount) causa = { code: 'B', razon: 'Salidas sin ninguna entrada registrada en esta ubicación — se usó como origen sin recepción previa.' };
-        else if (primerNegAt && inDespuesNeg) causa = { code: 'C', razon: 'La salida se validó antes que la entrada (primer negativo: ' + primerNegAt + ').' };
-        else if (primerNegAt && bal < 0) causa = { code: 'B', razon: 'El balance quedó negativo y no llegó ninguna entrada posterior.' };
-      } else {
-        causa = { code: '?', razon: 'El SKU ya no tiene ubicación negativa activa — ver los movimientos para el histórico.' };
-      }
-
-      // Hidratación informativa de causaAuto/kitPadre en el item (si se indica)
+      // Hidratación informativa en el item (si se indica): causaAuto/kitPadre/
+      // causaFecha/Origen/Destino/Ref. Nunca toca causa ni seguimiento.
       const casoId = String(parsed.query.caso || ''), itemId = String(parsed.query.item || '');
       if (casoId && itemId) {
         try {
           const casos = loadInvCasos();
           const caso = casos.find(c => c.id === casoId);
           const it = caso && (caso.items || []).find(i => i.itemId === itemId);
-          if (it && (it.causaAuto !== causa.code || (kit.kitPadre && it.kitPadre !== kit.kitPadre))) {
-            it.causaAuto = causa.code;
-            if (kit.kitPadre) it.kitPadre = kit.kitPadre;
-            saveInvCasos(casos);
-          }
+          if (it) { invAplicarClasificacion(it, result); saveInvCasos(casos); }
         } catch (e) { /* informativo — no bloquea el drawer */ }
       }
 
-      const moves = (mlsDesc || []).slice(0, 12).map(ml => ({
-        date: ml.date, ref: ml.reference || '',
-        from: ml.location_id ? ml.location_id[1] : '',
-        to: ml.location_dest_id ? ml.location_dest_id[1] : '',
-        qty: ml.qty_done || 0
-      }));
-      sendGzipJson(req, res, 200, { ok: true, moves, totalMoves: (mlsDesc || []).length, causa, kit });
+      sendGzipJson(req, res, 200, {
+        ok: true, moves: invMapMoves(result.movesRaw), totalMoves: result.totalMoves,
+        causa: result.causa, kit: result.kit, causingMove: result.causingMove
+      });
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── POST /api/inventario/auditoria-global — solo admin ─────────────────────
+  // Valida TODOS los negativos del sistema (no solo A-CDP/PTN) bajo la misma
+  // auditoría: (1) asegura que cada ref negativo viva en algún caso abierto —
+  // los que no pertenecen a ninguno de los conocidos van a un caso catch-all
+  // persistente ('global-negativos'); (2) clasifica/reclasifica causa+kit+
+  // transacción causante+barcode para CADA item de CADA caso abierto que siga
+  // negativo hoy. No toca seguimiento/verificación/notas — solo metadata; si un
+  // item estaba sin clasificar ('?') adopta la causa sugerida automáticamente.
+  if (reqPath === '/api/inventario/auditoria-global' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const foto = await invFetchOdooNegativos(true);
+      if (foto.stale) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Odoo no disponible: ' + (foto.error || 'sin datos frescos') })); return; }
+
+      const casos = loadInvCasos();
+      invConciliar(casos, foto.negativos);
+
+      const negByRef = new Map();
+      foto.negativos.forEach(n => { if (!negByRef.has(n.ref)) negByRef.set(n.ref, n); });
+
+      // Caso catch-all persistente para negativos fuera de los casos conocidos
+      const now = new Date().toISOString();
+      let global = casos.find(c => c.seedKey === 'global-negativos');
+      if (!global) {
+        global = { id: wwpId('invcase'), seedKey: 'global-negativos', titulo: 'Auditoría global — negativos fuera de los casos conocidos',
+          descripcion: 'Negativos detectados en la validación global que no pertenecían a ningún caso existente. Se agregan automáticamente al ejecutar la auditoría.',
+          estado: 'abierto', creadoAt: now, creadoBy: jp.userId, creadoNombre: jp.name || '', cerradoAt: null, cerradoBy: null, items: [] };
+        casos.push(global);
+      } else if (global.estado !== 'abierto') {
+        global.estado = 'abierto'; global.cerradoAt = null; global.cerradoBy = null; // reabrir si se había cerrado
+      }
+
+      const enCaso = new Set();
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+      let agregados = 0;
+      foto.negativos.forEach(n => {
+        if (enCaso.has(n.ref)) return;
+        enCaso.add(n.ref);
+        global.items.push(invNuevoItem(n.ref, '?', n.productId, n.name, now, n.barcode));
+        agregados++;
+      });
+
+      // Clasificar (causa sugerida + transacción causante + barcode) cada item
+      // de cada caso abierto que siga negativo hoy — en bloques para no
+      // martillar Odoo con decenas de llamadas simultáneas.
+      const targets = [];
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => { if (negByRef.has(it.ref) && it.productId) targets.push(it); }); });
+      let clasificados = 0;
+      for (const grupo of invChunk(targets, 6)) {
+        await Promise.all(grupo.map(async (it) => {
+          try {
+            const n = negByRef.get(it.ref);
+            const result = await invClasificarItem(it.productId, n.locId);
+            invAplicarClasificacion(it, result, n.barcode);
+            if (it.causa === '?' && result.causa.code !== '?') it.causa = result.causa.code;
+            clasificados++;
+          } catch (e) { /* un SKU que falle no debe tumbar la auditoría completa */ }
+        }));
+      }
+
+      saveInvCasos(casos);
+      try { appendAuditLog('inv_auditoria_global', { totalNegativos: foto.negativos.length, refsUnicos: negByRef.size, agregados, clasificados, by: jp.userId }); } catch (e) {}
+      sendGzipJson(req, res, 200, {
+        ok: true, totalNegativos: foto.negativos.length, refsUnicos: negByRef.size,
+        agregados, clasificados, casoGlobalId: global.id, casos
+      });
     } catch (e) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));

@@ -6517,6 +6517,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span id="inv-updated" style="font-size:11px;color:var(--text-3)"></span>
+          <button id="inv-btn-auditoria" style="display:none;font-size:12px;padding:7px 14px;border:1.5px solid var(--purple-dot);border-radius:7px;background:transparent;color:var(--purple-text);cursor:pointer;font-weight:600" onclick="invAuditoriaGlobal()" title="Valida TODOS los negativos del sistema (no solo los conocidos), clasifica causa+transacción y agrega los que falten a un caso">
+            <i data-lucide="shield-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Auditoría global
+          </button>
           <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="invSaludCargar(true)">
             <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar
           </button>
@@ -8923,7 +8926,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v156';
+var APP_BUILD = 'v157';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -26408,6 +26411,21 @@ function invFmtDt(iso) {
   try { var d = new Date(iso); return d.toLocaleDateString('es-DO', {day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('es-DO', {hour:'2-digit',minute:'2-digit'}); }
   catch(e) { return String(iso).slice(0, 16); }
 }
+function invFmtDShort(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso.replace(' ','T')).toLocaleDateString('es-DO', {day:'2-digit',month:'short'}); }
+  catch(e) { return String(iso).slice(0, 10); }
+}
+// Celda "Transacción que generó el negativo": fecha + origen → destino (compacto),
+// con la referencia del picking y las ubicaciones completas en el title.
+function invTxCell(it) {
+  if (!it.causaFecha) return '<span style="color:var(--text-3)">' + (it.causaAuto === null ? 'sin clasificar' : '—') + '</span>';
+  var origen   = (it.causaOrigen || '').split('/').slice(2).join('/') || (it.causaOrigen || '—');
+  var destino  = (it.causaDestino || '').split('/').slice(2).join('/') || (it.causaDestino || '—');
+  var titleAtt = esc((it.causaRef || '') + ' · ' + (it.causaOrigen || '') + ' → ' + (it.causaDestino || ''));
+  return '<div title="' + titleAtt + '"><strong style="color:var(--text)">' + esc(invFmtDShort(it.causaFecha)) + '</strong> · ' + esc(origen) + ' <span style="color:var(--text-3)">→</span> ' + esc(destino) + '</div>' +
+    (it.causaRef ? '<div style="font-size:10px;color:var(--text-3)">' + esc(it.causaRef) + '</div>' : '');
+}
 
 async function invSaludCargar(force) {
   var kpis = document.getElementById('inv-kpis');
@@ -26437,6 +26455,8 @@ function invRenderAll() {
   if (!_invData) return;
   var upd = document.getElementById('inv-updated');
   if (upd) upd.textContent = _invData.ts ? ('Foto Odoo: ' + invFmtDt(new Date(_invData.ts).toISOString())) : '';
+  var btnAud = document.getElementById('inv-btn-auditoria');
+  if (btnAud) btnAud.style.display = (_user && _user.role === 'admin') ? '' : 'none';
   var banner = document.getElementById('inv-banner');
   banner.innerHTML = (!_invData.odooOk)
     ? '<div style="padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px;margin-bottom:16px"><strong>Odoo no respondió</strong> — mostrando la última foto disponible. ' + esc(_invData.odooError || '') + '</div>'
@@ -26524,7 +26544,7 @@ function invSelRefs() {
   (_invData.sinCaso || []).forEach(function(s){ byRef[s.ref] = s; });
   return Array.from(_invSel).map(function(ref) {
     var s = byRef[ref] || {};
-    return { ref: ref, causa: '?', productId: s.productId || null, productName: s.name || null };
+    return { ref: ref, causa: '?', productId: s.productId || null, productName: s.name || null, barcode: s.barcode || null };
   });
 }
 
@@ -26562,6 +26582,22 @@ async function invSeed() {
     toast((d.created || []).length ? 'Casos iniciales creados' : 'Los casos ya existían');
     invSaludCargar();
   } catch(e) { toast('Error: ' + e.message); }
+}
+
+// Valida TODOS los negativos del sistema (no solo los ya conocidos): agrega los
+// que falten a un caso catch-all y clasifica causa+transacción+barcode de cada
+// item vigente. Puede tardar ~10-20s (recorre cada SKU contra Odoo) — solo admin.
+async function invAuditoriaGlobal() {
+  var btn = document.getElementById('inv-btn-auditoria');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px"></div>Auditando…'; }
+  try {
+    var r = await authFetch('/api/inventario/auditoria-global', { method: 'POST', body: JSON.stringify({}) });
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'No se pudo auditar');
+    toast('Auditoría global: ' + d.totalNegativos + ' negativos · ' + d.refsUnicos + ' SKUs · ' + d.agregados + ' agregado(s) al caso global · ' + d.clasificados + ' clasificado(s)');
+    invSaludCargar();
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = '<i data-lucide="shield-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Auditoría global'; if (window.lucide) lucide.createIcons(); } }
 }
 
 function invRenderRecepciones() {
@@ -26624,10 +26660,12 @@ function invRenderCasos() {
     var rows = items.map(function(it) {
       var locsShort = (it.locs || []).map(function(l){ return l.split('/').slice(2).join('/'); }).join(' · ');
       return '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="invAbrirDetalle(\'' + esc(c.id) + '\',\'' + esc(it.itemId) + '\')">' +
-        '<td style="padding:8px 12px;max-width:260px"><div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(it.ref) + '</div>' +
+        '<td style="padding:8px 12px;max-width:230px"><div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(it.ref) + '</div>' +
           '<div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(it.productName || '') + '">' + esc(it.productName || '') + '</div></td>' +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--text-3);white-space:nowrap;font-family:monospace">' + esc(it.barcode || '—') + '</td>' +
         '<td style="padding:8px 10px;white-space:nowrap">' + invCausaBadge(it.causa) + '</td>' +
-        '<td style="padding:8px 12px;font-size:11px;color:var(--text-3);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((it.locs || []).join(' · ')) + '">' + esc(locsShort || '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--text-2);white-space:nowrap">' + invTxCell(it) + '</td>' +
+        '<td style="padding:8px 12px;font-size:11px;color:var(--text-3);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc((it.locs || []).join(' · ')) + '">' + esc(locsShort || '—') + '</td>' +
         '<td style="padding:8px 8px;text-align:center;font-size:13px;font-weight:700;color:' + (it.qtyNeg < 0 ? 'var(--red-text)' : 'var(--green-text)') + '">' + (it.qtyNeg === null ? '—' : it.qtyNeg) + '</td>' +
         '<td style="padding:8px 10px;white-space:nowrap">' + invSegBadge(it) + '</td>' +
         '<td style="padding:8px 12px;font-size:11px;color:var(--text-2);white-space:nowrap">' + esc(it.responsableNombre || '—') + '</td>' +
@@ -26655,7 +26693,9 @@ function invRenderCasos() {
       '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
         '<thead><tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">' +
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Artículo</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Código</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Causa</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Transacción que generó el negativo</th>' +
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Ubicación</th>' +
           '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-2)">Qty</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Seguimiento</th>' +
@@ -26708,10 +26748,11 @@ async function invAbrirDetalle(casoId, itemId) {
       var r = await authFetch('/api/inventario/sku/' + f.it.productId + '/movimientos' + qs);
       var d = await r.json();
       if (!r.ok || !d.ok) throw new Error(d.error || 'Error consultando movimientos');
-      mov = { moves: d.moves || [], causa: d.causa || null, kit: d.kit || null, totalMoves: d.totalMoves || 0 };
+      mov = { moves: d.moves || [], causa: d.causa || null, kit: d.kit || null, totalMoves: d.totalMoves || 0, causingMove: d.causingMove || null };
       _invDrawerMov[itemId] = mov;
       if (mov.causa && f.it.causaAuto !== mov.causa.code) f.it.causaAuto = mov.causa.code;
       if (mov.kit && mov.kit.kitPadre) f.it.kitPadre = mov.kit.kitPadre;
+      if (mov.causingMove) { f.it.causaFecha = mov.causingMove.date; f.it.causaOrigen = mov.causingMove.from; f.it.causaDestino = mov.causingMove.to; f.it.causaRef = mov.causingMove.ref; }
     } catch(e) {
       mov = { moves: [], causa: null, kit: null, error: e.message };
     }
@@ -26746,6 +26787,9 @@ function invRenderDrawer(casoId, itemId, mov) {
         (sugerida ? '<button style="font-size:10px;padding:3px 8px;border:1px solid var(--accent);border-radius:5px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'causa\',{causa:\'' + mov.causa.code + '\'})">Aplicar</button>' : '') +
       '</div>' + esc(mov.causa.razon || '') +
       (mov.kit && mov.kit.kitPadre ? '<div style="margin-top:4px;font-size:11px;color:var(--purple-text)"><strong>Kit padre:</strong> ' + esc(mov.kit.kitPadre) + '</div>' : '') +
+      (mov.causingMove ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:11px"><strong style="color:var(--text-3)">Transacción que generó el negativo:</strong> ' +
+        esc(invFmtDShort(mov.causingMove.date)) + ' · ' + esc(mov.causingMove.ref || '—') + ' · ' +
+        esc((mov.causingMove.from || '').replace('ALVEN/Stock/', '')) + ' <span style="color:var(--text-3)">→</span> ' + esc((mov.causingMove.to || '').replace('ALVEN/Stock/', '')) + '</div>' : '') +
     '</div>';
   }
 
@@ -26772,7 +26816,7 @@ function invRenderDrawer(casoId, itemId, mov) {
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">' +
           '<strong style="font-size:15px;color:var(--text)">' + esc(it.ref) + '</strong>' + invCausaBadge(it.causa) + invSegBadge(it) +
         '</div>' +
-        '<div style="font-size:12px;color:var(--text-2)">' + esc(it.productName || '') + '</div>' +
+        '<div style="font-size:12px;color:var(--text-2)">' + esc(it.productName || '') + (it.barcode ? ' <span style="font-family:monospace;color:var(--text-3)">· ' + esc(it.barcode) + '</span>' : '') + '</div>' +
         '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' +
           ((it.locs || []).length ? esc(it.locs.join(' · ')) + ' · ' : '') +
           'Stock: <strong style="color:' + (it.qtyNeg < 0 ? 'var(--red-text)' : 'var(--green-text)') + '">' + (it.qtyNeg === null ? '—' : it.qtyNeg) + '</strong>' +
