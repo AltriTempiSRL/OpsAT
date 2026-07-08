@@ -8938,7 +8938,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v161';
+var APP_BUILD = 'v162';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -33175,13 +33175,15 @@ function sdvRenderItems() {
       ? '<img class="sdv-item-img" src="'+it.image+'" alt="">'
       : '<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>';
     var maxQ = it.maxQty || it.quantity;
-    var ctrl = canDel
-      ? '<button class="sdv-item-del" onclick="sdvQuitarItem('+it._idx+')" title="Quitar"><i data-lucide="x" style="width:13px;height:13px"></i></button>'
-      : '<div style="text-align:center"><div class="sdv-qty-stepper" onclick="event.stopPropagation()">'+
+    var stepper = '<div style="text-align:center"><div class="sdv-qty-stepper" onclick="event.stopPropagation()">'+
           '<button type="button" class="sdv-qty-btn" onclick="sdvStepQty('+it._idx+',-1)" aria-label="Menos">−</button>'+
           '<span class="sdv-qty-val" id="sdv-qty-'+it._idx+'">'+it.quantity+'</span>'+
           '<button type="button" class="sdv-qty-btn" onclick="sdvStepQty('+it._idx+',1)" aria-label="Más">+</button>'+
         '</div><div class="sdv-item-qty-max">máx '+maxQ+'</div></div>';
+    var delBtn = canDel
+      ? '<button class="sdv-item-del" onclick="sdvQuitarItem('+it._idx+')" title="Quitar"><i data-lucide="x" style="width:13px;height:13px"></i></button>'
+      : '';
+    var ctrl = '<div style="display:flex;align-items:center;gap:8px">'+stepper+delBtn+'</div>';
     return '<div class="sdv-item-row">'+img+
       '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
       ctrl+'</div>';
