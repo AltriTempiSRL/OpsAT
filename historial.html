@@ -4751,11 +4751,14 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .eo2-pi[data-f]:hover{background:var(--surface-3)}
 .eo2-pi.active{background:var(--accent-light,var(--surface-3))}
 .eo2-pi.active::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent)}
-/* Rejilla de zonas */
-.eo2-layout{display:grid;grid-template-columns:minmax(0,1fr) 318px;grid-template-rows:auto 1fr;gap:18px;align-items:start}
-.eo2-main{grid-column:1;grid-row:1/3;min-width:0}
-.eo2-alerts{grid-column:2;grid-row:1}
-.eo2-analytics{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:16px}
+/* Rejilla de zonas — la lista (Zona 2) ocupa todo el ancho arriba; Acción hoy + analítica
+   (Zonas 3/4) pasan a una fila de tarjetas debajo en vez de un rail lateral que le restaba
+   ancho a la tabla de SDV (Gabriel, 8-jul). .eo2-analytics con display:contents expone sus 3
+   tarjetas como items de grid propios, así las 4 tarjetas (Acción hoy + 3 de analítica) fluyen
+   juntas en la misma fila auto-fit sin necesitar un envoltorio HTML nuevo. */
+.eo2-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;align-items:start}
+.eo2-main{grid-column:1/-1;min-width:0}
+.eo2-analytics{display:contents}
 .eo2-card{background:var(--surface-2);border:1px solid var(--border-light,var(--border));border-radius:12px}
 /* Z2 · Barra de herramientas unificada */
 .eo2-toolbar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border-light,var(--border));flex-wrap:wrap;position:relative}
@@ -8935,7 +8938,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v159';
+var APP_BUILD = 'v160';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
