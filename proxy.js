@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v166';
+const APP_BUILD = 'v167';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -10986,6 +10986,19 @@ const server = http.createServer(async (req, res) => {
         // by derivado del JWT (no del body) + límites de longitud: evita spoofing
         // y reduce superficie de XSS almacenado (el escape real va en el render).
         tasks[idx].statusHistory.push({ status:d.status, date:now, by:String(jp.name||d.by||'').slice(0,120), note:String(d.note||'').slice(0,500) });
+        // ── Auto-avance tras reactivación (fix 2026-07-08, caso #0164) ──────────
+        // Reactivar siempre aterriza en 'pending' (regla dura arriba: no revivir tareas
+        // de una SDV terminal). Si la tarea YA tenía encargado/ejecutor antes de
+        // cancelarse — señal de que había avanzado — subirla a 'assigned' en la misma
+        // operación. Sin esto, las SUBTAREAS quedan varadas para siempre: el único
+        // auto-avance pending→assigned que existe (bloque de asignación, más abajo)
+        // excluye explícitamente a las subtareas (!parentId) y no hay ningún botón en
+        // el drawer para un status 'pending' — quedan sin salida (Gabriel, 8-jul).
+        if (oldTask.status==='cancelled' && d.status==='pending' &&
+            (tasks[idx].managerId || tasks[idx].assignedTo || (tasks[idx].executors||[]).length || (tasks[idx].assignees||[]).length)) {
+          tasks[idx].status = 'assigned';
+          tasks[idx].statusHistory.push({ status:'assigned', date:now, by:String(jp.name||d.by||'').slice(0,120), note:'Auto-avance tras reactivación (ya tenía responsable asignado)' });
+        }
         // ── AUTOMÁTICO: Actualizar SDV a 'despachada' ──
         // Para tareas de despacho (dispatch_order), basta con que el chofer la marque
         // 'completed' — esto ya exige el checklist de 3 fotos (incluye documentos de
@@ -11317,7 +11330,10 @@ const server = http.createServer(async (req, res) => {
             pending     :['task_rejected','↩️ Tarea devuelta','Fue devuelta a Pendiente'],
             cancelled   :['task_cancelled','❌ Tarea cancelada','Ha sido cancelada'],
           };
-          const [type,prefix,suffix] = STATUS_MSG[d.status]||['status_changed','🔄 Estado actualizado',''];
+          // t2.status (no d.status): el auto-avance tras reactivación puede haber dejado
+          // la tarea en 'assigned' aunque el body pidiera 'pending' — el mensaje debe
+          // reflejar dónde quedó realmente, no lo que se pidió.
+          const [type,prefix,suffix] = STATUS_MSG[t2.status]||['status_changed','🔄 Estado actualizado',''];
           recipients.forEach(uid => {
             // No notificar al que hizo el cambio
             if (uid === d.byUserId) return;

@@ -8973,7 +8973,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v166';
+var APP_BUILD = 'v167';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16501,14 +16501,16 @@ async function reactivateTask(taskId) {
   const t = (_tasks||[]).find(x=>x.id===taskId) || _drawerTask;
   if (!t) { toast('Tarea no encontrada'); return; }
   const cancelledSubs = (_tasks||[]).filter(s=>s.parentId===taskId && s.status==='cancelled');
-  let msg = '¿Reactivar esta tarea? Volverá a estado Pendiente.\n\nEl historial de cancelación se conserva.';
+  const yaTeniaResponsable = !!(t.managerId || t.assignedTo || (t.executors||[]).length || (t.assignees||[]).length);
+  let msg = '¿Reactivar esta tarea? Volverá a estado '+(yaTeniaResponsable?'Asignado (ya tenía responsable)':'Pendiente')+'.\n\nEl historial de cancelación se conserva.';
   if (cancelledSubs.length) msg += `\n\nNota: ${cancelledSubs.length} subtarea(s) también fueron canceladas y deberás reactivarlas manualmente desde cada una.`;
   if (!await _iosConfirm(msg)) return;
   try {
     const r = await authFetch('/api/wwp/tasks/'+taskId,{method:'PATCH',body:JSON.stringify({status:'pending', by:_user.name, byUserId:_user.id, note:'Reactivada por admin'})});
     const d = await r.json();
     if (!d.ok) { toast(d.error||'Error al reactivar'); return; }
-    toast('Tarea reactivada — ahora está en Pendiente');
+    const _st = (d.task && d.task.status) || 'pending';
+    toast('Tarea reactivada — ahora está en '+(_st==='assigned'?'Asignado':'Pendiente'));
     openDrawer(taskId);
   } catch(e){ toast('Error: '+e.message); }
 }
