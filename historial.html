@@ -2897,7 +2897,7 @@ body{font-family:var(--font);min-height:100dvh}
 .task-list-row:hover{background:var(--surface-3)}
 /* Paneles ledger: grupo con cabecera de registro */
 .task-group{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;margin:14px 0 18px}
-.task-group-header{display:flex;align-items:center;gap:9px;padding:8px 16px;background:var(--accent)}
+.task-group-header{display:flex;align-items:center;gap:9px;padding:8px 16px;background:var(--sidebar-bg)}
 .tg-dot{width:7px;height:7px;flex-shrink:0;display:inline-block}
 .tg-icon{display:flex;align-items:center;opacity:.85}
 .task-group-title{font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.9px}
@@ -8969,7 +8969,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v163';
+var APP_BUILD = 'v164';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
