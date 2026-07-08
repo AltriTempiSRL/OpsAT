@@ -65,6 +65,8 @@ function _loadXlsx(cb){
   --accent:#1b3b6f;
   --accent-hover:#142d56;
   --accent-light:#e5edf7;
+  --tier-overdue-bg:#fcf4f3;
+  --tier-soon-bg:#fdfaf1;
   --link:#1a5ab8;
   --brand:#0f2340;
   --brand-primary:#062465;
@@ -117,6 +119,8 @@ function _loadXlsx(cb){
   --accent:#2a5f9e;
   --accent-hover:#3370b5;
   --accent-light:#1e3252;
+  --tier-overdue-bg:#241213;
+  --tier-soon-bg:#221c10;
   --link:#5ba3f5;
   --brand:#0e1e38;
   --brand-primary:#1a2e50;
@@ -2671,10 +2675,12 @@ body{font-family:var(--font);min-height:100dvh}
 .filter-panel{flex-basis:100%;display:none;flex-wrap:wrap;gap:8px;padding:10px 0 2px}
 .filter-panel.open{display:flex}
 .btn-new{
-  padding:9px 18px;background:var(--brand-light);color:white;border:none;
-  border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+  padding:11px 18px;background:var(--accent);color:white;border:none;
+  border-radius:4px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+  text-transform:uppercase;letter-spacing:.9px;
+  transition:background .16s cubic-bezier(.2,0,0,1);
 }
-.btn-new:hover{background:var(--blue-dot)}
+.btn-new:hover{background:var(--accent-hover)}
 
 /* ── Nav back bar ── */
 #nav-back-bar{display:none;margin-bottom:8px;}
@@ -2746,25 +2752,18 @@ body{font-family:var(--font);min-height:100dvh}
 .task-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px 20px;margin-bottom:10px;cursor:pointer;
-  transition:box-shadow .18s,border-color .18s,transform .18s;
-  border-left:4px solid var(--border);
+  transition:background .16s cubic-bezier(.2,0,0,1);
   animation:tcFadeIn .22s ease both;
 }
 .task-card:nth-child(1){animation-delay:0ms}.task-card:nth-child(2){animation-delay:45ms}
 .task-card:nth-child(3){animation-delay:90ms}.task-card:nth-child(4){animation-delay:135ms}
 .task-card:nth-child(n+5){animation-delay:180ms}
-.task-card:hover{box-shadow:0 6px 24px rgba(0,0,0,.09);border-color:#cbd5e1;transform:translateY(-2px)}
-/* Border izquierdo por estado */
-.task-card[data-status="pending"]    {border-left-color:var(--text-3)}
-.task-card[data-status="assigned"]   {border-left-color:var(--blue-dot)}
-.task-card[data-status="in_progress"]{border-left-color:var(--amber-dot)}
-.task-card[data-status="completed"]  {border-left-color:var(--green-dot)}
-.task-card[data-status="validated"]  {border-left-color:var(--purple-dot)}
+.task-card:hover{background:var(--surface-2)}
 /* Header: título + badge vencida */
 .tc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}
 .tc-header>div{min-width:0;flex:1}
 .tc-title{font-size:15px;font-weight:700;color:var(--text);line-height:1.35;letter-spacing:-.1px}
-.tc-overdue-pill{font-size:10px;font-weight:700;background:#fef2f2;color:var(--red);border:1px solid #fecaca;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.tc-overdue-pill{font-size:10px;font-weight:700;background:#fef2f2;color:var(--red);border:1px solid #fecaca;padding:3px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0}
 /* Barra de progreso (subtareas) */
 .tc-progress{height:3px;background:var(--border);border-radius:3px;margin-bottom:14px;overflow:hidden}
 .tc-progress-bar{height:100%;background:linear-gradient(90deg,var(--brand-light),#8b5cf6);border-radius:3px;transition:width .5s ease}
@@ -2778,7 +2777,7 @@ body{font-family:var(--font);min-height:100dvh}
 .tc-user{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:var(--text-2)}
 /* Badges */
 .task-badges{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
 .b-pending  {background:var(--surface-2);color:var(--text-muted)}
 .b-assigned {background:var(--blue-bg);color:var(--blue-text)}
 .b-inprogress{background:var(--amber-bg);color:var(--amber-text)}
@@ -2874,24 +2873,46 @@ body{font-family:var(--font);min-height:100dvh}
 @keyframes guidePulse{0%,100%{outline-color:var(--purple);box-shadow:0 0 0 0 rgba(124,58,237,.4)}50%{outline-color:var(--purple);box-shadow:0 0 0 8px rgba(124,58,237,0)}}
 
 /* ── Vista Lista (compact rows) ─────────────────────────────────────── */
-.task-list-row{display:flex;align-items:center;gap:10px;padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s;border-left:3px solid transparent;min-height:48px}
+.task-list-row{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;background:var(--surface);border-bottom:1px solid var(--border-light);cursor:pointer;transition:background .12s}
+.tlr-icon{width:36px;height:36px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tlr-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.tlr-ref{font-family:ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,monospace;font-size:12px;font-weight:600;color:var(--accent);white-space:nowrap}
+.tlr-meta{display:flex;align-items:center;gap:6px 16px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--text-muted)}
+.tlr-meta-item{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.tlr-prog-row{display:flex;align-items:center;gap:10px;margin-top:9px}
+.tlr-prog{flex:1;max-width:240px;height:6px;background:var(--surface-3);overflow:hidden}
+.tlr-prog-bar{height:100%}
+.tlr-prog-lbl{font-size:11px;color:var(--text-muted);font-family:ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,monospace}
+.tlr-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
+.st-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:6px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;font-family:ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,monospace}
+.st-dot{width:7px;height:7px;display:inline-block;flex-shrink:0}
+.tlr-pri{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);font-family:ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,monospace}
+@media(max-width:720px){
+  .tlr-icon{display:none}
+  .task-list-row{flex-wrap:wrap;padding:12px 14px}
+  .tlr-right{flex-direction:row;align-items:center;width:100%;justify-content:flex-start;margin-top:6px}
+}
 .task-list-row:first-child{border-top:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0}
 .task-list-row:last-child{border-bottom:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius)}
 .task-list-row:hover{background:var(--surface-3)}
-.task-list-row[data-status="pending"]    {border-left-color:var(--text-3)}
-.task-list-row[data-status="assigned"]   {border-left-color:var(--blue-dot)}
-.task-list-row[data-status="in_progress"]{border-left-color:var(--amber-dot)}
-.task-list-row[data-status="completed"]  {border-left-color:var(--green-dot)}
-.task-list-row[data-status="validated"]  {border-left-color:var(--purple-dot)}
-/* Semáforo de plazo: borde lateral en vez de fondo completo */
-.task-list-row[data-overdue="1"]{border-left-color:var(--red-dot)}
-.task-list-row[data-due-soon="1"]{border-left-color:var(--amber-dot)}
+/* Paneles ledger: grupo con cabecera de registro */
+.task-group{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;margin:14px 0 18px}
+.task-group-header{display:flex;align-items:center;gap:9px;padding:8px 16px;background:var(--accent)}
+.tg-dot{width:7px;height:7px;flex-shrink:0;display:inline-block}
+.tg-icon{display:flex;align-items:center;opacity:.85}
+.task-group-title{font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.9px}
+.task-group-count{margin-left:auto;font-size:11px;color:rgba(255,255,255,.6);font-family:ui-monospace,'Cascadia Mono','Roboto Mono',Consolas,monospace}
+.task-group .task-list-row{border-radius:0;border-top:none}
+.task-group .task-list-row:last-child{border-bottom:none}
+.task-group .task-card{border-radius:0;border:none;border-bottom:1px solid var(--border-light);margin-bottom:0}
+.task-group .task-card:last-child{border-bottom:none}
+
 .task-list-main{flex:1;min-width:0;overflow:hidden}
 .task-list-title{font-size:var(--fs-base);font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .task-list-meta{font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap;overflow:hidden;margin-top:4px}
 .task-list-sep{color:var(--border);flex-shrink:0}
 /* Meta row con columnas fijas: mgr · aux · odoo se reservan siempre */
-.task-meta-fixed{font-size:var(--fs-xs);color:var(--text-muted);display:grid;grid-template-columns:minmax(142px,max-content) minmax(130px,max-content) minmax(126px,max-content) auto auto auto auto;align-items:center;column-gap:7px;overflow:hidden;margin-top:4px}
+.task-meta-fixed{font-size:var(--fs-xs);color:var(--text-muted);display:flex;flex-wrap:wrap;align-items:center;gap:3px 16px;overflow:hidden;margin-top:4px}
 .task-mc-ph{display:block;height:1px} /* placeholder invisible para mantener columna */
 .task-mc-aux{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
 .task-meta-chip{display:inline-flex;align-items:center;gap:3px;min-width:0;max-width:260px;line-height:1.35;color:var(--text-2)}
@@ -3477,10 +3498,14 @@ body{font-family:var(--font);min-height:100dvh}
 .toast.toast-info{border-left-color:#3b82f6}
 
 /* ── DASHBOARD PANEL ─────────────────────────────────────────────── */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
-.kpi-val{font-size:32px;font-weight:800;color:var(--brand);line-height:1}
-.kpi-label{font-size:12px;color:var(--text-3);margin-top:4px;font-weight:500}
+.kpi-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;margin-bottom:24px;
+  border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);
+}
+.kpi-card{background:var(--surface);border:none;border-right:1px solid var(--border);border-radius:0;padding:16px 18px}
+.kpi-card:last-child{border-right:none}
+.kpi-val{font-size:28px;font-weight:700;color:var(--brand);line-height:1;font-variant-numeric:tabular-nums}
+.kpi-label{font-size:10.5px;color:var(--text-3);margin-top:6px;font-weight:600;text-transform:uppercase;letter-spacing:.8px}
 .ops-agent-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:22px}
 .ops-agent-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
 .ops-agent-metric{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface-2)}
@@ -7749,6 +7774,12 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   <div class="app-body">
     <!-- TASKS TAB -->
     <div id="tab-tasks">
+      <div class="tasks-kpi-strip" id="tasks-kpi-strip">
+        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--text-3)"></span>Pendientes</div><div class="tks-val" id="tks-pend">—</div></div>
+        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--amber-dot)"></span>En progreso</div><div class="tks-val" id="tks-prog" style="color:var(--amber-text)">—</div></div>
+        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--red-dot)"></span>Vencidas</div><div class="tks-val" id="tks-venc" style="color:var(--red-text)">—</div></div>
+        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--green-dot)"></span>Completadas</div><div class="tks-val" id="tks-comp" style="color:var(--green-text)">—</div></div>
+      </div>
       <div class="tasks-toolbar">
         <div class="search-box">
           <span class="search-icon"><i data-lucide="search"></i></span>
@@ -8938,7 +8969,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v162';
+var APP_BUILD = 'v163';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12180,6 +12211,7 @@ function filterTasks() {
   }
   if(window.lucide) lucide.createIcons();
   hydrateOdooAvatars(el);   // fotos de Odoo en responsable/auxiliares de todas las vistas
+  try { _updateTasksKpiStrip(); } catch(e) {}
 }
 
 // Categorías de tareas (acción concreta) para agrupar las vistas Lista y Tarjetas
@@ -12200,11 +12232,11 @@ function renderGroupedByType(visible, rowRenderer) {
 
   const known = new Set(_TYPE_GROUPS.map(g=>g.type));
   let html = '';
-  const groupHdr = (g, n) => `<div style="display:flex;align-items:center;gap:8px;margin:16px 0 8px;padding:6px 2px;border-bottom:2px solid ${g.color}33">
-    <span style="width:24px;height:24px;border-radius:6px;background:${g.color}1a;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <i data-lucide="${g.icon}" style="width:14px;height:14px;stroke:${g.color}"></i></span>
-    <span style="font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.4px">${g.label}</span>
-    <span style="font-size:11px;font-weight:700;color:#fff;background:${g.color};border-radius:20px;padding:1px 8px">${n}</span>
+  const groupHdr = (g, n) => `<div class="task-group-header">
+    <span class="tg-dot" style="background:${g.color}"></span>
+    <span class="tg-icon"><i data-lucide="${g.icon}" style="width:13px;height:13px;stroke:#fff"></i></span>
+    <span class="task-group-title">${g.label}</span>
+    <span class="task-group-count">${String(n).padStart(2,'0')}</span>
   </div>`;
   const byDue = (a, b) => {
     if (!a.dueDate && !b.dueDate) return 0;
@@ -12217,11 +12249,11 @@ function renderGroupedByType(visible, rowRenderer) {
   _TYPE_GROUPS.forEach(g => {
     const rows = active.filter(t => t.type === g.type).sort(byDue);
     if (!rows.length) return;
-    html += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
+    html += '<div class="task-group">' + groupHdr(g, rows.length) + rows.map(rowRenderer).join('') + '</div>';
   });
   const othersActive = active.filter(t => !known.has(t.type)).sort(byDue);
   if (othersActive.length) {
-    html += groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, othersActive.length) + othersActive.map(rowRenderer).join('');
+    html += '<div class="task-group">' + groupHdr({label:'Otras', icon:'list', color:'#6b7280'}, othersActive.length) + othersActive.map(rowRenderer).join('') + '</div>';
   }
 
   // ── Accordions de archivo ──
@@ -12233,10 +12265,10 @@ function renderGroupedByType(visible, rowRenderer) {
     _TYPE_GROUPS.forEach(function(g) {
       var rows = tasks.filter(function(t){return t.type===g.type;}).sort(byDue);
       if (!rows.length) return;
-      inner += groupHdr(g, rows.length) + rows.map(rowRenderer).join('');
+      inner += '<div class="task-group">' + groupHdr(g, rows.length) + rows.map(rowRenderer).join('') + '</div>';
     });
     var othersInner = tasks.filter(function(t){return !known.has(t.type);}).sort(byDue);
-    if (othersInner.length) inner += groupHdr({label:'Otras',icon:'list',color:'#6b7280'}, othersInner.length) + othersInner.map(rowRenderer).join('');
+    if (othersInner.length) inner += '<div class="task-group">' + groupHdr({label:'Otras',icon:'list',color:'#6b7280'}, othersInner.length) + othersInner.map(rowRenderer).join('') + '</div>';
     return '<details class="task-archive-section"'+(open?' open':'')
       +' ontoggle="(function(el){try{var s=JSON.parse(localStorage.getItem(\'wwp_archive_open\')||\'{}\'  );s[\''+key+'\']=el.open;localStorage.setItem(\'wwp_archive_open\',JSON.stringify(s));}catch(e){}})(this)">'
       +'<summary class="task-archive-summary">'
@@ -12255,6 +12287,19 @@ function renderGroupedByType(visible, rowRenderer) {
 function renderTasks() { filterTasks(); }
 
 var _filteredTasks = [];
+
+/** Actualiza la tira de KPIs del tab Tareas */
+function _updateTasksKpiStrip() {
+  if (!document.getElementById('tasks-kpi-strip')) return;
+  var today = new Date().toISOString().slice(0,10);
+  var act = (_tasks||[]).filter(function(t){ return !t.parentId; });
+  var over = act.filter(function(t){ return t.dueDate && t.dueDate < today && !['completed','validated','cancelled'].includes(t.status); }).length;
+  var pend = act.filter(function(t){ return t.status==='pending' || t.status==='assigned'; }).length;
+  var prog = act.filter(function(t){ return t.status==='in_progress'; }).length;
+  var comp = act.filter(function(t){ return t.status==='completed' || t.status==='validated'; }).length;
+  var set = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=String(v).padStart(2,'0'); };
+  set('tks-pend',pend); set('tks-prog',prog); set('tks-venc',over); set('tks-comp',comp);
+}
 
 /** Actualiza el badge rojo de tareas vencidas en la pestaña Tareas */
 function _updateOverdueBadge() {
@@ -13808,9 +13853,9 @@ function dueTier(t) {
 // Tinte de plazos vía tokens: var(--*) se resuelve al valor del tema activo,
 // así el modo oscuro funciona solo (sin overrides que matcheen el hex inline).
 const DUE_ROW_STYLE = {
-  overdue: 'background:var(--red-bg);border-left:3px solid var(--red-dot);',
-  soon:    'background:var(--amber-bg);border-left:3px solid var(--amber-dot);',
-  ontime:  'background:var(--green-bg);border-left:3px solid var(--green-dot);',
+  overdue: '',
+  soon:    '',
+  ontime:  '',
 };
 const DUE_CARD_STYLE = {
   overdue: 'background:var(--red-bg);border-color:var(--red-dot);',
@@ -13928,60 +13973,59 @@ function renderListRow(t) {
   const today = new Date().toISOString().slice(0,10);
   const overdue = t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status);
   const tier = dueTier(t);
-  const rowStyle = tier ? DUE_ROW_STYLE[tier] : '';
   const mgr = t.managerId ? (_authUsers||[]).find(u=>u.id===t.managerId) : null;
   const subs = _tasks.filter(s=>s.parentId===t.id);
   const doneSubs = subs.filter(s=>['completed','validated'].includes(s.status)).length;
-  const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot',staffing:'users'}[t.type]||'circle-dot';
-  const priorityColor = {high:'#dc2626',medium:'#f59e0b',low:'#10b981'}[t.priority||'medium']||'#f59e0b';
+  const progPct = subs.length ? Math.round(doneSubs/subs.length*100) : 0;
+  const typeIcon = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'warehouse',general:'circle-dot',staffing:'users'}[t.type]||'circle-dot';
   const typeLabel = t.taskConcept==='customer_return' ? 'Devolución de cliente' : ({dispatch_order:'Despacho / Entrega',packaging:'Empaque y almacenamiento',item_pickup:'Recogida de articulos',truck_loading:'Carga de camion',warehouse_move:'Movimiento de almacen',staffing:'Solicitud de personal',general:'Tarea general'}[t.type] || (t.type || 'Tarea'));
-  const chip = (label, value, extraClass='') => {
-    const val = String(value || '').trim();
-    if (!val) return '';
-    return `<span class="task-meta-chip ${extraClass}"><span class="meta-label">${esc(label)}</span><span class="meta-value">${esc(val)}</span></span>`;
-  };
+  const stDot = {pending:'var(--text-3)',assigned:'var(--blue-dot)',in_progress:'var(--amber-dot)',completed:'var(--green-dot)',validated:'var(--purple-dot)',cancelled:'var(--red-dot)'}[t.status]||'var(--text-3)';
+  const prDot = {high:'var(--red-dot)',medium:'var(--amber-dot)',low:'var(--green-dot)'}[t.priority||'medium'];
+  const prLabel = {high:'Alta',medium:'Media',low:'Baja'}[t.priority||'medium'];
+  const mi = (icon) => `<i data-lucide="${icon}" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>`;
+  const meta = [];
+  if (mgr) meta.push(`<span class="tlr-meta-item">${mi('user')}${esc(mgr.name.split(' ')[0])}</span>`);
+  else if (t.assignedTo) meta.push(`<span class="tlr-meta-item">${mi('user')}${userName(t.assignedTo)}</span>`);
   const auxIds = taskAuxiliaryIds(t);
-  // ── Columnas fijas (siempre presentes para mantener alineación entre filas) ──
-  // Slot 1: Responsable
-  const _s1 = mgr
-    ? `<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(mgr,15)}</span><span class="meta-label">Responsable</span><span class="meta-value">${esc(mgr.name.split(' ')[0])}</span></span>`
-    : `<span class="task-mc-ph"></span>`;
-  // Slot 2: Auxiliar(es) — contenedor siempre presente
-  const _s2 = `<span class="task-mc-aux">${auxIds.map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?`<span class="task-meta-chip"><span style="display:flex;align-items:center;gap:3px">${avatarHtml(u,15)}</span><span class="meta-label">Auxiliar</span><span class="meta-value">${esc(u.name.split(' ')[0])}</span></span>`:''}).join('')}</span>`;
-  // Slot 3: Orden Odoo
-  const _s3 = t.odooRef ? chip('Orden Odoo', t.odooRef) : `<span class="task-mc-ph"></span>`;
-  // Chips opcionales (columnas 4+)
-  const _parChips = (t.odooRef && !t.parentId && t.type==='packaging' && /^\[/.test(t.title))
+  if (auxIds.length) meta.push(`<span class="tlr-meta-item">${mi('users')}${esc(auxIds.map(id=>{const u=(_authUsers||[]).find(x=>x.id===id);return u?u.name.split(' ')[0]:'?';}).join(', '))}</span>`);
+  meta.push(`<span class="tlr-meta-item">${mi('tag')}${esc(typeLabel)}</span>`);
+  // Tarea "par" (empaque dividido entre ubicaciones, mismo pedido de Odoo) — salta a la tarea vinculada
+  const parTasks = (t.odooRef && !t.parentId && t.type==='packaging' && /^\[/.test(t.title))
     ? (_tasks||[]).filter(t2=>t2.id!==t.id&&t2.odooRef===t.odooRef&&t2.type==='packaging'&&!t2.parentId&&/^\[/.test(t2.title)&&!['cancelled'].includes(t2.status))
-        .map(p=>{const locLabel=p.title.match(/^\[([^\]]+)\]/)?.[1]||'↔';const parStatus=({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');return `<span class="task-meta-chip" style="cursor:pointer;border-color:rgba(37,99,235,.3);background:rgba(37,99,235,.07)" onclick="event.stopPropagation();openDrawer('${p.id}')" title="Ver tarea par"><span class="meta-label">Par</span><span class="meta-value">${esc(locLabel)} ${parStatus}</span></span>`;}).join('')
-    : '';
-  const _dueChip  = t.dueDate   ? chip('Fecha limite', t.dueDate, tier==='overdue'?'due-overdue':'') : '';
-  const _subsChip = subs.length  ? chip('Subtareas', `${doneSubs}/${subs.length} completadas`) : '';
-  const _locChip  = t.location   ? chip('Ubicacion', t.location) : '';
+    : [];
+  parTasks.forEach(p=>{
+    const locLabel=p.title.match(/^\[([^\]]+)\]/)?.[1]||'↔';
+    const parStatus=({pending:'⏳',assigned:'👤',in_progress:'🔄',completed:'✓',validated:'✓✓'}[p.status]||'');
+    meta.push(`<span class="tlr-meta-item" style="cursor:pointer;color:var(--accent);font-weight:600" onclick="event.stopPropagation();openDrawer('${p.id}')" title="Ver tarea par">${mi('link')}Par ${esc(locLabel)} ${parStatus}</span>`);
+  });
+  if (t.dueDate) meta.push(`<span class="tlr-meta-item" style="${overdue?'color:var(--red-text);font-weight:700':(tier==='soon'?'color:var(--amber-text);font-weight:600':'')}">${mi(overdue?'alarm-clock':'calendar')}${overdue?'Venció · ':''}${t.dueDate}</span>`);
+  if (t.location) meta.push(`<span class="tlr-meta-item">${mi('map-pin')}${esc(t.location)}</span>`);
   const _demoPendRow = (t.items||[]).filter(it=>it.esDemo===true&&(!it.demoStatus||it.demoStatus==='en_demo')).length;
-  const _demoChipRow = _demoPendRow>0?`<span class="task-meta-chip" style="border-color:var(--amber-dot);background:rgba(245,158,11,.08);color:var(--amber-text)"><span class="meta-label"><i data-lucide="eye" style="width:9px;height:9px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i></span><span class="meta-value">${_demoPendRow} en demo</span></span>`:'';
-  const _metaContent = _s1 + _s2 + _s3 + _parChips + _dueChip + _subsChip + _locChip + _demoChipRow;
-  // Solicitante + periodo como subtítulo junto al título (staffing)
+  if (_demoPendRow>0) meta.push(`<span class="tlr-meta-item" style="color:var(--amber-text);font-weight:600">${mi('eye')}${_demoPendRow} en demo</span>`);
+  // Solicitante + periodo (staffing)
   const rowSubMeta = [];
   if (t.type==='staffing') {
     if (t.requester) rowSubMeta.push(`<span style="font-weight:700;color:var(--text-2)">${esc(t.requester)}</span>`);
     if (t.staffStart) rowSubMeta.push(`<span>${esc(t.staffStart)}${t.staffEnd&&t.staffEnd!==t.staffStart?' → '+esc(t.staffEnd):''}${t.staffFrom?' · '+esc(t.staffFrom)+'-'+esc(t.staffTo||''):''}${t.totalHours!=null?' · '+t.totalHours+'h':''}</span>`);
   }
-  return `<div class="task-list-row" data-status="${t.status}" onclick="openDrawer('${t.id}')" style="${rowStyle}">
-    <span title="Prioridad ${esc(({high:'Alta',medium:'Media',low:'Baja'}[t.priority||'medium'] || 'Media'))}" style="width:8px;height:8px;border-radius:50%;background:${priorityColor};flex-shrink:0;display:inline-block"></span>
-    <div class="task-list-main" style="min-width:0">
-      <span class="task-list-title" style="font-weight:700">${t.parentId?'<i data-lucide="git-branch" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-1px;margin-right:3px"></i>':''}${seqLabel(t)?`<span style="color:var(--text-3);font-weight:700;margin-right:5px">Tarea ${seqLabel(t)}</span>`:''}${esc(t.title)}</span>
+  return `<div class="task-list-row" data-status="${t.status}" data-tier="${tier||''}" onclick="openDrawer('${t.id}')">
+    <span class="tlr-icon"><i data-lucide="${typeIcon}" style="width:17px;height:17px;stroke:currentColor"></i></span>
+    <div class="task-list-main" style="min-width:0;flex:1">
+      <div class="tlr-title-row">
+        <span class="task-list-title" style="white-space:normal">${t.parentId?'<i data-lucide="git-branch" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-1px;margin-right:3px"></i>':''}${esc(t.title)}</span>
+        ${t.odooRef?`<span class="tlr-ref">${esc(t.odooRef)}</span>`:(seqLabel(t)?`<span class="tlr-ref">${seqLabel(t)}</span>`:'')}
+      </div>
       ${rowSubMeta.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--text-muted);margin-top:1px">${rowSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>`:''}
       ${t.parentId?(()=>{const p=(_tasks||[]).find(x=>x.id===t.parentId);return `<div class="task-list-meta" style="color:var(--accent)">↳ Subtarea de ${p?(seqLabel(p)+' '+esc(p.title.slice(0,30))):'tarea madre'}</div>`;})():''}
-      ${_metaContent?`<div class="task-meta-fixed">${_metaContent}</div>`:''}
+      <div class="tlr-meta">${meta.join('')}</div>
+      ${subs.length?`<div class="tlr-prog-row"><div class="tlr-prog"><div class="tlr-prog-bar" style="width:${progPct}%;background:${stDot}"></div></div><span class="tlr-prog-lbl">${doneSubs}/${subs.length} subtareas</span></div>`:''}
     </div>
-    <div class="task-list-badges">
-      ${overdueBadgeHtml(t)}
-      ${(()=>{const b=overdueReassignButtonHtml(t);return b?`<span class="row-reassign">${b}</span>`:'';})()}
+    <div class="tlr-right">
+      <span class="st-chip"><span class="st-dot" style="background:${stDot}"></span>${STATUS_LABELS[t.status]||t.status}</span>
+      <span class="tlr-pri"><span style="width:8px;height:8px;border-radius:50%;background:${prDot};display:inline-block"></span>${prLabel}</span>
+      ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="Falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''} en Odoo"><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
       ${photoArchiveBadgeHtml(t)}
-      ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="El ciclo de este despacho sigue abierto en Odoo: falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''}."><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
-      <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
-      <i data-lucide="${typeEmoji}" style="width:13px;height:13px;stroke:var(--text-muted);display:inline-block;vertical-align:-2px;flex-shrink:0"></i>
+      ${(()=>{const b=overdueReassignButtonHtml(t,{compact:true});return b?`<span class="row-reassign">${b}</span>`:'';})()}
     </div>
   </div>`;
 }
@@ -37548,6 +37592,91 @@ async function loadCancelacionesKPIs() {
 <input type="hidden" id="sdv-block-estado">
 <input type="hidden" id="sdv-reactivate-current-id">
 <input type="hidden" id="sdv-process-reactivation-id">
+
+<style id="ledger-homologacion">
+/* ═══ HOMOLOGACIÓN LEDGER — resto de secciones WWP (usa tokens actuales) ═══ */
+
+/* Tablas de datos: cabecera de registro navy (Dashboard almuerzos, inspecciones, Empaque, Formación, Archivo) */
+.lunch-table th,.veh-insp-table th,
+#tab-empaque table th,#tab-formacion table th,#tab-archivo table th{
+  background:var(--accent);color:#fff;border-bottom:none;
+  font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+}
+.lunch-table-wrap{border-radius:var(--radius);overflow:hidden}
+.veh-insp-table{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+
+/* KPIs de almuerzos: regla dividida (igual que kpi-grid) */
+.kpi-lunch-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.kpi-lunch-card{border:none;border-right:1px solid var(--border);border-radius:0;text-align:left;padding:16px 18px}
+.kpi-lunch-card:last-child{border-right:none}
+.kpi-lunch-val{color:var(--brand);font-variant-numeric:tabular-nums}
+.kpi-lunch-label{font-weight:600;letter-spacing:.8px;margin-top:6px;color:var(--text-3)}
+
+/* Usuarios y Roles: filas de registro en panel único */
+#users-list:not(:has(.loading)){border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+#users-list .user-row{border:none;border-bottom:1px solid var(--border-light);border-radius:0;margin-bottom:0;padding:13px 16px}
+#users-list .user-row:last-child{border-bottom:none}
+#roles-list:not(:has(.loading)){border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+#roles-list .role-card{border:none;border-bottom:1px solid var(--border-light);border-radius:0;margin-bottom:0}
+#roles-list .role-card:last-child{border-bottom:none}
+
+/* Impacto → Equipo: marcador cuadrado en vez de borde izquierdo de color */
+.eqp-card{border-left:1px solid var(--border);border-radius:var(--radius)}
+.eqp-card::before{content:'';width:7px;height:7px;flex-shrink:0;background:var(--text-3)}
+.eqp-card.s-activo::before{background:var(--green-dot)}
+.eqp-card.s-tibio::before{background:var(--amber-dot)}
+.eqp-card.s-inactivo::before{background:var(--red-dot)}
+.eqp-card.s-nunca::before{background:var(--text-3)}
+.eqp-card.s-activo,.eqp-card.s-tibio,.eqp-card.s-inactivo,.eqp-card.s-nunca{border-left-color:var(--border)}
+
+/* Políticas y paneles de sección: geometría unificada */
+.pol-card{border-width:1px;border-radius:var(--radius)}
+#tab-archivo .arch-group{border-width:1px}
+
+/* Tinte muy suave por fecha límite — solo wash de fondo, sin franjas */
+.task-list-row[data-tier="overdue"]{background:var(--tier-overdue-bg)}
+.task-list-row[data-tier="soon"]{background:var(--tier-soon-bg)}
+.task-list-row[data-tier="ontime"]{background:transparent}
+.task-list-row[data-tier]:hover{background:var(--surface-2)}
+/* Chips/píldoras: esquinas de registro */
+.tc-overdue-pill,.eqp-tag,.role-badge{border-radius:4px}
+
+/* ── Impacto → KPIs semáforo: quitar franja lateral, marcador cuadrado, regla dividida ── */
+.eqp-kpi-row{gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.eqp-kpi{border:none!important;border-right:1px solid var(--border)!important;border-radius:0;border-left:none!important}
+.eqp-kpi:last-child{border-right:none!important}
+.eqp-kpi.sel{background:var(--surface-2)}
+.eqp-kpi-label .eqp-dot{border-radius:0}
+
+/* Impacto de políticas → KPIs: regla dividida, sin tarjetas sueltas */
+.imp-kpi-row{gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+.imp-kpi{border:none;border-right:1px solid var(--border);border-radius:0;text-align:left}
+.imp-kpi:last-child{border-right:none}
+.imp-kpi-val{font-variant-numeric:tabular-nums}
+
+/* Impacto → tarjetas de empleado: borde uniforme (el nivel se lee por el badge de riesgo) */
+.imp-emp-card{border-width:1px;border-radius:var(--radius)}
+.imp-emp-card.nivel-leve,.imp-emp-card.nivel-moderado,.imp-emp-card.nivel-critico{border-color:var(--border)}
+
+/* Empaque → tarjetas de material: radio unificado */
+.emp-mat-card{border-radius:var(--radius)}
+
+/* Sub-tabs (Impacto): segmented control con esquinas de registro (no pastilla) */
+.eqp-subtabs{border-radius:6px}
+.eqp-subtab{border-radius:4px}
+
+/* Todo marcador de color redondo → cuadrado de registro (homologación global de la fila de estatus) */
+.eqp-dot{border-radius:0!important}
+
+/* Tira de KPIs de Tareas — regla dividida (referencia Ops Flow) */
+.tasks-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);margin-bottom:16px}
+.tks-cell{padding:14px 18px;border-right:1px solid var(--border)}
+.tks-cell:last-child{border-right:none}
+.tks-label{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px}
+.tks-dot{width:7px;height:7px;flex-shrink:0}
+.tks-val{font-size:26px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--text)}
+@media(max-width:720px){.tasks-kpi-strip{grid-template-columns:1fr 1fr}.tks-cell:nth-child(2){border-right:none}.tks-cell{padding:11px 14px}.tks-val{font-size:22px}}
+</style>
 
 </body>
 </html>
