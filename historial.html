@@ -8926,7 +8926,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v157';
+var APP_BUILD = 'v158';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -34686,10 +34686,16 @@ function eoFlagsOf(s, tasks){
   if(s._mock){ return (s.flags||[]); }
   var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
   var anyDone = linked.some(function(t){ return t.status==='completed'||t.status==='validated'; });
-  // sin evidencia de entrega
-  if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return (t.fotos_entrega||[]).length>0; })) flags.push('sinevid');
-  // sin OUT en Odoo
-  if(s.estado==='despachada' && anyDone && !linked.some(function(t){ return t.odooRef&&(t.status==='completed'||t.status==='validated'); })) flags.push('sinout');
+  // sin evidencia de entrega — misma fuente que el chip "N evidencias" (sdvContarEvidencias):
+  // antes solo miraba fotos_entrega y contradecía al chip cuando la foto entraba por otro
+  // campo (evidence/fotos_guia/evidence_images/fotos_vehiculo/fotos_recepcion). Gabriel, 7-jul.
+  if(s.estado==='despachada' && anyDone && sdvContarEvidencias(linked)===0) flags.push('sinevid');
+  // sin OUT en Odoo — solo aplica si alguna tarea vinculada REALMENTE necesita Odoo (tiene
+  // odooRef + items de pick). Antes disparaba siempre en solicitud_especial/devolución, cuyas
+  // tareas `general` no tienen pick de Odoo por diseño (proxy.js), así que nunca hay OUT que
+  // validar y el badge era un falso positivo. Mismo criterio needsOdoo que taskNeedsOdooSync.
+  var _needsOdoo = linked.filter(function(t){ return t.odooRef && (t.items||[]).length>0; });
+  if(s.estado==='despachada' && anyDone && _needsOdoo.length>0 && !_needsOdoo.some(function(t){ return t.status==='completed'||t.status==='validated'; })) flags.push('sinout');
   // OUT pendiente en Odoo (TASK-específico): alguna tarea de despacho vinculada cerró el
   // despacho físico pero su OUT aún no está validado (done). Deriva del outPendiente de la
   // tarea (mismo dato que el badge del drawer), NO del agregado por_validar por orden.
