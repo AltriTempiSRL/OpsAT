@@ -6906,6 +6906,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               <div class="sdv-field">
                 <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="direccion" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa" readonly>
+                <label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:12px;color:var(--text-2);cursor:pointer;line-height:1.4">
+                  <input type="checkbox" id="sdv-decorador" onchange="sdvToggleDecorador(this.checked)" style="margin-top:2px;flex-shrink:0">
+                  <span><b>Entrega a decorador</b> — el cliente es un decorador y la entrega va a otra localidad: escribir dirección y ciudad manualmente.</span>
+                </label>
               </div>
             </div>
             <div class="sdv-form-grid">
@@ -8969,7 +8973,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v164';
+var APP_BUILD = 'v165';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -32844,6 +32848,8 @@ document.getElementById('devolver-modal') && document.getElementById('devolver-m
 
 var _sdvTipo = '';             // tipo seleccionado
 var _sdvItems = [];            // artículos confirmados (de Odoo)
+var _sdvOdooDir = '';          // dirección que trajo Odoo (restaurar al desmarcar decorador)
+var _sdvOdooCiudad = '';       // ciudad que trajo Odoo (ídem)
 var _sdvOrderRef = '';         // ref de orden resuelta
 var _sdvSolicitudOrigenId = null; // si esta nueva SDV es "adicional" de una ya en despacho
 var _sdvOrigenPrev = '';       // valor previo del select origen (para revertir)
@@ -33026,12 +33032,17 @@ async function sdvBuscar() {
     // Auto-llenar campos
     if (d.client) _sdv$('sdv-cliente').value = d.client;
     if (d.salesperson) { _sdv$('sdv-vendedora').value = d.salesperson; _sdv$('sdv-vendedora-int').value = d.salesperson; }
-    if (d.deliveryAddress) _sdv$('sdv-direccion').value = d.deliveryAddress;
-    if (d.city) _sdv$('sdv-ciudad').value = d.city;
+    // Decorador: guardar lo que trae Odoo (para restaurar al desmarcar) pero NO pisar
+    // la dirección/ciudad escrita a mano si el checkbox está activo.
+    _sdvOdooDir = d.deliveryAddress || ''; _sdvOdooCiudad = d.city || '';
+    var _esDecorador = !!(_sdv$('sdv-decorador')||{}).checked;
+    if (d.deliveryAddress && !_esDecorador) _sdv$('sdv-direccion').value = d.deliveryAddress;
+    if (d.city && !_esDecorador) _sdv$('sdv-ciudad').value = d.city;
     if (d.phone) _sdv$('sdv-receptor-contacto').value = d.phone;
     // Ciudad faltante: marcar campo en rojo + mostrar instrucciones inline
+    // (no aplica en modo decorador: la ciudad se escribe a mano, no viene de Odoo)
     var _ciudadEl = _sdv$('sdv-ciudad'), _ciudadWarnEl = document.getElementById('sdv-ciudad-warn');
-    if (!_ciudadOk && _sdvTipo !== 'traslado_interno') {
+    if (!_ciudadOk && !_esDecorador && _sdvTipo !== 'traslado_interno') {
       if (_ciudadEl && _ciudadEl.style) { _ciudadEl.style.borderColor='var(--red-text)'; _ciudadEl.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)'; }
       if (_ciudadWarnEl) _ciudadWarnEl.style.display='';
     } else {
@@ -33188,6 +33199,30 @@ async function sdvBuscarArticulo() {
     _sdv$('sdv-interno-section').style.display = '';
     _sdv$('sdv-extra-section').style.display = '';
   } catch(e) { toast('Error: '+e.message); }
+}
+
+// ── Entrega a decorador: dirección/ciudad manuales ─────────────────────────
+// Los decoradores están creados como clientes en Odoo pero decoran en localidades
+// distintas; no hay forma de marcarlos como decorador en Odoo, así que el checkbox
+// vive aquí (pedido de Gabriel 8-jul). Marcar libera los campos; desmarcar restaura
+// lo que trajo Odoo en el último lookup.
+function sdvToggleDecorador(on) {
+  var dir = _sdv$('sdv-direccion'), ciu = _sdv$('sdv-ciudad');
+  if (dir) {
+    dir.readOnly = !on;
+    if (on) { dir.value = ''; dir.placeholder = 'Dirección donde decora (escríbela aquí)'; try { dir.focus(); } catch(e){} }
+    else { dir.placeholder = 'Dirección completa'; dir.value = _sdvOdooDir || dir.value; }
+  }
+  if (ciu) {
+    ciu.readOnly = !on;
+    if (on) { ciu.value = ''; ciu.placeholder = 'Ciudad de la entrega'; }
+    else { ciu.placeholder = 'Ej: Santo Domingo'; ciu.value = _sdvOdooCiudad || ciu.value; }
+    // El warning de "ciudad falta en Odoo" no aplica en modo manual
+    if (on) {
+      if (ciu.style) { ciu.style.borderColor=''; ciu.style.boxShadow=''; }
+      var w = document.getElementById('sdv-ciudad-warn'); if (w) w.style.display = 'none';
+    }
+  }
 }
 
 // ── Al cambiar almacén origen — limpiar artículos (maxQty cambiaría) ──────
@@ -33939,13 +33974,16 @@ async function sdvEnviar() {
     if (!dir) faltantesOdoo.push('Dirección');
     if (!ciudad) faltantesOdoo.push('Ciudad');
     if (faltantesOdoo.length) {
-      // Si solo falta ciudad, también resaltar el campo inline
+      var _esDec = !!(_sdv$('sdv-decorador')||{}).checked;
+      // Si solo falta ciudad, también resaltar el campo inline (el warn de Odoo no aplica en modo decorador)
       if (!ciudad) {
         var _ce=_sdv$('sdv-ciudad'),_cw=document.getElementById('sdv-ciudad-warn');
         if(_ce&&_ce.style){_ce.style.borderColor='var(--red-text)';_ce.style.boxShadow='0 0 0 2px rgba(220,38,38,.15)';_ce.focus();}
-        if(_cw) _cw.style.display='';
+        if(_cw && !_esDec) _cw.style.display='';
       }
-      toast('Ciudad falta en Odoo. Ve a Contactos › cliente › campo Ciudad, guarda y toca Buscar / Actualizar.');
+      toast(_esDec
+        ? 'Completa: '+faltantesOdoo.join(', ')+' — en entrega a decorador la dirección y ciudad se escriben a mano.'
+        : 'Ciudad falta en Odoo. Ve a Contactos › cliente › campo Ciudad, guarda y toca Buscar / Actualizar.');
       return;
     }
     if (!recNom||!recCont||!fecha) { toast('Completa: Nombre de quien recibe, contacto y fecha deseada'); return; }
@@ -33975,6 +34013,7 @@ async function sdvEnviar() {
         receptorNombre: _sdv$('sdv-receptor-nombre').value.trim(),
         receptorContacto: _sdv$('sdv-receptor-contacto').value.trim(),
         transporteIncluido: _sdv$('sdv-transporte').checked,
+        esDecorador: !!(_sdv$('sdv-decorador')||{}).checked,
         observaciones: _sdv$('sdv-observaciones').value.trim(),
         gpsCoords: ((document.getElementById('sdv-gps-coords').value)||'').trim() || null,
         fechaSolicitudDeseada: sdvGetFecha('sdv-fecha'),
@@ -34070,6 +34109,9 @@ function sdvReset(skipConfirm) {
   ['sdv-fecha-min','sdv-fecha-int-min','sdv-fecha-esp-min'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='00'; });
   ['sdv-fecha-ampm','sdv-fecha-int-ampm','sdv-fecha-esp-ampm'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value='PM'; });
   var chk=document.getElementById('sdv-transporte'); if(chk) chk.checked=false;
+  // Decorador: desmarcar y devolver dirección/ciudad a solo-lectura
+  var dec=document.getElementById('sdv-decorador');
+  if(dec && dec.checked){ dec.checked=false; _sdvOdooDir=''; _sdvOdooCiudad=''; sdvToggleDecorador(false); }
   var info=document.getElementById('sdv-lookup-info'); if(info){info.textContent='';info.className='sdv-lookup-info';}
   // Re-llenar vendedora
   var name=(_user&&_user.name)||'';
@@ -34427,6 +34469,15 @@ async function estadoOrdenesCargar() {
       if (!r.ok || !d.ok) { rowsEl.innerHTML = '<tr><td colspan="7" style="color:var(--red-text);padding:20px">Error al cargar solicitudes</td></tr>'; return; }
       var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
       _eoData = (d.solicitudes||[]).filter(function(s){ return !s.creadoAt || new Date(s.creadoAt) >= cutoff; });
+      // Ventas (y quien entre aquí sin pasar por WWP) no tiene _tasks cargadas — sin ellas
+      // eoView() no puede derivar estado real/evidencias/almacén y la vista queda coja
+      // respecto a lo que ve admin. Se cargan una vez, aquí mismo.
+      if (!_tasks || !_tasks.length) {
+        try {
+          var td = await authGetJson('/api/wwp/tasks', 15000);
+          _tasks = Array.isArray(td) ? td : (td.tasks || []);
+        } catch(e) { /* sin tareas: la vista degrada como antes */ }
+      }
     }
     var upEl = document.getElementById('eo-last-update');
     if (upEl) upEl.textContent = 'actualizado ' + new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit',hour12:true});
@@ -35720,7 +35771,7 @@ async function eoAbrirDetalle(sdvId) {
     if (s.clienteNombre)          datosRows += '<div class="eo-det-row"><dt>Cliente</dt><dd>'+esc(s.clienteNombre)+'</dd></div>';
     if (s.vendedorNombre)         datosRows += '<div class="eo-det-row"><dt>Vendedor/a</dt><dd>'+esc(s.vendedorNombre)+'</dd></div>';
     if (s.odooOrderRef)           datosRows += '<div class="eo-det-row"><dt>Orden Odoo</dt><dd><strong>'+esc(s.odooOrderRef)+'</strong></dd></div>';
-    if (s.direccionEntrega)       datosRows += '<div class="eo-det-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+'</dd></div>';
+    if (s.direccionEntrega)       datosRows += '<div class="eo-det-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+(s.esDecorador?' <span style="display:inline-block;font-size:10px;font-weight:700;background:var(--purple-bg);color:var(--purple-text);padding:1px 7px;border-radius:4px;vertical-align:1px" title="Dirección escrita a mano por la vendedora — entrega de decorador">DECORADOR</span>':'')+'</dd></div>';
     if (s.ciudadEntrega)          datosRows += '<div class="eo-det-row"><dt>Ciudad</dt><dd>'+esc(s.ciudadEntrega)+'</dd></div>';
     if (s.receptorNombre)         datosRows += '<div class="eo-det-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>';
     if (s.receptorContacto)       datosRows += '<div class="eo-det-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>';
@@ -36163,7 +36214,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.sdvAsociadaFolio?'<div class="sdv-detail-row"><dt>SDV vinculada</dt><dd><a href="javascript:void(0)" onclick="sdvVerDetalle(\''+s.sdvAsociadaId+'\',\''+ctx+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">'+esc(s.sdvAsociadaFolio)+' →</a></dd></div>':'')+
           (s.clienteNombre?'<div class="sdv-detail-row"><dt>Cliente</dt><dd>'+esc(s.clienteNombre)+'</dd></div>':'')+
           (s.ciudadEntrega?'<div class="sdv-detail-row"><dt>Ciudad</dt><dd>'+esc(s.ciudadEntrega)+'</dd></div>':'')+
-          (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+'</dd></div>':'')+
+          (s.direccionEntrega?'<div class="sdv-detail-row"><dt>Dirección</dt><dd>'+esc(s.direccionEntrega)+(s.esDecorador?' <span style="display:inline-block;font-size:10px;font-weight:700;background:var(--purple-bg);color:var(--purple-text);padding:1px 7px;border-radius:4px;vertical-align:1px" title="Dirección escrita a mano por la vendedora — el cliente es un decorador que entrega en otra localidad">DECORADOR</span>':'')+'</dd></div>':'')+
           (s.receptorNombre?'<div class="sdv-detail-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>':'')+
           (s.receptorContacto?'<div class="sdv-detail-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>':'')+
           (s.ubicacionOrigen?'<div class="sdv-detail-row"><dt>Desde</dt><dd>'+esc(s.ubicacionOrigen)+'</dd></div>':'')+

@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v164';
+const APP_BUILD = 'v165';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -10270,7 +10270,11 @@ const server = http.createServer(async (req, res) => {
     if (q.type)       tasks = tasks.filter(t=>t.type===q.type);
     if (q.assignedTo) tasks = tasks.filter(t=>t.assignedTo===q.assignedTo);
     // Filtrado por rol: admins ven todo; managers/assistants solo sus tareas
-    if (jp.role !== 'admin') {
+    // Ventas: solo tareas ligadas a una SDV (read-only, enriquece Estado de Órdenes con
+    // estado real/evidencias/almacén — antes recibía lista vacía y la vista quedaba coja).
+    if (jp.role === 'ventas') {
+      tasks = tasks.filter(t => t.sdvId);
+    } else if (jp.role !== 'admin') {
       const uid = jp.userId;
       const isParticipant = (t) =>
         t.managerId   === uid ||
@@ -14162,16 +14166,28 @@ const server = http.createServer(async (req, res) => {
         const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','user_id'],limit:1});
         if (!sos || !sos.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Orden no encontrada en Odoo'})); return; }
         const so = sos[0];
-        // 2. Encontrar el/los OUT de esta orden
-        const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
-        const outNames = (outs||[]).filter(p=>/\/OUT\//.test(p.name)).map(p=>p.name);
-        if (!outNames.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin despacho (OUT) para esta orden'})); return; }
-        // 3. Encontrar los RET cuyo origin apunta a esos OUTs
-        // Domain OR correcto para Odoo: N-1 operadores '|' seguidos de N condiciones
-        const retConds = outNames.map(n=>['origin','ilike',n]);
-        const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
-        const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name','state','origin'],limit:20});
-        const retList = (rets||[]).filter(p=>/\/RET\//.test(p.name));
+        // 2a. Flujo NUEVO (Ron, caso S09474 8-jul): el módulo sale.return.order genera un
+        // picking de RECEPCIÓN (/IN/, picking_type incoming) con sale_id poblado y origin
+        // "RET/000NN - <orden>" — nunca /RET/ ni origin apuntando al OUT. Buscar primero
+        // por FK (sale_id + incoming), que cubre este flujo sin depender del nombre.
+        let retList = [];
+        try {
+          const ins = await odooCall('stock.picking','search_read',
+            [[['sale_id','=',so.id],['picking_type_id.code','=','incoming'],['state','not in',['cancel']]]],
+            {fields:['id','name','state','origin'],limit:20});
+          retList = ins || [];
+        } catch(e) { /* instancias sin sale_id en picking: cae al flujo viejo */ }
+        // 2b. Flujo VIEJO (wizard de retorno): picking /RET/ cuyo origin apunta al OUT.
+        if (!retList.length) {
+          const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
+          const outNames = (outs||[]).filter(p=>/\/OUT\//.test(p.name)).map(p=>p.name);
+          if (!outNames.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin despacho (OUT) para esta orden'})); return; }
+          // Domain OR correcto para Odoo: N-1 operadores '|' seguidos de N condiciones
+          const retConds = outNames.map(n=>['origin','ilike',n]);
+          const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
+          const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name','state','origin'],limit:20});
+          retList = (rets||[]).filter(p=>/\/RET\//.test(p.name));
+        }
         if (!retList.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin devolución (RET) para esta orden'})); return; }
         // 4. Obtener líneas del primer RET (o el más reciente)
         const ret = retList[retList.length-1];
@@ -14197,7 +14213,9 @@ const server = http.createServer(async (req, res) => {
             quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
             selected:true, status:'pending' };
         });
-        const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:ret.name,retState:ret.state,
+        // Flujo nuevo: el origin trae la referencia que ve la vendedora ("RET/00035 - S09474").
+        const _retRef = (/^RET\//.test(ret.origin||'')) ? (ret.origin.split(' - ')[0]+' · '+ret.name) : ret.name;
+        const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:_retRef,retState:ret.state,
           client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',items};
         global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_retPayload});
         res.writeHead(200,{'Content-Type':'application/json'});
@@ -14367,6 +14385,9 @@ const server = http.createServer(async (req, res) => {
         receptorNombre: d.receptorNombre||'',
         receptorContacto: d.receptorContacto||'',
         transporteIncluido: d.transporteIncluido===true||d.transporteIncluido==='true',
+        // Entrega a decorador: dirección/ciudad escritas a mano por la vendedora (no vienen
+        // del contacto de Odoo). Ops lo ve como marcador para no "corregir" la dirección.
+        esDecorador: d.esDecorador===true||d.esDecorador==='true',
         observaciones: d.observaciones||'',
         gpsCoords: d.gpsCoords||null,
         fechaSolicitudDeseada: d.fechaSolicitudDeseada||null,
