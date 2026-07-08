@@ -5254,7 +5254,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 /* Responsive */
 @media(max-width:1100px){
   .eo2-layout{display:flex;flex-direction:column;align-items:stretch}
-  .eo2-alerts{order:-1;width:100%}
+  /* Acción hoy + Analítica (gráficos) pasan a rail lateral → bloque debajo de la
+     lista de órdenes: sin "order", el orden natural del DOM ya es main→alerts→analytics
+     (Gabriel, 8-jul: antes alerts llevaba order:-1 y quedaba arriba de la lista). */
+  .eo2-alerts{width:100%}
   .eo2-analytics{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
   .eo2-pop-fil{width:min(560px,calc(100vw - 32px))}
 }
@@ -5270,7 +5273,13 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   .eo2-cs-xl{font-size:9px}
   .eo2-cs-total{display:none}
 }
-@media(max-width:720px){
+@media(max-width:1100px){
+  /* Antes este bloque (toolbar compacta + tabla→tarjeta) solo aplicaba a ≤720px, pero el
+     rail lateral (Acción hoy/Analítica) ya colapsa a columna única en ≤1100px (arriba). Entre
+     721-1100px quedaba una franja intermedia con la tabla de escritorio de 7 columnas apretada
+     en el ancho completo: buscador cortado y columnas (Promesa/Evid./Despacho desde) fuera de
+     vista sin scroll horizontal visible. Mismo breakpoint que el rail → sin franja incómoda
+     y la lista muestra toda su información en tarjeta. Gabriel, 8-jul. */
   .eo2{padding:14px 12px 36px}
   .eo2-pulse{flex-wrap:wrap;overflow:hidden}
   .eo2-pi{flex:1 1 32%;border-top:1px solid var(--border-light,var(--border));padding:10px 12px}
@@ -8926,7 +8935,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v158';
+var APP_BUILD = 'v159';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
