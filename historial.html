@@ -8938,7 +8938,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v160';
+var APP_BUILD = 'v161';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -33169,7 +33169,7 @@ function sdvRenderItems() {
   if (!_sdvItems.length) { sec.style.display='none'; return; }
   sec.style.display = '';
   cnt.textContent = _sdvItems.length + ' artículo(s)';
-  var canDel = _sdvTipo === 'traslado_interno'; // solo traslado interno permite quitar
+  var canDel = _sdvTipo === 'traslado_interno' || _sdvTipo === 'despacho_cliente'; // permite quitar: entregas parciales (feedback Ventas 8-jul)
   list.innerHTML = _sdvItems.map(function(it) {
     var img = it.image
       ? '<img class="sdv-item-img" src="'+it.image+'" alt="">'
@@ -33903,6 +33903,7 @@ async function sdvEnviar() {
       return;
     }
     if (!recNom||!recCont||!fecha) { toast('Completa: Nombre de quien recibe, contacto y fecha deseada'); return; }
+    if (!_sdvItems.length) { toast('Agrega al menos un artículo'); return; }
     if (!_sdv$('sdv-transporte').checked && !confirm('¿Confirmas que el costo de transporte NO está incluido en la orden?')) return;
   } else {
     var origen  = (_sdv$('sdv-origen').value||'').trim();

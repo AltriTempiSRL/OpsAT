@@ -12,12 +12,19 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 | `index.html` | Dashboard de despachos |
 | `proxy.js` | Servidor Node.js (API + archivos estáticos) |
 | `lucide.min.js` | Librería de íconos (LOCAL, no CDN) |
-| `leaflet.js` / `leaflet.css` | Mapas (LOCAL, no CDN) — usados en el mapa de ubicaciones |
+| `chart.min.js` / `xlsx.min.js` / `three.min.js` + `OrbitControls.js` | Gráficos, export Excel, mapa 3D del almacén (LOCAL, no CDN) |
+| `almacen-mapa.html` | Mapa 3D del almacén (canvas 2.5D + Three.js) |
 | `MEMORIA-PROYECTO.md` | Historial de features y decisiones (leer para contexto completo) |
+
+## Carpetas de organización (reorg 2026-07-08)
+
+- `tests/` — harnesses de test/QA activos y reutilizables (`_stress360.mjs`, `_gateodoo.mjs`, `_test_v1xx.mjs`, `test-smoke.js`, etc.). Se invocan **siempre desde la raíz del proyecto** (ej. `node tests/_gateodoo.mjs`), nunca con `cd tests` primero — los scripts usan `process.cwd()` para ubicar `_fakecert.pem`/`_fakekey.pem`, que se quedaron intencionalmente en la raíz.
+- `scripts/` — herramientas de deploy (`import-railway-env.ps1`, `sync-render-to-railway.ps1`), documentadas en `RAILWAY.md`.
+- `_archivo/` — todo lo que ya NO está en uso activo, organizado por tema (documentos históricos de planes/propuestas ya ejecutados, mockups ya portados a producción, PDFs de referencia, assets huérfanos, datos JSON huérfanos, scripts de Ron ya ejecutados, versiones originales del artifact pre-servidor Node, manuales sin uso confirmado, fotos sueltas vacías, e incidente cerrado 25-jun). Ver `_archivo/README.md` para el detalle de cada subcarpeta. No se borró nada de valor — todo quedó identificado y movido, no eliminado (salvo basura confirmada: un archivo con nombre corrupto ajeno al proyecto y carpetas vacías de integraciones no usadas).
+- `leaflet.js`/`leaflet.css` se archivaron en `_archivo/assets-huerfanos/` — el mapa de ubicaciones usa **Google Maps** (`historial.html`, función `_ensureGoogleMaps`), no Leaflet. Esta nota estaba desactualizada.
 
 ## Archivos que NO se editan
 
-- `historial.backup-20260518.html` — backup original, solo lectura
 - `.claude/worktrees/` — worktrees anteriores, ignorar
 - `wwp.html` — DEPRECADO. Nunca editar para implementar funcionalidades de la plataforma. Toda la lógica de Workforce Platform vive en `historial.html`. Si algo hay que arreglar o agregar en WWP, el archivo correcto es SIEMPRE `historial.html`.
 
