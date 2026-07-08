@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v165';
+const APP_BUILD = 'v166';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -14163,9 +14163,22 @@ const server = http.createServer(async (req, res) => {
       // ── Devolucion: buscar RET asociado a la orden ──────────────────────────
       if (tipo === 'devolucion') {
         // 1. Resolver orden de venta
-        const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','user_id'],limit:1});
+        const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','partner_shipping_id','user_id'],limit:1});
         if (!sos || !sos.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Orden no encontrada en Odoo'})); return; }
         const so = sos[0];
+        // Dirección/ciudad/teléfono de entrega — el gate de "campos Odoo obligatorios" del
+        // frontend (sdvBuscar) exige deliveryAddress también para devolución; faltaba este
+        // read y SIEMPRE bloqueaba con "falta Dirección" en cuanto el RET se encontraba
+        // (antes del fix del flujo nuevo, la mayoría de devoluciones nunca llegaban a este
+        // punto — el 404 anterior tapaba este bug. Gabriel, 8-jul).
+        let deliveryAddress='', city='', phone='';
+        try {
+          const shipId=(so.partner_shipping_id&&so.partner_shipping_id[0])||(so.partner_id&&so.partner_id[0]);
+          if(shipId){
+            const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
+            if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
+          }
+        } catch {}
         // 2a. Flujo NUEVO (Ron, caso S09474 8-jul): el módulo sale.return.order genera un
         // picking de RECEPCIÓN (/IN/, picking_type incoming) con sale_id poblado y origin
         // "RET/000NN - <orden>" — nunca /RET/ ni origin apuntando al OUT. Buscar primero
@@ -14216,7 +14229,8 @@ const server = http.createServer(async (req, res) => {
         // Flujo nuevo: el origin trae la referencia que ve la vendedora ("RET/00035 - S09474").
         const _retRef = (/^RET\//.test(ret.origin||'')) ? (ret.origin.split(' - ')[0]+' · '+ret.name) : ret.name;
         const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:_retRef,retState:ret.state,
-          client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',items};
+          client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',
+          deliveryAddress,city,phone,items};
         global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_retPayload});
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify(_retPayload));
