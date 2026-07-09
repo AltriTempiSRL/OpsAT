@@ -1810,7 +1810,11 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .av-gallery-add{width:56px;height:56px;border-radius:5px;border:1.5px dashed var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--border);cursor:pointer;flex-shrink:0}
 .av-gallery-add:hover{border-color:var(--text-secondary);color:var(--text-secondary)}
 /* Lightbox */
-.av-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:2000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;overflow:hidden}
+/* z-index 99999 (no 2000): este lightbox se abre desde galerías anidadas dentro de
+   otros modales (ej. Evidencias de Estado de Órdenes, .eo-det-overlay a 19000) — con
+   2000 quedaba abierto pero invisible DETRÁS del modal que lo invocó (Gabriel, 9-jul).
+   Empareja el z-index de los otros visores de foto-completa del proyecto (líneas ~11550/30857). */
+.av-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;overflow:hidden}
 .av-lightbox.open{display:flex}
 .av-lightbox-img{max-width:90vw;max-height:78vh;object-fit:contain;border-radius:6px;cursor:zoom-in;user-select:none;-webkit-user-drag:none;will-change:transform}
 .av-lightbox-img.lb-zoomed{cursor:grab}
@@ -8974,7 +8978,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v172';
+var APP_BUILD = 'v173';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
