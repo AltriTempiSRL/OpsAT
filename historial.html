@@ -8973,7 +8973,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v167';
+var APP_BUILD = 'v168';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -14444,8 +14444,17 @@ function _drawerFpOf(t) {
   var sm = (typeof _drawerStockMap !== 'undefined' && _drawerStockMap) ? _drawerStockMap : {};
   var ps = (typeof _drawerPickStatus !== 'undefined' && _drawerPickStatus) ? _drawerPickStatus : null;
   var guiaEv = (t.fotos_guia||[]).reduce(function(n,fg){ return n + (fg.evidencias||[]).length; }, 0);
+  // Gate del OUT (Entregables 2/3): el picker "¿Cuál OUT despachaste?" depende de
+  // outPendiente, que el backend rellena de forma ASÍNCRONA (fuera de un cambio de
+  // status) cuando el gate de completar bloquea. Sin esto en la huella, el drawer
+  // seguía mostrando "sin selector" tras el refresh aunque el servidor ya tuviera
+  // los candidatos guardados — caso real #0164-1, 9-jul.
+  var op = t.outPendiente || {};
+  var opFp = (op.confirmedOutRef||'') + ':' + (op.outState||'') + ':' +
+    (op.candidatos||[]).map(function(c){ return c.name+'/'+c.state; }).sort().join(',');
   return JSON.stringify({
     s: t.status,
+    op: opFp,
     m: t.managerId || '',
     co: (t.coManagerIds||[]).slice().sort(),
     ax: (t.auxiliaryAssignees||[]).slice().sort(),
