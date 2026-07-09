@@ -8973,7 +8973,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v170';
+var APP_BUILD = 'v171';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -20555,6 +20555,11 @@ async function saveUser() {
     if (!d.ok&&!d.user) { showErr(errEl,d.error||'Error al guardar'); return; }
     // If editing own user, update header
     if (_editingUser?.id === _user?.id) { _user.name = body.name; setHeaderAvatar(_user); saveSession(!!localStorage.getItem('wwp_auth')); }
+    // La foto de Odoo se cachea en memoria por userId (getOdooPhotoDataURL) — si se
+    // corrigió el Odoo ID, esa caché sigue apuntando a la foto vieja para toda la
+    // sesión (nunca vuelve a pedirla). Invalidar aquí para que el próximo render la
+    // traiga de nuevo (Gabriel, 9-jul: corrigió el ID y la foto no cambiaba).
+    if (_editingUser) { try { _odooPhotoCache.delete('uid:'+_editingUser.id); } catch(e){} }
     closeUserModal(); toast('Usuario guardado'); loadUsers(); loadAuthUsersForDropdown();
   } catch(e) { showErr(errEl,'Error: '+e.message); }
 }

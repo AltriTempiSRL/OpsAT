@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v170';
+const APP_BUILD = 'v171';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -10257,7 +10257,13 @@ const server = http.createServer(async (req, res) => {
       if (!u || u.odooId == null || u.odooId === '') { res.writeHead(404); res.end(); return; }
       const buf = await getOdooPhotoBuf(u.odooId);
       if (!buf) { res.writeHead(404); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public,max-age=3600' });
+      // Cache corto (no 'public,max-age=3600' como el de abajo): esta URL se identifica
+      // por userId WWP, no por odooId — si un admin corrige el Odoo ID de la persona
+      // (caso Jhonathan Altagracia, 9-jul), la URL no cambia pero la foto detrás sí.
+      // Con 1h de caché pública, cualquier sesión que ya la hubiera pedido seguía viendo
+      // la foto vieja hasta que expirara. 'private' porque va detrás de JWT (no es para
+      // caches compartidos/CDN).
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'private,max-age=60' });
       res.end(buf);
     } catch (e) { res.writeHead(502); res.end(); }
     return;
