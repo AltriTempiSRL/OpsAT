@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v173';
+const APP_BUILD = 'v174';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -14660,7 +14660,13 @@ const server = http.createServer(async (req, res) => {
           const tm = f.match(/_(\d{13})(?:_\d+)?\.[A-Za-z]+$/) || f.match(/_(\d{13})\b/);
           return { url:'/wwp-fotos/'+f, tipo, tipoLabel:TIPO_LABEL[tipo]||'Otra', productName,
             date: tm ? new Date(Number(tm[1])).toISOString() : null };
-        }).filter(x => isOps || VENTAS_TIPOS.has(x.tipo)); // filtro RBAC por tipo para ventas
+        // Filtro RBAC por tipo para ventas. Excepción: tareas 'general' (ej. una devolución
+        // manejada como tarea libre) no separan evidencia interna/cliente por campo — todo
+        // vive en t.evidence sin prefijo semántico → clasifica como 'otro' y quedaba oculto
+        // para la vendedora dueña de la SDV, aunque sea evidencia de SU propia solicitud
+        // (caso SD-2026-0013, Heidy, 9-jul). Solo dispatch_order/packaging sí tienen esa
+        // separación real (recepción/empaque interno vs entrega/vehículo al cliente).
+        }).filter(x => isOps || VENTAS_TIPOS.has(x.tipo) || t.type === 'general');
         fotos.sort((a,b) => String(a.tipo).localeCompare(String(b.tipo)) || String(a.date||'').localeCompare(String(b.date||'')));
         if (fotos.some(x => x.tipo === 'entrega')) hayEntrega = true;
         if (fotos.length) {
