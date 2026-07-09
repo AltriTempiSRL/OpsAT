@@ -8782,13 +8782,17 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
           <label class="perm-check"><input type="checkbox" data-perm="dev-cdp"> Dev→CDP</label>
           <label class="perm-check"><input type="checkbox" data-perm="despacho-obsoleto"> Despacho de Obsoleto</label>
-          <label class="perm-check"><input type="checkbox" data-perm="validacion"> Validación</label>
+          <label class="perm-check"><input type="checkbox" data-perm="validacion"> Monitor Tránsitos</label>
           <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
           <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-portal"> Sol. Despacho (Ventas)</label>
           <label class="perm-check"><input type="checkbox" data-perm="nuevos-despachos"> Nuevos despachos</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-bandeja"> Bandeja Solicitudes</label>
+          <label class="perm-check"><input type="checkbox" data-perm="solicitudes-reposicion"> Solicitudes Repos.</label>
+          <label class="perm-check"><input type="checkbox" data-perm="almacen-mapa"> Mapa Almacén</label>
+          <label class="perm-check"><input type="checkbox" data-perm="estado-ordenes"> Estado de Órdenes</label>
+          <label class="perm-check"><input type="checkbox" data-perm="dashboard-ventas"> Dashboard Ventas</label>
         </div>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
         <div class="perm-grid">
@@ -8977,7 +8981,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v176';
+var APP_BUILD = 'v177';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
