@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v175';
+const APP_BUILD = 'v176';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -7819,7 +7819,11 @@ const server = http.createServer(async (req, res) => {
           const key = lid + ':' + pid;
           const p = prodMap[pid] || {};
           const src = srcByKey[key] || {};
-          const inDate = q.in_date || src.date || null;
+          // Antigüedad = desde que la TRANSFERENCIA metió el artículo al tránsito
+          // (move 'done' más reciente hacia esta ubicación). No usar q.in_date como
+          // primaria: es la fecha FIFO del quant (entrada original del producto al
+          // inventario) y da antigüedades falsas de cientos de días.
+          const inDate = src.date || q.in_date || null;
           const ageDays = inDate
             ? Math.floor((now - new Date(String(inDate).replace(' ', 'T') + 'Z').getTime()) / 86400000)
             : null;
