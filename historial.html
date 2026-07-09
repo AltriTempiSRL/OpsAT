@@ -8645,6 +8645,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <div class="avatar-preview-area">
         <div class="avatar-preview-circle" id="uf-avatar-preview">?</div>
         <span class="avatar-preview-hint">El ícono se genera automáticamente</span>
+        <button type="button" id="uf-remove-photo-btn" class="btn-sm" style="display:none;margin-top:6px" onclick="ufRemovePhoto()"><i data-lucide="image-off" style="width:11px;height:11px;stroke:currentColor"></i> Quitar foto</button>
       </div>
       <div class="form-group"><label class="form-label">Nombre completo</label><input id="uf-name" class="form-input" placeholder="Nombre del empleado" oninput="updateAvatarPreview()"></div>
       <div class="form-group"><label class="form-label">Correo electrónico</label><input id="uf-email" type="email" class="form-input" placeholder="correo@altritempi.com.do"></div>
@@ -8973,7 +8974,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v171';
+var APP_BUILD = 'v172';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -20491,6 +20492,7 @@ function openNewUserModal() {
   document.getElementById('user-modal-error').classList.remove('show');
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { delete prev.dataset.odooPhoto; prev.innerHTML=''; prev.textContent = '?'; prev.style.background = 'var(--brand-light)'; }
+  const rmBtn = document.getElementById('uf-remove-photo-btn'); if (rmBtn) rmBtn.style.display = 'none';
   document.getElementById('modal-user').classList.add('open');
 }
 function openEditUserModal(uid) {
@@ -20514,10 +20516,30 @@ function openEditUserModal(uid) {
   // Preview: iniciales primero; si el empleado tiene foto en Odoo, se sustituye al cargar
   const prev = document.getElementById('uf-avatar-preview');
   if (prev) { delete prev.dataset.odooPhoto; prev.innerHTML=''; prev.textContent = initials(u.name)||'?'; prev.style.background = avatarColor(u.name); }
+  const rmBtn = document.getElementById('uf-remove-photo-btn'); if (rmBtn) rmBtn.style.display = '';
   applyOdooAvatarPreview(u.id);
   document.getElementById('modal-user').classList.add('open');
 }
 function closeUserModal() { document.getElementById('modal-user').classList.remove('open'); _editingUser=null; }
+
+// Botón "Quitar foto" (Editar Usuario) — pedido de Gabriel 9-jul: el flujo de foto
+// dependía de una caché en 2 capas (cliente + servidor) que confundía cuándo se
+// refrescaba. Esto da control directo y visible: limpia la vista + la caché de esta
+// sesión a un solo clic, sin tocar el campo Odoo ID (no desvincula al empleado).
+// Para cargar la foto correcta: confirmar/corregir el Odoo ID y Guardar — el próximo
+// render la trae de nuevo (fix de invalidación de caché ya en saveUser()).
+function ufRemovePhoto() {
+  const prev = document.getElementById('uf-avatar-preview');
+  if (prev) {
+    delete prev.dataset.odooPhoto;
+    prev.innerHTML = '';
+    const name = document.getElementById('uf-name').value || (_editingUser && _editingUser.name) || '';
+    prev.textContent = initials(name) || '?';
+    prev.style.background = avatarColor(name);
+  }
+  if (_editingUser) { try { _odooPhotoCache.delete('uid:'+_editingUser.id); } catch(e){} }
+  toast('Foto quitada — confirma el Odoo ID y Guarda para traer la correcta');
+}
 
 async function saveUser() {
   const name=document.getElementById('uf-name').value.trim();
