@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v174';
+const APP_BUILD = 'v175';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -7751,6 +7751,123 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       res.writeHead(502, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/transit/monitor — stock varado en ubicaciones de tránsito, clasificado ──
+  // El flujo de traslados internos de Altri Tempi pasa por ubicaciones de tránsito
+  // (usage='transit'): 1ª pata origen→tránsito (validada), 2ª pata tránsito→destino
+  // (la que recibe Franklin con el handheld). Al validar la 2ª pata en PARCIAL, Odoo
+  // genera un backorder por el remanente; si el operador pulsa "No crear backorder",
+  // ese move queda cancelado y la mercancía se queda ATRAPADA en el tránsito.
+  //
+  // Este endpoint lee el stock real en cada tránsito y lo clasifica en dos grupos:
+  //   • pendiente: EXISTE un move abierto saliendo del tránsito (2ª pata / backorder
+  //     vivo) → tránsito normal, todavía va a entrar a destino.
+  //   • huerfano: NO hay ningún move abierto que lo saque → el backorder se canceló,
+  //     la mercancía quedó sin ruta de salida (fuga real que hay que recuperar).
+  if (reqPath === '/api/transit/monitor' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    try {
+      const timeoutMs = 15000;
+      const work = (async () => {
+        // 1. Ubicaciones de tránsito
+        const locs = await odooCall('stock.location', 'search_read',
+          [[['usage', '=', 'transit']]],
+          { fields: ['id', 'complete_name', 'name'], limit: 200 });
+        const locIds = locs.map(l => l.id);
+        const locName = {}; locs.forEach(l => { locName[l.id] = l.complete_name || l.name; });
+        if (!locIds.length) return { locations: [], totals: { locations: 0, countHuerfanos: 0, countPendientes: 0, unidadesHuerfanas: 0, unidadesPendientes: 0 } };
+
+        // 2. Stock actual varado en esos tránsitos
+        const quants = await odooCall('stock.quant', 'search_read',
+          [[['location_id', 'in', locIds], ['quantity', '>', 0]]],
+          { fields: ['product_id', 'location_id', 'quantity', 'reserved_quantity', 'in_date'], limit: 3000 });
+        if (!quants.length) return { locations: [], totals: { locations: 0, countHuerfanos: 0, countPendientes: 0, unidadesHuerfanas: 0, unidadesPendientes: 0 } };
+
+        const prodIds = [...new Set(quants.map(q => q.product_id[0]))];
+
+        // 3. Moves ABIERTOS saliendo del tránsito (2ª pata / backorder vivo)
+        const openMoves = await odooCall('stock.move', 'search_read',
+          [[['location_id', 'in', locIds], ['product_id', 'in', prodIds],
+            ['state', 'in', ['draft', 'waiting', 'confirmed', 'partially_available', 'assigned']]]],
+          { fields: ['product_id', 'location_id'], limit: 8000 });
+        const alive = new Set(openMoves.map(m => m.location_id[0] + ':' + m.product_id[0]));
+
+        // 4. Origen: último move HECHO que metió la mercancía al tránsito (para trazar)
+        const inMoves = await odooCall('stock.move', 'search_read',
+          [[['location_dest_id', 'in', locIds], ['product_id', 'in', prodIds], ['state', '=', 'done']]],
+          { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc', limit: 8000 });
+        const srcByKey = {};
+        for (const m of inMoves) {
+          const k = m.location_dest_id[0] + ':' + m.product_id[0];
+          if (!srcByKey[k]) srcByKey[k] = { picking: m.picking_id ? m.picking_id[1] : '', date: m.date };
+        }
+
+        // 5. Info de producto
+        const prods = await odooCall('product.product', 'search_read',
+          [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name'], limit: 3000 });
+        const prodMap = {}; prods.forEach(p => { prodMap[p.id] = p; });
+
+        // 6. Ensamblar por ubicación
+        const byLoc = {};
+        const now = Date.now();
+        for (const q of quants) {
+          const lid = q.location_id[0];
+          const pid = q.product_id[0];
+          const key = lid + ':' + pid;
+          const p = prodMap[pid] || {};
+          const src = srcByKey[key] || {};
+          const inDate = q.in_date || src.date || null;
+          const ageDays = inDate
+            ? Math.floor((now - new Date(String(inDate).replace(' ', 'T') + 'Z').getTime()) / 86400000)
+            : null;
+          const clase = alive.has(key) ? 'pendiente' : 'huerfano';
+          (byLoc[lid] = byLoc[lid] || { id: lid, name: locName[lid] || ('Ubicación ' + lid), items: [] }).items.push({
+            prodId: pid,
+            code: p.default_code || '',
+            name: p.name || (q.product_id[1] || ''),
+            qty: q.quantity,
+            reserved: q.reserved_quantity || 0,
+            inDate, ageDays,
+            sourcePicking: src.picking || '',
+            clase
+          });
+        }
+
+        const locations = Object.values(byLoc).map(l => {
+          const huer = l.items.filter(i => i.clase === 'huerfano');
+          const pend = l.items.filter(i => i.clase === 'pendiente');
+          // huérfanos primero, y dentro de cada grupo, los más viejos arriba
+          l.items.sort((a, b) => (a.clase === b.clase
+            ? (b.ageDays || 0) - (a.ageDays || 0)
+            : (a.clase === 'huerfano' ? -1 : 1)));
+          return {
+            id: l.id, name: l.name, items: l.items,
+            countHuerfanos: huer.length,
+            countPendientes: pend.length,
+            unidadesHuerfanas: Math.round(huer.reduce((s, i) => s + i.qty, 0) * 100) / 100,
+            unidadesPendientes: Math.round(pend.reduce((s, i) => s + i.qty, 0) * 100) / 100
+          };
+        }).sort((a, b) => b.unidadesHuerfanas - a.unidadesHuerfanas || b.unidadesPendientes - a.unidadesPendientes);
+
+        const totals = {
+          locations: locations.length,
+          countHuerfanos: locations.reduce((s, l) => s + l.countHuerfanos, 0),
+          countPendientes: locations.reduce((s, l) => s + l.countPendientes, 0),
+          unidadesHuerfanas: Math.round(locations.reduce((s, l) => s + l.unidadesHuerfanas, 0) * 100) / 100,
+          unidadesPendientes: Math.round(locations.reduce((s, l) => s + l.unidadesPendientes, 0) * 100) / 100
+        };
+        return { locations, totals };
+      })();
+
+      const out = await Promise.race([work,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), timeoutMs))]);
+      sendJson(res, 200, { ok: true, generatedAt: new Date().toISOString(), ...out });
+    } catch (e) {
+      const to = /Timeout/.test(e.message);
+      sendJson(res, to ? 503 : 502, { ok: false, error: to ? 'Odoo no responde (timeout), intente después' : e.message });
     }
     return;
   }

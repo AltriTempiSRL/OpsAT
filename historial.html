@@ -5783,7 +5783,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <span class="nav-icon"><i data-lucide="rotate-ccw"></i></span>Devoluciones
     </a>
     <a class="nav-item" id="nav-validacion" href="#sec-validacion" onclick="navTo('validacion');return false;">
-      <span class="nav-icon"><i data-lucide="scan-line"></i></span>Validación Escaneo
+      <span class="nav-icon"><i data-lucide="package-search"></i></span>Monitor Tránsitos
     </a>
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
       <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
@@ -5875,7 +5875,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
     <button class="mob-nav-btn"        id="mob-nav-inventario-salud" onclick="navTo('inventario-salud')"><i data-lucide="package-x"></i>Salud Inventario</button>
     <button class="mob-nav-btn"        id="mob-nav-devoluciones"  onclick="navTo('devoluciones')"><i data-lucide="rotate-ccw"></i>Devoluciones</button>
-    <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="scan-line"></i>Validación</button>
+    <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="package-search"></i>Tránsitos</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
@@ -5957,27 +5957,26 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <div id="dev-comp" style="display:none;margin-bottom:18px"></div>
     </div><!-- /section-devoluciones -->
 
-    <!-- ── VALIDACIÓN ESCANEO ────────────────────────────── -->
+    <!-- ── MONITOR DE TRÁNSITOS ──────────────────────────── -->
     <div id="section-validacion" class="page-section" style="display:none">
-    <div class="cont-card" style="padding:0;overflow:visible">
+    <div class="cont-card" style="padding:16px 18px 20px">
 
-      <!-- Buscador -->
-      <div class="val-search-wrap">
-        <h3 style="margin:0 0 10px;font-size:14px">Validación de Escaneo en Transferencias</h3>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Escribe el nombre de una transferencia de Odoo (ej: <strong>WH/INT/00123</strong>) para ver si las cantidades fueron registradas con escáner o teclado.</div>
-        <div class="val-search-box" id="val-search-box">
-          <span class="val-search-icon"><i data-lucide="search"></i></span>
-          <input id="val-search-input" class="val-search-input"
-                 placeholder="Buscar transferencia — WH/INT/, WH/OUT/…"
-                 autocomplete="off"
-                 oninput="valOnInput(this.value)"
-                 onkeydown="if(event.key==='Escape')valCloseResults()">
-          <div id="val-results-drop" class="val-results-drop"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+        <div>
+          <h3 style="margin:0;font-size:15px">Monitor de Ubicaciones en Tránsito</h3>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;max-width:640px;line-height:1.5">
+            Mercancía que se transfirió y sigue varada en una ubicación de tránsito.
+            <strong style="color:var(--amber-text)">Huérfanos</strong> = el backorder se canceló y no tienen ruta de salida (recuperar).
+            <strong style="color:var(--text-secondary)">Pendientes</strong> = todavía tienen su transferencia abierta, van a entrar normal.
+          </div>
         </div>
+        <button onclick="tmCargar(true)" id="tm-refresh" title="Actualizar desde Odoo"
+          style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:6px 12px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap">
+          <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor"></i>Actualizar
+        </button>
       </div>
 
-      <!-- Detalle (oculto hasta seleccionar) -->
-      <div id="val-detail" class="val-detail" style="display:none"></div>
+      <div id="tm-body"></div>
 
     </div>
     </div>
@@ -8978,7 +8977,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v174';
+var APP_BUILD = 'v175';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27074,6 +27073,7 @@ function navTo(section){
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
   if(target==='kpis-despacho') kpisDespachoCargar();
+  if(target==='validacion') tmCargar(false);
 }
 
 function setNavActive(section){
@@ -29210,154 +29210,136 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Validación de Escaneo ─────────────────────────────────────────────────────
-var _valTimer = null;
+// ── Monitor de Ubicaciones en Tránsito ────────────────────────────────────────
+// Reemplaza la antigua "Validación de Escaneo" (endpoints /api/transfer/* quedan
+// para uso futuro). Lee /api/transit/monitor y muestra el stock varado en
+// ubicaciones de tránsito, clasificado en:
+//   • huérfanos  → el backorder se canceló, no hay ruta de salida (recuperar).
+//   • pendientes → la transferencia sigue abierta, van a entrar normal.
+var _tmData = null;
+var _tmLoading = false;
 
-function valOnInput(q){
-  clearTimeout(_valTimer);
-  var drop=document.getElementById('val-results-drop');
-  if(!q||q.length<3){drop.style.display='none';return;}
-  drop.innerHTML='<div style="padding:10px 14px;font-size:11px;color:var(--text-muted)">Buscando…</div>';
-  drop.style.display='block';
-  _valTimer=setTimeout(function(){valSearch(q);},350);
-}
-
-async function valSearch(q){
-  var drop=document.getElementById('val-results-drop');
+async function tmCargar(force){
+  var body=document.getElementById('tm-body');
+  if(!body) return;
+  if(_tmData && !force){ tmRender(_tmData); return; }
+  if(_tmLoading) return;
+  _tmLoading=true;
+  var btn=document.getElementById('tm-refresh');
+  if(btn) btn.disabled=true;
+  body.innerHTML='<div class="ca-loading">Consultando Odoo…<br><span style="font-size:11px;color:var(--text-muted)">Leyendo stock en ubicaciones de tránsito</span></div>';
   try{
-    var r=await fetch('/api/transfer/search?q='+encodeURIComponent(q));
+    var r=await authFetch('/api/transit/monitor');
     var d=await r.json();
-    if(!d.ok) throw new Error(d.error);
-    if(!d.results.length){
-      drop.innerHTML='<div style="padding:12px 14px;font-size:11px;color:var(--text-muted)">Sin resultados para "'+q+'"</div>';
-      return;
-    }
-    drop.innerHTML=d.results.map((p) => {
-      var stMap={done:'val-state-done',assigned:'val-state-assigned',waiting:'val-state-draft',confirmed:'val-state-draft',draft:'val-state-draft',cancel:'val-state-cancel'};
-      var stLabel={done:'Hecho',assigned:'Listo',waiting:'Esperando',confirmed:'Confirmado',draft:'Borrador',cancel:'Cancelado'};
-      var cls=stMap[p.state]||'val-state-draft';
-      var lbl=stLabel[p.state]||p.state;
-      var partner=p.partner_id?p.partner_id[1]:'';
-      var type=p.picking_type_id?p.picking_type_id[1]:'';
-      var date=p.date_done||p.scheduled_date||'';
-      if(date) date=date.substring(0,10);
-      return '<div class="val-result-item" onclick="valSelect('+p.id+',\''+p.name+'\')">'
-        +'<span class="val-result-state '+cls+'">'+lbl+'</span>'
-        +'<div><div class="val-result-name">'+p.name+'</div>'
-        +'<div class="val-result-meta">'+(type?type+' · ':'')+partner+(date?' · '+date:'')+'</div>'
-        +'</div>'
-        +'</div>';
-    }).join('');
+    if(!d.ok) throw new Error(d.error||'Error');
+    _tmData=d;
+    tmRender(d);
   }catch(e){
-    drop.innerHTML='<div style="padding:10px 14px;font-size:11px;color:var(--amber-text)">Error: '+e.message+'</div>';
+    body.innerHTML='<div class="ca-empty" style="color:var(--amber-text)">No se pudo cargar: '+escHtml(e.message)+'</div>';
+  }finally{
+    _tmLoading=false;
+    if(btn) btn.disabled=false;
   }
 }
 
-function valCloseResults(){
-  document.getElementById('val-results-drop').style.display='none';
+function tmAge(days){
+  if(days==null) return '—';
+  if(days<=0) return 'hoy';
+  if(days===1) return '1 día';
+  return days+' días';
 }
 
-async function valSelect(id,name){
-  valCloseResults();
-  document.getElementById('val-search-input').value=name;
-  var detail=document.getElementById('val-detail');
-  detail.style.display='block';
-  detail.innerHTML='<div class="ca-loading">Cargando transferencia '+name+'…<br><span style="font-size:11px">Analizando movimientos de stock</span></div>';
-  try{
-    var r=await fetch('/api/transfer/detail?id='+id);
-    var d=await r.json();
-    if(!d.ok) throw new Error(d.error);
-    detail.innerHTML=valRender(d);
-    if(window.lucide) lucide.createIcons();
-  }catch(e){
-    detail.innerHTML='<div class="ca-empty" style="color:var(--amber-text)">'+e.message+'</div>';
-  }
-}
+function tmRender(d){
+  var body=document.getElementById('tm-body');
+  if(!body) return;
+  var t=d.totals||{};
+  var locs=d.locations||[];
 
-function valRender(d){
-  var p=d.picking; var lines=d.lines;
-  var stMap={done:'val-state-done',assigned:'val-state-assigned',waiting:'val-state-draft',confirmed:'val-state-draft',draft:'val-state-draft',cancel:'val-state-cancel'};
-  var stLabel={done:'Hecho',assigned:'Listo para procesar',waiting:'Esperando',confirmed:'Confirmado',draft:'Borrador',cancel:'Cancelado'};
-  var stCls=stMap[p.state]||'val-state-draft';
-  var stLbl=stLabel[p.state]||p.state;
-
-  // ── Cabecera ──────────────────────────────────────────────────────────────
-  var h='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">';
-  h+='<div><div style="font-size:16px;font-weight:800;color:var(--text-primary)">'+p.name+'</div>';
-  if(p.origin) h+='<div style="font-size:11px;color:var(--text-muted)">Origen: '+p.origin+'</div>';
-  h+='</div>';
-  h+='<span class="val-result-state '+stCls+'" style="font-size:11px;padding:3px 10px">'+stLbl+'</span>';
-  h+='</div>';
-
-  // ── Ficha ─────────────────────────────────────────────────────────────────
-  h+='<div class="val-pick-card">';
-  if(p.picking_type_id) h+='<div class="val-pick-field"><label>Tipo</label><span>'+p.picking_type_id[1]+'</span></div>';
-  if(p.partner_id)      h+='<div class="val-pick-field"><label>Contacto</label><span>'+p.partner_id[1]+'</span></div>';
-  if(p.location_id)     h+='<div class="val-pick-field"><label>Desde</label><span>'+p.location_id[1]+'</span></div>';
-  if(p.location_dest_id)h+='<div class="val-pick-field"><label>Hacia</label><span>'+p.location_dest_id[1]+'</span></div>';
-  if(p.scheduled_date)  h+='<div class="val-pick-field"><label>Fecha programada</label><span>'+p.scheduled_date.substring(0,10)+'</span></div>';
-  if(p.date_done)       h+='<div class="val-pick-field"><label>Fecha validación</label><span>'+p.date_done.substring(0,10)+'</span></div>';
-  h+='</div>';
-
-  // ── Resumen por método ────────────────────────────────────────────────────
-  var cntEsc=lines.filter((l) => {return l.method==='escaner';}).length;
-  var cntTec=lines.filter((l) => {return l.method==='teclado';}).length;
-  var cntAmb=lines.filter((l) => {return l.method==='ambiguo';}).length;
-  var cntPen=lines.filter((l) => {return l.method==='pendiente';}).length;
-  h+='<div class="val-summary-bar">';
-  h+='<div class="val-sum-chip chip-escaner"><div class="num">'+cntEsc+'</div><div class="lbl"><i data-lucide="scan-line" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Escáner</div></div>';
-  h+='<div class="val-sum-chip chip-teclado"><div class="num">'+cntTec+'</div><div class="lbl"><i data-lucide="keyboard" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Teclado</div></div>';
-  h+='<div class="val-sum-chip chip-ambiguo"><div class="num">'+cntAmb+'</div><div class="lbl"><i data-lucide="help-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Indeterminado</div></div>';
-  if(cntPen) h+='<div class="val-sum-chip chip-pendiente"><div class="num">'+cntPen+'</div><div class="lbl"><i data-lucide="pause-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Pendiente</div></div>';
-  h+='</div>';
-  h+='<div style="margin:8px 0 12px;padding:9px 12px;border:1px solid var(--border-light);background:var(--surface-2);border-radius:8px;font-size:11px;line-height:1.45;color:var(--text-muted)">'
-    +'Modo de prueba: para transferencias pasadas el método es una <strong>estimación por patrón</strong>. Varias líneas con qty=1 sugieren escáner; una sola línea con varias unidades sugiere teclado/manual. No es evidencia definitiva hasta guardar el origen real en Odoo.'
+  // ── Tarjetas de resumen ─────────────────────────────────────────────────────
+  var when=d.generatedAt?new Date(d.generatedAt).toLocaleString('es-DO',{dateStyle:'medium',timeStyle:'short'}):'';
+  var h='<div style="display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 6px">';
+  h+='<div style="flex:1;min-width:180px;border:1px solid var(--red-border,var(--border));background:var(--red-bg);border-radius:12px;padding:12px 14px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--red-text);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:5px"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor"></i>Huérfanos</div>'
+    +'<div style="font-size:26px;font-weight:800;color:var(--red-text);line-height:1.1;margin-top:4px">'+(t.unidadesHuerfanas||0)+' <span style="font-size:13px;font-weight:600">und</span></div>'
+    +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+(t.countHuerfanos||0)+' artículos · backorder cancelado</div>'
     +'</div>';
+  h+='<div style="flex:1;min-width:180px;border:1px solid var(--border);background:var(--surface-2);border-radius:12px;padding:12px 14px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:center;gap:5px"><i data-lucide="clock" style="width:13px;height:13px;stroke:currentColor"></i>Pendientes</div>'
+    +'<div style="font-size:26px;font-weight:800;color:var(--text-primary);line-height:1.1;margin-top:4px">'+(t.unidadesPendientes||0)+' <span style="font-size:13px;font-weight:600">und</span></div>'
+    +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+(t.countPendientes||0)+' artículos · transferencia abierta</div>'
+    +'</div>';
+  h+='</div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:2px 0 12px">';
+  h+='<div style="font-size:10px;color:var(--text-muted)">'+(when?'Actualizado: '+when:'')+' · '+(t.locations||0)+' ubicaciones con stock</div>';
+  if(t.countHuerfanos) h+='<button onclick="tmExportCsv()" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:4px"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor"></i>Exportar huérfanos (CSV)</button>';
+  h+='</div>';
 
-  // ── Tabla de líneas ───────────────────────────────────────────────────────
-  h+='<div style="overflow-x:auto">';
-  h+='<table class="val-tbl"><thead><tr>';
-  h+='<th style="width:48px"></th>';
-  h+='<th>Referencia</th><th>Código Barras</th><th>Artículo</th>';
-  h+='<th style="text-align:center">Demandado</th><th style="text-align:center">Realizado</th><th style="text-align:center">Dif.</th>';
-  h+='<th>Método</th><th>Detalle</th>';
-  h+='</tr></thead><tbody>';
+  if(!locs.length){
+    h+='<div class="ca-empty" style="padding:32px 16px;text-align:center;color:var(--text-muted)"><i data-lucide="check-circle" style="width:32px;height:32px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:8px;font-size:13px">Nada varado en tránsito. Todas las transferencias fluyeron a su destino.</div></div>';
+    body.innerHTML=h;
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
 
-  lines.forEach((l) => {
-    var thumb=l.image
-      ?'<img class="val-thumb" src="data:image/png;base64,'+l.image+'" alt="" onerror="this.style.display=\'none\'">'
-      :'<div class="val-thumb-ph"><i data-lucide="package" style="width:18px;height:18px;stroke:currentColor;opacity:.4"></i></div>';
-    var badge,badgeCls;
-    if(l.method==='escaner'){badge='<i data-lucide="scan-line" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Escáner';badgeCls='vb-escaner';}
-    else if(l.method==='teclado'){badge='<i data-lucide="keyboard" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Teclado';badgeCls='vb-teclado';}
-    else if(l.method==='pendiente'){badge='<i data-lucide="pause-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Pendiente';badgeCls='vb-pendiente';}
-    else{badge='<i data-lucide="help-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Indet.';badgeCls='vb-ambiguo';}
-    var diff=l.diff;
-    var diffHtml=diff===0
-      ?'<span class="val-diff-ok">✓</span>'
-      :'<span class="val-diff-bad">'+(diff>0?'+':'')+diff+'</span>';
-    var conf=l.confidence&&l.confidence!=='n/a'?'<span class="val-conf">Estimación: '+l.confidence+'</span>':'';
-    h+='<tr>'
-      +'<td>'+thumb+'</td>'
-      +'<td style="font-family:monospace;font-size:10px;font-weight:700;white-space:nowrap;color:var(--text-primary)">'+(l.ref||'—')+'</td>'
-      +'<td style="font-family:monospace;font-size:10px;white-space:nowrap;color:var(--text-muted)">'+(l.barcode||'—')+'</td>'
-      +'<td style="max-width:180px;font-size:11px;line-height:1.4;color:var(--text-secondary)">'+l.name+'</td>'
-      +'<td style="text-align:center;font-size:11px">'+l.demanded+'</td>'
-      +'<td style="text-align:center;font-size:11px;font-weight:700">'+l.totalDone+'</td>'
-      +'<td style="text-align:center">'+diffHtml+'</td>'
-      +'<td><span class="val-badge '+badgeCls+'">'+badge+'</span>'+conf+'</td>'
-      +'<td class="val-reason">'+l.methodReason+'</td>'
-      +'</tr>';
+  // ── Una tarjeta por ubicación de tránsito ───────────────────────────────────
+  locs.forEach(function(loc){
+    h+='<div style="border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden">';
+    h+='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border)">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:6px"><i data-lucide="map-pin" style="width:14px;height:14px;stroke:var(--text-muted)"></i>'+escHtml(loc.name)+'</div>';
+    h+='<div style="display:flex;gap:6px">';
+    if(loc.countHuerfanos) h+='<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--red-bg);color:var(--red-text)">'+loc.countHuerfanos+' huérfano'+(loc.countHuerfanos>1?'s':'')+' · '+loc.unidadesHuerfanas+' und</span>';
+    if(loc.countPendientes) h+='<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--surface-3,var(--surface-2));border:1px solid var(--border);color:var(--text-secondary)">'+loc.countPendientes+' pendiente'+(loc.countPendientes>1?'s':'')+' · '+loc.unidadesPendientes+' und</span>';
+    h+='</div></div>';
+
+    h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h+='<thead><tr style="text-align:left;color:var(--text-muted)">'
+      +'<th style="padding:7px 10px;font-weight:600">Estado</th>'
+      +'<th style="padding:7px 10px;font-weight:600">Referencia</th>'
+      +'<th style="padding:7px 10px;font-weight:600">Artículo</th>'
+      +'<th style="padding:7px 10px;font-weight:600;text-align:center">Cant.</th>'
+      +'<th style="padding:7px 10px;font-weight:600;text-align:center">Antigüedad</th>'
+      +'<th style="padding:7px 10px;font-weight:600">Transferencia origen</th>'
+      +'</tr></thead><tbody>';
+    loc.items.forEach(function(it){
+      var esHuer=it.clase==='huerfano';
+      var badge=esHuer
+        ?'<span style="font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;background:var(--red-bg);color:var(--red-text);white-space:nowrap">HUÉRFANO</span>'
+        :'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary);white-space:nowrap">Pendiente</span>';
+      var viejo=(it.ageDays!=null&&it.ageDays>7);
+      h+='<tr style="border-top:1px solid var(--border-light,var(--border))'+(esHuer?';background:var(--red-bg-subtle,transparent)':'')+'">'
+        +'<td style="padding:7px 10px">'+badge+'</td>'
+        +'<td style="padding:7px 10px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text-primary);white-space:nowrap">'+escHtml(it.code||'—')+'</td>'
+        +'<td style="padding:7px 10px;color:var(--text-secondary);max-width:280px">'+escHtml(it.name||'')+'</td>'
+        +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:var(--text-primary)">'+it.qty+'</td>'
+        +'<td style="padding:7px 10px;text-align:center;color:'+(viejo?'var(--amber-text)':'var(--text-muted)')+';font-weight:'+(viejo?'700':'400')+';white-space:nowrap">'+tmAge(it.ageDays)+'</td>'
+        +'<td style="padding:7px 10px;font-family:monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">'+escHtml(it.sourcePicking||'—')+'</td>'
+        +'</tr>';
+    });
+    h+='</tbody></table></div></div>';
   });
 
-  h+='</tbody></table></div>';
-  return h;
+  body.innerHTML=h;
+  if(window.lucide) lucide.createIcons();
 }
 
-// Cerrar dropdown al hacer clic fuera
-document.addEventListener('click',function(e){
-  if(!document.getElementById('val-search-box').contains(e.target)) valCloseResults();
-});
+function tmExportCsv(){
+  if(!_tmData||!_tmData.locations) return;
+  var rows=[['Ubicacion','Estado','Referencia','Articulo','Cantidad','Antiguedad_dias','Transferencia_origen']];
+  _tmData.locations.forEach(function(loc){
+    loc.items.forEach(function(it){
+      if(it.clase!=='huerfano') return;
+      rows.push([loc.name,'Huerfano',it.code||'',it.name||'',it.qty,(it.ageDays==null?'':it.ageDays),it.sourcePicking||'']);
+    });
+  });
+  if(rows.length<2){ toast('No hay huérfanos que exportar'); return; }
+  var csv=rows.map(function(r){return r.map(function(c){var s=String(c==null?'':c);return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\r\n');
+  var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='transito-huerfanos-'+new Date().toISOString().substring(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
 
 // ── Container Analysis Panel ──────────────────────────────────────────────────
 var _caTarget   = null;
