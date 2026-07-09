@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v177';
+const APP_BUILD = 'v178';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -964,19 +964,32 @@ function deriveOutBadge(task, outStateLive) {
 // vacíos (el picker avisa "reintentar"), no lanza.
 async function ensureOutPendienteCandidatos(task, nowIso) {
   const now = nowIso || new Date().toISOString();
+  let mutated = false;
   if (!task.outPendiente) {
     task.outPendiente = { since: now, confirmedOutRef: null, confirmedAt: null, candidatos: [], reconOk: null };
+    mutated = true;
   }
   if ((!task.outPendiente.candidatos || !task.outPendiente.candidatos.length) && task.odooRef) {
     try {
       const _ps = await sdvComputePickStatus(task.odooRef);
-      task.outPendiente.candidatos = (_ps.outs||[])
+      const _cands = (_ps.outs||[])
         .filter(o => o.state !== 'cancel')
         .map(o => ({ name:o.name, state:o.state, date_done:o.date_done||null }));
-      const _done = task.outPendiente.candidatos.filter(o => o.state === 'done');
-      if (_done.length === 1) task.outPendiente.sugerido = _done[0].name;
+      if (_cands.length) {
+        task.outPendiente.candidatos = _cands;
+        const _done = _cands.filter(o => o.state === 'done');
+        if (_done.length === 1) task.outPendiente.sugerido = _done[0].name;
+        mutated = true;
+      }
     } catch(e) { silentCatch(e,'ensureOutPendienteCandidatos'); }
   }
+  // Cache-bust del ETag (fix #0166, 9-jul): abrir/rellenar la obligación ES actividad
+  // de la tarea. El ETag de GET /api/wwp/tasks deriva de max(updatedAt)+count (ciego a
+  // outPendiente); si NO bumpeamos aquí, el gate de completar persiste los candidatos
+  // SIN cambiar el ETag → el refetch del drawer recibe 304 con el body viejo (sin
+  // candidatos) y el picker "¿Cuál OUT despachaste?" nunca llega al cliente. Solo al
+  // mutar de verdad (evita churn de caché en reintentos idempotentes de completar).
+  if (mutated) task.updatedAt = now;
   return task.outPendiente;
 }
 
@@ -11046,6 +11059,7 @@ const server = http.createServer(async (req, res) => {
               const _st = (_out && _out.length) ? _out[0].state : null;
               if (_st !== 'done') {
                 _op.outState = _st || _op.outState || null;
+                tasks[idx].updatedAt = now; // cache-bust ETag (fix #0166): sin esto el refetch del drawer recibe 304 y no refleja el outState
                 saveWwpTasks(tasks);
                 res.writeHead(422,{'Content-Type':'application/json'});
                 res.end(JSON.stringify({ok:false,
