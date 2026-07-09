@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v169';
+const APP_BUILD = 'v170';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -978,6 +978,17 @@ async function ensureOutPendienteCandidatos(task, nowIso) {
     } catch(e) { silentCatch(e,'ensureOutPendienteCandidatos'); }
   }
   return task.outPendiente;
+}
+
+// ── Traslado interno: no hay OUT de cliente ──────────────────────────────────
+// Un traslado interno mueve stock entre almacenes (picking INT en Odoo), nunca
+// genera un OUT de cliente. Su SDV trae el código de artículo como odooRef (no una
+// orden de venta), así que el gate de OUT no puede resolver candidatos y deadlockea
+// la validación (caso #0159 / SD-2026-0011). Se exime del gate por tipo de SDV.
+function taskEsTrasladoInterno(task) {
+  if (!task || !task.sdvId) return false;
+  try { const s = loadSdv().find(x => x.id === task.sdvId); return !!s && s.tipoSolicitud === 'traslado_interno'; }
+  catch(e) { return false; }
 }
 
 // ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
@@ -10895,7 +10906,7 @@ const server = http.createServer(async (req, res) => {
         // Fail-open SOLO ante Odoo inalcanzable (no podemos verificar → no trabar la
         // operación de campo por una caída del ERP; queda auditado). Un OUT que Odoo SÍ
         // reporta y no está done = bloqueo duro.
-        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
+        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef && !taskEsTrasladoInterno(tasks[idx])) {
           await ensureOutPendienteCandidatos(tasks[idx], now);
           const _op = tasks[idx].outPendiente;
           const _cands = (_op && _op.candidatos) || [];
@@ -10941,7 +10952,7 @@ const server = http.createServer(async (req, res) => {
         // Override: admin puede saltarlo con motivo (despacho cancelado, mercancía en
         // staging, etc.) — mismo molde 422 que el gate de PICK. Fail-open: si Odoo cae,
         // NO bloquear (no podemos verificar el OUT → no es justo trabar la operación).
-        if (d.status === 'validated' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef) {
+        if (d.status === 'validated' && tasks[idx].type === 'dispatch_order' && tasks[idx].odooRef && !taskEsTrasladoInterno(tasks[idx])) {
           const _override = d.outGateOverride && String(d.outGateOverride.motivo||'').trim();
           if (_override) {
             // Registrar el override con motivo + quién (auditoría inmutable).
@@ -11029,6 +11040,13 @@ const server = http.createServer(async (req, res) => {
           }
         }
         tasks[idx].status=d.status;
+        // Self-heal: una tarea de traslado interno pudo quedar con una obligación de OUT
+        // huérfana creada antes del fix (#0159). No aplica gate de OUT a traslados → se
+        // limpia para que el badge/panel desaparezca de todas las superficies.
+        if (tasks[idx].outPendiente && taskEsTrasladoInterno(tasks[idx])) {
+          try { appendAuditLog('out_obligacion_removida_traslado', { taskId: tasks[idx].id, sdvId: tasks[idx].sdvId||'', by: jp.userId }); } catch(_e) { silentCatch(_e,'auditOutRemovidaTraslado'); }
+          delete tasks[idx].outPendiente;
+        }
         // Auto-setear timestamps para dispatch_order al cambiar de estado
         if (d.status === 'in_progress' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchStartedAt) {
           tasks[idx].dispatchStartedAt = now;
@@ -11041,7 +11059,7 @@ const server = http.createServer(async (req, res) => {
             } catch(e){ silentCatch(e,'notifySellerEnRuta'); }
           }
         }
-        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt) {
+        if (d.status === 'completed' && tasks[idx].type === 'dispatch_order' && !tasks[idx].dispatchCompletedAt && !taskEsTrasladoInterno(tasks[idx])) {
           tasks[idx].dispatchCompletedAt = now;
           // ── Obligación de cierre del OUT en Odoo (Decisión 17) ────────────────
           // La obligación ya se abrió en el gate de completar (arriba, que exige el OUT
