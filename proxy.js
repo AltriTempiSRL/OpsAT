@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v178';
+const APP_BUILD = 'v179';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4588,6 +4588,7 @@ function enrichOverdueTasks(tasks, opts = {}) {
         delete t.overdue;
         delete t.overdueDays;
         delete t.escalation;
+        t.updatedAt = new Date().toISOString(); // cache-bust ETag (clase #0166): la escalación desapareció
         changed = true;
       }
       return;
@@ -4608,11 +4609,18 @@ function enrichOverdueTasks(tasks, opts = {}) {
         : 'Escalar al gerente de operaciones para decision inmediata.',
       generatedAt: new Date().toISOString()
     };
+    // Firma MATERIAL (SIN generatedAt, que cambia en cada llamada): es lo único que le
+    // importa al cliente. El ETag solo debe moverse ante cambio material (overdue/días/
+    // destino de escalación); bumpear por generatedAt haría que el 304 dejara de proteger
+    // el polling móvil y cada request bajaría la lista completa (clase #0166).
+    const matBefore = JSON.stringify([!!t.overdue, t.overdueDays||0, (t.escalation||{}).action||null, (t.escalation||{}).suggestedUserId||null]);
     const snapshot = JSON.stringify({ overdue: t.overdue, overdueDays: t.overdueDays, escalation: t.escalation });
     t.overdue = true;
     t.overdueDays = days;
     t.escalation = nextEscalation;
     if (JSON.stringify({ overdue: t.overdue, overdueDays: t.overdueDays, escalation: t.escalation }) !== snapshot) changed = true;
+    const matAfter = JSON.stringify([true, days, nextEscalation.action, nextEscalation.suggestedUserId]);
+    if (matAfter !== matBefore) { t.updatedAt = new Date().toISOString(); changed = true; }
   });
   if (changed && opts.persist) saveWwpTasks(tasks);
   return tasks;
@@ -5249,6 +5257,9 @@ async function reconcileOutPendiente() {
       const ref = t.outPendiente.confirmedOutRef || t.outPendiente.sugerido;
       if (stByName.get(ref) === 'done') {
         t.outPendiente.outState = 'done';
+        // Cache-bust del ETag (clase #0166): sin bumpear updatedAt, la lista/fila de EO
+        // sigue mostrando "OUT pendiente" en clientes que recargan (304) hasta otro cambio.
+        t.updatedAt = new Date().toISOString();
         if (!t.outPendiente.confirmedOutRef && t.outPendiente.sugerido === ref) {
           t.outPendiente.confirmedOutRef = ref;
           t.outPendiente.confirmedAt = new Date().toISOString();
@@ -15873,6 +15884,9 @@ const server = http.createServer(async (req, res) => {
                 stored.outPendiente.confirmedAt = new Date().toISOString();
                 stored.outPendiente.confirmedBy = 'system:out-badge-recon';
               }
+              // Cache-bust del ETag (clase #0166): el flip a done debe mover el ETag o la
+              // fila de EO/lista sigue "pendiente" en clientes que recargan (304).
+              stored.updatedAt = new Date().toISOString();
               saveWwpTasks(list);
               task.outPendiente = stored.outPendiente; // reflejar en el badge que devolvemos
               broadcastWwpTasks('out_reconciled', stored, { taskId });
