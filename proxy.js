@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v168';
+const APP_BUILD = 'v169';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -773,7 +773,7 @@ async function sdvComputePickStatus(soRef) {
 // Nunca lanza: ante fallo de Odoo devuelve {ok:false, odooError:true} y el caller
 // decide (fail-open: no bloquear por caída de Odoo — un gate no puede depender de que
 // el ERP esté arriba, salvo que la lectura sí funcione y muestre el mismatch).
-async function sdvReconcileOutVsTask(outRef, task) {
+async function sdvReconcileOutVsTask(outRef, task, retRef) {
   const empty = { ok:true, outState:null, date_done:null, mismatchA:[], warningB:[], matched:[] };
   try {
     const ref = String(outRef||'').trim();
@@ -850,10 +850,77 @@ async function sdvReconcileOutVsTask(outRef, task) {
         matched.push({ odoo_product_id: pid, default_code: dcByPid.get(pid) || dc || '', qtyEnOut: qtyByPid.get(pid) });
       }
     });
+    // ── Compensación por RET elegida por el usuario (caso Melvin/S09376, 9-jul) ──
+    // Si el OUT ya está DONE con artículos que no salieron, "bajar la cantidad" es
+    // imposible (Odoo no permite ajustar un picking validado). La corrección legítima
+    // es la DEVOLUCIÓN del no-entregado. Diseño Gabriel (9-jul, mismo patrón que el
+    // picker de OUT): el sistema NO decide solo — lista las devoluciones candidatas
+    // de la orden (retCandidatos) y el ENCARGADO elige con cuál corrigió (retRef).
+    // El sistema solo verifica LA ELEGIDA: done + que cubra el producto del mismatch.
+    // Queda auditado quién eligió qué RET. Sigue la regla "se resuelve, no se ignora".
+    const compensados = [], retPendientes = [], retCandidatos = [];
+    let retError = null;
+    if (mismatchA.length && pick.state === 'done') {
+      try {
+        // Candidatas: devoluciones ligadas a la orden (flujo nuevo sale.return.order:
+        // incoming + sale_id) o al OUT (flujo viejo wizard: origin "Retorno de <OUT>").
+        // Solo name/state/origin — las líneas se leen únicamente de la RET elegida.
+        const orderName = String(task.odooRef||'').trim();
+        let so = null;
+        if (orderName) {
+          const sos = await odooCall('sale.order','search_read',[[['name','ilike',orderName]]],{fields:['id','name'],limit:1});
+          so = (sos && sos.length) ? sos[0] : null;
+        }
+        const domains = [];
+        if (so) domains.push([['sale_id','=',so.id],['picking_type_id.code','=','incoming'],['state','not in',['cancel']]]);
+        domains.push([['origin','ilike',pick.name],['state','not in',['cancel']]]);
+        const seen = new Map(); // picking id → {id,name,state,origin}
+        for (const dom of domains) {
+          const rets = await odooCall('stock.picking','search_read',[dom],{fields:['id','name','state','origin'],limit:20});
+          (rets||[]).forEach(p => { if (p.id !== pick.id && !seen.has(p.id)) seen.set(p.id, p); });
+        }
+        seen.forEach(p => retCandidatos.push({ name: p.name, state: p.state, origin: p.origin || '' }));
+        const chosen = String(retRef||'').trim();
+        if (chosen) {
+          const pk = [...seen.values()].find(p => p.name === chosen);
+          if (!pk) {
+            retError = 'La devolución '+chosen+' no está ligada a esta orden ni a este OUT.';
+          } else if (pk.state !== 'done') {
+            // Elegida pero sin validar: un solo paso pendiente en Odoo.
+            for (let i = mismatchA.length - 1; i >= 0; i--) {
+              retPendientes.push({ ...mismatchA[i], retRef: pk.name });
+              mismatchA.splice(i, 1);
+            }
+          } else {
+            // Verificar que LA RET ELEGIDA cubre el/los producto(s) del mismatch (por pid).
+            const rmoves = await odooCall('stock.move','search_read',
+              [[['picking_id','=',pk.id]]],
+              {fields:['product_id','product_uom_qty','quantity_done','state'],limit:500});
+            const retQty = new Map();
+            (rmoves||[]).forEach(m => {
+              if (!m.product_id || m.state === 'cancel') return;
+              const q = Math.max(Number(m.quantity_done)||0, Number(m.product_uom_qty)||0);
+              if (q > 0) retQty.set(m.product_id[0], (retQty.get(m.product_id[0])||0) + q);
+            });
+            const noCubiertos = [];
+            for (let i = mismatchA.length - 1; i >= 0; i--) {
+              const m = mismatchA[i];
+              if (m.odoo_product_id && (retQty.get(m.odoo_product_id)||0) > 0) {
+                compensados.push({ ...m, retRef: pk.name, retQty: retQty.get(m.odoo_product_id) });
+                mismatchA.splice(i, 1);
+              } else {
+                noCubiertos.push(m.default_code || m.product_name || '');
+              }
+            }
+            if (noCubiertos.length) retError = 'La devolución '+pk.name+' no incluye: '+noCubiertos.join(', ')+'. Elige otra o crea la devolución de ese artículo.';
+          }
+        }
+      } catch(e) { silentCatch(e,'sdvReconcileOutCompensacion'); /* sin datos: gate normal */ }
+    }
     return {
       ok:true, outRef: pick.name, outState: pick.state, date_done: pick.date_done || null,
-      mismatchA, warningB, matched,
-      gateDuro: mismatchA.length > 0,   // el caller responde 422 si true
+      mismatchA, warningB, matched, compensados, retPendientes, retCandidatos, retError,
+      gateDuro: mismatchA.length > 0,   // el caller responde 422 si true (o si hay RET sin validar)
     };
   } catch(e) {
     silentCatch(e,'sdvReconcileOutVsTask');
@@ -15545,7 +15612,9 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return;
         }
         // Reconciliación contra el OUT elegido (matching por odoo_product_id / default_code).
-        const recon = await sdvReconcileOutVsTask(outRef, task);
+        // retRef opcional: la devolución que el ENCARGADO eligió como compensación del
+        // mismatch (diseño Gabriel 9-jul — el usuario decide, el sistema solo verifica).
+        const recon = await sdvReconcileOutVsTask(outRef, task, d.retRef);
         // GATE DURO — dirección A: averiado/no-entregado presente en el OUT.
         if (recon.ok && recon.gateDuro) {
           // Nudge a Ops por cada averiado (enruta a avería→RET; la infra ya existe).
@@ -15554,9 +15623,19 @@ const server = http.createServer(async (req, res) => {
               notifyOpsDamageDetected(taskId, m.default_code || m.product_name || m.item_id || '', 'Averiado — bajar qty del OUT '+outRef+' y crear RET'));
           } catch(e) { silentCatch(e,'outConfirmDamageNudge'); }
           res.writeHead(422,{'Content-Type':'application/json'});
-          res.end(JSON.stringify({ ok:false, gateDuro:true,
-            error:'El OUT '+recon.outRef+' incluye '+recon.mismatchA.length+' artículo(s) que NO salieron (averiado/no entregado). Ajusta el OUT en Odoo (baja la cantidad → genera backorder) y crea la RET del averiado antes de cerrar.',
-            mismatchA: recon.mismatchA, warningB: recon.warningB }));
+          res.end(JSON.stringify({ ok:false, gateDuro:true, outState: recon.outState||null,
+            error: recon.retError || ('El OUT '+recon.outRef+' incluye '+recon.mismatchA.length+' artículo(s) que NO salieron (averiado/no entregado). Ajusta el OUT en Odoo (baja la cantidad → genera backorder) y crea la RET del averiado antes de cerrar.'),
+            mismatchA: recon.mismatchA, warningB: recon.warningB,
+            retCandidatos: recon.retCandidatos||[], retError: recon.retError||null }));
+          return;
+        }
+        // GATE — la RET elegida existe pero SIN validar: un solo paso pendiente en Odoo
+        // (la instrucción correcta es "valida la RET", no "baja la cantidad" del OUT done).
+        if (recon.ok && (recon.retPendientes||[]).length) {
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ ok:false, retPendiente:true, outState: recon.outState||null,
+            error:'La devolución elegida existe pero falta validarla (done) en Odoo. Valídala y vuelve a confirmar.',
+            retPendientes: recon.retPendientes, warningB: recon.warningB }));
           return;
         }
         // Sellar la confirmación (aunque Odoo haya fallado la reconciliación — registramos
@@ -15568,14 +15647,17 @@ const server = http.createServer(async (req, res) => {
         task.outPendiente.reconOk = recon.ok === true && !recon.odooError;
         task.outPendiente.outState = recon.outState || null;
         task.outPendiente.warningB = recon.warningB || [];
+        // Cierre por compensación: artículos no-salidos cuyo mismatch quedó resuelto por
+        // una RET validada (caso Melvin/S09376) — queda en el shape para auditoría visible.
+        if ((recon.compensados||[]).length) task.outPendiente.compensados = recon.compensados;
         task.updatedAt = new Date().toISOString();
         // Auditoría inmutable de la confirmación (usuario/timestamp/OUT elegido).
-        try { appendAuditLog('out_confirm', { taskId, odooRef: task.odooRef||'', outRef: task.outPendiente.confirmedOutRef, outState: recon.outState||null, by: _jpOc.userId, warnings:(recon.warningB||[]).length }); } catch(_e) { silentCatch(_e,'auditOutConfirm'); }
+        try { appendAuditLog('out_confirm', { taskId, odooRef: task.odooRef||'', outRef: task.outPendiente.confirmedOutRef, outState: recon.outState||null, by: _jpOc.userId, warnings:(recon.warningB||[]).length, compensados:(recon.compensados||[]).map(c=>({ret:c.retRef, sku:c.default_code||c.product_name, qty:c.retQty})) }); } catch(_e) { silentCatch(_e,'auditOutConfirm'); }
         saveWwpTasks(tasks);
         broadcastWwpTasks('out_confirmed', task, { taskId, outRef: task.outPendiente.confirmedOutRef });
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente,
-          warningB: recon.warningB||[], odooError: !!recon.odooError,
+          warningB: recon.warningB||[], compensados: recon.compensados||[], odooError: !!recon.odooError,
           note: recon.odooError ? 'OUT registrado, pero Odoo no respondió la reconciliación — se verificará al validar.' : undefined }));
       } catch(e) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));

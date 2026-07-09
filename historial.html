@@ -8973,7 +8973,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v168';
+var APP_BUILD = 'v169';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -16067,29 +16067,57 @@ function wwpConfirmOut(taskId){
   var reconEl = document.getElementById('wwp-out-recon');
   var outRef = sel ? (sel.value||'').trim() : '';
   if(!outRef){ toast('Elige el OUT que despachaste'); return; }
+  // RET compensatoria elegida por el encargado (el dropdown existe solo si el gate
+  // anterior devolvió candidatas — OUT done con artículos no salidos).
+  var retSel = document.getElementById('wwp-ret-sel');
+  var retRef = retSel ? (retSel.value||'').trim() : '';
   if(btn){ btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="do-spin" style="width:15px;height:15px;stroke:currentColor"></i>Confirmando…'; if(window.lucide) lucide.createIcons(); }
   if(reconEl) reconEl.innerHTML = '';
   authFetch('/api/wwp/tasks/'+taskId+'/out-confirm', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ outRef: outRef })
+    body: JSON.stringify(retRef ? { outRef: outRef, retRef: retRef } : { outRef: outRef })
   }).then(function(r){
     return r.json().then(function(d){ return { status:r.status, ok:r.ok, d:d }; });
   }).then(function(res){
     var d = res.d || {};
     if(res.status === 422 && d.gateDuro){
       // Dirección A — bloqueo duro. Instrucción accionable (no cerramos la obligación).
+      // Si el OUT ya está done, "bajar la cantidad" no aplica: la vía es la devolución.
       var items = (d.mismatchA||[]).map(function(m){
         var motivo = m.motivo==='damaged' ? 'averiado' : 'no entregado';
         return '<li><b>'+esc(m.product_name || m.default_code || ('artículo '+(m.odoo_product_id||'')))+'</b> — '+motivo+' (en el OUT: '+(m.qtyEnOut||0)+')</li>';
       }).join('');
+      var steps;
+      var retCands = d.retCandidatos || [];
+      if(d.outState === 'done' && retCands.length){
+        // El encargado ELIGE con cuál devolución corrigió (diseño Gabriel 9-jul,
+        // mismo patrón que el picker de OUT). El sistema verifica solo la elegida.
+        var stRetLbl = { done:'validada', assigned:'reservada', confirmed:'confirmada', waiting:'en espera', draft:'borrador' };
+        var retOpts = '<option value="">— Elige la devolución —</option>' + retCands.map(function(c){
+          return '<option value="'+esc(c.name)+'">'+esc(c.name)+' — '+esc(stRetLbl[c.state]||c.state||'')+'</option>';
+        }).join('');
+        steps = (d.retError ? '<div class="rc-steps" style="color:var(--red-text)"><b>'+esc(d.retError)+'</b></div>' : '')+
+          '<div class="rc-steps"><b>El OUT ya está validado en Odoo — la corrección es por devolución.</b><br>'+
+          'Si ya creaste la devolución del artículo que no salió, indica cuál es:</div>'+
+          '<div class="wwp-out-pick"><label for="wwp-ret-sel">¿Con cuál devolución (RET) corregiste?</label>'+
+            '<select id="wwp-ret-sel">'+retOpts+'</select></div>'+
+          '<button type="button" class="wwp-out-btn" onclick="wwpConfirmOut(\''+esc(taskId)+'\')"><i data-lucide="package-check"></i>Verificar devolución y cerrar</button>'+
+          '<div class="rc-steps" style="margin-top:6px">La devolución debe estar <b>validada (done)</b> en Odoo e incluir el artículo que no salió. Si aún no existe, créala en Odoo (Retorno del OUT <b>'+esc(outRef)+'</b>), valídala y vuelve aquí.</div>';
+      } else if(d.outState === 'done'){
+        steps = '<div class="rc-steps"><b>El OUT ya está validado en Odoo — la corrección es por devolución:</b><br>'+
+            '1. Crea en Odoo la <b>devolución (RET)</b> del artículo que no salió (Retorno del OUT <b>'+esc(outRef)+'</b>).<br>'+
+            '2. <b>Valídala (done)</b> — la unidad vuelve al stock y el inventario cuadra.<br>'+
+            '3. Vuelve aquí, elige esa devolución en la lista y cierra.</div>';
+      } else {
+        steps = '<div class="rc-steps"><b>Qué hacer en Odoo:</b><br>'+
+            '1. Abre el OUT <b>'+esc(outRef)+'</b> y <b>baja la cantidad</b> del artículo que no salió (Odoo genera un backorder con lo pendiente).<br>'+
+            '2. Enruta el artículo averiado a <b>avería → RET</b> (ya se avisó a Operaciones).<br>'+
+            '3. Vuelve aquí y confirma de nuevo el OUT ya ajustado.</div>';
+      }
       if(reconEl){
         reconEl.innerHTML = '<div class="wwp-out-recon block">'+
           '<div class="rc-hd"><i data-lucide="octagon-alert"></i>No se puede cerrar: el OUT incluye artículos que NO salieron</div>'+
-          '<ul>'+items+'</ul>'+
-          '<div class="rc-steps"><b>Qué hacer en Odoo:</b><br>'+
-            '1. Abre el OUT <b>'+esc(outRef)+'</b> y <b>baja la cantidad</b> del artículo que no salió (Odoo genera un backorder con lo pendiente).<br>'+
-            '2. Enruta el artículo averiado a <b>avería → RET</b> (ya se avisó a Operaciones).<br>'+
-            '3. Vuelve aquí y confirma de nuevo el OUT ya ajustado.</div>'+
+          '<ul>'+items+'</ul>'+steps+
         '</div>';
         if(window.lucide) lucide.createIcons();
       }
@@ -16097,8 +16125,28 @@ function wwpConfirmOut(taskId){
       toast('El OUT no se puede cerrar hasta ajustarlo en Odoo', 5000);
       return;
     }
+    if(res.status === 422 && d.retPendiente){
+      // RET compensatoria creada pero sin validar — un solo paso pendiente en Odoo.
+      var retItems = (d.retPendientes||[]).map(function(m){
+        return '<li><b>'+esc(m.product_name || m.default_code || '')+'</b> — devolución <b>'+esc(m.retRef||'')+'</b> sin validar</li>';
+      }).join('');
+      if(reconEl){
+        reconEl.innerHTML = '<div class="wwp-out-recon block">'+
+          '<div class="rc-hd"><i data-lucide="clock"></i>Falta un paso: validar la devolución en Odoo</div>'+
+          '<ul>'+retItems+'</ul>'+
+          '<div class="rc-steps">La devolución del artículo que no salió ya existe. <b>Valídala (done)</b> en Odoo y vuelve a confirmar aquí — el sistema detectará la compensación y permitirá cerrar.</div>'+
+        '</div>';
+        if(window.lucide) lucide.createIcons();
+      }
+      if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="package-check" style="width:15px;height:15px;stroke:currentColor"></i>Confirmar OUT despachado'; if(window.lucide) lucide.createIcons(); }
+      toast('Valida la devolución en Odoo para poder cerrar', 5000);
+      return;
+    }
     if(res.ok && d.ok){
-      toast(d.odooError ? 'OUT registrado (Odoo no respondió la reconciliación)' : '✓ OUT confirmado', d.odooError?5000:2500);
+      var comps = d.compensados||[];
+      toast(d.odooError ? 'OUT registrado (Odoo no respondió la reconciliación)'
+        : (comps.length ? '✓ OUT confirmado — '+comps.length+' artículo(s) compensado(s) con la devolución '+(comps[0].retRef||'') : '✓ OUT confirmado'),
+        (d.odooError||comps.length)?5000:2500);
       openDrawer(taskId);   // re-render: estado "confirmado, esperando validación" + warnings B
       return;
     }
