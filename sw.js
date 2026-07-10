@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v55';
+const CACHE = 'wwp-v57';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -103,6 +103,14 @@ const NOTIF_URGENCY = {
   task_validated:          'success',
   reposicion_aprobada:     'success',
   reactivacion_procesada:  'success',
+  // Críticas → rojo (v180: canal vendedora)
+  sdv_seller_rechazada: 'critical',
+  // Alertas → ámbar (v180)
+  sdv_seller_cancelada: 'alert',
+  reposicion_rechazada: 'alert',
+  // Éxito → verde (v180)
+  sdv_seller_despachada: 'success',
+  sdv_seller_parcial:    'success',
   // Info → azul (default)
   task_assigned:    'info',
   subtask_assigned: 'info',
@@ -112,6 +120,12 @@ const NOTIF_URGENCY = {
   lunch_ended:      'info',
   agent_routine:    'info',
   reposicion_nueva: 'info',
+  // Info (v180)
+  sdv_seller_aprobada:   'info',
+  sdv_seller_en_ruta:    'info',
+  sdv_seller_pausa:      'alert',
+  sdv_seller_reactivada: 'info',
+  curso_retake:          'info',
 };
 
 // Badges por urgencia. No usar `image`: Chrome muestra una imagen grande que
@@ -157,6 +171,9 @@ self.addEventListener('push', e => {
   const tag      = data.tag     || 'wwp-notif';
   const taskId   = data.relatedTaskId || null;
   const notifType = data.type   || '';
+  // v180: target tipado {kind,id,ctx?} + id de la notif — el click rutea por esto
+  const target   = data.target  || null;
+  const notifId  = data.notifId || data.id || null;
 
   const urgency  = data.urgency || NOTIF_URGENCY[notifType] || 'info';
   const assets   = RICH_ASSETS[urgency];
@@ -185,13 +202,13 @@ self.addEventListener('push', e => {
       requireInteraction,
       vibrate,
       actions,
-      data: { taskId, url, notifType, urgency }
+      data: { taskId, url, notifType, urgency, target, notifId }
     })
   );
 });
 
 self.addEventListener('notificationclick', e => {
-  const { taskId, url } = e.notification.data || {};
+  const { taskId, url, target, notifId } = e.notification.data || {};
   const action = e.action;
 
   // Acciones que no navegan
@@ -200,18 +217,20 @@ self.addEventListener('notificationclick', e => {
     return;
   }
 
-  // Acción 'view' o click en el cuerpo de la notificación
+  // Acción 'view' o click en el cuerpo de la notificación.
+  // v180: preferir `url` (el server ya la construye como ?notif=<id> — el router del
+  // cliente resuelve el destino por target). Fallback legacy: ?task= codificado.
   e.notification.close();
-  const target = taskId ? `/historial.html?task=${taskId}` : (url || '/historial.html');
+  const dest = url || (taskId ? '/historial.html?task=' + encodeURIComponent(taskId) : '/historial.html');
 
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       const existing = list.find(c => c.url.includes('/historial.html') && 'focus' in c);
       if (existing) {
-        existing.postMessage({ type: 'NOTIFICATION_CLICK', taskId });
+        existing.postMessage({ type: 'NOTIFICATION_CLICK', taskId, notifId, target, url: dest });
         return existing.focus();
       }
-      return clients.openWindow(target);
+      return clients.openWindow(dest);
     })
   );
 });

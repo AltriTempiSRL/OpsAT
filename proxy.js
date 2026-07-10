@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v179';
+const APP_BUILD = 'v181';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -523,10 +523,11 @@ function trTriggerRetake(userId, courseId, reason, by) {
   saveTrainingResults(results);
   try {
     createNotification(userId, {
-      type: 'task_assigned',
+      type: 'curso_retake',   // v180: tipo propio (antes task_assigned) — el clic abre el curso
       title: '📚 Examen asignado',
       message: `Debes retomar el curso "${course.title}". Motivo: ${r.retakeReason}`,
-      by: by || 'Administrador'
+      by: by || 'Administrador',
+      target: { kind: 'curso', id: courseId }
     });
   } catch (e) { console.warn('[training retake notif]', e.message); }
   appendAuditLog('training_retake', { userId, courseId, courseTitle: course.title, reason: r.retakeReason, by });
@@ -3870,7 +3871,8 @@ async function runAgentRoutineById(routineId, { manualBy = null } = {}) {
       type: 'agent_routine',
       title: 'Rutina automatica ejecutada',
       message: routine.name,
-      by: 'Mesa de Agentes'
+      by: 'Mesa de Agentes',
+      target: { kind: 'none', id: null }
     }));
   return { routine: state.agentGroup.routines.find(r => r.id === routineId), message: msg, chat: state.agentGroup.chat.slice(-40) };
 }
@@ -4647,6 +4649,19 @@ const NOTIF_LABELS = {
   evidence_incomplete : '⚠️ Evidencia incompleta',
   stock_changed       : '⚠️ Stock cambió en Odoo',
   system_sync_error   : '🔴 Error de sincronización',
+  // ── v180: canal vendedora (SDV) con tipos propios + reposición + LMS ──────
+  sdv_seller_aprobada   : '✅ Solicitud aprobada',
+  sdv_seller_rechazada  : '⛔ Solicitud rechazada',
+  sdv_seller_en_ruta    : '🚚 Pedido en ruta',
+  sdv_seller_despachada : '📦 Solicitud despachada',
+  sdv_seller_parcial    : '📦 Despacho parcial',
+  sdv_seller_pausa      : '⚠️ Despacho en pausa',
+  sdv_seller_cancelada  : '🚫 Solicitud cancelada',
+  sdv_seller_reactivada : '🔄 Solicitud reactivada',
+  reposicion_nueva      : '📦 Solicitud de reposición',
+  reposicion_aprobada   : '✅ Reposición aprobada',
+  reposicion_rechazada  : '⛔ Reposición rechazada',
+  curso_retake          : '📚 Re-examen asignado',
 };
 
 // ═══ ÚNICA FUENTE DE VERDAD: tipo → categoría + urgencia ═══════════════════
@@ -4678,6 +4693,16 @@ const NOTIF_META = {
   reactivacion_pendiente : { cat:'sdv', urg:'alert' },
   reactivacion_procesada : { cat:'sdv', urg:'success' },
   dev_en_ruta            : { cat:'sdv', urg:'info' },
+  // Canal vendedora (v180): tipos propios — antes reusaban status_changed/task_completed/
+  // task_rejected/task_cancelled (cat tareas). Urgencia = la que tenía el tipo reusado.
+  sdv_seller_aprobada    : { cat:'sdv', urg:'info' },
+  sdv_seller_rechazada   : { cat:'sdv', urg:'critical' },
+  sdv_seller_en_ruta     : { cat:'sdv', urg:'info' },
+  sdv_seller_despachada  : { cat:'sdv', urg:'success' },
+  sdv_seller_parcial     : { cat:'sdv', urg:'success' },
+  sdv_seller_pausa       : { cat:'sdv', urg:'alert' },
+  sdv_seller_cancelada   : { cat:'sdv', urg:'alert' },
+  sdv_seller_reactivada  : { cat:'sdv', urg:'info' },
   // operacion (alertas de picking/empaque/stock/reposición)
   pick_incomplete     : { cat:'operacion', urg:'critical' },
   packing_blocked     : { cat:'operacion', urg:'critical' },
@@ -4693,6 +4718,8 @@ const NOTIF_META = {
   // chat
   comment_new : { cat:'chat', urg:'info' },
   task_chat   : { cat:'chat', urg:'info' },
+  // tareas (v180): re-examen LMS — antes reusaba task_assigned
+  curso_retake : { cat:'tareas', urg:'info' },
   // sistema
   system_sync_error : { cat:'sistema', urg:'critical' },
   agent_routine     : { cat:'sistema', urg:'info' },
@@ -4716,7 +4743,9 @@ function notifMetaFor(type = '') {
 // ── Preferencias de notificación por usuario y categoría ─────────────────────
 // Niveles: 'all' (panel + sonido + push) · 'panel' (solo panel) · 'off' (oculta).
 // Persistencia propia (patrón push-subscriptions.json), NO en el archivo de auth.
-const NOTIF_CATEGORIES  = ['tareas','sdv','operacion','chat','sistema'];
+// 'coordinacion' (v180): groundwork para "Levantar la mano" — la categoría existe
+// end-to-end (prefs, chips, piso de entrega) aunque sus tipos llegan en v182.
+const NOTIF_CATEGORIES  = ['tareas','sdv','operacion','chat','coordinacion','sistema'];
 const NOTIF_PREF_LEVELS = ['all','panel','off'];
 const NOTIF_PREFS_FILE  = path.join(DATA_DIR, 'wwp-notif-prefs.json');
 function loadNotifPrefs()  { return loadJson(NOTIF_PREFS_FILE, {}); }   // { userId: {tareas:'all',...,updatedAt} }
@@ -4725,11 +4754,16 @@ function saveNotifPrefs(p) { saveJson(NOTIF_PREFS_FILE, p); }
 // Nivel efectivo de entrega para un usuario/categoría. Las urgencias 'critical'
 // SIEMPRE se entregan (all), sin importar la preferencia ni el rol: son alertas
 // operacionales curadas y bloqueantes. Default sin preferencia = 'all'.
-function effectiveNotifLevel(userId, category, urgency) {
+// v180 — piso de entrega: la categoría 'coordinacion' y toda notificación DIRIGIDA
+// con actionRequired no pueden quedar en 'off' (invisibles) — suben a 'panel'
+// (sin sonido/push, pero visibles). Una pregunta dirigida no se silencia del todo.
+function effectiveNotifLevel(userId, category, urgency, actionRequired) {
   if (urgency === 'critical') return 'all';
   const p = loadNotifPrefs()[userId];
   const lvl = p && p[category];
-  return NOTIF_PREF_LEVELS.includes(lvl) ? lvl : 'all';
+  const eff = NOTIF_PREF_LEVELS.includes(lvl) ? lvl : 'all';
+  if (eff === 'off' && (category === 'coordinacion' || actionRequired)) return 'panel';
+  return eff;
 }
 
 // Tipos rutinarios que el supervisor ya recibe como participante directo o vía opsIds/adminIds.
@@ -4739,13 +4773,69 @@ const SUPERVISOR_SKIP_TYPES = new Set([
   'task_completed','task_validated','task_cancelled','task_rejected',
   'task_chat','comment_new','lunch_ended','agent_routine',
   // el watchdog de inventario ya notifica directo a admin+manager — sin copia extra
-  'inventario_negativo'
+  'inventario_negativo',
+  // v180 — canal vendedora: antes usaba tipos de tareas que YA estaban en esta lista
+  // (status_changed/task_completed/task_rejected/task_cancelled). Los tipos nuevos
+  // heredan el skip para NO crear un forwarding a supervisores que hoy no existe.
+  'sdv_seller_aprobada','sdv_seller_rechazada','sdv_seller_en_ruta','sdv_seller_despachada',
+  'sdv_seller_parcial','sdv_seller_pausa','sdv_seller_cancelada','sdv_seller_reactivada',
+  // v180 — curso_retake reemplaza a task_assigned (que estaba en skip) en el re-examen LMS.
+  'curso_retake',
+  // v180 — reposicion_nueva ya se envía DIRECTO a todos los admins (9009/9091): sin skip,
+  // cada createNotification del loop re-agregaría a los supervisores = duplicados.
+  'reposicion_nueva',
+  // v180 — notifySdvToOps migrado a createNotification: los destinatarios YA son todos
+  // los ops (admin+manager, supervisores incluidos) — el forward duplicaría.
+  'sdv_cancelada','reactivacion_pendiente','reactivacion_procesada'
 ]);
 
-// Tipos "ruidosos" que se agrupan (×N) si llega otro igual sin leer para la misma
-// tarea dentro de la ventana. Las asignaciones y las críticas NO se agrupan.
+// Tipos "ruidosos" que se agrupan (×N) si llega otro igual sin leer para el mismo
+// destino dentro de la ventana. Las asignaciones y las críticas NO se agrupan.
 const COALESCE_TYPES  = new Set(['status_changed','stock_changed','task_chat','comment_new']);
 const COALESCE_WINDOW = 10 * 60 * 1000; // 10 min, deslizante (ancla en coalescedAt)
+
+// ═══ v180 — Target tipado {kind, id, ctx?}: destino de navegación de cada notif ═══
+// Se estampa al CREAR (server = fuente de verdad); el cliente rutea por kind+rol.
+// `relatedTaskId` queda como alias legacy (SW viejo, tag de push, clientes cacheados).
+const NOTIF_TARGET_KINDS = ['task','sdv','reposicion','curso','seccion','none'];
+
+// Retro-derivación para notifs históricas sin target (espejo cliente: _notifTargetOf
+// en historial.html): id con prefijo wt_ → task, sdv_ → sdv, sin id → none.
+// Un relatedTaskId con otro prefijo (ids legacy de ops-notifications, etc.) → none:
+// mejor no navegar que navegar mal.
+function notifDeriveTarget(n) {
+  if (n && n.target && NOTIF_TARGET_KINDS.includes(n.target.kind)) return n.target;
+  const rid = n && n.relatedTaskId;
+  if (!rid) return { kind: 'none', id: null };
+  if (/^wt_/.test(rid))  return { kind: 'task', id: rid };
+  if (/^sdv_/.test(rid)) return { kind: 'sdv',  id: rid };
+  return { kind: 'none', id: null };
+}
+
+// Normaliza el target que pasa un emisor; si no lo pasa, deriva del relatedTaskId.
+function notifNormalizeTarget(target, relatedTaskId) {
+  if (target && NOTIF_TARGET_KINDS.includes(target.kind)) {
+    const out = { kind: target.kind, id: target.id != null ? String(target.id) : null };
+    if (target.ctx) out.ctx = target.ctx;
+    if (out.kind !== 'none' && !out.id) return { kind: 'none', id: null }; // kind sin id no navega
+    return out;
+  }
+  return notifDeriveTarget({ relatedTaskId });
+}
+
+// Clave estable de destino para coalescing/dedup: 'kind|id' (null si no navega).
+function notifTargetKey(n) {
+  const t = notifDeriveTarget(n);
+  return (t.kind !== 'none' && t.id) ? t.kind + '|' + t.id : null;
+}
+
+// URL de apertura del push: ?notif=<id> deja que el router del cliente resuelva el
+// destino por target (arranque en frío incluido). Sin destino → raíz de la app.
+function notifPushUrl(notif) {
+  const t = notifDeriveTarget(notif);
+  if (t.kind === 'none' || !t.id) return '/historial.html';
+  return '/historial.html?notif=' + encodeURIComponent(notif.id);
+}
 
 // Emite una notif por SSE + WS (si el nivel la muestra) y por Web Push (solo 'all').
 function _emitNotif(uid, notif, level, coalesced) {
@@ -4756,25 +4846,30 @@ function _emitNotif(uid, notif, level, coalesced) {
   }
   if (level === 'all') {
     // Sin icon/badge en el payload — el SW usa sus defaults (icon-192.png, badge por urgencia).
+    const pushUrl = notifPushUrl(notif);
     sendWebPushToUser(uid, {
       title: notif.title,
       message: notif.message || '',
       body: notif.message || '',
       appTitle: 'Ops AT',
       id: notif.id,
+      notifId: notif.id,
       type: notif.type || '',
       urgency: notif.urgency || pushUrgencyForType(notif.type || ''),
       count: notif.count || 1,
       coalesced: !!coalesced,
+      // target v180 (el SW nuevo rutea por esto); relatedTaskId = compat SW viejo.
+      target: notif.target || notifDeriveTarget(notif),
+      actionRequired: !!notif.actionRequired,
       relatedTaskId: notif.relatedTaskId,
-      url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
-      actionUrl: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
-      tag: notif.relatedTaskId || notif.id
+      url: pushUrl,
+      actionUrl: pushUrl,
+      tag: notifTargetKey(notif) || notif.relatedTaskId || notif.id
     });
   }
 }
 
-function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null}) {
+function createNotification(userId, {type, title, message, relatedTaskId=null, priority=null, dueDate=null, by=null, target=null, actionRequired=false, context=null}) {
   if (!userId) return null;
   // Copiar a supervisores solo para alertas operacionales (no para cambios rutinarios de estado)
   const forwardToSupervisors = !SUPERVISOR_SKIP_TYPES.has(type);
@@ -4784,21 +4879,31 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
   let primaryNotif = null;
 
   const meta = notifMetaFor(type);
-  recipientIds.forEach(uid => {
-    // Nivel de entrega según preferencias del destinatario (críticas siempre 'all')
-    const level = effectiveNotifLevel(uid, meta.cat, meta.urg);
+  // v180 — target tipado: normalizar (o retro-derivar del relatedTaskId legacy).
+  const tgt = notifNormalizeTarget(target, relatedTaskId);
+  // Alias legacy: si el emisor pasó solo target kind=task, conservar relatedTaskId
+  // (coalescing histórico, tag del push y SW viejo lo siguen leyendo).
+  if (tgt.kind === 'task' && tgt.id && !relatedTaskId) relatedTaskId = tgt.id;
+  const tkey = (tgt.kind !== 'none' && tgt.id) ? tgt.kind + '|' + tgt.id : null;
 
-    // ── Coalescing: doblar sobre la notif ruidosa sin leer del mismo tipo+tarea ──
-    if (level !== 'off' && COALESCE_TYPES.has(type) && relatedTaskId) {
+  recipientIds.forEach(uid => {
+    // Nivel de entrega según preferencias del destinatario (críticas siempre 'all';
+    // coordinacion/actionRequired con piso 'panel' — v180)
+    const level = effectiveNotifLevel(uid, meta.cat, meta.urg, !!actionRequired);
+
+    // ── Coalescing v180: doblar sobre la notif ruidosa sin leer del mismo tipo+destino
+    // (kind|id, antes relatedTaskId — mismo comportamiento para tareas, y correcto
+    // para destinos no-tarea).
+    if (level !== 'off' && COALESCE_TYPES.has(type) && tkey) {
       const all = loadNotifications();
       const nowMs = Date.now();
       const idx = all.findIndex(n => n.userId === uid && n.type === type &&
-        n.relatedTaskId === relatedTaskId && !n.readAt && !n.muted &&
+        notifTargetKey(n) === tkey && !n.readAt && !n.muted &&
         (nowMs - Date.parse(n.coalescedAt || n.createdAt)) < COALESCE_WINDOW);
       if (idx >= 0) {
         const prev = all.splice(idx, 1)[0];
         const nowIso = new Date().toISOString();
-        const upd = { ...prev, message, deliver: level,
+        const upd = { ...prev, message, deliver: level, target: prev.target || tgt,
           count: (prev.count || 1) + 1,
           firstAt: prev.firstAt || prev.createdAt,
           createdAt: nowIso, coalescedAt: nowIso };
@@ -4815,8 +4920,12 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
       category: meta.cat, urgency: meta.urg, deliver: level,
       title: title || NOTIF_LABELS[type] || type,
       message, relatedTaskId, priority, dueDate, by,
-      status: 'sent', createdAt: new Date().toISOString(), readAt: null
+      target: tgt,
+      actionRequired: !!actionRequired,
+      status: 'sent', createdAt: new Date().toISOString(), readAt: null,
+      clickedAt: null
     };
+    if (context && typeof context === 'object') notif.context = context; // v180: dato para CTA (UI en v181)
     if (level === 'off') notif.muted = true; // se persiste (auditoría) pero no se emite ni muestra
     const all = loadNotifications();
     all.unshift(notif);
@@ -4842,15 +4951,17 @@ function notifyOpsNewSdv(sdvId, cliente, articulos) {
     type: 'sdv_new_pending',
     title: '📋 Nueva SDV pendiente',
     message: `Cliente: ${cliente} · Orden: ${sdvId} · ${articulos} artículos. Revisar.`,
-    relatedTaskId: sdvId
+    relatedTaskId: sdvId,
+    target: { kind: 'sdv', id: sdvId }
   });
 }
 
 // Notifica a la VENDEDORA (creadora de la solicitud) sobre el avance de SU SDV.
 // Aditivo: solo dispara si la solicitud tiene creadoPor. No toca las notificaciones a Ops.
+// v180: target kind=sdv — el clic de la vendedora abre SU solicitud en el portal.
 function notifySeller(sol, { type, title, message }) {
   if (!sol || !sol.creadoPor) return;
-  try { createNotification(sol.creadoPor, { type, title, message, relatedTaskId: sol.id }); }
+  try { createNotification(sol.creadoPor, { type, title, message, relatedTaskId: sol.id, target: { kind: 'sdv', id: sol.id } }); }
   catch (e) { silentCatch(e, 'notifySeller'); }
 }
 
@@ -4864,7 +4975,8 @@ function notifySdvAdditionalCreated(solOrigen, solNueva) {
       type: 'sdv_additional_new',
       title: '📋 Solicitud adicional para orden en preparación',
       message: `Cliente: ${solNueva.clienteNombre||solNueva.odooOrderRef||'N/A'} · Orden: ${solNueva.odooOrderRef||'N/A'} · Ya existe una tarea WWP en curso para esta orden. Folio original: ${solOrigen.folio||solOrigen.id}. Revisar para coordinar con el picking en curso.`,
-      relatedTaskId: solNueva.id
+      relatedTaskId: solNueva.id,
+      target: { kind: 'sdv', id: solNueva.id }
     });
     // Aviso dirigido al encargado que ya tiene la tarea WWP activa de la orden original (evita picking duplicado)
     const activa = (solOrigen.wwpTareas||[]).slice().reverse().find(t => t.status && !['completed','validated','cancelled'].includes(t.status));
@@ -4876,7 +4988,8 @@ function notifySdvAdditionalCreated(solOrigen, solNueva) {
           type: 'sdv_additional_manager',
           title: '⚠️ Solicitud adicional de una orden que ya tienes activa',
           message: `Tienes una tarea activa de ${solNueva.odooOrderRef||solOrigen.odooOrderRef||'N/A'} y llegó una solicitud adicional (${solNueva.folio||solNueva.id}). Revisa si conviene consolidar antes de iniciar picking.`,
-          relatedTaskId: solNueva.id
+          relatedTaskId: solNueva.id,
+          target: { kind: 'sdv', id: solNueva.id }
         });
       }
     }
@@ -4901,7 +5014,8 @@ function notifySdvOrigenCanceladaConAdicionales(solOrigen, adicionalesActivas) {
         type: 'sdv_origen_cancelada',
         title: '🚫 Orden origen cancelada con solicitud adicional activa',
         message: `La SDV ${solOrigen.folio||solOrigen.id} (orden ${solOrigen.odooOrderRef||'N/A'}) fue cancelada, pero la solicitud adicional ${ad.folio||ad.id} sigue activa. Revisar si también debe cancelarse.`,
-        relatedTaskId: ad.id
+        relatedTaskId: ad.id,
+        target: { kind: 'sdv', id: ad.id }
       });
       notifySeller(ad, {
         type: 'sdv_origen_cancelada',
@@ -4912,13 +5026,26 @@ function notifySdvOrigenCanceladaConAdicionales(solOrigen, adicionalesActivas) {
   } catch (e) { silentCatch(e, 'notifySdvOrigenCanceladaConAdicionales'); }
 }
 
-function notifyOpsPickIncomplete(pickId, sdvId, razon = 'falta ubicación') {
+// v180 — REVIVIDA (tenía cero llamadores): la emite el gate de picking del PATCH de
+// tareas cuando bloquea el inicio de un despacho (422 "Picking aún en progreso" /
+// "Picking anulado"). Firma nueva anclada a la TAREA bloqueada (el objeto accionable
+// para ops), no al pick. Dedup: máx 1 andon por tarea por día — el operario puede
+// reintentar el botón muchas veces y ops necesita UNA señal, no spam (mismo patrón
+// sentToday de task_overdue en checkOverdueTasks).
+function notifyOpsPickIncomplete(taskId, orderRef, razon = 'pick no completado') {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const dup = loadNotifications().some(n => n.type === 'pick_incomplete' &&
+      (n.createdAt || '').startsWith(today) && notifTargetKey(n) === 'task|' + taskId);
+    if (dup) return;
+  } catch (e) { silentCatch(e, 'pickIncompleteDedup'); }
   const opsIds = getOpsUserIds();
   notifyMany(opsIds, {
     type: 'pick_incomplete',
     title: '🚨 Pick incompleto',
-    message: `Pick ${pickId} (orden ${sdvId}): ${razon}. Sistema no puede proceder.`,
-    relatedTaskId: sdvId
+    message: `Orden ${orderRef}: ${razon}. El despacho no puede iniciar.`,
+    relatedTaskId: taskId,
+    target: { kind: 'task', id: taskId }
   });
 }
 
@@ -4928,7 +5055,8 @@ function notifyOpsPackingBlocked(taskId, pickStatus) {
     type: 'packing_blocked',
     title: '🚨 Bloqueo: picking no completado',
     message: `Tarea ${taskId} en empaque, pero picking aún en estado: ${pickStatus}. Detener empaque.`,
-    relatedTaskId: taskId
+    relatedTaskId: taskId,
+    target: { kind: 'task', id: taskId }
   });
 }
 
@@ -4938,7 +5066,8 @@ function notifyOpsDamageDetected(taskId, refArticulo, condicion) {
     type: 'damage_detected',
     title: '🔴 Daño detectado',
     message: `Artículo ${refArticulo} (tarea ${taskId}): ${condicion}. Decisión requerida (reproceso/devolución/scrap).`,
-    relatedTaskId: taskId
+    relatedTaskId: taskId,
+    target: { kind: 'task', id: taskId }
   });
 }
 
@@ -4948,7 +5077,8 @@ function notifyOpsCancelBlocked(sdvId, cliente, estado) {
     type: 'cancel_blocked',
     title: '🚨 Cancelación bloqueada',
     message: `Orden ${sdvId} (cliente: ${cliente}): empaque en estado ${estado}. Cancelación requiere desempaque.`,
-    relatedTaskId: sdvId
+    relatedTaskId: sdvId,
+    target: { kind: 'sdv', id: sdvId }
   });
 }
 
@@ -4958,7 +5088,8 @@ function notifyOpsEvidenceIncomplete(taskId, nFaltantes) {
     type: 'evidence_incomplete',
     title: '⚠️ Evidencia incompleta',
     message: `Tarea ${taskId}: ${nFaltantes} artículos sin foto. No se puede cerrar.`,
-    relatedTaskId: taskId
+    relatedTaskId: taskId,
+    target: { kind: 'task', id: taskId }
   });
 }
 
@@ -4978,7 +5109,8 @@ function notifyAdminSyncError(errorMsg) {
     type: 'system_sync_error',
     title: '🔴 Error de sincronización',
     message: `Sincronización Odoo falló: ${errorMsg}. Tareas pueden estar desincronizadas. Revisar logs.`,
-    relatedTaskId: null
+    relatedTaskId: null,
+    target: { kind: 'none', id: null }
   });
 }
 
@@ -5013,7 +5145,10 @@ function notifyVentasDevolucion(taskId, odooRef, client, registradoByName) {
       type: 'dev_en_ruta',
       title: 'Devolución en ruta registrada',
       message: `${registradoByName} registró artículos devueltos en orden ${odooRef||taskId} · Cliente: ${client||'—'}. Crear RET en Odoo.`,
-      relatedTaskId: taskId
+      relatedTaskId: taskId,
+      // MISMO tipo dev_en_ruta que recibe la vendedora, target distinto: a ops le
+      // abre la TAREA (v180); a la vendedora, su SDV (vía notifySeller).
+      target: { kind: 'task', id: taskId }
     });
   } catch (e) { silentCatch(e, 'notifyVentasDevolucion'); }
 }
@@ -5090,6 +5225,7 @@ function autoCloseLunch(userId) {
     title  : '🍴 Tiempo de almuerzo terminado',
     message: `Tu tiempo de almuerzo (${user.lunchTimeAllowed || 60} min) ha finalizado. Ya estás marcado como disponible.`,
     by     : 'Sistema',
+    target : { kind: 'none', id: null },
   });
 
   // Notificar a encargados y admins (excepto al mismo usuario)
@@ -5100,6 +5236,7 @@ function autoCloseLunch(userId) {
       title  : '🍴 Almuerzo finalizado',
       message: `${user.name.split(' ')[0]} completó su almuerzo (${user.lunchTimeAllowed || 60} min permitidos)`,
       by     : 'Sistema',
+      target : { kind: 'none', id: null },
     });
   });
 }
@@ -5166,13 +5303,15 @@ function checkOverdueTasks() {
       type:'task_overdue',
       title:'⚠️ Tarea vencida',
       message:`"${t.title}" venció el ${t.dueDate}. Confirma ETA, bloqueo o cierre hoy.`,
-      relatedTaskId:t.id, priority:t.priority, dueDate:t.dueDate
+      relatedTaskId:t.id, priority:t.priority, dueDate:t.dueDate,
+      target:{ kind:'task', id:t.id }
     });
     notifyMany([...new Set(managerRecipients.filter(uid => !recipients.includes(uid)))], {
       type:'task_overdue',
       title:'Escalamiento overdue',
       message:`"${t.title}" lleva ${t.overdueDays || 1} dia(s) overdue. ${t.escalation?.message || 'Revisar reasignacion o escalamiento.'}`,
-      relatedTaskId:t.id, priority:t.priority, dueDate:t.dueDate
+      relatedTaskId:t.id, priority:t.priority, dueDate:t.dueDate,
+      target:{ kind:'task', id:t.id }
     });
   });
 }
@@ -5216,7 +5355,8 @@ function checkDueTodayAlert() {
       message:       `"${t.title}" vence hoy — confirma si se completó o necesita ETA antes de cerrar.`,
       relatedTaskId: t.id,
       priority:      t.priority,
-      dueDate:       t.dueDate
+      dueDate:       t.dueDate,
+      target:        { kind:'task', id:t.id }
     });
   });
   console.log(`[due-today-alert] ${today} — ${dueToday.length} tarea(s) notificadas a las 20:00 RD`);
@@ -5606,7 +5746,9 @@ async function invWatchdog(forceRun) {
     notifyMany(managers, {
       type: 'inventario_negativo',
       title: '📉 Salud de Inventario — atención',
-      message: parts.join(' · ') + '. Revisar la sección Salud de Inventario.'
+      message: parts.join(' · ') + '. Revisar la sección Salud de Inventario.',
+      // id verificado en historial.html: navTo('inventario-salud') → invSaludCargar()
+      target: { kind: 'seccion', id: 'inventario-salud' }
     });
     console.log('[inv-watchdog] alerta enviada: ' + parts.join(' | '));
     return { sinCaso: sinCaso.length, recepViejas: recepViejas.length };
@@ -9007,12 +9149,13 @@ const server = http.createServer(async (req, res) => {
         const _admins = loadAuthUsers().filter(u => u.role === 'admin');
         _admins.forEach(adm => {
           createNotification(adm.id, {
-            type: 'task_assigned',
+            type: 'reposicion_nueva',   // v180: tipo propio (antes task_assigned, cat equivocada)
             title: 'Nueva solicitud de reposición',
             message: `${rec.solicitanteNombre||rec.solicitanteId} solicitó reposición de ${rec.articuloNombre} (${rec.articuloRef}) — urgencia: ${rec.urgencia}.`,
             relatedTaskId: null,
             priority: rec.urgencia === 'alta' ? 'urgent' : rec.urgencia === 'media' ? 'medium' : 'low',
-            by: rec.solicitanteNombre||rec.solicitanteId
+            by: rec.solicitanteNombre||rec.solicitanteId,
+            target: { kind: 'reposicion', id: rec.id }
           });
         });
       } catch(_nErr) { console.error('D5 notify create error:', _nErr.message); }
@@ -9075,13 +9218,16 @@ const server = http.createServer(async (req, res) => {
           if (d.estado === 'aprobada' || d.estado === 'rechazada') {
             // Notificar al solicitante
             createNotification(rec.solicitanteId, {
-              type: 'task_status',
+              // v180: tipos propios (antes task_status, cat equivocada) — existían en
+              // NOTIF_META desde v140 sin emisor.
+              type: d.estado === 'aprobada' ? 'reposicion_aprobada' : 'reposicion_rechazada',
               title: d.estado === 'aprobada' ? 'Solicitud de reposición aprobada' : 'Solicitud de reposición rechazada',
               message: d.estado === 'aprobada'
                 ? `Tu solicitud de reposición de ${rec.articuloNombre} fue aprobada. Ya puedes crear la tarea en WWP.`
                 : `Tu solicitud de reposición de ${rec.articuloNombre} fue rechazada.${d.comentarioAprobador ? ' Motivo: '+d.comentarioAprobador : ''}`,
               relatedTaskId: null,
-              by: por
+              by: por,
+              target: { kind: 'reposicion', id: rec.id }
             });
           }
           if (d.estado === 'pendiente_aprobacion') {
@@ -9089,12 +9235,13 @@ const server = http.createServer(async (req, res) => {
             const _admins2 = loadAuthUsers().filter(u => u.role === 'admin');
             _admins2.forEach(adm => {
               createNotification(adm.id, {
-                type: 'task_assigned',
+                type: 'reposicion_nueva',   // v180: tipo propio (antes task_assigned)
                 title: 'Solicitud de reposición pendiente de aprobación',
                 message: `${rec.solicitanteNombre||rec.solicitanteId} envió a aprobación: ${rec.articuloNombre} (${rec.articuloRef}).`,
                 relatedTaskId: null,
                 priority: rec.urgencia === 'alta' ? 'urgent' : rec.urgencia === 'media' ? 'medium' : 'low',
-                by: rec.solicitanteNombre||rec.solicitanteId
+                by: rec.solicitanteNombre||rec.solicitanteId,
+                target: { kind: 'reposicion', id: rec.id }
               });
             });
           }
@@ -9181,11 +9328,12 @@ const server = http.createServer(async (req, res) => {
       // Notificar al solicitante
       try {
         createNotification(list[idx].solicitanteId, {
-          type: 'task_assigned',
+          type: 'task_assigned',   // v180: sigue siendo task_assigned — el objeto creado ES una tarea
           title: 'Tarea WWP creada para tu reposición',
           message: `Se creó la tarea "${newTask.title}" en Workforce Platform para tu solicitud de reposición.`,
           relatedTaskId: newTask.id,
-          by: _jpRCT.name || _jpRCT.email || 'Sistema'
+          by: _jpRCT.name || _jpRCT.email || 'Sistema',
+          target: { kind: 'task', id: newTask.id }
         });
       } catch(_nE3) { console.error('D5 notify crear-tarea error:', _nE3.message); }
       res.writeHead(200,{'Content-Type':'application/json'});
@@ -9235,12 +9383,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // GET /api/wwp/notifications — listar notificaciones del usuario actual
+  // v180: retro-derivación de target al LEER para notifs históricas sin el campo
+  // (wt_ → task, sdv_ → sdv, sin id → none). No se persiste — solo enriquece la
+  // respuesta. Este endpoint NO usa ETag (verificado): enriquecer aquí es seguro.
   if (reqPath === '/api/wwp/notifications' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
     const includeMuted = (parsed.query||{}).includeMuted === '1' && jp.role === 'admin';
     const all = loadNotifications().filter(n => n.userId === jp.userId && (includeMuted || !n.muted));
     const limit = parseInt((parsed.query||{}).limit)||60;
-    sendGzipJson(req, res, 200, {ok:true, notifications:all.slice(0, limit)});
+    const out = all.slice(0, limit).map(n => n.target ? n : { ...n, target: notifDeriveTarget(n) });
+    sendGzipJson(req, res, 200, {ok:true, notifications: out});
     return;
   }
 
@@ -9306,17 +9458,38 @@ const server = http.createServer(async (req, res) => {
   }
 
   // DELETE /api/wwp/notifications/orphans — borrar notificaciones del usuario cuya tarea ya no existe
+  // v180 FIX (bug destructor de datos): antes purgaba TODA notif cuyo relatedTaskId
+  // no fuera tarea WWP — incluidas notifs SDV/reposición SIN leer (sus ids nunca están
+  // en wwp-tasks). Ahora solo son huérfanas las kind=task cuya tarea ya no existe;
+  // los demás kinds NUNCA se purgan por esta vía.
   if (reqPath === '/api/wwp/notifications/orphans' && req.method === 'DELETE') {
     const jp = requireJwt(req, res); if (!jp) return;
     const taskIds = new Set(loadWwpTasks().map(t => t.id));
     const all = loadNotifications();
     // Admin limpia las huérfanas de TODOS los usuarios; otros roles, solo las suyas.
-    const orphan  = n => n.relatedTaskId && !taskIds.has(n.relatedTaskId);
+    const orphan  = n => { const t = notifDeriveTarget(n); return t.kind === 'task' && t.id && !taskIds.has(t.id); };
     const inScope = n => jp.role === 'admin' ? true : n.userId === jp.userId;
     const kept = all.filter(n => !(inScope(n) && orphan(n)));
     const removed = all.length - kept.length;
     saveNotifications(kept);
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, removed}));
+    return;
+  }
+
+  // POST /api/wwp/notifications/:id/clicked — instrumentación v180: estampa clickedAt
+  // cuando el usuario rutea desde la notif (panel, SW o arranque en frío). `actionAt`
+  // queda como esqueleto: lo estampará el CTA accionable (v181) cuando se complete.
+  if (reqPath.match(/^\/api\/wwp\/notifications\/notif_[a-z0-9]+\/clicked$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    const nid = reqPath.split('/')[4];
+    const all = loadNotifications();
+    const idx = all.findIndex(n => n.id === nid && n.userId === jp.userId);
+    if (idx >= 0 && !all[idx].clickedAt) {
+      all[idx].clickedAt = new Date().toISOString();
+      saveNotifications(all);
+    }
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ok:true, found: idx >= 0}));
     return;
   }
 
@@ -10638,7 +10811,8 @@ const server = http.createServer(async (req, res) => {
           title: task.title || task.id,
           message: msg.text ? `${firstName}: "${msg.text.length>60?msg.text.slice(0,57)+'…':msg.text}"` : msg.imageUrl ? `${firstName} envió una foto 📷` : `${firstName} envió un video 🎥`,
           relatedTaskId: taskId,
-          by: firstName
+          by: firstName,
+          target: { kind: 'task', id: taskId, ctx: 'chat' }
         });
       } catch(e) {
         console.warn('[chat-notification]', taskId, uid, e.message);
@@ -10809,7 +10983,8 @@ const server = http.createServer(async (req, res) => {
             type:'task_assigned',
             title: task.parentId ? '📋 Subtarea asignada' : '📋 Nueva tarea asignada',
             message:`"${task.title}"${task.odooRef?' · '+task.odooRef:''}${task.dueDate?' · Vence: '+task.dueDate:''}`,
-            relatedTaskId:task.id, priority:task.priority, dueDate:task.dueDate, by:byName
+            relatedTaskId:task.id, priority:task.priority, dueDate:task.dueDate, by:byName,
+            target:{ kind:'task', id:task.id }
           });
         }
         const assigneeAuthId = odooStrToAuthId(task.assignedTo);
@@ -10818,7 +10993,8 @@ const server = http.createServer(async (req, res) => {
             type:'task_assigned',
             title:'📋 Tarea asignada',
             message:`"${task.title}"${task.dueDate?' · Vence: '+task.dueDate:''}`,
-            relatedTaskId:task.id, priority:task.priority, dueDate:task.dueDate, by:byName
+            relatedTaskId:task.id, priority:task.priority, dueDate:task.dueDate, by:byName,
+            target:{ kind:'task', id:task.id }
           });
         }
       } catch(ne) { console.error('Notif error:', ne.message); }
@@ -11173,12 +11349,16 @@ const server = http.createServer(async (req, res) => {
             if (pickList.length > 0) {
               const activos = pickList.filter(p => p.state !== 'cancel');
               if (activos.length === 0) {
+                // v180: andon a ops (pick_incomplete revivida) — la tarea no puede iniciar.
+                // Dedup 1/tarea/día dentro del helper; no persiste tareas (sin riesgo ETag).
+                try { notifyOpsPickIncomplete(tasks[idx].id, realName, 'picking anulado (todos los picks cancelados)'); } catch(e) { silentCatch(e,'notifyOpsPickIncomplete'); }
                 res.writeHead(422, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify({ok: false, error: 'Picking anulado (todos los picks cancelados) — revisar con un administrador antes de despachar'}));
                 return;
               }
               const anyDone = activos.some(p => p.state === 'done');
               if (!anyDone) {
+                try { notifyOpsPickIncomplete(tasks[idx].id, realName, 'picking aún en progreso (ningún pick done)'); } catch(e) { silentCatch(e,'notifyOpsPickIncomplete'); }
                 res.writeHead(422, {'Content-Type': 'application/json'});
                 res.end(JSON.stringify({ok: false, error: 'Picking aún en progreso — completa al menos un pick en Odoo antes de iniciar despacho'}));
                 return;
@@ -11207,7 +11387,7 @@ const server = http.createServer(async (req, res) => {
           if (tasks[idx].sdvId) {
             try {
               const _svL = loadSdv(); const _sv = _svL.find(s => s.id === tasks[idx].sdvId);
-              if (_sv) notifySeller(_sv, { type:'status_changed', title:'🚚 Tu pedido salió a ruta', message:`El despacho de tu solicitud ${_sv.folio||_sv.id} está en camino.` });
+              if (_sv) notifySeller(_sv, { type:'sdv_seller_en_ruta', title:'🚚 Tu pedido salió a ruta', message:`El despacho de tu solicitud ${_sv.folio||_sv.id} está en camino.` });
             } catch(e){ silentCatch(e,'notifySellerEnRuta'); }
           }
         }
@@ -11285,7 +11465,7 @@ const server = http.createServer(async (req, res) => {
                 sdvList[sdvIdx] = sdv;
                 saveSdv(sdvList);
                 console.log('[WWP→SDV] Solicitud marcada como despachada:', sdv.id, 'desde tarea:', tasks[idx].id, _hayCanceladas?'(parcial)':'');
-                try { notifySeller(sdv, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sdv.folio||sdv.id} fue despachada${_hayCanceladas?' (parcial: parte del pedido fue cancelada, revisa con Operaciones)':''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
+                try { notifySeller(sdv, { type:'sdv_seller_despachada', title:'📦 Solicitud despachada', message:`Tu solicitud ${sdv.folio||sdv.id} fue despachada${_hayCanceladas?' (parcial: parte del pedido fue cancelada, revisa con Operaciones)':''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
               } else if (!_tr.ok) {
                 console.warn('[WWP→SDV] Cierre omitido para', sdv.id, '—', _tr.error);
               }
@@ -11339,7 +11519,7 @@ const server = http.createServer(async (req, res) => {
                     _sdv.fechaDespacho = _sdv.fechaDespacho || now;
                     _sdvL[_si] = _sdv;
                     saveSdv(_sdvL);
-                    try { notifySeller(_sdv, { type:'task_completed', title:'📦 Solicitud despachada (parcial)', message:`Tu solicitud ${_sdv.folio||_sdv.id} cierra con entrega parcial: parte del pedido fue cancelada${d.note?' ('+d.note+')':''}. Revisa con Operaciones qué quedó fuera.` }); } catch(e){ silentCatch(e,'notifySellerParcial'); }
+                    try { notifySeller(_sdv, { type:'sdv_seller_parcial', title:'📦 Solicitud despachada (parcial)', message:`Tu solicitud ${_sdv.folio||_sdv.id} cierra con entrega parcial: parte del pedido fue cancelada${d.note?' ('+d.note+')':''}. Revisa con Operaciones qué quedó fuera.` }); } catch(e){ silentCatch(e,'notifySellerParcial'); }
                     console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'cierra despachada (parcial) —', _entregados.length, 'despacho(s) ya entregado(s)');
                   }
                 } else {
@@ -11349,7 +11529,7 @@ const server = http.createServer(async (req, res) => {
                     _sdv.wwpTaskId = null; // liberar el puntero: re-aprobar regenera la tarea (1-clic)
                     _sdvL[_si] = _sdv;
                     saveSdv(_sdvL);
-                    try { notifySeller(_sdv, { type:'status_changed', title:'⚠️ Despacho en pausa', message:`La tarea de tu solicitud ${_sdv.folio||_sdv.id} fue cancelada${d.note?': '+d.note:''}. Operaciones la revisará de nuevo; te avisamos cuando se reapruebe.` }); } catch(e){ silentCatch(e,'notifySellerTaskCancel'); }
+                    try { notifySeller(_sdv, { type:'sdv_seller_pausa', title:'⚠️ Despacho en pausa', message:`La tarea de tu solicitud ${_sdv.folio||_sdv.id} fue cancelada${d.note?': '+d.note:''}. Operaciones la revisará de nuevo; te avisamos cuando se reapruebe.` }); } catch(e){ silentCatch(e,'notifySellerTaskCancel'); }
                     try { notifyOpsNewSdv(_sdv.id, _sdv.clienteNombre || _sdv.odooOrderRef || 'N/A', (_sdv.articulosOdoo||[]).length); } catch(e){ silentCatch(e,'notifyOpsTaskCancel'); }
                     console.log('[WWP→SDV] Espejo de cancelación:', _sdv.id, 'vuelve a pendiente_revision');
                   }
@@ -11433,7 +11613,8 @@ const server = http.createServer(async (req, res) => {
                 relatedTaskId: tasks[idx].id,
                 priority: tasks[idx].priority,
                 dueDate: tasks[idx].dueDate,
-                by: d.by || 'Sistema'
+                by: d.by || 'Sistema',
+                target: { kind: 'task', id: tasks[idx].id }
               });
             }
           }
@@ -11520,7 +11701,8 @@ const server = http.createServer(async (req, res) => {
           createNotification(d.managerId, {
             type:'task_assigned', title:'📋 Tarea asignada',
             message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
-            relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+            relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName,
+            target:{ kind:'task', id:t2.id }
           });
         }
         // Co-managers nuevos → notificar a cada uno
@@ -11530,7 +11712,8 @@ const server = http.createServer(async (req, res) => {
             createNotification(id, {
               type:'task_assigned', title:'📋 Tarea asignada (co-responsable)',
               message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
-              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName,
+              target:{ kind:'task', id:t2.id }
             });
           });
         }
@@ -11540,7 +11723,8 @@ const server = http.createServer(async (req, res) => {
           if (uid) createNotification(uid, {
             type:'task_assigned', title:'📋 Tarea asignada',
             message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
-            relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+            relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName,
+            target:{ kind:'task', id:t2.id }
           });
         }
         // Cambio de assignees → notificar a los nuevos asignados
@@ -11550,7 +11734,8 @@ const server = http.createServer(async (req, res) => {
             createNotification(uid, {
               type:'task_assigned', title:'📋 Tarea asignada',
               message:`"${t2.title}"${t2.dueDate?' · Vence: '+t2.dueDate:''}`,
-              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName,
+              target:{ kind:'task', id:t2.id }
             });
           });
         }
@@ -11577,7 +11762,8 @@ const server = http.createServer(async (req, res) => {
             createNotification(uid, {
               type, title:prefix,
               message:`"${t2.title}" — ${suffix}`,
-              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName
+              relatedTaskId:t2.id, priority:t2.priority, dueDate:t2.dueDate, by:byName,
+              target:{ kind:'task', id:t2.id }
             });
           });
         }
@@ -12185,7 +12371,8 @@ const server = http.createServer(async (req, res) => {
           relatedTaskId: taskId,
           priority: task.priority || null,
           dueDate: task.dueDate || null,
-          by: jp.name
+          by: jp.name,
+          target: { kind: 'task', id: taskId, ctx: 'chat' }
         }));
 
         const sseData = `data: ${JSON.stringify({ event: 'chat_message', taskId, message: msg })}\n\n`;
@@ -14066,7 +14253,7 @@ const server = http.createServer(async (req, res) => {
         ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
         : 'despacho';
       const _sinEncargado = nuevas.some(t => !t.managerId);
-      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblEstructura}.${_sinEncargado?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
+      try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblEstructura}.${_sinEncargado?' Falta asignar encargado.':''}`, relatedTaskId: mainId, target:{ kind:'task', id:mainId } }); } catch(e){ silentCatch(e,'notifyOpsCrearTarea'); }
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, taskId:mainId, tasks:nuevas.map(t=>({id:t.id,type:t.type,titulo:t.title,parentId:t.parentId||null}))}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -14964,9 +15151,9 @@ const server = http.createServer(async (req, res) => {
           sol.statusHistory.push({estado:d.estado,por:jp.userId,nombre:jp.name,at:now,nota:d.nota||d.razon||''});
           // Mantener informada a la vendedora del avance de SU solicitud
           try {
-            if (d.estado === 'en_proceso')      notifySeller(sol, { type:'status_changed', title:'✅ Solicitud aprobada', message:`Tu solicitud ${sol.folio||sol.id} fue recibida por Operaciones y está en preparación. Te avisamos cuando se despache; no tienes que hacer nada más por ahora.` });
-            else if (d.estado === 'rechazada')  notifySeller(sol, { type:'task_rejected',  title:'⛔ Solicitud rechazada', message:`Tu solicitud ${sol.folio||sol.id} fue rechazada${d.razon?': '+d.razon:''}. Puedes corregirla y reenviarla.` });
-            else if (d.estado === 'despachada') notifySeller(sol, { type:'task_completed', title:'📦 Solicitud despachada', message:`Tu solicitud ${sol.folio||sol.id} fue despachada.` });
+            if (d.estado === 'en_proceso')      notifySeller(sol, { type:'sdv_seller_aprobada', title:'✅ Solicitud aprobada', message:`Tu solicitud ${sol.folio||sol.id} fue recibida por Operaciones y está en preparación. Te avisamos cuando se despache; no tienes que hacer nada más por ahora.` });
+            else if (d.estado === 'rechazada')  notifySeller(sol, { type:'sdv_seller_rechazada',  title:'⛔ Solicitud rechazada', message:`Tu solicitud ${sol.folio||sol.id} fue rechazada${d.razon?': '+d.razon:''}. Puedes corregirla y reenviarla.` });
+            else if (d.estado === 'despachada') notifySeller(sol, { type:'sdv_seller_despachada', title:'📦 Solicitud despachada', message:`Tu solicitud ${sol.folio||sol.id} fue despachada.` });
           } catch(e){ silentCatch(e,'notifySeller'); }
         }
         if (d.fechaEntrega!==undefined) sol.fechaEntrega=d.fechaEntrega;
@@ -15015,7 +15202,7 @@ const server = http.createServer(async (req, res) => {
               ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
               : 'despacho';
             const _sinEnc = nuevas.some(t => !t.managerId);
-            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblE}.${_sinEnc?' Falta asignar encargado.':''}`, relatedTaskId: mainId }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
+            try { notifyMany(getOpsUserIds(), { type:'sdv_task_created', title:'🆕 Tarea de despacho por asignar', message:`${sol.folio||sol.id} · ${(sol.tipoSolicitud==='solicitud_especial'&&sol.asunto)?sol.asunto:(sol.clienteNombre||sol.odooOrderRef||'')} — ${_lblE}.${_sinEnc?' Falta asignar encargado.':''}`, relatedTaskId: mainId, target:{ kind:'task', id:mainId } }); } catch(e){ silentCatch(e,'notifyOpsTaskCreated'); }
             console.log('[SDV→WWP] Aprobación 1-clic:', nuevas.length, 'tarea(s) para solicitud', sol.id, '(' + _lblE + ')');
           } catch (e) { console.error('[SDV→WWP] Error creando tarea en aprobación 1-clic:', e.message); }
         }
@@ -15058,7 +15245,7 @@ const server = http.createServer(async (req, res) => {
               _cambiados.forEach(k => { t[_campoMap[k]] = sol[k]; });
               t.updatedAt = now;
               _tocadas++;
-              try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_updated', title:'✏️ Datos actualizados desde la solicitud', message:`La solicitud ${sol.folio||sol.id} se actualizó (${_cambiados.join(', ')}). Revisa la tarea "${t.title}".`, relatedTaskId:t.id }); } catch(e){ silentCatch(e,'notifyPropagacion'); }
+              try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_updated', title:'✏️ Datos actualizados desde la solicitud', message:`La solicitud ${sol.folio||sol.id} se actualizó (${_cambiados.join(', ')}). Revisa la tarea "${t.title}".`, relatedTaskId:t.id, target:{ kind:'task', id:t.id } }); } catch(e){ silentCatch(e,'notifyPropagacion'); }
             }
           });
           if (_tocadas) saveWwpTasks(_tasks);
@@ -15347,7 +15534,8 @@ const server = http.createServer(async (req, res) => {
         recipients.forEach(uid => createNotification(uid, {
           type:'task_assigned', title:'✅ Auxiliar terminó',
           message:`${jp.name} terminó su parte en "${task.title}"${task.seq?(' (#'+String(task.seq).padStart(4,'0')+')'):''}`,
-          relatedTaskId:id, by:jp.name }));
+          relatedTaskId:id, by:jp.name,
+          target:{ kind:'task', id:id } }));
       } else {
         delete task.auxDone[jp.userId];
       }
@@ -16409,7 +16597,7 @@ const server = http.createServer(async (req, res) => {
             t.statusHistory.push({ status:'cancelled', date:ahora, by:jp.userId, note:'Cancelada al cancelar la solicitud SDV '+(sdv.folio||sdvId) });
             tocadas++;
             try { appendAuditLog('task_status_change', { taskId:t.id, taskTitle:t.title, prevStatus:prev, newStatus:'cancelled', by:jp.userId, note:'Cascada por cancelación de SDV '+(sdv.folio||sdvId) }); } catch(e) { silentCatch(e,'auditCascadeSdv'); }
-            try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_cancelled', title:'🚫 Tarea cancelada', message:`La tarea "${t.title}" fue cancelada porque se canceló la solicitud ${sdv.folio||sdvId}.`, relatedTaskId:t.id }); } catch(e) { silentCatch(e,'notifyCascadeSdv'); }
+            try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_cancelled', title:'🚫 Tarea cancelada', message:`La tarea "${t.title}" fue cancelada porque se canceló la solicitud ${sdv.folio||sdvId}.`, relatedTaskId:t.id, target:{ kind:'task', id:t.id } }); } catch(e) { silentCatch(e,'notifyCascadeSdv'); }
           }
         });
         if (tocadas) saveWwpTasks(tasks);
@@ -16426,7 +16614,7 @@ const server = http.createServer(async (req, res) => {
         cancelada_por: jp.name
       });
       // Avisar a la vendedora (si no fue ella quien canceló)
-      try { if (jp.userId !== sdv.creadoPor) notifySeller(sdv, { type:'task_cancelled', title:'🚫 Solicitud cancelada', message:`Tu solicitud ${sdv.folio||sdv.id} fue cancelada${d.motivo?': '+d.motivo:''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
+      try { if (jp.userId !== sdv.creadoPor) notifySeller(sdv, { type:'sdv_seller_cancelada', title:'🚫 Solicitud cancelada', message:`Tu solicitud ${sdv.folio||sdv.id} fue cancelada${d.motivo?': '+d.motivo:''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
       // Si esta SDV tenía solicitudes adicionales vinculadas y activas, no se cancelan
       // en cascada (puede haber trabajo físico en curso) pero sí se avisa — sin esto
       // quedarían huérfanas y nadie se entera hasta que el cliente pregunte.
@@ -16590,7 +16778,7 @@ const server = http.createServer(async (req, res) => {
         if (!_trR.ok) console.warn('[SDV] Reactivación: transición no aplicada —', _trR.error);
         const _siR = sdvList.findIndex(s => s.id === sdv.id);
         if (_siR >= 0) { sdvList[_siR] = sdv; saveSdv(sdvList); }
-        try { notifySeller(sdv, { type:'status_changed', title:'🔄 Solicitud reactivada', message:`Tu solicitud ${sdv.folio||sdv.id} fue reactivada; se procesará el ${d.cuando_procesar}.` }); } catch(e){ silentCatch(e,'notifySellerReact'); }
+        try { notifySeller(sdv, { type:'sdv_seller_reactivada', title:'🔄 Solicitud reactivada', message:`Tu solicitud ${sdv.folio||sdv.id} fue reactivada; se procesará el ${d.cuando_procesar}.` }); } catch(e){ silentCatch(e,'notifySellerReact'); }
       } catch(e) { silentCatch(e,'reactSdvLink'); }
 
       // Actualizar reactivación
@@ -17447,51 +17635,30 @@ function auditLogSdvEvent(tipo_evento, sdv_id, usuario_id, usuario_nombre, detal
 }
 
 /**
- * Notifica a Ops cuando ocurre un evento de SDV (cancelación, reactivación, etc)
- * Guarda en bandeja + envía PUSH si está online
+ * Notifica a Ops cuando ocurre un evento de SDV (cancelación, reactivación, etc).
+ * v180 — MIGRADA a createNotification (canal único): antes escribía a
+ * ops-notifications.json (carta muerta que NINGÚN endpoint leía — las notifs no
+ * llegaban al panel, solo un web push a supervisores). Ahora aterriza en
+ * wwp-notifications.json para TODOS los ops (admin+manager) con target kind=sdv,
+ * y hereda SSE/WS/push/preferencias del canal estándar. El archivo histórico
+ * ops-notifications.json se deja de escribir pero NO se borra (forense).
+ * Tipos en SUPERVISOR_SKIP_TYPES: los destinatarios ya incluyen a los supervisores.
  */
 async function notifySdvToOps(sdv_id, tipo, cliente, detalles = {}) {
-  const ahora = new Date().toISOString();
-  const mensaje = {
-    id: 'notif_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    sdv_id,
-    tipo, // 'sdv_cancelada' | 'reactivacion_pendiente'
-    cliente,
-    detalles,
-    leido: false,
-    timestamp: ahora
-  };
-
-  // Guardar en bandeja de Ops (usar archivo de notificaciones)
-  const notifs = loadJson(path.join(DATA_DIR, 'ops-notifications.json'), []);
-  notifs.push(mensaje);
-  saveJson(path.join(DATA_DIR, 'ops-notifications.json'), notifs);
-
-  // PUSH a supervisores/ops que tengan la categoría SDV en nivel 'all'
-  if (webpush && supervisorUserIds.length > 0) {
-    const meta = notifMetaFor(tipo);
-    const title = tipo === 'sdv_cancelada' ? 'SDV cancelada'
-      : tipo === 'reactivacion_procesada' ? 'Reactivación procesada'
-      : 'Reactivación pendiente';
-    const body = `${cliente}: ${detalles.motivo || detalles.nueva_fecha_solicitada || detalles.cuando || ''}`;
-    const payloadObj = {
-      appTitle: 'Ops AT',
+  const title = tipo === 'sdv_cancelada' ? '🚫 SDV cancelada'
+    : tipo === 'reactivacion_procesada' ? '✅ Reactivación procesada'
+    : '🔄 Reactivación pendiente';
+  const body = `${cliente || 'Cliente'}: ${detalles.motivo || detalles.nueva_fecha_solicitada || detalles.cuando || ''}`.trim();
+  try {
+    notifyMany(getOpsUserIds(), {
+      type: tipo, // 'sdv_cancelada' | 'reactivacion_pendiente' | 'reactivacion_procesada' (ya en NOTIF_META cat sdv)
       title,
       message: body,
-      body,
-      id: mensaje.id,
-      type: tipo,
-      urgency: meta.urg,
       relatedTaskId: detalles.nueva_tarea_id || null,
-      tag: sdv_id + '-' + tipo,
-      url: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html',
-      actionUrl: detalles.nueva_tarea_id ? '/historial.html?task=' + encodeURIComponent(detalles.nueva_tarea_id) : '/historial.html'
-    };
-    supervisorUserIds.forEach(uid => {
-      if (effectiveNotifLevel(uid, meta.cat, meta.urg) === 'all') sendWebPushToUser(uid, payloadObj);
+      target: { kind: 'sdv', id: sdv_id },
+      context: detalles && Object.keys(detalles).length ? detalles : null
     });
-  }
-
-  return mensaje.id;
+  } catch (e) { silentCatch(e, 'notifySdvToOps'); }
+  return null;
 }
 

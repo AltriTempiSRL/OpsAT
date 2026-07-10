@@ -277,13 +277,8 @@ function _loadXlsx(cb){
 [data-theme='dark'] .item-loc-avail.loc-zero{color:var(--text-muted);background:var(--surface-3)}
 [data-theme='dark'] .assign-multi-row.checked{background:var(--blue-bg)}
 
-/* Notificaciones */
-[data-theme='dark'] .notif-item.unread{background:var(--blue-bg)}
-[data-theme='dark'] .notif-item.unread.ni-critical{background:var(--red-bg)}
-[data-theme='dark'] .notif-item.unread.ni-alert{background:var(--amber-bg)}
-[data-theme='dark'] .notif-item.unread.ni-success{background:var(--green-bg)}
-[data-theme='dark'] .notif-item.unread.ni-chat{background:var(--purple-bg)}
-[data-theme='dark'] .notif-item.unread:hover{background:#1a3050}
+/* Notificaciones: v181 sin overrides dark — el rail/fondo usan tokens (--red-bg,
+   --*-dot) que ya se redefinen en [data-theme='dark']. */
 
 /* Presencia */
 [data-theme='dark'] .presence-btn.offline{background:rgba(107,114,128,.25);color:#94a3b8}
@@ -3300,23 +3295,24 @@ body{font-family:var(--font);min-height:100dvh}
 .notif-count{font-size:10px;font-weight:800;color:var(--text-3);background:var(--surface-3);border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:1px}
 .notif-list{overflow-y:auto;flex:1;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .notif-item{
-  display:flex;gap:10px;padding:11px 14px;cursor:pointer;
+  display:flex;gap:10px;padding:12px 12px 12px 14px;cursor:pointer;
   border-bottom:1px solid var(--border);transition:background .12s;
   align-items:flex-start;position:relative;color:var(--text);
-  border-left:3px solid transparent;
 }
 .notif-item:hover{background:var(--surface-2)}
-.notif-item.unread{background:var(--blue-bg);border-left-color:var(--blue-dot)}
-.notif-item.unread:hover{background:var(--blue-bg);filter:brightness(.97)}
-/* Banda lateral de color por urgencia (solo no-leídas) */
-.notif-item.unread.ni-critical{background:var(--red-bg);border-left-color:var(--red-dot)}
-.notif-item.unread.ni-critical:hover{background:var(--red-bg);filter:brightness(.97)}
-.notif-item.unread.ni-alert{background:var(--amber-bg);border-left-color:var(--amber-dot)}
-.notif-item.unread.ni-alert:hover{background:var(--amber-bg);filter:brightness(.97)}
-.notif-item.unread.ni-success{background:var(--green-bg);border-left-color:var(--green-dot)}
-.notif-item.unread.ni-success:hover{background:var(--green-bg);filter:brightness(.97)}
-.notif-item.unread.ni-chat{background:var(--purple-bg);border-left-color:var(--purple-dot)}
-.notif-item.unread.ni-chat:hover{background:var(--purple-bg);filter:brightness(.97)}
+/* v181 — rail de urgencia 3px: SOBREVIVE al estado leído (baja a 30%).
+   Solo la crítica no-leída lleva fondo tintado — muere el arcoíris. */
+.notif-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+.notif-item.u-critical::before{background:var(--red-dot)}
+.notif-item.u-alert::before{background:var(--amber-dot)}
+.notif-item.u-success::before{background:var(--green-dot)}
+.notif-item.u-chat::before{background:var(--purple-dot)}
+.notif-item.u-coord::before{background:var(--orange-dot)}
+.notif-item:not(.unread)::before{opacity:.3}
+.notif-item:not(.unread) .notif-title{font-weight:600;color:var(--text-2)}
+.notif-item:not(.unread) .notif-icon-wrap{opacity:.55}
+.notif-item.u-critical.unread{background:var(--red-bg)}
+.notif-item.u-critical.unread:hover{filter:brightness(.98)}
 /* Ícono de color reemplaza el punto */
 .notif-icon-wrap{
   width:30px;height:30px;border-radius:8px;flex-shrink:0;
@@ -3327,9 +3323,42 @@ body{font-family:var(--font);min-height:100dvh}
 }
 .notif-icon-wrap svg,.notif-icon-wrap i{width:15px;height:15px;stroke:currentColor;display:block}
 .notif-content{flex:1;min-width:0}
-.notif-title{font-size:13px;font-weight:700;color:var(--text);line-height:1.3}
-.notif-msg{font-size:12px;color:var(--text-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.notif-time{font-size:10px;color:var(--text-3);margin-top:4px}
+.notif-row1{display:flex;align-items:baseline;gap:8px}
+.notif-title{font-size:13px;font-weight:800;color:var(--text);line-height:1.3;flex:1;min-width:0}
+.notif-msg{font-size:12px;color:var(--text-2);margin-top:3px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.notif-time{font-size:10px;color:var(--text-3);flex-shrink:0}
+/* Meta: categoría + DESTINO del clic (affordance de navegación) */
+.notif-meta{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-3);margin-top:5px;flex-wrap:wrap}
+.notif-meta svg{width:11px;height:11px;flex-shrink:0;stroke:currentColor;display:block}
+.notif-dest{display:inline-flex;align-items:center;gap:3px;font-weight:700;color:var(--link)}
+.notif-item:hover .notif-dest{text-decoration:underline}
+/* Acciones inline (máx 2: primaria + ghost). v182 podrá pintar actions[] del server. */
+.notif-acts{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.notif-act-btn{display:inline-flex;align-items:center;gap:5px;border-radius:8px;padding:6px 13px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid transparent;min-height:30px;font-family:inherit}
+.notif-act-btn svg{width:12px;height:12px;stroke:currentColor;display:block}
+.notif-act-pri{background:var(--accent);color:#fff}
+.notif-act-pri:hover{background:var(--accent-hover)}
+.notif-act-gh{background:var(--surface);color:var(--text-2);border-color:var(--border)}
+.notif-act-gh:hover{background:var(--surface-3);color:var(--text)}
+/* Estado terminal "acción hecha" (lo pinta v182 con actionState; CSS listo) */
+.notif-done{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:11px;font-weight:700;color:var(--green-text);background:var(--green-bg);border-radius:8px;padding:5px 11px}
+.notif-done svg{width:12px;height:12px;stroke:currentColor;display:block}
+/* Columna derecha: dot no-leída + marcar leída al hover (visible en touch) */
+.notif-right{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;padding-top:2px}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--blue-dot)}
+.notif-item.u-critical .notif-dot{background:var(--red-dot)}
+.notif-item.u-alert .notif-dot,.notif-item.u-coord .notif-dot{background:var(--amber-dot)}
+.notif-mkread{background:none;border:none;cursor:pointer;color:var(--text-3);width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s,background .12s;padding:0}
+.notif-mkread svg{width:13px;height:13px;stroke:currentColor;display:block}
+.notif-item:hover .notif-mkread{opacity:1}
+.notif-mkread:hover{background:var(--surface-3);color:var(--green-dot)}
+@media (hover:none){.notif-mkread{opacity:.45}}
+/* Encabezados de grupo — dos niveles: acción arriba, información abajo */
+.notif-group-hdr{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:7px;background:var(--surface);padding:9px 14px 7px;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.notif-group-hdr svg{width:13px;height:13px;flex-shrink:0;stroke:currentColor;display:block}
+.notif-group-hdr.g-accion{color:var(--amber-text)}
+.notif-group-hdr.g-info{color:var(--text-3)}
+.notif-group-n{background:var(--red-dot);color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px;line-height:1}
 .notif-empty{text-align:center;padding:40px 20px;color:var(--text-3);font-size:13px}
 /* — Campana: animación al llegar nueva notif — */
 @keyframes notif-ring{0%,100%{transform:rotate(0) translateY(0)}10%{transform:rotate(-22deg)}25%{transform:rotate(20deg)}40%{transform:rotate(-14deg)}55%{transform:rotate(10deg)}70%{transform:rotate(-5deg)}}
@@ -4514,7 +4543,10 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
   /* Touch targets ≥44px */
   .notif-hdr-ico{width:44px;height:44px}
   .notif-chip{min-height:38px;padding:8px 14px}
-  .notif-item{min-height:56px;padding:13px 14px}
+  .notif-item{min-height:56px;padding:13px 12px 13px 14px}
+  /* v181: acciones inline a 44px y "marcar leída" siempre visible (no hay hover en touch) */
+  .notif-act-btn{min-height:44px;padding:8px 16px;font-size:12px}
+  .notif-mkread{opacity:.45;width:34px;height:34px}
 }
 @keyframes notif-sheet-up{0%{transform:translateY(24px);opacity:0}100%{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.notif-panel.open{animation:none!important}}
@@ -7578,16 +7610,14 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             <i id="notif-snd-icon" data-lucide="bell-off" style="width:13px;height:13px;stroke:currentColor;display:inline-block"></i>
             <span id="notif-snd-label">Sonido</span>
           </button>
-          <select class="notif-snd-sel" id="notif-snd-sel" onchange="_notifChangeTone(this.value)">
-            <option value="campana">Campana</option>
-            <option value="melodia">Melodía</option>
-            <option value="radio">Ding ×3</option>
-            <option value="suave">Ding-dong</option>
-            <option value="pop">Chirp</option>
-            <option value="alerta">Alerta</option>
-          </select>
+          <div class="notif-pref-segs" id="notif-vol-segs" role="group" aria-label="Volumen">
+            <button class="notif-pref-seg" data-vol="0.6" onclick="_notifSetVol(this)">Bajo</button>
+            <button class="notif-pref-seg" data-vol="1" onclick="_notifSetVol(this)">Normal</button>
+            <button class="notif-pref-seg" data-vol="1.5" onclick="_notifSetVol(this)">Alto</button>
+          </div>
           <button class="notif-snd-test" onclick="_notifTestTone()">Probar</button>
         </div>
+        <div class="notif-set-hint">Sonidos fijos por urgencia — todo el equipo oye el mismo lenguaje. "Probar" reproduce los 5.</div>
         <div class="notif-snd-hours" id="notif-snd-hours" style="display:none">
           <span>Sonar entre</span>
           <input type="time" id="notif-snd-from" onchange="_notifSndHoursChange()">
@@ -8981,7 +9011,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v179';
+var APP_BUILD = 'v181';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9469,10 +9499,31 @@ function showForgot() { showScreen('screen-forgot'); document.getElementById('fo
 // ═══════════════════════════════════════════════════════════════════════
 // SESSION BOOTSTRAP
 // ═══════════════════════════════════════════════════════════════════════
+// v180 — push en frío: captura ?notif=<id> / ?task=<id> (los pone el SW al abrir la
+// ventana desde un notificationclick sin app abierta) y limpia la URL para que los
+// reloads del version-gate no re-naveguen. Antes SOLO se procesaba ?reset= y el clic
+// de un push con la app cerrada aterrizaba en la pantalla inicial sin rutear.
+function _consumeStartupNotifParams() {
+  try {
+    var params = new URLSearchParams(location.search);
+    var nid = params.get('notif');
+    var tid = params.get('task');
+    if (!nid && !tid) return null;
+    try { history.replaceState(null, '', location.pathname); } catch(e) {}
+    return { notifId: nid || null, taskId: tid || null };
+  } catch(e) { return null; }
+}
+function _routeStartupNotifParams(pending) {
+  if (!pending || !_token) return;
+  // Pequeño delay: deja asentar enterApp/setHistorialUser (nav, secciones) antes de rutear.
+  setTimeout(function(){ try { routeNotifClick(pending); } catch(e) {} }, 600);
+}
+
 function checkStoredSession() {
   var params = new URLSearchParams(location.search);
   var rt = params.get('reset');
   if (rt) { _resetToken = rt; showScreen('screen-reset'); return; }
+  var _pendingNotif = _consumeStartupNotifParams();
   var stored = localStorage.getItem('wwp_auth') || sessionStorage.getItem('wwp_auth');
   if (stored) {
     try {
@@ -9490,6 +9541,9 @@ function checkStoredSession() {
             if (isHistorialUser(_user)) { setHistorialUser(); }
             enterApp();
           }
+          // Rutear DESPUÉS del re-aplicado: setHistorialUser navega a la primera
+          // sección permitida y pisaría la navegación del router si fuera antes.
+          _routeStartupNotifParams(_pendingNotif);
         });
         return;
       }
@@ -9497,6 +9551,7 @@ function checkStoredSession() {
         if (ok) {
           if (isHistorialUser(_user)) { setHistorialUser(); }
           enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+          _routeStartupNotifParams(_pendingNotif);
         } else { showScreen('screen-login'); }
       });
       return;
@@ -9822,7 +9877,12 @@ function updateUserPresenceInList(userId, presenceStatus) {
 var _notifPanelOpen = false;
 var _audioCtx = null;
 var _notifSoundEnabled = localStorage.getItem('wwp_notif_sound') !== 'off';
-var _notifSoundTone    = localStorage.getItem('wwp_notif_tone') || 'campana';
+// v181 — el usuario ya no elige tono (el sonido lo decide la urgencia, familia
+// "Atrio"); elige VOLUMEN: Bajo .6 · Normal 1 · Alto 1.5. Migración limpia:
+// se elimina la clave del tono viejo para no dejar basura en localStorage.
+var _notifSoundVol = parseFloat(localStorage.getItem('wwp_notif_vol') || '1');
+if ([0.6, 1, 1.5].indexOf(_notifSoundVol) === -1) _notifSoundVol = 1;
+try { localStorage.removeItem('wwp_notif_tone'); } catch(e) {}
 var _lastUnread        = null; // null = primera carga, no suena
 var _notifFilterCat    = 'all'; // filtro de categoría — por sesión, cada apertura arranca en Todas
 var _notifUnreadOnly   = localStorage.getItem('wwp_notif_unread_only') === '1';
@@ -9831,11 +9891,12 @@ var _notifPrefs        = null;  // {tareas:'all'|'panel'|'off', ...} — cargado
 try { _notifPrefs = JSON.parse(localStorage.getItem('wwp_notif_prefs') || 'null'); } catch(e) {}
 var _notifPrefsSaveTimer = null;
 var _NOTIF_PREF_ROWS = [
-  { id:'tareas',    label:'Tareas' },
-  { id:'sdv',       label:'Solicitudes SDV' },
-  { id:'operacion', label:'Operación' },
-  { id:'chat',      label:'Chat' },
-  { id:'sistema',   label:'Sistema' }
+  { id:'tareas',       label:'Tareas' },
+  { id:'sdv',          label:'Solicitudes SDV' },
+  { id:'operacion',    label:'Operación' },
+  { id:'chat',         label:'Chat' },
+  { id:'coordinacion', label:'Coordinación' }, // v180: piso 'panel' — el server no la deja en off total
+  { id:'sistema',      label:'Sistema' }
 ];
 var _NOTIF_PREF_OPTS = [
   { id:'all',   label:'Todo' },
@@ -9854,13 +9915,18 @@ var _NOTIF_PREF_OPTS = [
   document.addEventListener('keydown', _unlockAudio, {once: true});
 })();
 
-// Mapa de tono por tipo de notificación
-var _NOTIF_TONE_MAP = {
-  task_assigned: 'radio', subtask_assigned: 'radio',
-  comment_new: 'alarma', task_chat: 'alarma',
-  task_overdue: 'urgente', task_rejected: 'urgente',
-  task_completed: 'suave', task_validated: 'suave', status_changed: 'suave'
-};
+// v181 — el sonido lo decide la URGENCIA estampada por el servidor, no el tipo
+// (el mapa por-tipo _NOTIF_TONE_MAP se retiró: pisaba la elección del usuario y
+// no formaba un lenguaje). Chat y coordinación llevan el percusivo "toc-toc":
+// te habla un humano, no el sistema.
+function _notifSoundOf(n) {
+  var cat = notifCategory(n);
+  if (cat === 'chat' || cat === 'coordinacion') return 'chat';
+  var u = notifUrgency(n);
+  return (u === 'critical' || u === 'alert' || u === 'success') ? u : 'info';
+}
+// Vibración diferenciada por sonido (Android): crítico insiste, humano toca suave.
+var _NOTIF_VIBRATE = { critical:[200,80,200,80,200], alert:[120,60,120], chat:[60,40,60], success:[80], info:[80] };
 
 // ═══ ESPEJO de NOTIF_META en proxy.js (~4453) — mantener en sincronía (igual que APP_BUILD) ═══
 // El servidor estampa category/urgency en cada notif nueva; este espejo deriva
@@ -9880,6 +9946,14 @@ var _NOTIF_META = {
   sdv_additional_manager:{cat:'sdv',urg:'info'},
   reactivacion_pendiente:{cat:'sdv',urg:'alert'}, reactivacion_procesada:{cat:'sdv',urg:'success'},
   dev_en_ruta:{cat:'sdv',urg:'info'},
+  // canal vendedora (v180) — urgencia = la del tipo que reusaban antes
+  sdv_seller_aprobada:{cat:'sdv',urg:'info'}, sdv_seller_rechazada:{cat:'sdv',urg:'critical'},
+  sdv_seller_en_ruta:{cat:'sdv',urg:'info'}, sdv_seller_despachada:{cat:'sdv',urg:'success'},
+  sdv_seller_parcial:{cat:'sdv',urg:'success'},
+  // v181: pausa sube info→alert — una pausa de SU pedido es la señal más accionable
+  // del ciclo para la vendedora (precursor de cancelación; a menudo ella destraba)
+  sdv_seller_pausa:{cat:'sdv',urg:'alert'},
+  sdv_seller_cancelada:{cat:'sdv',urg:'alert'}, sdv_seller_reactivada:{cat:'sdv',urg:'info'},
   // operacion
   pick_incomplete:{cat:'operacion',urg:'critical'}, packing_blocked:{cat:'operacion',urg:'critical'},
   damage_detected:{cat:'operacion',urg:'critical'}, cancel_blocked:{cat:'operacion',urg:'critical'},
@@ -9890,18 +9964,21 @@ var _NOTIF_META = {
   reposicion_rechazada:{cat:'operacion',urg:'alert'},
   // chat
   comment_new:{cat:'chat',urg:'info'}, task_chat:{cat:'chat',urg:'info'},
+  // tareas (v180): re-examen LMS
+  curso_retake:{cat:'tareas',urg:'info'},
   // sistema
   system_sync_error:{cat:'sistema',urg:'critical'}, agent_routine:{cat:'sistema',urg:'info'},
   lunch_ended:{cat:'sistema',urg:'info'}, user_notification:{cat:'sistema',urg:'info'}
 };
 
 var _NOTIF_CATS = [
-  { id:'all',       label:'Todas'     },
-  { id:'tareas',    label:'Tareas'    },
-  { id:'sdv',       label:'SDV'       },
-  { id:'operacion', label:'Operación' },
-  { id:'chat',      label:'Chat'      },
-  { id:'sistema',   label:'Sistema'   }
+  { id:'all',          label:'Todas'        },
+  { id:'tareas',       label:'Tareas'       },
+  { id:'sdv',          label:'SDV'          },
+  { id:'operacion',    label:'Operación'    },
+  { id:'chat',         label:'Chat'         },
+  { id:'coordinacion', label:'Coordinación' }, // v180: groundwork — tipos llegan en v182
+  { id:'sistema',      label:'Sistema'      }
 ];
 
 function _notifCategoryFallback(type) {
@@ -9956,6 +10033,16 @@ var _NOTIF_ICONS = {
   reactivacion_pendiente : { icon:'rotate-ccw',  cls:'ni-alert', bg:'--amber-bg', color:'--amber-text'  },
   reactivacion_procesada : { icon:'check-circle',cls:'ni-success',bg:'--green-bg',color:'--green-text'  },
   dev_en_ruta      : { icon:'truck',          cls:'ni-info',    bg:'--sky-bg',    color:'--sky-text'    },
+  // Canal vendedora (v180)
+  sdv_seller_aprobada    : { icon:'check-circle', cls:'ni-info',    bg:'--blue-bg',  color:'--blue-text'  },
+  sdv_seller_rechazada   : { icon:'x-circle',     cls:'ni-critical',bg:'--red-bg',   color:'--red-text'   },
+  sdv_seller_en_ruta     : { icon:'truck',        cls:'ni-info',    bg:'--sky-bg',   color:'--sky-text'   },
+  sdv_seller_despachada  : { icon:'package',      cls:'ni-success', bg:'--green-bg', color:'--green-text' },
+  sdv_seller_parcial     : { icon:'package',      cls:'ni-success', bg:'--green-bg', color:'--green-text' },
+  sdv_seller_pausa       : { icon:'pause-circle', cls:'ni-info',    bg:'--amber-bg', color:'--amber-text' },
+  sdv_seller_cancelada   : { icon:'slash',        cls:'ni-alert',   bg:'--amber-bg', color:'--amber-text' },
+  sdv_seller_reactivada  : { icon:'rotate-ccw',   cls:'ni-info',    bg:'--sky-bg',   color:'--sky-text'   },
+  curso_retake           : { icon:'graduation-cap',cls:'ni-info',   bg:'--blue-bg',  color:'--blue-text'  },
   // Operación (picking/empaque/stock/reposición)
   pick_incomplete  : { icon:'alert-triangle', cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
   packing_blocked  : { icon:'shield-alert',   cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
@@ -9976,61 +10063,63 @@ var _NOTIF_ICONS = {
 };
 var _NOTIF_ICON_DEFAULT = { icon:'bell', cls:'ni-info', bg:'--sky-bg', color:'--sky-text' };
 
-function _playTone(tone) {
+// ═══ v181 — Familia sonora "Atrio" (Web Audio, sin archivos) ═══════════════
+// Campana cálida: triángulo + armónico seno de octava, afinada en Re mayor
+// pentatónico (colisiones entre avisos seguidos suenan musicales), banda
+// 600–1800 Hz (audible en almacén sin estridencia en oficina), ataque 8–12 ms
+// (4 ms percusivo), decaimiento exponencial a 0.001. Significado direccional:
+// sube = va bien · baja = atención · pulsa = urgente · percute = te hablan ·
+// gota = info. Aprobada por Gabriel sobre el mockup 2026-07-10.
+function _sndNote(o) {
+  var ctx = _audioCtx;
+  var now = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var g = ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.type = o.type || 'triangle';
+  osc.frequency.setValueAtTime(o.f, now + o.t);
+  if (o.fEnd) osc.frequency.exponentialRampToValueAtTime(o.fEnd, now + o.t + (o.glide || o.dur * 0.6));
+  var atk = (o.atk != null) ? o.atk : 0.010;
+  var v = Math.min(o.vol * _notifSoundVol, 0.32); // techo duro: nunca ensordecer
+  g.gain.setValueAtTime(0.0001, now + o.t);
+  g.gain.linearRampToValueAtTime(v, now + o.t + atk);
+  g.gain.exponentialRampToValueAtTime(0.001, now + o.t + o.dur);
+  osc.start(now + o.t);
+  osc.stop(now + o.t + o.dur + 0.02);
+}
+var _NOTIF_SOUNDS = {
+  info: function(){ // Gota — 1 nota suave (La5): lo informativo apenas se anuncia
+    _sndNote({f:880,    type:'triangle', t:0,    dur:0.38, vol:0.14});
+    _sndNote({f:1760,   type:'sine',     t:0,    dur:0.30, vol:0.045});
+  },
+  success: function(){ // Resuelto — quinta ascendente Re5→La5: cierre positivo
+    _sndNote({f:587.33, type:'triangle', t:0,    dur:0.40, vol:0.15});
+    _sndNote({f:880,    type:'triangle', t:0.16, dur:0.50, vol:0.16});
+    _sndNote({f:1760,   type:'sine',     t:0.16, dur:0.40, vol:0.04});
+  },
+  alert: function(){ // Atención — cuarta descendente Si5→Fa#5: "algo necesita de ti"
+    _sndNote({f:987.77, type:'triangle', t:0,    dur:0.38, vol:0.19});
+    _sndNote({f:1975.5, type:'sine',     t:0,    dur:0.25, vol:0.05});
+    _sndNote({f:739.99, type:'triangle', t:0.22, dur:0.45, vol:0.17});
+    _sndNote({f:1479.98,type:'sine',     t:0.22, dur:0.30, vol:0.045});
+  },
+  critical: function(){ // Urgente — 3 pulsos del acorde tenso La5+Re6 (+refuerzo Re5)
+    [0, 0.19, 0.38].forEach(function(p){
+      _sndNote({f:880,     type:'triangle', t:p, dur:0.16, vol:0.22});
+      _sndNote({f:1174.66, type:'triangle', t:p, dur:0.16, vol:0.16});
+      _sndNote({f:587.33,  type:'sine',     t:p, dur:0.16, vol:0.06});
+    });
+  },
+  chat: function(){ // Toc-toc — 2 golpes percusivos con bend: inconfundiblemente humano
+    _sndNote({f:640, type:'sine', t:0,    dur:0.13, vol:0.20, fEnd:560, glide:0.07, atk:0.004});
+    _sndNote({f:720, type:'sine', t:0.15, dur:0.13, vol:0.18, fEnd:630, glide:0.07, atk:0.004});
+  }
+};
+function _playSound(key) {
   try {
     if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (_audioCtx.state === 'suspended') _audioCtx.resume();
-    var ctx = _audioCtx;
-    var now = ctx.currentTime;
-    function note(freq, type, start, dur, vol, freqEnd) {
-      var o = ctx.createOscillator(); var g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = type; o.frequency.setValueAtTime(freq, now + start);
-      if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, now + start + dur * 0.85);
-      g.gain.setValueAtTime(0.001, now + start);
-      g.gain.linearRampToValueAtTime(vol, now + start + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
-      o.start(now + start); o.stop(now + start + dur);
-    }
-    if (tone === 'suave') {
-      // Ding-dong ascendente — tarea completada/validada
-      note(880,  'triangle', 0,    0.55, 0.18);
-      note(1100, 'triangle', 0.28, 0.55, 0.15);
-    } else if (tone === 'campana') {
-      // Campana rica con armónico — tono por defecto
-      note(1047, 'triangle', 0, 1.0, 0.20);
-      note(1568, 'triangle', 0, 0.7, 0.10);
-      note(2093, 'sine',     0, 0.4, 0.05);
-    } else if (tone === 'pop') {
-      // Chirp ascendente brillante
-      note(880,  'sine', 0,    0.35, 0.22, 1760);
-      note(1320, 'sine', 0.18, 0.35, 0.16, 2200);
-    } else if (tone === 'radio') {
-      // Melodía 3 notas ascendentes — tarea asignada
-      note(660,  'square', 0,    0.20, 0.12);
-      note(880,  'square', 0.23, 0.20, 0.12);
-      note(1100, 'square', 0.46, 0.30, 0.12);
-    } else if (tone === 'alarma') {
-      // Doble ping — comentario/mensaje
-      note(1319, 'sine', 0,    0.40, 0.20);
-      note(1047, 'sine', 0,    0.40, 0.08);
-      note(1319, 'sine', 0.50, 0.40, 0.18);
-      note(1047, 'sine', 0.50, 0.40, 0.07);
-    } else if (tone === 'urgente') {
-      // Sirena doble descendente — vencida/rechazada
-      note(1600, 'sawtooth', 0,    0.35, 0.22, 800);
-      note(1600, 'sawtooth', 0.42, 0.35, 0.20, 800);
-      note(1600, 'sawtooth', 0.84, 0.30, 0.17, 900);
-    } else if (tone === 'melodia') {
-      // Do-Mi-Sol ascendente — tono festivo
-      note(523,  'triangle', 0,    0.28, 0.16);
-      note(659,  'triangle', 0.22, 0.28, 0.16);
-      note(784,  'triangle', 0.44, 0.40, 0.16);
-      note(1047, 'triangle', 0.66, 0.45, 0.14);
-    } else { // alerta (legacy / fallback)
-      note(1000, 'square', 0,    0.22, 0.14);
-      note(1200, 'square', 0.28, 0.22, 0.14);
-    }
+    (_NOTIF_SOUNDS[key] || _NOTIF_SOUNDS.info)();
   } catch(e) {}
 }
 
@@ -10062,27 +10151,42 @@ function _notifSndHoursChange() {
   }
 }
 
+// v181 — repetición por urgencia: critical re-suena cada 30s hasta 3 veces
+// mientras ESA notif siga sin leer/atender; alert repite 1 vez; el resto no.
+// Un solo timer re-anclado a la última notif sonada (barato en Android).
+var _notifRepeatInfo = null; // { id, key, left }
 function maybeChime(notif) {
   var unread = _notifications.filter(function(n){ return !n.readAt; }).length;
   if (_notifSoundEnabled && !_notifPanelOpen && withinNotifHours() && (_lastUnread === null || unread > _lastUnread)) {
-    var tone = (notif && _NOTIF_TONE_MAP[notif.type]) || _notifSoundTone;
-    _playTone(tone);
+    var key = _notifSoundOf(notif);
+    _playSound(key);
     if (navigator.vibrate && !window.matchMedia('(prefers-reduced-motion:reduce)').matches) {
-      navigator.vibrate([200, 100, 200]);
+      navigator.vibrate(_NOTIF_VIBRATE[key] || _NOTIF_VIBRATE.info);
     }
     _notifShowToast(notif);
     _notifFlashScreen(notif);
-    if (_notifRepeatTimer) clearTimeout(_notifRepeatTimer);
-    _notifRepeatTimer = setTimeout(function() {
-      _notifRepeatTimer = null;
-      var stillUnread = _notifications.filter(function(n){ return !n.readAt; }).length;
-      if (stillUnread > 0 && _notifSoundEnabled) {
-        _playTone(tone);
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      }
-    }, 30000);
+    var urg = notifUrgency(notif);
+    var reps = urg === 'critical' ? 3 : urg === 'alert' ? 1 : 0;
+    if (_notifRepeatTimer) { clearTimeout(_notifRepeatTimer); _notifRepeatTimer = null; }
+    _notifRepeatInfo = null;
+    if (reps > 0 && notif && notif.id) {
+      _notifRepeatInfo = { id: notif.id, key: key, left: reps };
+      _notifRepeatTimer = setTimeout(_notifRepeatTick, 30000);
+    }
   }
   _lastUnread = unread;
+}
+function _notifRepeatTick() {
+  _notifRepeatTimer = null;
+  var info = _notifRepeatInfo;
+  if (!info || !_notifSoundEnabled || !withinNotifHours()) { _notifRepeatInfo = null; return; }
+  var n = _notifications.find(function(x){ return x.id === info.id; });
+  if (!n || n.readAt || n.clickedAt) { _notifRepeatInfo = null; return; }
+  _playSound(info.key);
+  if (navigator.vibrate) navigator.vibrate(_NOTIF_VIBRATE[info.key] || _NOTIF_VIBRATE.info);
+  info.left--;
+  if (info.left > 0) _notifRepeatTimer = setTimeout(_notifRepeatTick, 30000);
+  else _notifRepeatInfo = null;
 }
 
 function _notifRingBell() {
@@ -10392,6 +10496,11 @@ function _notifFireBrowser(notif) {
   if (!document.hidden) return; // solo cuando el tab está en segundo plano
   var urgency = notifUrgency(notif);
   var title = notif.title || 'Ops AT';
+  // v180: target tipado en el data — el notificationclick del SW rutea por esto.
+  var tgt = _notifTargetOf(notif);
+  var url = (tgt.kind !== 'none' && tgt.id)
+    ? '/historial.html?notif=' + encodeURIComponent(notif.id)
+    : '/historial.html';
   var opts = {
     body: notif.message || '',
     icon: '/icon-192.png',
@@ -10400,8 +10509,10 @@ function _notifFireBrowser(notif) {
     renotify: true,
     requireInteraction: urgency === 'critical',
     data: {
-      taskId: notif.relatedTaskId || null, // sw.js lo lee en notificationclick
-      url: notif.relatedTaskId ? '/historial.html?task=' + encodeURIComponent(notif.relatedTaskId) : '/historial.html',
+      taskId: notif.relatedTaskId || null, // compat: sw.js viejo lo lee en notificationclick
+      notifId: notif.id,
+      target: tgt,
+      url: url,
       urgency: urgency
     }
   };
@@ -10426,13 +10537,17 @@ function _notifUpdateSoundUI() {
   var toggle = document.getElementById('notif-snd-toggle');
   var icon   = document.getElementById('notif-snd-icon');
   var label  = document.getElementById('notif-snd-label');
-  var sel    = document.getElementById('notif-snd-sel');
   var hoursRow = document.getElementById('notif-snd-hours');
   if (!toggle) return;
   toggle.classList.toggle('on', _notifSoundEnabled);
   if (icon) { icon.setAttribute('data-lucide', _notifSoundEnabled ? 'bell-ring' : 'bell-off'); if (window.lucide) lucide.createIcons(); }
   if (label) label.textContent = _notifSoundEnabled ? 'Sonido activado' : 'Sonido';
-  if (sel) sel.value = _notifSoundTone;
+  // v181: marcar el segmento de volumen activo (reemplaza al selector de tonos)
+  var segs = document.querySelectorAll('#notif-vol-segs .notif-pref-seg');
+  for (var si = 0; si < segs.length; si++) {
+    var sv = parseFloat(segs[si].getAttribute('data-vol'));
+    segs[si].classList.toggle('active', Math.abs(sv - _notifSoundVol) < 0.01);
+  }
   // Mostrar rango horario solo cuando el sonido está activo
   if (hoursRow) {
     hoursRow.style.display = _notifSoundEnabled ? 'flex' : 'none';
@@ -10451,17 +10566,25 @@ function _notifToggleSound() {
   _notifSoundEnabled = !_notifSoundEnabled;
   localStorage.setItem('wwp_notif_sound', _notifSoundEnabled ? 'on' : 'off');
   _notifUpdateSoundUI();
-  if (_notifSoundEnabled) _playTone(_notifSoundTone);
+  if (_notifSoundEnabled) _playSound('info');
 }
 
-function _notifChangeTone(val) {
-  _notifSoundTone = val;
-  localStorage.setItem('wwp_notif_tone', val);
+// v181: selector de volumen Bajo/Normal/Alto (con feedback inmediato del nivel)
+function _notifSetVol(btn) {
+  var v = parseFloat(btn.getAttribute('data-vol'));
+  if ([0.6, 1, 1.5].indexOf(v) === -1) v = 1;
+  _notifSoundVol = v;
+  try { localStorage.setItem('wwp_notif_vol', String(v)); } catch(e) {}
+  _notifUpdateSoundUI();
+  _playSound('info');
 }
 
+// "Probar" reproduce el lenguaje completo: gota → resuelto → atención → toc-toc → urgente
 function _notifTestTone() {
-  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  _audioCtx.resume().then(function(){ _playTone(_notifSoundTone); });
+  var order = ['info', 'success', 'alert', 'chat', 'critical'];
+  order.forEach(function(k, i) {
+    setTimeout(function(){ _playSound(k); }, i * 1100);
+  });
 }
 
 function connectSSE() {
@@ -10744,22 +10867,135 @@ function _notifDayLabel(iso) {
   catch(e) { return d.toLocaleDateString(); }
 }
 
-function _notifItemHtml(n) {
+// ═══ v181 — Centro de acción: dos niveles + destino visible + CTA inline ═══
+
+// Accionable = pide algo del usuario y sigue pendiente. El server puede
+// estamparlo (actionRequired); estos tipos lo son por naturaleza. Leída o ya
+// clicada → deja de exigir y baja al nivel cronológico.
+var _NOTIF_ACTIONABLE_TYPES = new Set([
+  'task_chat', 'comment_new', 'ready_to_validate', 'evidence_incomplete',
+  'missing_evidence', 'reactivacion_pendiente', 'sdv_new_pending',
+  'reposicion_nueva', 'curso_retake'
+]);
+function _notifNeedsAction(n) {
+  if (!n || n.readAt || n.clickedAt) return false;
+  if (n.actionRequired) return true;
+  if (notifCategory(n) === 'coordinacion') return true;
+  if (notifUrgency(n) === 'critical') return true;
+  return _NOTIF_ACTIONABLE_TYPES.has(n.type);
+}
+
+// Clase del rail de urgencia: chat/coordinación por CATEGORÍA (te habla un
+// humano), el resto por urgencia. Info no lleva rail (menos ruido).
+function _notifRailClass(n) {
+  var cat = notifCategory(n);
+  if (cat === 'chat') return 'u-chat';
+  if (cat === 'coordinacion') return 'u-coord';
+  var u = notifUrgency(n);
+  return (u === 'critical' || u === 'alert' || u === 'success') ? ('u-' + u) : '';
+}
+
+// Etiqueta legible del DESTINO del clic (meta-fila "→ Tarea #0171").
+// kind=none → null (sin meta de destino: el clic no navega).
+var _NOTIF_SECCION_LBL = { 'inventario-salud': 'Salud de Inventario' };
+function _notifDestOf(n) {
+  var t = _notifTargetOf(n);
+  if (t.kind === 'none' || !t.id) return null;
+  var txt = (n.title || '') + ' ' + (n.message || '');
+  if (t.kind === 'task') {
+    var task = (_tasks || []).find(function(x){ return x.id === t.id; });
+    var seq = task ? seqLabel(task) : '';
+    if (!seq) { var m = txt.match(/#\d{3,4}(?:·\d+)?/); if (m) seq = m[0]; }
+    var esChat = t.ctx === 'chat' || n.type === 'task_chat' || n.type === 'comment_new';
+    return ((esChat ? 'Chat de tarea ' : 'Tarea ') + seq).trim();
+  }
+  if (t.kind === 'sdv') {
+    var f = txt.match(/\bSD-\d{4}-\d{4}\b/);
+    return f ? ('SDV ' + f[0]) : 'Solicitud SDV';
+  }
+  if (t.kind === 'reposicion') return 'Reposiciones';
+  if (t.kind === 'curso') return 'Curso';
+  if (t.kind === 'seccion') return _NOTIF_SECCION_LBL[t.id] || 'Sección';
+  return null;
+}
+
+// CTA de navegación por tipo (máx 2: [primaria, ghost]). v181: todas navegan
+// vía el router (target+rol). v182: si el server estampa n.actions[], ganan
+// ellas — el render ya las pinta sin tocar la estructura.
+var _NOTIF_CTA = {
+  task_chat:              [{ label:'Responder',          icon:'message-square' }],
+  comment_new:            [{ label:'Responder',          icon:'message-square' }],
+  task_overdue:           [{ label:'Ver tarea',          icon:'clipboard-list' }],
+  task_rejected:          [{ label:'Ver y corregir',     icon:'clipboard-list' }],
+  ready_to_validate:      [{ label:'Ir a validar',       icon:'clipboard-check' }],
+  evidence_incomplete:    [{ label:'Subir evidencia',    icon:'camera' }],
+  missing_evidence:       [{ label:'Subir evidencia',    icon:'camera' }],
+  sdv_new_pending:        [{ label:'Revisar en bandeja', icon:'inbox' }],
+  reactivacion_pendiente: [{ label:'Revisar solicitud',  icon:'rotate-ccw' }],
+  sdv_seller_rechazada:   [{ label:'Corregir ahora',     icon:'pencil' }],
+  reposicion_nueva:       [{ label:'Revisar solicitud',  icon:'package-plus' }],
+  curso_retake:           [{ label:'Ir al curso',        icon:'graduation-cap' }]
+};
+function _notifCtasOf(n) {
+  if (n && Array.isArray(n.actions) && n.actions.length) return n.actions.slice(0, 2); // v182
+  var t = _notifTargetOf(n);
+  if (t.kind === 'none' || !t.id) return [];
+  return (_NOTIF_CTA[n.type] || []).slice(0, 2);
+}
+
+// Marcar leída UNA (check al hover; visible en touch) sin navegar.
+function notifMarkReadBtn(ev, el) {
+  ev.stopPropagation();
+  var host = el.closest('.notif-item');
+  if (host && host.dataset.notifId) markRead(host.dataset.notifId);
+}
+
+// CTA inline: en v181 todas navegan (el router resuelve destino por target+rol
+// y ancla al chat cuando aplica). v182: bifurcar aquí si la action trae una op.
+function notifCtaClick(ev, el) {
+  ev.stopPropagation();
+  var host = el.closest('.notif-item');
+  if (!host) return;
+  var notif = _notifications.find(function(n){ return n.id === host.dataset.notifId; });
+  if (notif) routeNotification(notif);
+}
+
+function _notifItemHtml(n, inActionGroup) {
   const def = _NOTIF_ICONS[n.type] || _NOTIF_ICON_DEFAULT;
   const time = n.createdAt ? timeSince(n.createdAt) : '';
   const unread = !n.readAt;
-  const itemCls = 'notif-item' + (unread ? (' unread ' + def.cls) : '');
+  const rail = _notifRailClass(n);
+  const itemCls = 'notif-item' + (rail ? ' ' + rail : '') + (unread ? ' unread' : '');
   const countBadge = (n.count > 1) ? ' <span class="notif-count">×' + n.count + '</span>' : '';
   // Ícono coloreado: usa CSS vars del proyecto
   const iconStyle = `style="--ni-bg:var(${def.bg});--ni-color:var(${def.color})"`;
   const iconWrap = `<div class="notif-icon-wrap" ${iconStyle}><i data-lucide="${def.icon}"></i></div>`;
+  // Meta: categoría + destino del clic
+  const catDef = _NOTIF_CATS.find(c => c.id === notifCategory(n));
+  const dest = _notifDestOf(n);
+  const metaHtml = `<div class="notif-meta">${catDef ? esc(catDef.label) : ''}${dest ? ' · <span class="notif-dest"><i data-lucide="corner-down-right"></i>' + esc(dest) + '</span>' : ''}</div>`;
+  // Acciones inline: solo en el grupo "Requiere tu acción"
+  let actsHtml = '';
+  if (inActionGroup) {
+    const ctas = _notifCtasOf(n);
+    if (ctas.length) {
+      actsHtml = '<div class="notif-acts">' + ctas.map((a, i) =>
+        `<button class="notif-act-btn ${i === 0 ? 'notif-act-pri' : 'notif-act-gh'}" data-cta="${i}" onclick="notifCtaClick(event,this)">${a.icon ? '<i data-lucide="' + a.icon + '"></i>' : ''}${esc(a.label || '')}</button>`
+      ).join('') + '</div>';
+    }
+  }
+  const rightHtml = unread
+    ? `<div class="notif-right"><span class="notif-dot"></span><button class="notif-mkread" title="Marcar como leída" aria-label="Marcar como leída" onclick="notifMarkReadBtn(event,this)"><i data-lucide="check"></i></button></div>`
+    : '<div class="notif-right"></div>';
   return `<div class="${itemCls}" data-notif-id="${esc(n.id)}" onclick="openNotificationById(this)">
     ${iconWrap}
     <div class="notif-content">
-      <div class="notif-title">${esc(n.title||n.type)}${countBadge}</div>
+      <div class="notif-row1"><div class="notif-title">${esc(n.title||n.type)}${countBadge}</div><span class="notif-time">${time}</span></div>
       <div class="notif-msg">${esc(n.message||'')}</div>
-      <div class="notif-time">${time}</div>
+      ${metaHtml}
+      ${actsHtml}
     </div>
+    ${rightHtml}
   </div>`;
 }
 
@@ -10863,7 +11099,7 @@ function renderNotifications() {
   const list = document.getElementById('notif-list');
   if (!list) return;
   // Contadores de no-leídas por categoría — una sola pasada
-  var counts = { all:0, tareas:0, sdv:0, operacion:0, chat:0, sistema:0 };
+  var counts = { all:0, tareas:0, sdv:0, operacion:0, chat:0, coordinacion:0, sistema:0 };
   _notifications.forEach(function(n) {
     if (!n.readAt) {
       counts.all++;
@@ -10878,11 +11114,24 @@ function renderNotifications() {
   if (_notifUnreadOnly) items = items.filter(function(n){ return !n.readAt; });
   items = items.slice(0, 50);
   if (!items.length) { list.innerHTML = _notifEmptyHtml(); return; }
-  var html = '', lastDay = '';
+  // v181: dos niveles — "Requiere tu acción" fijo arriba, "Para tu información" cronológico
+  var accion = [], info = [];
   for (var i = 0; i < items.length; i++) {
-    var day = _notifDayLabel(items[i].createdAt);
-    if (day && day !== lastDay) { html += '<div class="notif-day-sep">' + day + '</div>'; lastDay = day; }
-    html += _notifItemHtml(items[i]);
+    (_notifNeedsAction(items[i]) ? accion : info).push(items[i]);
+  }
+  var html = '';
+  if (accion.length) {
+    html += '<div class="notif-group-hdr g-accion"><i data-lucide="alert-circle"></i>Requiere tu acción<span class="notif-group-n">' + accion.length + '</span></div>';
+    for (var a = 0; a < accion.length; a++) html += _notifItemHtml(accion[a], true);
+  }
+  if (info.length) {
+    if (accion.length) html += '<div class="notif-group-hdr g-info"><i data-lucide="inbox"></i>Para tu información</div>';
+    var lastDay = '';
+    for (var j = 0; j < info.length; j++) {
+      var day = _notifDayLabel(info[j].createdAt);
+      if (day && day !== lastDay) { html += '<div class="notif-day-sep">' + day + '</div>'; lastDay = day; }
+      html += _notifItemHtml(info[j], false);
+    }
   }
   list.innerHTML = html;
   if (window.lucide) lucide.createIcons();
@@ -10955,38 +11204,155 @@ async function markAllRead() {
 }
 
 async function clearReadNotifs() {
-  // Limpia leídas + notificaciones huérfanas (cuya tarea ya no existe)
+  // Limpia leídas + huérfanas. v180 FIX: huérfana = SOLO kind=task cuya tarea ya no
+  // existe. Antes purgaba toda notif cuyo relatedTaskId no fuera tarea WWP — incluidas
+  // notifs SDV/reposición SIN leer (sus ids nunca están en _tasks). El resto de kinds
+  // jamás se purga por esta vía (espejo del fix en DELETE /notifications/orphans).
   const taskIds = new Set((_tasks||[]).map(t => t.id));
-  const isOrphan = n => n.relatedTaskId && !taskIds.has(n.relatedTaskId);
+  const isOrphan = n => { const t = _notifTargetOf(n); return t.kind === 'task' && t.id && !taskIds.has(t.id); };
   _notifications = _notifications.filter(n => !n.readAt && !isOrphan(n));
   renderNotifications();
   try { await authFetch('/api/wwp/notifications/read', {method:'DELETE'}); } catch(e) {}
   try { await authFetch('/api/wwp/notifications/orphans', {method:'DELETE'}); } catch(e) {}
 }
 
+// ═══ v180 — Router ÚNICO de notificaciones por target {kind,id,ctx} + rol ═══
+// Lo usan los TRES puntos de entrada: (a) clic en el panel/toast, (b) NOTIFICATION_CLICK
+// del SW con la app abierta, (c) arranque en frío (?notif=/?task= en checkStoredSession).
+
+// Target de una notif: usa el estampado por el servidor; retro-deriva para notifs
+// históricas (espejo de notifDeriveTarget en proxy.js): wt_ → task, sdv_ → sdv, resto → none.
+function _notifTargetOf(n) {
+  if (n && n.target && n.target.kind) return n.target;
+  var rid = n && n.relatedTaskId;
+  if (!rid) return { kind:'none', id:null };
+  if (/^wt_/.test(rid))  return { kind:'task', id:rid };
+  if (/^sdv_/.test(rid)) return { kind:'sdv',  id:rid };
+  return { kind:'none', id:null };
+}
+
+// Instrumentación v180: estampa clickedAt en el servidor (fire-and-forget).
+function _notifMarkClicked(notifId) {
+  if (!notifId) return;
+  try {
+    authFetch('/api/wwp/notifications/' + encodeURIComponent(notifId) + '/clicked', { method:'POST' })
+      .catch(function(){});
+  } catch(e) {}
+}
+
+// Navega al objeto que la notificación señala, degradando por rol.
+// kind=none → sin navegación y SIN toast de error (ya quedó leída).
+async function routeNotifTarget(target, notif) {
+  var kind = (target && target.kind) || 'none';
+  var id   = (target && target.id) || null;
+  if (kind === 'none' || !id) return;
+  var isVentas = _user && _user.role === 'ventas';
+
+  if (kind === 'task') {
+    // Refetch para validar existencia (la tarea pudo purgarse) — openDrawer con id
+    // inexistente retorna en silencio, así que el aviso claro va aquí.
+    try { const r = await authFetch('/api/wwp/tasks'); const fresh = await r.json(); if (Array.isArray(fresh)) _tasks = fresh; } catch(e) {}
+    var t = (_tasks||[]).find(function(x){ return x.id === id; });
+    if (isVentas) {
+      // Ventas nunca aterriza en el drawer de ops: resolver la tarea → su SDV vinculada.
+      if (t && t.sdvId) { navTo('sdv-portal'); sdvVerDetalle(t.sdvId, 'mis'); }
+      else toast(t ? 'Esta notificación es de una tarea interna de Operaciones' : 'La tarea de esta notificación ya no está disponible');
+      return;
+    }
+    if (!t) { toast('La tarea de esta notificación ya no existe'); return; }
+    await openDrawer(id);
+    // Tipos de chat (o ctx:'chat'): anclar al hilo del drawer.
+    var esChat = (target && target.ctx === 'chat') ||
+      (notif && (notif.type === 'task_chat' || notif.type === 'comment_new'));
+    if (esChat) {
+      setTimeout(function(){
+        var sec = document.querySelector('#wwp-drawer .chat-section');
+        if (sec) { try { sec.scrollIntoView({ behavior:'smooth', block:'start' }); } catch(e) { sec.scrollIntoView(); } }
+      }, 350);
+    }
+    return;
+  }
+
+  if (kind === 'sdv') {
+    if (isVentas) { navTo('sdv-portal'); sdvVerDetalle(id, 'mis'); }
+    else {
+      var enBandeja = canSection('sdv-bandeja');
+      if (enBandeja) navTo('sdv-bandeja');
+      // sdvVerDetalle es autosuficiente (modal + fetch propio); ctx define las acciones.
+      sdvVerDetalle(id, enBandeja ? 'bandeja' : 'mis');
+    }
+    return;
+  }
+
+  if (kind === 'reposicion') {
+    if (!canSection('solicitudes-reposicion')) { toast('Sin acceso a la sección de reposiciones'); return; }
+    navTo('solicitudes-reposicion');
+    try { await repCargarLista(); } catch(e) {}
+    try { repAbrirDetalle(id); } catch(e) {}
+    return;
+  }
+
+  if (kind === 'curso') {
+    if (isVentas) { toast('Los cursos de formación viven en Workforce Labor'); return; }
+    goToWWP();
+    switchTab('formacion');
+    try { trOpenCourse(id); } catch(e) {}
+    return;
+  }
+
+  if (kind === 'seccion') {
+    navTo(id); // navTo aplica canSection y avisa "Sin acceso a esta sección"
+    return;
+  }
+}
+
+// Entrada canónica desde el panel/toasts: marca leída + clickedAt y rutea.
+async function routeNotification(notif) {
+  if (!notif) return;
+  closeNotifPanel();
+  if (!notif.readAt) markRead(notif.id);
+  _notifMarkClicked(notif.id);
+  await routeNotifTarget(_notifTargetOf(notif), notif);
+}
+
+// Entrada desde SW (app abierta) y arranque en frío: puede traer target directo,
+// notifId (a resolver contra la lista) o solo taskId legacy.
+async function routeNotifClick(info) {
+  info = info || {};
+  var notif = null;
+  if (info.notifId) {
+    notif = _notifications.find(function(n){ return n.id === info.notifId; }) || null;
+    if (!notif) {
+      try {
+        var r = await authFetch('/api/wwp/notifications?limit=200');
+        var d = await r.json();
+        if (d && d.ok) {
+          notif = (d.notifications||[]).find(function(n){ return n.id === info.notifId; }) || null;
+          if (!_notifications.length && (d.notifications||[]).length) { _notifications = d.notifications; renderNotifications(); }
+        }
+      } catch(e) {}
+    }
+  }
+  var target = (info.target && info.target.kind) ? info.target
+             : notif ? _notifTargetOf(notif)
+             : info.taskId ? _notifTargetOf({ relatedTaskId: info.taskId })
+             : null;
+  if (notif && !notif.readAt) markRead(notif.id);
+  if (info.notifId) _notifMarkClicked(info.notifId);
+  if (!target) return;
+  await routeNotifTarget(target, notif);
+}
+
 async function openNotificationById(el) {
   const id = el.dataset.notifId;
   const notif = _notifications.find(n => n.id === id);
   if (!notif) return;
-  closeNotifPanel();
-  if (!notif.readAt) markRead(notif.id);
-  if (!notif.relatedTaskId) { toast('Esta notificación no tiene una tarea asociada'); return; }
-  // Verificar que la tarea aún exista antes de abrir el drawer
-  try { const r = await authFetch('/api/wwp/tasks'); _tasks = await r.json(); } catch {}
-  if (!(_tasks||[]).some(t => t.id === notif.relatedTaskId)) {
-    toast('La tarea de esta notificación ya no existe');
-    return;
-  }
-  openDrawer(notif.relatedTaskId);
+  await routeNotification(notif);
 }
 // Mantener compatibilidad si algún lugar aún llama openNotification con objeto
+// (toasts apilables y el fallback desktop de _notifFireBrowser).
 async function openNotification(notif) {
-  closeNotifPanel();
-  if (notif && !notif.readAt) markRead(notif.id);
-  if (!notif || !notif.relatedTaskId) return;
-  try { const r = await authFetch('/api/wwp/tasks'); _tasks = await r.json(); } catch {}
-  if (!(_tasks||[]).some(t => t.id === notif.relatedTaskId)) { toast('La tarea de esta notificación ya no existe'); return; }
-  openDrawer(notif.relatedTaskId);
+  await routeNotification(notif);
 }
 
 // Close notification panel when clicking outside
@@ -21116,10 +21482,11 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'SW_RELOAD' && !_swRefreshing) { _swRefreshing = true; window.location.reload(); }
     // Click en una notificación push con la app ya abierta: el SW enfoca esta
-    // ventana y manda el taskId — sin este handler el mensaje se perdía y la
-    // tarea nunca se abría.
-    if (e.data && e.data.type === 'NOTIFICATION_CLICK' && e.data.taskId && _token) {
-      try { openDrawer(e.data.taskId); } catch(err) {}
+    // ventana y manda notifId/target (v180) o taskId (SW viejo). Rutea por el
+    // MISMO router del panel — antes solo abría el drawer y todo destino no-tarea
+    // era clic muerto.
+    if (e.data && e.data.type === 'NOTIFICATION_CLICK' && _token) {
+      try { routeNotifClick({ notifId: e.data.notifId || null, target: e.data.target || null, taskId: e.data.taskId || null }); } catch(err) {}
     }
   });
 }

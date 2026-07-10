@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Centro de notificaciones como centro de ACCIÓN + paleta de sonidos</title>
+<script src="lucide.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   TOKENS — copiados 1:1 de historial.html :root / [data-theme='dark']
+   (regla Mark: colores reales del proyecto, nunca inventados)
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  color-scheme:light;
+  --fs-xs:11px;--fs-sm:12px;--fs-base:13px;--fs-md:14px;--fs-lg:15px;
+  --bg:#f4f3f1;--surface:#f4f3f1;--surface-2:#eeece9;--surface-3:#e8e7e4;
+  --border:#d6d4cf;--border-light:#dedad5;--border-focus:#2b6ad4;
+  --text:#1c2430;--text-2:#45556a;--text-3:#a8b5c2;
+  --accent:#1b3b6f;--accent-hover:#142d56;--accent-light:#e5edf7;
+  --link:#1a5ab8;--brand-primary:#062465;--brand-light:var(--brand-primary);
+  --green-bg:#e2f0e8;--green-text:#16643a;--green-dot:#1e9855;
+  --amber-bg:#fdf4e3;--amber-text:#7a4f0d;--amber-dot:#cc8500;
+  --red-bg:#f9e8e8;--red-text:#8b1a1a;--red-dot:#c42020;
+  --blue-bg:#e8f0fb;--blue-text:#184080;--blue-dot:#2a68b0;
+  --purple-bg:#f0ecf8;--purple-text:#522d7a;--purple-dot:#7c3aed;
+  --sky-bg:#e6f2fc;--sky-text:#0e5282;--sky-dot:#0284c7;
+  --orange-bg:#fceee2;--orange-text:#7c3410;--orange-dot:#c4510d;
+  --radius:6px;--radius-md:8px;--radius-lg:12px;
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+[data-theme='dark']{
+  color-scheme:dark;
+  --bg:#14171e;--surface:#14171e;--surface-2:#1e2229;--surface-3:#272c36;
+  --border:#2e333d;--border-light:#252a33;--border-focus:#4a9eff;
+  --text:#e8eaed;--text-2:#9aa5b4;--text-3:#4a5568;
+  --accent:#2a5f9e;--accent-hover:#3370b5;--accent-light:#1e3252;
+  --link:#5ba3f5;--brand-primary:#1a2e50;--brand-light:var(--brand-primary);
+  --green-bg:#162a1e;--green-text:#5dd894;--green-dot:#2ecc6e;
+  --amber-bg:#2e2208;--amber-text:#f5b942;--amber-dot:#e8a020;
+  --red-bg:#2e1010;--red-text:#fc7272;--red-dot:#e84040;
+  --blue-bg:#112036;--blue-text:#7ab8f5;--blue-dot:#3a9eff;
+  --purple-bg:#1e1230;--purple-text:#b28af5;--purple-dot:#9f6ef0;
+  --sky-bg:#0e1e30;--sky-text:#62c4f5;--sky-dot:#0ea5e9;
+  --orange-bg:#2a1408;--orange-text:#f5a25a;--orange-dot:#e87020;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);padding:26px 20px 80px;transition:background .2s}
+svg{stroke:currentColor}
+
+/* ── Layout del mockup ── */
+.mk-wrap{max-width:1180px;margin:0 auto}
+.mk-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:8px;flex-wrap:wrap}
+.mk-title{font-size:21px;font-weight:800;letter-spacing:-.3px}
+.mk-sub{font-size:13px;color:var(--text-2);margin-top:5px;max-width:760px;line-height:1.55}
+.mk-theme-btn{display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;color:var(--text-2);cursor:pointer}
+.mk-theme-btn:hover{background:var(--surface-3)}
+.mk-theme-btn svg{width:14px;height:14px}
+.mk-sec{margin-top:44px}
+.mk-sec-t{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.mk-sec-t .n{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.mk-sec-d{font-size:12.5px;color:var(--text-2);margin-bottom:18px;max-width:820px;line-height:1.55}
+.mk-cols{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.mk-col{flex:1;min-width:340px;max-width:420px}
+.mk-col-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.mk-col-label .tag{font-size:9.5px;padding:2px 7px;border-radius:999px;font-weight:800;letter-spacing:.3px}
+.tag-antes{background:var(--red-bg);color:var(--red-text)}
+.tag-desp{background:var(--green-bg);color:var(--green-text)}
+.mk-note{font-size:11px;color:var(--text-3);line-height:1.5;margin-top:10px;padding-left:2px}
+.mk-note b{color:var(--text-2)}
+
+/* ══════════════════════════════════════════════════════════════════
+   PANEL — base compartida (réplica fiel del actual para "Antes")
+   ══════════════════════════════════════════════════════════════════ */
+.np{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.14);display:flex;flex-direction:column;overflow:hidden;max-height:600px}
+.np-hdr{padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
+.np-title{font-size:14px;font-weight:800;display:flex;align-items:center;gap:7px}
+.np-title svg{width:15px;height:15px}
+.np-acts{display:flex;gap:8px}
+.np-ico{background:none;border:none;cursor:pointer;color:var(--text-3);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.np-ico:hover{background:var(--surface-2);color:var(--text)}
+.np-ico svg{width:16px;height:16px}
+.np-chips{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;align-items:center}
+.np-chips::-webkit-scrollbar{display:none}
+.np-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.np-chip.active{background:var(--blue-bg);color:var(--blue-text);border-color:var(--blue-dot)}
+.np-chip-n{background:var(--red-dot);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+.np-chip-sep{width:1px;align-self:stretch;background:var(--border);flex-shrink:0}
+.np-list{overflow-y:auto;flex:1}
+.np-day{position:sticky;top:0;z-index:1;background:var(--surface);padding:7px 14px 5px;font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border)}
+
+/* ── "ANTES": ítem actual (réplica) ── */
+.ni-old{display:flex;gap:10px;padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);align-items:flex-start;border-left:3px solid transparent}
+.ni-old:hover{background:var(--surface-2)}
+.ni-old.unread{background:var(--blue-bg);border-left-color:var(--blue-dot)}
+.ni-old.unread.u-critical{background:var(--red-bg);border-left-color:var(--red-dot)}
+.ni-old.unread.u-alert{background:var(--amber-bg);border-left-color:var(--amber-dot)}
+.ni-old.unread.u-success{background:var(--green-bg);border-left-color:var(--green-dot)}
+.ni-old.unread.u-chat{background:var(--purple-bg);border-left-color:var(--purple-dot)}
+.ni-icon{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--ni-bg,var(--surface-3));color:var(--ni-c,var(--text-3))}
+.ni-icon svg{width:15px;height:15px}
+.ni-body{flex:1;min-width:0}
+.ni-t{font-size:13px;font-weight:700;line-height:1.3}
+.ni-m-old{font-size:12px;color:var(--text-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ni-time{font-size:10px;color:var(--text-3);margin-top:4px}
+.ni-xn{font-size:10px;font-weight:800;color:var(--text-3);background:var(--surface-3);border-radius:6px;padding:1px 5px;margin-left:2px;vertical-align:1px}
+
+/* ══════════════════════════════════════════════════════════════════
+   "DESPUÉS": ítem rediseñado — centro de acción
+   ══════════════════════════════════════════════════════════════════ */
+/* Cabecera de grupo "Requiere tu acción" */
+.nx-group{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:7px;background:var(--surface);padding:9px 14px 7px;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text-2);border-bottom:1px solid var(--border)}
+.nx-group svg{width:13px;height:13px;flex-shrink:0}
+.nx-group .cnt{background:var(--red-dot);color:#fff;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
+.nx-group.g-info{color:var(--text-3)}
+.nx-group.g-accion{color:var(--amber-text)}
+
+/* Ítem nuevo: rail de urgencia + contenido + meta con destino + acciones */
+.nx{display:flex;gap:10px;padding:12px 12px 12px 14px;cursor:pointer;border-bottom:1px solid var(--border);align-items:flex-start;position:relative;background:var(--surface)}
+.nx::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+.nx:hover{background:var(--surface-2)}
+.nx.u-critical::before{background:var(--red-dot)}
+.nx.u-alert::before{background:var(--amber-dot)}
+.nx.u-success::before{background:var(--green-dot)}
+.nx.u-coord::before{background:var(--orange-dot)}
+.nx.u-chat::before{background:var(--purple-dot)}
+/* leída: el rail baja de intensidad, el contenido se atenúa — la urgencia no desaparece */
+.nx.read::before{opacity:.3}
+.nx.read .nx-t{font-weight:600;color:var(--text-2)}
+.nx.read .ni-icon{opacity:.55}
+/* solo la crítica no-leída lleva fondo tintado — muere el arcoíris */
+.nx.u-critical:not(.read){background:var(--red-bg)}
+.nx.u-critical:not(.read):hover{filter:brightness(.98)}
+.nx-body{flex:1;min-width:0}
+.nx-row1{display:flex;align-items:baseline;gap:8px}
+.nx-t{font-size:13px;font-weight:800;line-height:1.3;flex:1;min-width:0}
+.nx-time{font-size:10px;color:var(--text-3);flex-shrink:0}
+.nx-m{font-size:12px;color:var(--text-2);margin-top:3px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* meta: categoría + DESTINO del clic (affordance nueva) */
+.nx-meta{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--text-3);margin-top:5px;flex-wrap:wrap}
+.nx-meta svg{width:11px;height:11px;flex-shrink:0}
+.nx-dest{display:inline-flex;align-items:center;gap:3px;font-weight:700;color:var(--link)}
+.nx:hover .nx-dest{text-decoration:underline}
+/* chip de motivo (Levantar la mano) */
+.nx-motivo{display:inline-flex;align-items:center;gap:4px;background:var(--orange-bg);color:var(--orange-text);font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;margin-top:5px}
+/* acciones inline */
+.nx-acts{display:flex;gap:8px;margin-top:9px}
+.nx-btn{display:inline-flex;align-items:center;gap:5px;border-radius:8px;padding:6px 13px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid transparent;min-height:30px}
+.nx-btn svg{width:12px;height:12px}
+.nx-btn-pri{background:var(--accent);color:#fff}
+.nx-btn-pri:hover{background:var(--accent-hover)}
+.nx-btn-gh{background:var(--surface);color:var(--text-2);border-color:var(--border)}
+.nx-btn-gh:hover{background:var(--surface-3);color:var(--text)}
+/* estado "acción hecha" */
+.nx-done{display:inline-flex;align-items:center;gap:5px;margin-top:9px;font-size:11px;font-weight:700;color:var(--green-text);background:var(--green-bg);border-radius:8px;padding:5px 11px}
+.nx-done svg{width:12px;height:12px}
+/* columna derecha: no-leída (dot) + marcar leída al hover */
+.nx-right{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;padding-top:2px}
+.nx-dot{width:8px;height:8px;border-radius:50%;background:var(--blue-dot)}
+.nx.u-critical .nx-dot{background:var(--red-dot)}
+.nx.u-alert .nx-dot,.nx.u-coord .nx-dot{background:var(--amber-dot)}
+.nx.read .nx-dot{display:none}
+.nx-mkread{background:none;border:none;cursor:pointer;color:var(--text-3);width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+.nx-mkread svg{width:13px;height:13px}
+.nx:hover .nx-mkread{opacity:1}
+.nx-mkread:hover{background:var(--surface-3);color:var(--green-dot)}
+.nx.read .nx-mkread{display:none}
+@media (hover:none){.nx-mkread{opacity:.45}}
+/* chevron de affordance al hover (desktop) */
+.nx-chev{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text-3);opacity:0;transition:opacity .12s}
+.nx-chev svg{width:14px;height:14px}
+
+/* ══════════════════════════════════════════════════════════════════
+   MÓVIL — marco de teléfono con bottom sheet
+   ══════════════════════════════════════════════════════════════════ */
+.phone{width:375px;height:660px;border:10px solid #1c2430;border-radius:34px;background:var(--surface-2);position:relative;overflow:hidden;flex-shrink:0;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.phone-bg{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;padding:18px 14px;opacity:.35;filter:blur(1px)}
+.phone-bg .ph-line{height:46px;border-radius:10px;background:var(--surface-3)}
+.phone-scrim{position:absolute;inset:0;background:rgba(0,0,0,.32)}
+.phone .np{position:absolute;left:0;right:0;bottom:0;top:auto;border-radius:18px 18px 0 0;border-bottom:none;max-height:88%;box-shadow:0 -12px 40px rgba(0,0,0,.28)}
+.phone .np::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--border);margin:8px auto 0;flex-shrink:0}
+.phone .np-ico{width:44px;height:44px}
+.phone .np-chip{min-height:38px;padding:8px 14px}
+.phone .nx{padding:13px 12px 13px 14px}
+.phone .nx-btn{min-height:40px;padding:8px 16px;font-size:12px}
+.phone .nx-mkread{opacity:.45;width:34px;height:34px}
+
+/* ══════════════════════════════════════════════════════════════════
+   SONIDOS
+   ══════════════════════════════════════════════════════════════════ */
+.snd-fam{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px}
+.snd-fam-hdr{display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.snd-fam-t{font-size:14px;font-weight:800}
+.snd-fam-badge{font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.snd-rec{background:var(--green-bg);color:var(--green-text)}
+.snd-alt{background:var(--surface-3);color:var(--text-3)}
+.snd-old-b{background:var(--red-bg);color:var(--red-text)}
+.snd-fam-d{font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.5;max-width:720px}
+.snd-grid{display:flex;gap:10px;flex-wrap:wrap}
+.snd-card{flex:1;min-width:170px;max-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px}
+.snd-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.snd-urg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.snd-name{font-size:12.5px;font-weight:800}
+.snd-desc{font-size:10.5px;color:var(--text-3);line-height:1.45;min-height:42px}
+.snd-spec{font-size:9.5px;color:var(--text-3);font-family:ui-monospace,Consolas,monospace;margin-top:6px;line-height:1.5;border-top:1px dashed var(--border);padding-top:6px}
+.snd-play{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 0;font-size:11.5px;font-weight:700;cursor:pointer;min-height:36px}
+.snd-play:hover{background:var(--accent-hover)}
+.snd-play.playing{background:var(--green-dot)}
+.snd-play svg{width:12px;height:12px}
+.snd-play-old{background:var(--surface-3);color:var(--text-2)}
+.snd-play-old:hover{background:var(--border)}
+.snd-ctrl{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:18px}
+.snd-ctrl-lbl{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)}
+.segs{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg{background:var(--surface);color:var(--text-3);border:none;border-left:1px solid var(--border);padding:7px 13px;font-size:11px;font-weight:700;cursor:pointer;min-height:34px}
+.seg:first-child{border-left:none}
+.seg.active{background:var(--blue-bg);color:var(--blue-text)}
+.snd-seq{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer;min-height:34px}
+.snd-seq:hover{background:var(--surface-3)}
+.snd-seq svg{width:12px;height:12px}
+/* tabla de mapeo */
+.map-tbl{width:100%;max-width:760px;border-collapse:collapse;font-size:12px;margin-top:6px}
+.map-tbl th{text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);padding:7px 12px;border-bottom:1px solid var(--border)}
+.map-tbl td{padding:9px 12px;border-bottom:1px solid var(--border-light);color:var(--text-2);vertical-align:top}
+.map-tbl td:first-child{font-weight:700;color:var(--text)}
+.map-urg{display:inline-flex;align-items:center;gap:6px;font-weight:800}
+.map-urg .snd-urg-dot{width:8px;height:8px}
+
+/* ── Ajustes propuestos (mock estático) ── */
+.set-mock{max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.set-g{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.set-t{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3)}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600}
+.set-hint{font-size:10px;color:var(--text-3);line-height:1.5}
+.set-strike{text-decoration:line-through;opacity:.55}
+.toggle-pill{width:36px;height:20px;border-radius:999px;background:var(--green-dot);position:relative;flex-shrink:0}
+.toggle-pill::after{content:'';position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+
+/* demo de navegación (toast del mockup) */
+.mk-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);font-size:12.5px;font-weight:700;padding:10px 18px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.3);z-index:999;display:none;align-items:center;gap:8px}
+.mk-toast.show{display:flex}
+.mk-toast svg{width:13px;height:13px}
+@media (max-width:820px){.mk-cols{flex-direction:column}.mk-col{max-width:100%}.phone{width:100%;max-width:375px}}
+</style>
+</head>
+<body>
+<div class="mk-wrap">
+
+  <div class="mk-hdr">
+    <div>
+      <div class="mk-title">Centro de notificaciones — de "panel de lectura" a centro de acción</div>
+      <div class="mk-sub">Mockup para validación de Gabriel · 2026-07-10 · Mark. Incluye: antes/después del panel,
+      versión móvil (bottom sheet), la notificación nueva de coordinación "Levantar la mano" y el rediseño completo
+      de sonidos con botones de prueba. Los botones de acción concretos por tipo los define Lía; aquí se valida la
+      EXPERIENCIA: jerarquía, affordance, estados y sonido. Nada de esto toca aún la app real.</div>
+    </div>
+    <button class="mk-theme-btn" onclick="mkToggleTheme()"><i data-lucide="moon" id="mk-theme-ico"></i><span id="mk-theme-lbl">Modo oscuro</span></button>
+  </div>
+
+  <!-- ═══════════ 1 · ANTES vs DESPUÉS ═══════════ -->
+  <div class="mk-sec">
+    <div class="mk-sec-t"><span class="n">1</span>Panel desktop — antes vs después</div>
+    <div class="mk-sec-d">
+      El panel actual es un historial: todas las filas pesan igual, lo urgente se hunde bajo lo informativo,
+      nada dice a dónde lleva el clic y no hay acción posible sin navegar. El rediseño lo divide en dos niveles
+      — <b>"Requiere tu acción"</b> arriba (fijo) y <b>"Para tu información"</b> abajo (cronológico) — con
+      destino del clic visible, botones de acción rápida inline y color solo donde hay urgencia real.
+    </div>
+    <div class="mk-cols">
+
+      <!-- ── ANTES ── -->
+      <div class="mk-col">
+        <div class="mk-col-label"><span class="tag tag-antes">Antes</span> réplica del panel actual (v142)</div>
+        <div class="np">
+          <div class="np-hdr">
+            <span class="np-title"><i data-lucide="bell"></i>Notificaciones</span>
+            <div class="np-acts">
+              <button class="np-ico" title="Marcar todas como leídas"><i data-lucide="check-check"></i></button>
+              <button class="np-ico" title="Ajustes"><i data-lucide="settings-2"></i></button>
+            </div>
+          </div>
+          <div class="np-chips">
+            <button class="np-chip">Sin leer <span class="np-chip-n">6</span></button>
+            <span class="np-chip-sep"></span>
+            <button class="np-chip active">Todas</button>
+            <button class="np-chip">Tareas <span class="np-chip-n">3</span></button>
+            <button class="np-chip">SDV <span class="np-chip-n">1</span></button>
+            <button class="np-chip">Operación</button>
+            <button class="np-chip">Chat <span class="np-chip-n">2</span></button>
+          </div>
+          <div class="np-list">
+            <div class="np-day">Hoy</div>
+            <div class="ni-old unread u-chat">
+              <div class="ni-icon" style="--ni-bg:var(--purple-bg);--ni-c:var(--purple-text)"><i data-lucide="message-square"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Nuevo mensaje <span class="ni-xn">×3</span></div>
+                <div class="ni-m-old">Wilkin: ¿El cliente confirmó el horario de entrega para la tarde o lo dejam</div>
+                <div class="ni-time">2m</div>
+              </div>
+            </div>
+            <div class="ni-old unread u-critical">
+              <div class="ni-icon" style="--ni-bg:var(--red-bg);--ni-c:var(--red-text)"><i data-lucide="alert-triangle"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Tarea vencida</div>
+                <div class="ni-m-old">La tarea #0171 Despacho S09712 — Distribuidora Mella venció hace 2 horas</div>
+                <div class="ni-time">2h</div>
+              </div>
+            </div>
+            <div class="ni-old unread u-alert">
+              <div class="ni-icon" style="--ni-bg:var(--amber-bg);--ni-c:var(--amber-text)"><i data-lucide="rotate-ccw"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Reactivación pendiente</div>
+                <div class="ni-m-old">La vendedora Rosa M. solicitó reactivar la SDV-2026-0138 cancelada el lun</div>
+                <div class="ni-time">3h</div>
+              </div>
+            </div>
+            <div class="ni-old unread u-success">
+              <div class="ni-icon" style="--ni-bg:var(--green-bg);--ni-c:var(--green-text)"><i data-lucide="check-circle"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Tarea completada</div>
+                <div class="ni-m-old">Randy completó el empaque de #0169 S09701 — Casa Bella</div>
+                <div class="ni-time">4h</div>
+              </div>
+            </div>
+            <div class="ni-old unread">
+              <div class="ni-icon" style="--ni-bg:var(--blue-bg);--ni-c:var(--blue-text)"><i data-lucide="inbox"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Nueva SDV pendiente</div>
+                <div class="ni-m-old">SDV-2026-0144 de Vera para el cliente Altagracia Import, 6 artículos, en</div>
+                <div class="ni-time">5h</div>
+              </div>
+            </div>
+            <div class="ni-old">
+              <div class="ni-icon" style="--ni-bg:var(--amber-bg);--ni-c:var(--amber-text)"><i data-lucide="camera"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Evidencia incompleta</div>
+                <div class="ni-m-old">Faltan fotos de evidencia en la tarea #0163</div>
+                <div class="ni-time">8h</div>
+              </div>
+            </div>
+            <div class="np-day">Ayer</div>
+            <div class="ni-old">
+              <div class="ni-icon" style="--ni-bg:var(--green-bg);--ni-c:var(--green-text)"><i data-lucide="award"></i></div>
+              <div class="ni-body">
+                <div class="ni-t">Tarea validada</div>
+                <div class="ni-m-old">Gabriel validó la tarea #0158 Despacho S09688</div>
+                <div class="ni-time">1d</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mk-note">
+          Problemas visibles: <b>arcoíris</b> (5 no-leídas = 5 fondos de color compitiendo), mensaje cortado a
+          1 línea justo donde va el dato útil, urgente y trivial mezclados por hora, ninguna pista de a dónde
+          lleva el clic, cero acciones — y una leída pierde TODA su urgencia (la vencida leída se ve igual que
+          un aviso de sistema).
+        </div>
+      </div>
+
+      <!-- ── DESPUÉS ── -->
+      <div class="mk-col">
+        <div class="mk-col-label"><span class="tag tag-desp">Después</span> centro de acción (interactivo — haz clic)</div>
+        <div class="np">
+          <div class="np-hdr">
+            <span class="np-title"><i data-lucide="bell"></i>Notificaciones</span>
+            <div class="np-acts">
+              <button class="np-ico" title="Marcar todas como leídas"><i data-lucide="check-check"></i></button>
+              <button class="np-ico" title="Ajustes"><i data-lucide="settings-2"></i></button>
+            </div>
+          </div>
+          <div class="np-chips">
+            <button class="np-chip">Sin leer <span class="np-chip-n">6</span></button>
+            <span class="np-chip-sep"></span>
+            <button class="np-chip active">Todas</button>
+            <button class="np-chip">Tareas <span class="np-chip-n">2</span></button>
+            <button class="np-chip">SDV <span class="np-chip-n">1</span></button>
+            <button class="np-chip">Coordinación <span class="np-chip-n">1</span></button>
+            <button class="np-chip">Chat <span class="np-chip-n">2</span></button>
+          </div>
+          <div class="np-list" id="nx-list">
+
+            <div class="nx-group g-accion"><i data-lucide="alert-circle"></i>Requiere tu acción <span class="cnt">3</span></div>
+
+            <!-- Levantar la mano (coordinación) -->
+            <div class="nx u-coord" onclick="mkNav(event,this,'Hilo de coordinación · SD-2026-0142')">
+              <div class="ni-icon" style="--ni-bg:var(--orange-bg);--ni-c:var(--orange-text)"><i data-lucide="hand"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Vera levantó la mano</div><span class="nx-time">2m</span></div>
+                <span class="nx-motivo"><i data-lucide="map-pin" style="width:10px;height:10px"></i>Dirección</span>
+                <div class="nx-m">SD-2026-0142 · María Peralta — "La entrega es en la Av. Anacaona #27, no la dirección que trae la orden."</div>
+                <div class="nx-meta">Coordinación · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Hilo de SD-2026-0142</span></div>
+                <div class="nx-acts">
+                  <button class="nx-btn nx-btn-pri" onclick="mkAction(event,this,'Respondiste')"><i data-lucide="message-square"></i>Responder</button>
+                  <button class="nx-btn nx-btn-gh" onclick="mkNav(event,this,'Hilo de coordinación · SD-2026-0142')">Ver hilo</button>
+                </div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" title="Marcar como leída" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+
+            <!-- Crítica: vencida -->
+            <div class="nx u-critical" onclick="mkNav(event,this,'Tarea #0171 · Despacho S09712')">
+              <div class="ni-icon" style="--ni-bg:var(--red-bg);--ni-c:var(--red-text)"><i data-lucide="alert-triangle"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Tarea vencida hace 2h</div><span class="nx-time">2h</span></div>
+                <div class="nx-m">#0171 Despacho S09712 — Distribuidora Mella · responsable: Randy</div>
+                <div class="nx-meta">Tareas · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0171</span></div>
+                <div class="nx-acts">
+                  <button class="nx-btn nx-btn-pri" onclick="mkNav(event,this,'Tarea #0171 · Despacho S09712')"><i data-lucide="clipboard-list"></i>Ver tarea</button>
+                  <button class="nx-btn nx-btn-gh" onclick="mkAction(event,this,'Reasignación abierta')">Reasignar</button>
+                </div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" title="Marcar como leída" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+
+            <!-- Chat coalesced ×3 -->
+            <div class="nx u-chat" onclick="mkNav(event,this,'Chat de la tarea #0166')">
+              <div class="ni-icon" style="--ni-bg:var(--purple-bg);--ni-c:var(--purple-text)"><i data-lucide="message-square"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">3 mensajes nuevos — Wilkin</div><span class="nx-time">2m</span></div>
+                <div class="nx-m">"¿El cliente confirmó el horario de entrega para la tarde o lo dejamos para mañana temprano?"</div>
+                <div class="nx-meta">Chat · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Chat de tarea #0166</span></div>
+                <div class="nx-acts">
+                  <button class="nx-btn nx-btn-pri" onclick="mkAction(event,this,'Respondiste')"><i data-lucide="message-square"></i>Responder</button>
+                </div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" title="Marcar como leída" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+
+            <!-- Ejemplo de acción ya hecha -->
+            <div class="nx u-alert read" onclick="mkNav(event,this,'SDV-2026-0138 · bandeja de solicitudes')">
+              <div class="ni-icon" style="--ni-bg:var(--amber-bg);--ni-c:var(--amber-text)"><i data-lucide="rotate-ccw"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Reactivación pendiente de aprobar</div><span class="nx-time">3h</span></div>
+                <div class="nx-m">Rosa M. solicitó reactivar la SDV-2026-0138 cancelada el lunes.</div>
+                <div class="nx-meta">SDV · <span class="nx-dest"><i data-lucide="corner-down-right"></i>SDV-2026-0138</span></div>
+                <div class="nx-done"><i data-lucide="check"></i>Aprobada hace 10 min</div>
+              </div>
+              <div class="nx-right"></div>
+            </div>
+
+            <div class="nx-group g-info"><i data-lucide="info"></i>Para tu información</div>
+            <div class="np-day">Hoy</div>
+
+            <div class="nx u-success" onclick="mkNav(event,this,'Tarea #0169 · Empaque S09701')">
+              <div class="ni-icon" style="--ni-bg:var(--green-bg);--ni-c:var(--green-text)"><i data-lucide="check-circle"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Empaque completado</div><span class="nx-time">4h</span></div>
+                <div class="nx-m">Randy completó el empaque de #0169 S09701 — Casa Bella.</div>
+                <div class="nx-meta">Tareas · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0169</span></div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" title="Marcar como leída" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+              <span class="nx-chev"><i data-lucide="chevron-right"></i></span>
+            </div>
+
+            <div class="nx" onclick="mkNav(event,this,'SDV-2026-0144 · bandeja de solicitudes')">
+              <div class="ni-icon" style="--ni-bg:var(--blue-bg);--ni-c:var(--blue-text)"><i data-lucide="inbox"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Nueva SDV pendiente</div><span class="nx-time">5h</span></div>
+                <div class="nx-m">SDV-2026-0144 de Vera · Altagracia Import · 6 artículos · entrega miércoles.</div>
+                <div class="nx-meta">SDV · <span class="nx-dest"><i data-lucide="corner-down-right"></i>SDV-2026-0144</span></div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" title="Marcar como leída" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+
+            <div class="nx u-alert read" onclick="mkNav(event,this,'Tarea #0163')">
+              <div class="ni-icon" style="--ni-bg:var(--amber-bg);--ni-c:var(--amber-text)"><i data-lucide="camera"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Evidencia incompleta</div><span class="nx-time">8h</span></div>
+                <div class="nx-m">Faltan fotos de evidencia en la tarea #0163.</div>
+                <div class="nx-meta">Operación · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0163</span></div>
+              </div>
+              <div class="nx-right"></div>
+            </div>
+
+            <div class="np-day">Ayer</div>
+            <div class="nx u-success read" onclick="mkNav(event,this,'Tarea #0158 · Despacho S09688')">
+              <div class="ni-icon" style="--ni-bg:var(--green-bg);--ni-c:var(--green-text)"><i data-lucide="award"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Tarea validada</div><span class="nx-time">1d</span></div>
+                <div class="nx-m">Gabriel validó la tarea #0158 Despacho S09688.</div>
+                <div class="nx-meta">Tareas · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0158</span></div>
+              </div>
+              <div class="nx-right"></div>
+            </div>
+
+          </div>
+        </div>
+        <div class="mk-note">
+          Qué cambia: <b>dos niveles</b> (acción arriba, información abajo) · <b>rail fino de urgencia</b> que
+          sobrevive a "leída" (solo la crítica no-leída lleva fondo; muere el arcoíris) · <b>destino del clic
+          visible</b> ("→ Tarea #0171") · <b>botones inline</b> (máx. 2; cuáles, los define Lía) · <b>estado
+          "acción hecha"</b> · mensaje a 2 líneas · <b>marcar leída una a una</b> al hover · "Levantar la mano"
+          con chip de motivo + orden + cliente + responder sin salir del panel.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════ 2 · MÓVIL ═══════════ -->
+  <div class="mk-sec">
+    <div class="mk-sec-t"><span class="n">2</span>Móvil — bottom sheet (auxiliares en Android)</div>
+    <div class="mk-sec-d">
+      Se conserva el patrón bottom sheet actual (ya funciona bien). Cambios: los botones de acción suben a
+      40px de alto, "marcar leída" queda siempre visible (no hay hover en touch) y el grupo "Requiere tu acción"
+      abre siempre visible arriba — el auxiliar ve primero lo que lo bloquea, no el historial.
+    </div>
+    <div class="mk-cols">
+      <div class="phone">
+        <div class="phone-bg"><div class="ph-line"></div><div class="ph-line"></div><div class="ph-line"></div><div class="ph-line"></div><div class="ph-line"></div><div class="ph-line"></div><div class="ph-line"></div></div>
+        <div class="phone-scrim"></div>
+        <div class="np">
+          <div class="np-hdr">
+            <span class="np-title"><i data-lucide="bell"></i>Notificaciones</span>
+            <div class="np-acts">
+              <button class="np-ico"><i data-lucide="check-check"></i></button>
+              <button class="np-ico"><i data-lucide="settings-2"></i></button>
+            </div>
+          </div>
+          <div class="np-chips">
+            <button class="np-chip">Sin leer <span class="np-chip-n">4</span></button>
+            <span class="np-chip-sep"></span>
+            <button class="np-chip active">Todas</button>
+            <button class="np-chip">Tareas <span class="np-chip-n">2</span></button>
+            <button class="np-chip">Chat <span class="np-chip-n">1</span></button>
+          </div>
+          <div class="np-list">
+            <div class="nx-group g-accion"><i data-lucide="alert-circle"></i>Requiere tu acción <span class="cnt">2</span></div>
+            <div class="nx u-critical" onclick="mkNav(event,this,'Tarea #0171 · Despacho S09712')">
+              <div class="ni-icon" style="--ni-bg:var(--red-bg);--ni-c:var(--red-text)"><i data-lucide="alert-triangle"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Tarea vencida hace 2h</div><span class="nx-time">2h</span></div>
+                <div class="nx-m">#0171 Despacho S09712 — Distribuidora Mella</div>
+                <div class="nx-meta">Tareas · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0171</span></div>
+                <div class="nx-acts">
+                  <button class="nx-btn nx-btn-pri" onclick="mkNav(event,this,'Tarea #0171 · Despacho S09712')"><i data-lucide="clipboard-list"></i>Ver tarea</button>
+                </div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+            <div class="nx u-coord" onclick="mkNav(event,this,'Hilo de coordinación · SD-2026-0142')">
+              <div class="ni-icon" style="--ni-bg:var(--orange-bg);--ni-c:var(--orange-text)"><i data-lucide="hand"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Vera levantó la mano</div><span class="nx-time">2m</span></div>
+                <span class="nx-motivo"><i data-lucide="map-pin" style="width:10px;height:10px"></i>Dirección</span>
+                <div class="nx-m">SD-2026-0142 · María Peralta — dirección corregida por la vendedora.</div>
+                <div class="nx-meta">Coordinación · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Hilo SD-2026-0142</span></div>
+                <div class="nx-acts">
+                  <button class="nx-btn nx-btn-pri" onclick="mkAction(event,this,'Respondiste')"><i data-lucide="message-square"></i>Responder</button>
+                  <button class="nx-btn nx-btn-gh" onclick="mkNav(event,this,'Hilo de coordinación · SD-2026-0142')">Ver hilo</button>
+                </div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+            <div class="nx-group g-info"><i data-lucide="info"></i>Para tu información</div>
+            <div class="np-day">Hoy</div>
+            <div class="nx u-success" onclick="mkNav(event,this,'Tarea #0169 · Empaque S09701')">
+              <div class="ni-icon" style="--ni-bg:var(--green-bg);--ni-c:var(--green-text)"><i data-lucide="check-circle"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Empaque completado</div><span class="nx-time">4h</span></div>
+                <div class="nx-m">Randy completó el empaque de #0169 S09701 — Casa Bella.</div>
+                <div class="nx-meta">Tareas · <span class="nx-dest"><i data-lucide="corner-down-right"></i>Tarea #0169</span></div>
+              </div>
+              <div class="nx-right">
+                <span class="nx-dot"></span>
+                <button class="nx-mkread" onclick="mkRead(event,this)"><i data-lucide="check"></i></button>
+              </div>
+            </div>
+            <div class="nx read" onclick="mkNav(event,this,'SDV-2026-0144')">
+              <div class="ni-icon" style="--ni-bg:var(--blue-bg);--ni-c:var(--blue-text)"><i data-lucide="inbox"></i></div>
+              <div class="nx-body">
+                <div class="nx-row1"><div class="nx-t">Nueva SDV pendiente</div><span class="nx-time">5h</span></div>
+                <div class="nx-m">SDV-2026-0144 de Vera · Altagracia Import.</div>
+                <div class="nx-meta">SDV · <span class="nx-dest"><i data-lucide="corner-down-right"></i>SDV-2026-0144</span></div>
+              </div>
+              <div class="nx-right"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div class="mk-note" style="font-size:12px;line-height:1.65">
+          <b>Decisiones móvil:</b><br>
+          · El sheet, el handle, los safe-areas y los targets ≥44px del header ya existen (v140) — se conservan.<br>
+          · Botones inline a 40px de alto y "marcar leída" siempre visible con opacidad reducida
+          (<code>@media (hover:none)</code>): en touch no existe hover.<br>
+          · El grupo "Requiere tu acción" es lo primero que se ve al abrir — en un Android de almacén el
+          auxiliar no debe hacer scroll para encontrar qué lo bloquea.<br>
+          · Si no hay nada accionable, el grupo NO se muestra (cero ruido; abre directo en información).<br>
+          · Los mensajes a 2 líneas máximo: en 360px de ancho una dirección corregida se lee completa,
+          hoy se corta a media palabra.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 3 · SONIDOS ═══════════ -->
+  <div class="mk-sec">
+    <div class="mk-sec-t"><span class="n">3</span>Paleta de sonidos — familia por urgencia (haz clic y escucha)</div>
+    <div class="mk-sec-d">
+      Hoy hay 8 tonos sueltos sin parentesco (cuadradas ásperas, una sirena sawtooth, nombres cruzados:
+      el tono "alarma" es el del chat) y el tono que elige el usuario casi nunca suena porque un mapa por
+      TIPO lo pisa. Propuesta: <b>una familia coherente de 5 sonidos, uno por urgencia + uno para
+      chat/coordinación</b>, con el mismo timbre (campana cálida: triángulo + armónico seno, nada de
+      cuadradas ni sierras) y significado direccional: <b>sube = va bien · baja = atención · pulsa = urgente ·
+      percute = te hablan</b>. Todo Web Audio API, sin archivos. Frecuencias en la banda 600–1800 Hz
+      (máxima sensibilidad del oído: se oye sobre el ruido del almacén sin ser estridente en oficina).
+    </div>
+
+    <div class="snd-ctrl">
+      <span class="snd-ctrl-lbl">Volumen</span>
+      <div class="segs" id="vol-segs">
+        <button class="seg" data-vol="0.6" onclick="mkSetVol(this)">Bajo</button>
+        <button class="seg active" data-vol="1" onclick="mkSetVol(this)">Normal</button>
+        <button class="seg" data-vol="1.5" onclick="mkSetVol(this)">Alto</button>
+      </div>
+      <button class="snd-seq" onclick="mkPlaySeq('A')"><i data-lucide="play"></i>Escuchar familia A en secuencia</button>
+      <button class="snd-seq" onclick="mkPlaySeq('B')"><i data-lucide="play"></i>Escuchar familia B en secuencia</button>
+    </div>
+
+    <!-- Familia A -->
+    <div class="snd-fam">
+      <div class="snd-fam-hdr">
+        <span class="snd-fam-t">Familia A — "Atrio" (campana cálida)</span>
+        <span class="snd-fam-badge snd-rec">Recomendada</span>
+      </div>
+      <div class="snd-fam-d">
+        Timbre de campana suave (onda triángulo + armónico de octava en seno), afinada en Re mayor
+        pentatónico para que cualquier combinación suene musical aunque lleguen varias seguidas.
+        Ataque 8–12 ms, caída exponencial — sin colas largas.
+      </div>
+      <div class="snd-grid">
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--sky-dot)"></span><span class="snd-name">Gota — info</span></div>
+          <div class="snd-desc">Una sola nota suave. Lo informativo apenas se anuncia: no interrumpe a la oficina de ventas.</div>
+          <div class="snd-spec">1 nota: La5 880 Hz tri (0.14) + 1760 sin (0.045)<br>A 10ms · D exp 0.38s · total 0.4s</div>
+          <button class="snd-play" onclick="mkPlay(this,'A_info')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--green-dot)"></span><span class="snd-name">Resuelto — success</span></div>
+          <div class="snd-desc">Dos notas que SUBEN una quinta: sensación de cierre positivo (completada, validada, aprobada).</div>
+          <div class="snd-spec">Re5 587 → La5 880 (quinta asc.) tri + brillo sin 1760<br>notas a 0/0.16s · total 0.66s</div>
+          <button class="snd-play" onclick="mkPlay(this,'A_success')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--amber-dot)"></span><span class="snd-name">Atención — alert</span></div>
+          <div class="snd-desc">Dos notas que BAJAN una cuarta: "algo necesita de ti", sin pánico. Para lo importante no crítico.</div>
+          <div class="snd-spec">Si5 988 → Fa#5 740 (cuarta desc.) tri + oct sin<br>notas a 0/0.22s · total 0.67s</div>
+          <button class="snd-play" onclick="mkPlay(this,'A_alert')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--red-dot)"></span><span class="snd-name">Urgente — critical</span></div>
+          <div class="snd-desc">Tres pulsos de un acorde tenso (cuarta 880+1175). Corta el ruido del almacén sin la aspereza de una sirena.</div>
+          <div class="snd-spec">3 pulsos (0/0.19/0.38s) de La5+Re6 tri (0.22/0.16)<br>+ refuerzo Re5 sin · pulso 0.16s · total 0.6s</div>
+          <button class="snd-play" onclick="mkPlay(this,'A_critical')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--purple-dot)"></span><span class="snd-name">Toc-toc — chat / coordinación</span></div>
+          <div class="snd-desc">Dos golpes percusivos de madera (alguien toca la puerta): inconfundiblemente humano. Chat y "Levantar la mano".</div>
+          <div class="snd-spec">2 golpes: sin 640→560 Hz (bend 70ms) y 720→630<br>a 0/0.15s · A 4ms · D 0.13s · total 0.3s</div>
+          <button class="snd-play" onclick="mkPlay(this,'A_chat')"><i data-lucide="play"></i>Probar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Familia B -->
+    <div class="snd-fam">
+      <div class="snd-fam-hdr">
+        <span class="snd-fam-t">Familia B — "Pulso" (mínima)</span>
+        <span class="snd-fam-badge snd-alt">Alternativa</span>
+      </div>
+      <div class="snd-fam-d">
+        Más corta y neutra (senos puros, estilo dispositivo moderno). Menos carácter, más discreta —
+        por si la familia A resulta demasiado "musical" para el gusto del equipo.
+      </div>
+      <div class="snd-grid">
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--sky-dot)"></span><span class="snd-name">Info</span></div>
+          <div class="snd-desc">Blip único muy corto.</div>
+          <div class="snd-spec">Do6 1046 sin · 0.22s</div>
+          <button class="snd-play" onclick="mkPlay(this,'B_info')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--green-dot)"></span><span class="snd-name">Success</span></div>
+          <div class="snd-desc">Arpegio rápido ascendente Do-Mi-Sol.</div>
+          <div class="snd-spec">1046→1318→1568 sin · 90ms entre notas · 0.46s</div>
+          <button class="snd-play" onclick="mkPlay(this,'B_success')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--amber-dot)"></span><span class="snd-name">Alert</span></div>
+          <div class="snd-desc">Dos pips iguales — toque en el hombro.</div>
+          <div class="snd-spec">Sol5 784 tri ×2 · a 0/0.18s · 0.34s</div>
+          <button class="snd-play" onclick="mkPlay(this,'B_alert')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--red-dot)"></span><span class="snd-name">Critical</span></div>
+          <div class="snd-desc">Cuatro pips alternando un tritono — imposible de ignorar.</div>
+          <div class="snd-spec">Do6/Fa#6 (1046/1480) tri ×4 · cada 0.13s · 0.5s</div>
+          <button class="snd-play" onclick="mkPlay(this,'B_critical')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--purple-dot)"></span><span class="snd-name">Chat / coordinación</span></div>
+          <div class="snd-desc">"Du-dun" corto ascendente.</div>
+          <div class="snd-spec">Mi5 659 → La5 880 sin · a 0/0.11s · 0.28s</div>
+          <button class="snd-play" onclick="mkPlay(this,'B_chat')"><i data-lucide="play"></i>Probar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Antes -->
+    <div class="snd-fam">
+      <div class="snd-fam-hdr">
+        <span class="snd-fam-t">Antes — tonos actuales (para comparar)</span>
+        <span class="snd-fam-badge snd-old-b">Se retiran</span>
+      </div>
+      <div class="snd-fam-d">
+        Los 4 que más suenan hoy, reproducidos tal cual están en producción. Nota los timbres ásperos
+        (cuadrada, sierra) y que no se parecen entre sí: no forman un lenguaje.
+      </div>
+      <div class="snd-grid">
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--text-3)"></span><span class="snd-name">"Campana" (default)</span></div>
+          <div class="snd-desc">El único decente — la familia A parte de esta idea y la pule.</div>
+          <button class="snd-play snd-play-old" onclick="mkPlay(this,'old_campana')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--text-3)"></span><span class="snd-name">"Ding ×3" (asignada)</span></div>
+          <div class="snd-desc">Onda cuadrada: áspera, suena a videojuego de los 80.</div>
+          <button class="snd-play snd-play-old" onclick="mkPlay(this,'old_radio')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--text-3)"></span><span class="snd-name">"Alarma" (chat)</span></div>
+          <div class="snd-desc">Doble ping agudo — un mensaje de chat suena a alarma.</div>
+          <button class="snd-play snd-play-old" onclick="mkPlay(this,'old_alarma')"><i data-lucide="play"></i>Probar</button>
+        </div>
+        <div class="snd-card">
+          <div class="snd-card-top"><span class="snd-urg-dot" style="background:var(--text-3)"></span><span class="snd-name">"Urgente" (vencida)</span></div>
+          <div class="snd-desc">Sirena sawtooth ×3 descendente: estridente, genera fatiga y se termina apagando el sonido.</div>
+          <button class="snd-play snd-play-old" onclick="mkPlay(this,'old_urgente')"><i data-lucide="play"></i>Probar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mapeo -->
+    <table class="map-tbl">
+      <thead><tr><th>Sonido</th><th>Urgencia / categoría</th><th>Ejemplos de notificación</th><th>Repite si no se atiende</th></tr></thead>
+      <tbody>
+        <tr><td>Urgente</td><td><span class="map-urg"><span class="snd-urg-dot" style="background:var(--red-dot)"></span>critical</span></td><td>tarea vencida · rechazada · pick incompleto · inventario negativo</td><td>Sí — cada 30 s hasta 3 veces</td></tr>
+        <tr><td>Atención</td><td><span class="map-urg"><span class="snd-urg-dot" style="background:var(--amber-dot)"></span>alert</span></td><td>cancelada · evidencia incompleta · reactivación pendiente</td><td>Una repetición a los 30 s</td></tr>
+        <tr><td>Toc-toc</td><td><span class="map-urg"><span class="snd-urg-dot" style="background:var(--purple-dot)"></span>chat + coordinación</span></td><td>mensaje de chat · "Levantar la mano" (cualquier motivo)</td><td>No</td></tr>
+        <tr><td>Resuelto</td><td><span class="map-urg"><span class="snd-urg-dot" style="background:var(--green-dot)"></span>success</span></td><td>completada · validada · aprobada</td><td>No</td></tr>
+        <tr><td>Gota</td><td><span class="map-urg"><span class="snd-urg-dot" style="background:var(--sky-dot)"></span>info</span></td><td>asignada · SDV nueva · cambio de estado</td><td>No</td></tr>
+      </tbody>
+    </table>
+    <div class="mk-note" style="max-width:760px">
+      <b>Regla clave:</b> el sonido lo decide la URGENCIA (estampada por el servidor desde v140), no el tipo —
+      se elimina el mapa por-tipo que hoy pisa la elección del usuario. El sonido es un lenguaje compartido del
+      equipo (como un andon): todos oyen lo mismo y saben qué significa sin mirar. Por eso el usuario NO elige
+      tono por gusto: elige <b>familia no</b> (la fija Gabriel para toda la organización tras oír A y B),
+      <b>volumen sí</b> (Bajo para oficina de ventas, Alto para piso de almacén), horario y on/off como hasta ahora.
+      La vibración móvil también se diferencia: info [80] · alert [120,60,120] · critical [200,80,200,80,200] ·
+      chat/coordinación [60,40,60].
+    </div>
+  </div>
+
+  <!-- ═══════════ 4 · AJUSTES ═══════════ -->
+  <div class="mk-sec">
+    <div class="mk-sec-t"><span class="n">4</span>Ajustes de sonido propuestos (dentro del panel, tras el engranaje)</div>
+    <div class="mk-sec-d">
+      La vista de ajustes v140 se conserva (push, preferencias por categoría, mantenimiento). Solo cambia el
+      grupo "Sonido": desaparece el selector de 6 tonos (que además casi nunca aplicaba) y entra el volumen.
+    </div>
+    <div class="mk-cols">
+      <div class="set-mock">
+        <div class="set-g">
+          <div class="set-t">Sonido</div>
+          <div class="set-row"><span>Sonido activado</span><span class="toggle-pill"></span></div>
+          <div class="set-row"><span>Volumen</span>
+            <span class="segs"><button class="seg">Bajo</button><button class="seg active">Normal</button><button class="seg">Alto</button></span>
+          </div>
+          <div class="set-row"><span>Sonar entre</span><span style="color:var(--text-3);font-weight:600">08:00 — 18:00</span></div>
+          <div class="set-row"><span>Probar</span>
+            <button class="nx-btn nx-btn-gh" onclick="mkPlaySeq('A')" style="min-height:28px;padding:4px 12px"><i data-lucide="volume-2"></i>Oír los 5 sonidos</button>
+          </div>
+          <div class="set-hint">Los sonidos son fijos por urgencia para que todo el equipo hable el mismo idioma.
+          <span class="set-strike">Selector de tono: Campana / Melodía / Ding ×3 / Ding-dong / Chirp / Alerta</span> — se retira.</div>
+        </div>
+        <div class="set-g">
+          <div class="set-t">Notificaciones push</div>
+          <div class="set-hint">Sin cambios — igual que v140/v141.</div>
+        </div>
+        <div class="set-g">
+          <div class="set-t">Preferencias por categoría</div>
+          <div class="set-hint">Sin cambios (Todo / Solo panel / Apagar) — solo se agrega la fila
+          "Coordinación", que NO se puede apagar del todo (una mano levantada siempre llega al panel).</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div class="mk-note" style="font-size:12px;line-height:1.65">
+          <b>Por qué quitar el selector de tono:</b> hoy conviven dos verdades — el usuario elige "Campana"
+          pero un mapa interno por tipo lo pisa para asignada/chat/vencida, así que su elección solo aplica a
+          los tipos raros. El resultado es que nadie sabe qué va a sonar. Con sonido = urgencia, cada sonido
+          SIGNIFICA algo y el equipo entero lo aprende en un día.<br><br>
+          <b>Qué se conserva intacto de ajustes:</b> on/off, rango horario (con cruce de medianoche),
+          push/estado por dispositivo, tarjeta A2HS de iPhone, preferencias 3-niveles por categoría con la
+          política "críticas siempre se entregan", y borrar leídas.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="mk-toast" id="mk-toast"><i data-lucide="corner-down-right"></i><span id="mk-toast-txt"></span></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   Interacción del mockup (demo) — nada de esto es código de producción
+   ══════════════════════════════════════════════════════════════════ */
+function mkToggleTheme(){
+  var html = document.documentElement;
+  var dark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', dark ? 'light' : 'dark');
+  var lbl = document.getElementById('mk-theme-lbl');
+  var ico = document.getElementById('mk-theme-ico');
+  if (lbl) lbl.textContent = dark ? 'Modo oscuro' : 'Modo claro';
+  if (ico) { ico.setAttribute('data-lucide', dark ? 'moon' : 'sun'); if (window.lucide) lucide.createIcons(); }
+}
+
+var _mkToastTimer = null;
+function mkToast(txt){
+  var t = document.getElementById('mk-toast');
+  var s = document.getElementById('mk-toast-txt');
+  if (!t || !s) return;
+  s.textContent = txt;
+  t.classList.add('show');
+  if (_mkToastTimer) clearTimeout(_mkToastTimer);
+  _mkToastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+/* Clic en el cuerpo del ítem = navegación (demo: muestra el destino) */
+function mkNav(ev, el, dest){
+  ev.stopPropagation();
+  var item = el.closest ? el.closest('.nx') : null;
+  if (item) item.classList.add('read');
+  mkToast('Navegando a: ' + dest);
+}
+
+/* Acción rápida inline (demo: convierte los botones en estado "hecho") */
+function mkAction(ev, btn, label){
+  ev.stopPropagation();
+  var acts = btn.parentNode;
+  var done = document.createElement('div');
+  done.className = 'nx-done';
+  done.innerHTML = '<i data-lucide="check"></i>' + label + ' ahora mismo';
+  acts.parentNode.replaceChild(done, acts);
+  var item = done.closest ? done.closest('.nx') : null;
+  if (item) item.classList.add('read');
+  if (window.lucide) lucide.createIcons();
+  mkToast(label + ' — la notificación pasa a "hecha"');
+}
+
+/* Marcar leída individual (demo) */
+function mkRead(ev, btn){
+  ev.stopPropagation();
+  var item = btn.closest ? btn.closest('.nx') : null;
+  if (item) item.classList.add('read');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MOTOR DE SONIDO — Web Audio API, especificación real de la propuesta
+   (estas funciones SÍ son la spec implementable: osciladores, ADSR,
+   frecuencias y tiempos exactos)
+   ══════════════════════════════════════════════════════════════════ */
+var _AC = null;
+var _VOL = 1; // multiplicador de volumen: Bajo 0.6 · Normal 1 · Alto 1.5
+
+function _ac(){
+  if (!_AC) _AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (_AC.state === 'suspended') _AC.resume();
+  return _AC;
+}
+
+/* Nota genérica: envolvente A(ttack) lineal → decaimiento exponencial a 0.001.
+   f=frecuencia Hz · type=forma de onda · t=inicio s · dur=duración s ·
+   vol=pico de ganancia · fEnd=glide de frecuencia (percusivos) · atk=ataque s */
+function _note(o){
+  var ctx = _ac();
+  var now = ctx.currentTime;
+  var osc = ctx.createOscillator();
+  var g = ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.type = o.type || 'triangle';
+  osc.frequency.setValueAtTime(o.f, now + o.t);
+  if (o.fEnd) osc.frequency.exponentialRampToValueAtTime(o.fEnd, now + o.t + (o.glide || o.dur * 0.6));
+  var atk = (o.atk != null) ? o.atk : 0.010;
+  var v = Math.min(o.vol * _VOL, 0.32); // techo duro: nunca ensordecer
+  g.gain.setValueAtTime(0.0001, now + o.t);
+  g.gain.linearRampToValueAtTime(v, now + o.t + atk);
+  g.gain.exponentialRampToValueAtTime(0.001, now + o.t + o.dur);
+  osc.start(now + o.t);
+  osc.stop(now + o.t + o.dur + 0.02);
+}
+
+/* ── FAMILIA A — "Atrio": campana cálida, Re mayor pentatónico ──
+   Re5 587.33 · Fa#5 739.99 · La5 880 · Si5 987.77 · Re6 1174.66 */
+var SOUNDS = {
+  A_info: function(){                       // Gota — 1 nota suave
+    _note({f:880,    type:'triangle', t:0,    dur:0.38, vol:0.14});
+    _note({f:1760,   type:'sine',     t:0,    dur:0.30, vol:0.045});
+  },
+  A_success: function(){                    // Resuelto — quinta ascendente
+    _note({f:587.33, type:'triangle', t:0,    dur:0.40, vol:0.15});
+    _note({f:880,    type:'triangle', t:0.16, dur:0.50, vol:0.16});
+    _note({f:1760,   type:'sine',     t:0.16, dur:0.40, vol:0.04});
+  },
+  A_alert: function(){                      // Atención — cuarta descendente
+    _note({f:987.77, type:'triangle', t:0,    dur:0.38, vol:0.19});
+    _note({f:1975.5, type:'sine',     t:0,    dur:0.25, vol:0.05});
+    _note({f:739.99, type:'triangle', t:0.22, dur:0.45, vol:0.17});
+    _note({f:1479.98,type:'sine',     t:0.22, dur:0.30, vol:0.045});
+  },
+  A_critical: function(){                   // Urgente — 3 pulsos de acorde tenso
+    [0, 0.19, 0.38].forEach(function(p){
+      _note({f:880,     type:'triangle', t:p, dur:0.16, vol:0.22});
+      _note({f:1174.66, type:'triangle', t:p, dur:0.16, vol:0.16});
+      _note({f:587.33,  type:'sine',     t:p, dur:0.16, vol:0.06});
+    });
+  },
+  A_chat: function(){                       // Toc-toc — 2 golpes de madera
+    _note({f:640, type:'sine', t:0,    dur:0.13, vol:0.20, fEnd:560, glide:0.07, atk:0.004});
+    _note({f:720, type:'sine', t:0.15, dur:0.13, vol:0.18, fEnd:630, glide:0.07, atk:0.004});
+  },
+
+  /* ── FAMILIA B — "Pulso": mínima, senos puros ── */
+  B_info: function(){
+    _note({f:1046.5, type:'sine', t:0, dur:0.22, vol:0.13});
+  },
+  B_success: function(){
+    _note({f:1046.5, type:'sine', t:0,    dur:0.16, vol:0.14});
+    _note({f:1318.5, type:'sine', t:0.09, dur:0.16, vol:0.14});
+    _note({f:1568,   type:'sine', t:0.18, dur:0.28, vol:0.14});
+  },
+  B_alert: function(){
+    _note({f:784, type:'triangle', t:0,    dur:0.12, vol:0.18});
+    _note({f:784, type:'triangle', t:0.18, dur:0.16, vol:0.18});
+  },
+  B_critical: function(){
+    [0, 0.13, 0.26, 0.39].forEach(function(p, i){
+      _note({f: (i % 2 === 0) ? 1046.5 : 1479.98, type:'triangle', t:p, dur:0.10, vol:0.24});
+    });
+  },
+  B_chat: function(){
+    _note({f:659.25, type:'sine', t:0,    dur:0.10, vol:0.16});
+    _note({f:880,    type:'sine', t:0.11, dur:0.16, vol:0.15});
+  },
+
+  /* ── ANTES — réplica exacta de _playTone en producción (para comparar) ── */
+  old_campana: function(){
+    _note({f:1047, type:'triangle', t:0, dur:1.0, vol:0.20});
+    _note({f:1568, type:'triangle', t:0, dur:0.7, vol:0.10});
+    _note({f:2093, type:'sine',     t:0, dur:0.4, vol:0.05});
+  },
+  old_radio: function(){
+    _note({f:660,  type:'square', t:0,    dur:0.20, vol:0.12, atk:0.012});
+    _note({f:880,  type:'square', t:0.23, dur:0.20, vol:0.12, atk:0.012});
+    _note({f:1100, type:'square', t:0.46, dur:0.30, vol:0.12, atk:0.012});
+  },
+  old_alarma: function(){
+    _note({f:1319, type:'sine', t:0,    dur:0.40, vol:0.20});
+    _note({f:1047, type:'sine', t:0,    dur:0.40, vol:0.08});
+    _note({f:1319, type:'sine', t:0.50, dur:0.40, vol:0.18});
+    _note({f:1047, type:'sine', t:0.50, dur:0.40, vol:0.07});
+  },
+  old_urgente: function(){
+    _note({f:1600, type:'sawtooth', t:0,    dur:0.35, vol:0.22, fEnd:800, glide:0.30});
+    _note({f:1600, type:'sawtooth', t:0.42, dur:0.35, vol:0.20, fEnd:800, glide:0.30});
+    _note({f:1600, type:'sawtooth', t:0.84, dur:0.30, vol:0.17, fEnd:900, glide:0.26});
+  }
+};
+
+function mkPlay(btn, id){
+  if (SOUNDS[id]) SOUNDS[id]();
+  if (btn) {
+    btn.classList.add('playing');
+    setTimeout(function(){ btn.classList.remove('playing'); }, 700);
+  }
+}
+
+function mkSetVol(seg){
+  _VOL = parseFloat(seg.getAttribute('data-vol')) || 1;
+  var segs = document.querySelectorAll('#vol-segs .seg');
+  for (var i = 0; i < segs.length; i++) segs[i].classList.remove('active');
+  seg.classList.add('active');
+  SOUNDS.A_info(); // feedback inmediato del nivel elegido
+}
+
+/* Secuencia: info → success → alert → chat → critical, espaciados 1.1s */
+function mkPlaySeq(fam){
+  var order = ['info', 'success', 'alert', 'chat', 'critical'];
+  order.forEach(function(k, i){
+    setTimeout(function(){ if (SOUNDS[fam + '_' + k]) SOUNDS[fam + '_' + k](); }, i * 1100);
+  });
+}
+
+if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
