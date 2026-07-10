@@ -6610,6 +6610,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <!-- Recepciones de tránsito pendientes -->
       <div id="inv-recepciones" style="margin-bottom:16px"></div>
 
+      <!-- Anomalías estructurales de ubicaciones (auditoría 10-jul) -->
+      <div id="inv-anomalias" style="margin-bottom:16px"></div>
+
       <!-- Casos con seguimiento -->
       <div id="inv-casos"></div>
 
@@ -9011,7 +9014,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v181';
+var APP_BUILD = 'v182';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -26956,8 +26959,11 @@ async function invSaludCargar(force) {
     kpis.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Consultando Odoo…</div>';
     document.getElementById('inv-sincaso').innerHTML = '';
     document.getElementById('inv-recepciones').innerHTML = '';
+    document.getElementById('inv-anomalias').innerHTML = '';
     document.getElementById('inv-casos').innerHTML = '';
   }
+  // Anomalías estructurales de ubicaciones — fetch independiente, en paralelo
+  invAnomCargar(force);
   try {
     var r = await authFetch('/api/inventario/salud' + (force ? '?refresh=1' : ''));
     var d = await r.json();
@@ -26985,6 +26991,103 @@ function invRenderAll() {
   invRenderSinCaso();
   invRenderRecepciones();
   invRenderCasos();
+  if (window.lucide) lucide.createIcons();
+}
+
+// ── Anomalías estructurales de ubicaciones (auditoría 10-jul) ─────────────────
+// Monitorea, solo lectura, los patrones que Ron identificó y que no se pueden
+// corregir en Odoo desde aquí: stock en nodos padre (putaway mal aplicado, ej.
+// A-CDP) y ubicaciones congeladas fuera del árbol de almacén (ej. DIF.PTN).
+var _invAnomData = null;
+async function invAnomCargar(force) {
+  var box = document.getElementById('inv-anomalias');
+  if (!box) return;
+  if (!_invAnomData || force) box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;color:var(--text-3);font-size:12px"><div class="spinner"></div>Analizando ubicaciones…</div>';
+  try {
+    var r = await authFetch('/api/inventario/anomalias');
+    var d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || 'Error');
+    _invAnomData = d;
+    invAnomRender(d);
+  } catch(e) {
+    box.innerHTML = '<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px">No se pudieron cargar las anomalías de ubicaciones: ' + esc(e.message) + '</div>';
+  }
+}
+
+function invAnomRender(d) {
+  var box = document.getElementById('inv-anomalias');
+  if (!box) return;
+  var t = d.totals || {};
+  var parents = d.parentNodes || [];
+  var roots = d.frozenRoots || [];
+  var anomalias = parents.filter(function(p){ return p.tipo === 'anomalia'; });
+  var revisar = parents.filter(function(p){ return p.tipo === 'revisar'; });
+  var h = '';
+
+  // ── Panel 1: nodos padre con negativos (putaway mal aplicado) ──
+  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">';
+  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="git-fork" style="width:14px;height:14px;stroke:var(--red-text)"></i>Stock en nodos padre (putaway mal aplicado)</div>';
+  h += '<span style="font-size:10px;color:var(--text-3);max-width:320px;text-align:right">El físico está en una hija pero el sistema lo registra en el padre → negativos al despachar</span>';
+  h += '</div>';
+  if (!anomalias.length) {
+    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún nodo padre con negativos. Sin anomalía de putaway activa.</div></div>';
+  } else {
+    anomalias.forEach(function(loc){
+      h += '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">';
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">';
+      h += '<div style="font-size:12px;font-weight:700;color:var(--text)"><i data-lucide="map-pin" style="width:12px;height:12px;stroke:var(--text-3);vertical-align:-1px;margin-right:3px"></i>' + esc(loc.name) + '</div>';
+      h += '<div style="display:flex;gap:6px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--red-bg);color:var(--red-text)">' + loc.negativos + ' negativos</span><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)">neto ' + loc.neto + '</span></div>';
+      h += '</div>';
+      h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+      h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:5px 8px;font-weight:600">Referencia</th><th style="padding:5px 8px;font-weight:600">Artículo</th><th style="padding:5px 8px;font-weight:600;text-align:center">Cant.</th><th style="padding:5px 8px;font-weight:600;text-align:center">Antigüedad</th><th style="padding:5px 8px;font-weight:600">Transferencia</th></tr></thead><tbody>';
+      loc.items.forEach(function(it){
+        var neg = it.qty < 0;
+        h += '<tr style="border-top:1px solid var(--border)">'
+          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text);white-space:nowrap">' + esc(it.code || '—') + '</td>'
+          + '<td style="padding:5px 8px;color:var(--text-secondary);max-width:260px">' + esc(it.name || '') + '</td>'
+          + '<td style="padding:5px 8px;text-align:center;font-weight:700;color:' + (neg ? 'var(--red-text)' : 'var(--text)') + '">' + it.qty + '</td>'
+          + '<td style="padding:5px 8px;text-align:center;color:var(--text-3);white-space:nowrap">' + tmAge(it.ageDays) + '</td>'
+          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;color:var(--text-3);white-space:nowrap">' + esc(it.sourcePicking || '—') + '</td>'
+          + '</tr>';
+      });
+      h += '</tbody></table></div></div>';
+    });
+  }
+  if (revisar.length) {
+    h += '<div style="padding:8px 14px;font-size:11px;color:var(--text-3);background:var(--surface-2)">'
+      + '<strong>' + revisar.length + ' nodos padre con stock solo positivo</strong> (posible convención de almacén, no error de dato): '
+      + revisar.map(function(r){ return esc(String(r.name).split('/').pop()) + ' (' + r.count + ')'; }).join(' · ')
+      + '</div>';
+  }
+  h += '</div>';
+
+  // ── Panel 2: ubicaciones fuera del árbol de almacén ──
+  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">';
+  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="unlink" style="width:14px;height:14px;stroke:var(--amber-text)"></i>Ubicaciones fuera del árbol de almacén</div>';
+  h += '<span style="font-size:10px;color:var(--text-3)">' + (t.rootsCount || 0) + ' ubicaciones · ' + (t.rootUnd || 0) + ' und · invisibles al reporte por almacén</span>';
+  h += '</div>';
+  if (!roots.length) {
+    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Sin ubicaciones raíz con stock.</div>';
+  } else {
+    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 12px;font-weight:600">Ubicación</th><th style="padding:6px 12px;font-weight:600;text-align:center">Artículos</th><th style="padding:6px 12px;font-weight:600;text-align:center">Unidades</th><th style="padding:6px 12px;font-weight:600;text-align:center">Antigüedad máx</th></tr></thead><tbody>';
+    roots.forEach(function(loc){
+      var viejo = loc.maxAge > 180;
+      h += '<tr style="border-top:1px solid var(--border)">'
+        + '<td style="padding:6px 12px;font-weight:600;color:var(--text)">' + esc(loc.name) + '</td>'
+        + '<td style="padding:6px 12px;text-align:center;color:var(--text-secondary)">' + loc.count + '</td>'
+        + '<td style="padding:6px 12px;text-align:center;font-weight:700;color:var(--text)">' + loc.undTotal + '</td>'
+        + '<td style="padding:6px 12px;text-align:center;font-weight:' + (viejo ? '700' : '400') + ';color:' + (viejo ? 'var(--amber-text)' : 'var(--text-3)') + ';white-space:nowrap">' + tmAge(loc.maxAge) + '</td>'
+        + '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3)">Antigüedad = fecha de la última transferencia hacia la ubicación. Algunas pueden ser showrooms/consignación legítimos (pendiente confirmar con Gabriel).</div>';
+  h += '</div>';
+
+  box.innerHTML = h;
   if (window.lucide) lucide.createIcons();
 }
 

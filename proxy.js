@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v181';
+const APP_BUILD = 'v182';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -8303,6 +8303,116 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(502, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── GET /api/inventario/anomalias — monitor de anomalías estructurales ──────
+  // Detecta (solo lectura) los patrones que Ron identificó en la auditoría de
+  // ubicaciones (10-jul), sin poder tocar Odoo:
+  //   • Nodos padre con stock DIRECTO: ubicaciones internas que tienen hijas
+  //     pero cargan quants en el nodo padre de agregación (ej. A-CDP id 24).
+  //     Es el putaway mal aplicado que genera los negativos al despachar.
+  //   • Roots congeladas: ubicaciones internas sin almacén/padre con stock viejo
+  //     (ej. DIF.PTN, ~855 días) — invisibles al reporte por almacén.
+  if (reqPath === '/api/inventario/anomalias' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    try {
+      const timeoutMs = 15000;
+      const work = (async () => {
+        // 1. Todas las ubicaciones internas
+        const locs = await odooCall('stock.location', 'search_read',
+          [[['usage', '=', 'internal']]],
+          { fields: ['id', 'complete_name', 'name', 'location_id'], limit: 3000 });
+        const byId = {}; locs.forEach(l => { byId[l.id] = l; });
+        // Padres internos = ids referenciados como location_id de otra interna
+        const parentIds = new Set();
+        locs.forEach(l => { if (l.location_id) parentIds.add(l.location_id[0]); });
+        const internalParentIds = [...parentIds].filter(id => byId[id]);
+        // Roots internas (sin padre)
+        const rootIds = locs.filter(l => !l.location_id).map(l => l.id);
+        const watchIds = [...new Set([...internalParentIds, ...rootIds])];
+        const parentSet = new Set(internalParentIds);
+        const rootSet = new Set(rootIds);
+
+        // 2. Quants con stock en esos nodos
+        const quants = watchIds.length ? await odooCall('stock.quant', 'search_read',
+          [[['location_id', 'in', watchIds], ['quantity', '!=', 0]]],
+          { fields: ['product_id', 'location_id', 'quantity', 'in_date'], limit: 6000 }) : [];
+        const prodIds = [...new Set(quants.map(q => q.product_id[0]))];
+
+        // 3. Antigüedad = move 'done' más reciente hacia la ubicación (fecha de
+        //    transferencia; NO in_date FIFO que da falsos de cientos de días)
+        const inMoves = prodIds.length ? await odooCall('stock.move', 'search_read',
+          [[['location_dest_id', 'in', watchIds], ['product_id', 'in', prodIds], ['state', '=', 'done']]],
+          { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc', limit: 9000 }) : [];
+        const srcByKey = {};
+        for (const m of inMoves) {
+          const k = m.location_dest_id[0] + ':' + m.product_id[0];
+          if (!srcByKey[k]) srcByKey[k] = { picking: m.picking_id ? m.picking_id[1] : '', date: m.date };
+        }
+
+        // 4. Producto
+        const prods = prodIds.length ? await odooCall('product.product', 'search_read',
+          [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name'], limit: 6000 }) : [];
+        const prodMap = {}; prods.forEach(p => { prodMap[p.id] = p; });
+
+        const now = Date.now();
+        const mkItem = (q) => {
+          const pid = q.product_id[0];
+          const key = q.location_id[0] + ':' + pid;
+          const src = srcByKey[key] || {};
+          const p = prodMap[pid] || {};
+          const d = src.date || q.in_date || null;
+          const ageDays = d ? Math.floor((now - new Date(String(d).replace(' ', 'T') + 'Z').getTime()) / 86400000) : null;
+          return { prodId: pid, code: p.default_code || '', name: p.name || (q.product_id[1] || ''), qty: q.quantity, ageDays, sourcePicking: src.picking || '' };
+        };
+
+        const parentGroups = {}, rootGroups = {};
+        for (const q of quants) {
+          const lid = q.location_id[0];
+          const item = mkItem(q);
+          if (parentSet.has(lid)) (parentGroups[lid] = parentGroups[lid] || { id: lid, name: (byId[lid].complete_name || byId[lid].name), items: [] }).items.push(item);
+          else if (rootSet.has(lid)) (rootGroups[lid] = rootGroups[lid] || { id: lid, name: (byId[lid].complete_name || byId[lid].name), items: [] }).items.push(item);
+        }
+        const summarize = (g) => Object.values(g).map(loc => {
+          const negs = loc.items.filter(i => i.qty < 0);
+          loc.items.sort((a, b) => ((a.qty < 0) === (b.qty < 0) ? (b.ageDays || 0) - (a.ageDays || 0) : (a.qty < 0 ? -1 : 1)));
+          return {
+            id: loc.id, name: loc.name, items: loc.items,
+            count: loc.items.length, negativos: negs.length,
+            neto: Math.round(loc.items.reduce((s, i) => s + i.qty, 0) * 100) / 100,
+            undNeg: Math.round(negs.reduce((s, i) => s + Math.abs(i.qty), 0) * 100) / 100,
+            undTotal: Math.round(loc.items.reduce((s, i) => s + i.qty, 0) * 100) / 100,
+            maxAge: loc.items.reduce((m, i) => Math.max(m, i.ageDays || 0), 0)
+          };
+        });
+        // Nodo padre CON negativos = anomalía real de putaway (el físico está en la
+        // hija pero el sistema lo tiene en el padre → negativo al despachar). Nodo
+        // padre solo-positivo (ej. B-STI 725 und) suele ser convención de almacén,
+        // no un error de dato: se muestra como resumen "revisar", sin detallar líneas.
+        const parentNodes = summarize(parentGroups)
+          .map(l => (l.negativos > 0 ? { ...l, tipo: 'anomalia' } : { ...l, items: [], tipo: 'revisar' }))
+          .sort((a, b) => b.negativos - a.negativos || b.count - a.count);
+        const frozenRoots = summarize(rootGroups).sort((a, b) => b.maxAge - a.maxAge);
+        return {
+          parentNodes, frozenRoots,
+          totals: {
+            parentNodesCount: parentNodes.length,
+            parentNegativos: parentNodes.reduce((s, l) => s + l.negativos, 0),
+            parentQuants: parentNodes.reduce((s, l) => s + l.count, 0),
+            rootsCount: frozenRoots.length,
+            rootUnd: Math.round(frozenRoots.reduce((s, l) => s + l.undTotal, 0) * 100) / 100,
+            rootMaxAge: frozenRoots.reduce((m, l) => Math.max(m, l.maxAge), 0)
+          }
+        };
+      })();
+      const out = await Promise.race([work, new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), timeoutMs))]);
+      sendGzipJson(req, res, 200, { ok: true, generatedAt: new Date().toISOString(), ...out });
+    } catch (e) {
+      const to = /Timeout/.test(e.message);
+      sendJson(res, to ? 503 : 502, { ok: false, error: to ? 'Odoo no responde (timeout), intente después' : e.message });
     }
     return;
   }
