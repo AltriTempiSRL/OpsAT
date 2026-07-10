@@ -9014,7 +9014,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v183';
+var APP_BUILD = 'v184';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27089,6 +27089,37 @@ function invAnomRender(d) {
     h += '</tbody></table></div>';
   }
   h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3)">Antigüedad = fecha de la última transferencia hacia la ubicación. Los showrooms/consignación (MICHELL, MONTIBELLO, LOB, Stam House) están confirmados como legítimos y se atenúan; solo resaltan las que requieren revisión (ej. DIF.PTN).</div>';
+  h += '</div>';
+
+  // ── Panel 3: correcciones por ajuste de conteo (posible enmascaramiento) ──
+  var adj = d.adjustments || [];
+  var win = d.adjWindowDays || 90;
+  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:14px">';
+  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="pencil-ruler" style="width:14px;height:14px;stroke:var(--amber-text)"></i>Correcciones por ajuste de conteo</div>';
+  h += '<span style="font-size:10px;color:var(--text-3);max-width:340px;text-align:right">Ajustes de inventario (últimos ' + win + ' días) sobre ubicaciones con desvíos. Un ajuste que <strong>sube</strong> el stock puede estar tapando un negativo sin resolver el putaway; una reubicación real no aparece aquí.</span>';
+  h += '</div>';
+  if (!adj.length) {
+    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">0 ajustes de conteo en ' + win + ' días sobre las ubicaciones con desvíos. Las correcciones no se están enmascarando con ajustes.</div></div>';
+  } else {
+    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 10px;font-weight:600">Referencia</th><th style="padding:6px 10px;font-weight:600">Artículo</th><th style="padding:6px 10px;font-weight:600">Ubicación</th><th style="padding:6px 10px;font-weight:600;text-align:center">Ajuste</th><th style="padding:6px 10px;font-weight:600;text-align:center">Cuándo</th><th style="padding:6px 10px;font-weight:600">Doc.</th></tr></thead><tbody>';
+    adj.forEach(function(a){
+      var mask = a.delta > 0;
+      h += '<tr style="border-top:1px solid var(--border)">'
+        + '<td style="padding:6px 10px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text);white-space:nowrap">' + esc(a.code || '—') + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-secondary);max-width:220px">' + esc(a.name || '') + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-3);white-space:nowrap">' + esc(String(a.location || '').replace('ALVEN/Stock/', '')) + '</td>'
+        + '<td style="padding:6px 10px;text-align:center;font-weight:700;color:' + (mask ? 'var(--amber-text)' : 'var(--text)') + ';white-space:nowrap">' + (a.delta > 0 ? '+' : '') + a.delta + (mask ? ' ▲' : '') + '</td>'
+        + '<td style="padding:6px 10px;text-align:center;color:var(--text-3);white-space:nowrap">' + tmAge(a.ageDays) + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-3);font-size:10px;white-space:nowrap">' + esc(a.reference || '—') + '</td>'
+        + '</tr>';
+    });
+    h += '</tbody></table></div>';
+    if ((t.adjustmentsMask || 0) > 0) {
+      h += '<div style="padding:8px 14px;font-size:11px;color:var(--amber-text);background:var(--amber-bg)">▲ ' + t.adjustmentsMask + ' ajuste(s) subieron stock en una ubicación con desvío — revisar si tapan un negativo en vez de resolver el putaway.</div>';
+    }
+  }
   h += '</div>';
 
   box.innerHTML = h;

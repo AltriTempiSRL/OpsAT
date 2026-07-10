@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v183';
+const APP_BUILD = 'v184';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -8353,9 +8353,36 @@ const server = http.createServer(async (req, res) => {
           if (!srcByKey[k]) srcByKey[k] = { picking: m.picking_id ? m.picking_id[1] : '', date: m.date };
         }
 
-        // 4. Producto
-        const prods = prodIds.length ? await odooCall('product.product', 'search_read',
-          [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name'], limit: 6000 }) : [];
+        // 3b. Correcciones por AJUSTE DE CONTEO (posible enmascaramiento) — un
+        //     negativo que se "arregla" contando el stock hacia arriba con un ajuste
+        //     de inventario tapa el síntoma sin resolver la causa (el putaway). Una
+        //     reubicación real (interno→interno) NO aparece aquí. Se vigilan los
+        //     nodos padre + las ubicaciones que HOY tienen negativos.
+        const ADJ_WINDOW_DAYS = 90;
+        const negLocQuants = await odooCall('stock.quant', 'search_read',
+          [[['quantity', '<', 0], ['location_id.usage', '=', 'internal']]],
+          { fields: ['location_id'], limit: 2000 });
+        const negLocIds = [...new Set(negLocQuants
+          .filter(q => !/sistema anterior/i.test((q.location_id && q.location_id[1]) || ''))
+          .map(q => q.location_id[0]))];
+        const adjWatch = [...new Set([...internalParentIds, ...negLocIds])];
+        // Ubicación virtual de AJUSTE DE CONTEO puro (no mermas/regalos/roturas)
+        const invAdjLocs = await odooCall('stock.location', 'search_read',
+          [[['usage', '=', 'inventory'], ['complete_name', 'ilike', 'Inventory adjustment']]],
+          { fields: ['id'], limit: 10 });
+        const invAdjIds = invAdjLocs.map(l => l.id);
+        const sinceAdj = new Date(Date.now() - ADJ_WINDOW_DAYS * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+        const adjMoves = (adjWatch.length && invAdjIds.length) ? await odooCall('stock.move', 'search_read',
+          [['&', '&', ['state', '=', 'done'], ['date', '>=', sinceAdj],
+            '|', '&', ['location_id', 'in', invAdjIds], ['location_dest_id', 'in', adjWatch],
+            '&', ['location_dest_id', 'in', invAdjIds], ['location_id', 'in', adjWatch]]],
+          { fields: ['product_id', 'location_id', 'location_dest_id', 'quantity_done', 'date', 'reference'], order: 'date desc', limit: 300 }) : [];
+        const adjWatchSet = new Set(adjWatch);
+
+        // 4. Producto (incluye los de ajustes)
+        const allProdIds = [...new Set([...prodIds, ...adjMoves.map(m => m.product_id[0])])];
+        const prods = allProdIds.length ? await odooCall('product.product', 'search_read',
+          [[['id', 'in', allProdIds]]], { fields: ['id', 'default_code', 'name'], limit: 6000 }) : [];
         const prodMap = {}; prods.forEach(p => { prodMap[p.id] = p; });
 
         const now = Date.now();
@@ -8402,8 +8429,25 @@ const server = http.createServer(async (req, res) => {
         const frozenRoots = summarize(rootGroups)
           .map(l => ({ ...l, legit: LEGIT_ROOT_RE.test(l.name) }))
           .sort((a, b) => (a.legit === b.legit ? b.maxAge - a.maxAge : (a.legit ? 1 : -1)));
+
+        // Ajustes de conteo sobre ubicaciones con desvíos (delta>0 = subió stock =
+        // posible enmascaramiento de un negativo)
+        const adjustments = adjMoves.map(m => {
+          const toWatch = adjWatchSet.has(m.location_dest_id[0]);
+          const locId = toWatch ? m.location_dest_id[0] : m.location_id[0];
+          const p = prodMap[m.product_id[0]] || {};
+          const d = m.date;
+          const ageDays = d ? Math.floor((now - new Date(String(d).replace(' ', 'T') + 'Z').getTime()) / 86400000) : null;
+          return {
+            code: p.default_code || '', name: p.name || (m.product_id[1] || ''),
+            location: byId[locId] ? (byId[locId].complete_name || byId[locId].name) : (toWatch ? m.location_dest_id[1] : m.location_id[1]),
+            delta: Math.round((toWatch ? m.quantity_done : -m.quantity_done) * 100) / 100,
+            date: d, ageDays, reference: m.reference || ''
+          };
+        });
+
         return {
-          parentNodes, frozenRoots,
+          parentNodes, frozenRoots, adjustments, adjWindowDays: ADJ_WINDOW_DAYS,
           totals: {
             parentNodesCount: parentNodes.length,
             parentNegativos: parentNodes.reduce((s, l) => s + l.negativos, 0),
@@ -8413,7 +8457,9 @@ const server = http.createServer(async (req, res) => {
             rootsLegit: frozenRoots.filter(l => l.legit).length,
             rootUndAnomalos: Math.round(frozenRoots.filter(l => !l.legit).reduce((s, l) => s + l.undTotal, 0) * 100) / 100,
             rootUnd: Math.round(frozenRoots.reduce((s, l) => s + l.undTotal, 0) * 100) / 100,
-            rootMaxAge: frozenRoots.reduce((m, l) => Math.max(m, l.maxAge), 0)
+            rootMaxAge: frozenRoots.reduce((m, l) => Math.max(m, l.maxAge), 0),
+            adjustmentsCount: adjustments.length,
+            adjustmentsMask: adjustments.filter(a => a.delta > 0).length
           }
         };
       })();
