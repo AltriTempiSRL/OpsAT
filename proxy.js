@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v184';
+const APP_BUILD = 'v185';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1029,6 +1029,29 @@ function composeItemName(desc, fallbackName, code) {
   return '[' + c + '] ' + d;
 }
 
+// ── Almacenes OUTLET: OUT directo sin PICK (ship_only) ────────────────────────
+// OUT27 y OUTLE despachan en un solo paso: el OUT sale directo del bin del outlet
+// (que vive dentro del árbol ALVEN) al cliente, SIN picking interno (PICK) y facturando
+// antes del envío (Ron 10-jul, orden S09714). El lector de artículos debe leer ESE OUT
+// como fuente cuando la orden es de un outlet, o el flujo SDV→WWP se traba con "Sin pick
+// preparado". Decisión de Gabriel (10-jul): acotado a los DOS outlets (no todos los
+// ship_only); las salidas mixtas ALVEN+outlet en una misma orden NO ocurren en los datos
+// (barrido histórico de Ron: 0 en 2026) y quedan fuera de alcance. Se clasifica por
+// picking_type_id (no por el warehouse de la orden, que es único y puede discrepar de
+// dónde vive realmente cada picking — re-emisión/reposicionamiento, Ron 10-jul).
+const OUTLET_WH_CODES = ['OUT27','OUTLE'];
+let _outletOutTypeCache = null;   // Set<picking_type_id de salida> — config estática, cache de por vida del proceso
+async function getOutletOutTypeIds() {
+  if (_outletOutTypeCache) return _outletOutTypeCache;
+  try {
+    const whs = await odooCall('stock.warehouse','search_read',
+      [[['code','in',OUTLET_WH_CODES]]], {fields:['id','code','out_type_id']});
+    const set = new Set((whs||[]).map(w => w.out_type_id && w.out_type_id[0]).filter(Boolean));
+    if (set.size) _outletOutTypeCache = set;   // solo cachear si obtuvimos algo (fail-open ante Odoo caído)
+    return set;
+  } catch (e) { silentCatch(e,'getOutletOutTypeIds'); return new Set(); }
+}
+
 async function buildItemsFromPicks(orderName, stateFilter) {
   const pickStates = stateFilter || ['assigned','done'];
   // Resolver nombre real de la orden (tolera ref sin prefijo, ej. "7647" → "S07647")
@@ -1038,20 +1061,35 @@ async function buildItemsFromPicks(orderName, stateFilter) {
     if (so && so.length) realName = so[0].name;
   } catch {}
 
-  // Buscar pickings ligados a esta orden según estado solicitado
+  // Estados a TRAER de Odoo: los solicitados + assigned/done. El OUT directo del outlet
+  // nace normalmente 'done' (despacho inmediato), así que aunque el caller pida solo
+  // ['assigned'] (primera carga), hay que traerlo. El filtrado fino se hace por categoría:
+  // PICK/RET siguen respetando pickStates EXACTO (cero cambio para ALVEN); solo el OUT
+  // directo del outlet usa assigned/done.
+  const _fetchStates = [...new Set([...pickStates, 'assigned', 'done'])];
   const picksAll = await odooCall('stock.picking','search_read',
-    [[['origin','=',realName],['state','in',pickStates]]],
+    [[['origin','=',realName],['state','in',_fetchStates]]],
     {fields:['id','name','picking_type_id','state'],limit:50});
 
-  const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name));
-  const retList  = (picksAll||[]).filter(p => /\/RET\//i.test(p.name)
-    || /return|devoluci/i.test((p.picking_type_id&&p.picking_type_id[1])||''));
+  // PICK y RET conservan EXACTAMENTE el comportamiento previo: solo los estados que el
+  // caller pidió (el filtro extra por pickStates compensa que _fetchStates es más amplio).
+  const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name) && pickStates.includes(p.state));
+  const retList  = (picksAll||[]).filter(p => (/\/RET\//i.test(p.name)
+    || /return|devoluci/i.test((p.picking_type_id&&p.picking_type_id[1])||'')) && pickStates.includes(p.state));
+  // OUT directo del outlet (OUT27/OUTLE): fuente de artículos cuando no hay PICK. Excluye
+  // cancel; acepta assigned/done. Para una orden ALVEN normal el Set no matchea (su OUT es
+  // otro picking_type) → outletOutList vacío → cero impacto en el flujo existente.
+  const _outletOutTypes = await getOutletOutTypeIds();
+  const outletOutList = (picksAll||[]).filter(p =>
+    p.picking_type_id && _outletOutTypes.has(p.picking_type_id[0])
+    && ['assigned','done'].includes(p.state));
 
-  if (!pickList.length && !retList.length) return { noPick:true, items:[], picks:[], pickNames:[] };
+  if (!pickList.length && !retList.length && !outletOutList.length) return { noPick:true, items:[], picks:[], pickNames:[] };
 
   // Agrupar move lines por (pickId × productId) para mantener picks separados
-  const allIds = [...pickList, ...retList].map(p=>p.id);
-  const pickInfoById = {}; [...pickList,...retList].forEach(p=>{ pickInfoById[p.id]=p; });
+  const _sourceList = [...pickList, ...retList, ...outletOutList];
+  const allIds = _sourceList.map(p=>p.id);
+  const pickInfoById = {}; _sourceList.forEach(p=>{ pickInfoById[p.id]=p; });
 
   const mls = await odooCall('stock.move.line','search_read',
     [[['picking_id','in',allIds]]],
@@ -1097,9 +1135,10 @@ async function buildItemsFromPicks(orderName, stateFilter) {
   const pids = [...new Set(Object.values(byKey).map(g=>g.pid))];
   const picks = [
     ...pickList.map(p=>({ name:p.name, type:'pick', state:p.state })),
-    ...retList.map(p=>({ name:p.name, type:'return', state:p.state }))
+    ...retList.map(p=>({ name:p.name, type:'return', state:p.state })),
+    ...outletOutList.map(p=>({ name:p.name, type:'out', state:p.state }))
   ];
-  if(!pids.length) return { noPick:false, items:[], picks, pickNames:pickList.map(p=>p.name) };
+  if(!pids.length) return { noPick:false, items:[], picks, pickNames:[...pickList,...outletOutList].map(p=>p.name) };
 
   const prods  = await odooCall('product.product','read',[pids],{fields:['id','barcode','default_code','image_128','categ_id']});
   const pm={}; prods.forEach(p=>{ pm[p.id]=p; });
@@ -1120,7 +1159,7 @@ async function buildItemsFromPicks(orderName, stateFilter) {
       selected:false, evidence_images:[], comments:'', status:'pending' };
   });
 
-  return { noPick:false, items, picks, pickNames:pickList.map(p=>p.name) };
+  return { noPick:false, items, picks, pickNames:[...pickList,...outletOutList].map(p=>p.name) };
 }
 
 // ── Resolvedor de nombre correcto por ORDEN (soporte del pase retroactivo v127) ──
