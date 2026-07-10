@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v182';
+const APP_BUILD = 'v183';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -8395,7 +8395,13 @@ const server = http.createServer(async (req, res) => {
         const parentNodes = summarize(parentGroups)
           .map(l => (l.negativos > 0 ? { ...l, tipo: 'anomalia' } : { ...l, items: [], tipo: 'revisar' }))
           .sort((a, b) => b.negativos - a.negativos || b.count - a.count);
-        const frozenRoots = summarize(rootGroups).sort((a, b) => b.maxAge - a.maxAge);
+        // Roots legítimas confirmadas por Gabriel (10-jul): showrooms/consignación
+        // (MICHELL, MONTIBELLO, LOB, Stam House) — NO son anomalía, se marcan aparte
+        // para que solo resalten las reales (DIF.*, OBSOLETO*, desconocidas).
+        const LEGIT_ROOT_RE = /michell|montibello|\bLOB\d|stam\s*house|consign/i;
+        const frozenRoots = summarize(rootGroups)
+          .map(l => ({ ...l, legit: LEGIT_ROOT_RE.test(l.name) }))
+          .sort((a, b) => (a.legit === b.legit ? b.maxAge - a.maxAge : (a.legit ? 1 : -1)));
         return {
           parentNodes, frozenRoots,
           totals: {
@@ -8403,6 +8409,9 @@ const server = http.createServer(async (req, res) => {
             parentNegativos: parentNodes.reduce((s, l) => s + l.negativos, 0),
             parentQuants: parentNodes.reduce((s, l) => s + l.count, 0),
             rootsCount: frozenRoots.length,
+            rootsAnomalos: frozenRoots.filter(l => !l.legit).length,
+            rootsLegit: frozenRoots.filter(l => l.legit).length,
+            rootUndAnomalos: Math.round(frozenRoots.filter(l => !l.legit).reduce((s, l) => s + l.undTotal, 0) * 100) / 100,
             rootUnd: Math.round(frozenRoots.reduce((s, l) => s + l.undTotal, 0) * 100) / 100,
             rootMaxAge: frozenRoots.reduce((m, l) => Math.max(m, l.maxAge), 0)
           }

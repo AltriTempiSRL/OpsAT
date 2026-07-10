@@ -9014,7 +9014,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v182';
+var APP_BUILD = 'v183';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27066,17 +27066,21 @@ function invAnomRender(d) {
   h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">';
   h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
   h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="unlink" style="width:14px;height:14px;stroke:var(--amber-text)"></i>Ubicaciones fuera del árbol de almacén</div>';
-  h += '<span style="font-size:10px;color:var(--text-3)">' + (t.rootsCount || 0) + ' ubicaciones · ' + (t.rootUnd || 0) + ' und · invisibles al reporte por almacén</span>';
+  h += '<span style="font-size:10px;color:var(--text-3)">' + (t.rootsAnomalos || 0) + ' requieren revisión · ' + (t.rootsLegit || 0) + ' showroom legítimos · invisibles al reporte por almacén</span>';
   h += '</div>';
   if (!roots.length) {
     h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Sin ubicaciones raíz con stock.</div>';
   } else {
     h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 12px;font-weight:600">Ubicación</th><th style="padding:6px 12px;font-weight:600;text-align:center">Artículos</th><th style="padding:6px 12px;font-weight:600;text-align:center">Unidades</th><th style="padding:6px 12px;font-weight:600;text-align:center">Antigüedad máx</th></tr></thead><tbody>';
+    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 12px;font-weight:600">Ubicación</th><th style="padding:6px 12px;font-weight:600">Estado</th><th style="padding:6px 12px;font-weight:600;text-align:center">Artículos</th><th style="padding:6px 12px;font-weight:600;text-align:center">Unidades</th><th style="padding:6px 12px;font-weight:600;text-align:center">Antigüedad máx</th></tr></thead><tbody>';
     roots.forEach(function(loc){
-      var viejo = loc.maxAge > 180;
-      h += '<tr style="border-top:1px solid var(--border)">'
+      var viejo = !loc.legit && loc.maxAge > 180;
+      var estado = loc.legit
+        ? '<span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-3);white-space:nowrap">showroom legítimo</span>'
+        : '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber-text);white-space:nowrap">revisar</span>';
+      h += '<tr style="border-top:1px solid var(--border)' + (loc.legit ? ';opacity:.6' : '') + '">'
         + '<td style="padding:6px 12px;font-weight:600;color:var(--text)">' + esc(loc.name) + '</td>'
+        + '<td style="padding:6px 12px">' + estado + '</td>'
         + '<td style="padding:6px 12px;text-align:center;color:var(--text-secondary)">' + loc.count + '</td>'
         + '<td style="padding:6px 12px;text-align:center;font-weight:700;color:var(--text)">' + loc.undTotal + '</td>'
         + '<td style="padding:6px 12px;text-align:center;font-weight:' + (viejo ? '700' : '400') + ';color:' + (viejo ? 'var(--amber-text)' : 'var(--text-3)') + ';white-space:nowrap">' + tmAge(loc.maxAge) + '</td>'
@@ -27084,7 +27088,7 @@ function invAnomRender(d) {
     });
     h += '</tbody></table></div>';
   }
-  h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3)">Antigüedad = fecha de la última transferencia hacia la ubicación. Algunas pueden ser showrooms/consignación legítimos (pendiente confirmar con Gabriel).</div>';
+  h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3)">Antigüedad = fecha de la última transferencia hacia la ubicación. Los showrooms/consignación (MICHELL, MONTIBELLO, LOB, Stam House) están confirmados como legítimos y se atenúan; solo resaltan las que requieren revisión (ej. DIF.PTN).</div>';
   h += '</div>';
 
   box.innerHTML = h;
