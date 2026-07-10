@@ -5796,24 +5796,13 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Estado de Órdenes
     </a>
-    <a class="nav-item" id="nav-kpis-despacho" href="#" onclick="navTo('kpis-despacho');return false;" style="margin-bottom:4px">
-      <span class="nav-icon"><i data-lucide="bar-chart-3"></i></span>KPIs de Despacho
-    </a>
 
     <div class="sidebar-group" id="navg-consultar">Consultar</div>
     <a class="nav-item active" id="nav-buscar" href="#sec-buscar" onclick="navTo('buscar');return false;">
       <span class="nav-icon"><i data-lucide="search"></i></span>Buscador
     </a>
 
-    <div class="sidebar-group" id="navg-reportes">Reportes</div>
-    <a class="nav-item" id="nav-reportes" href="#" onclick="navTo('reportes');return false;">
-      <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>Reportes
-    </a>
-
     <div class="sidebar-group" id="navg-analisis">Análisis Operacional</div>
-    <a class="nav-item" id="nav-devoluciones" href="#sec-devoluciones" onclick="navTo('devoluciones');return false;">
-      <span class="nav-icon"><i data-lucide="rotate-ccw"></i></span>Devoluciones
-    </a>
     <a class="nav-item" id="nav-validacion" href="#sec-validacion" onclick="navTo('validacion');return false;">
       <span class="nav-icon"><i data-lucide="package-search"></i></span>Monitor Tránsitos
     </a>
@@ -5847,9 +5836,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </a>
 
     <div class="sidebar-group" id="navg-despachos">Despachos</div>
-    <a class="nav-item" id="nav-nuevos-despachos" href="#sec-nuevos-despachos" onclick="navTo('nuevos-despachos');return false;">
-      <span class="nav-icon"><i data-lucide="truck"></i></span>Nuevos despachos
-    </a>
     <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
       <span class="nav-icon"><i data-lucide="paperclip"></i></span>Sin Comprobante
     </a>
@@ -5903,16 +5889,13 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <span class="mob-brand"><img src="/descarga.png" alt="Altri Tempi">Altri Tempi</span>
     <button class="mob-nav-btn active" id="mob-nav-buscar"        onclick="navTo('buscar')"><i data-lucide="search"></i>Buscar</button>
     <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Workforce</button>
-    <button class="mob-nav-btn"        id="mob-nav-reportes"      onclick="navTo('reportes')"><i data-lucide="bar-chart-2"></i>Reportes</button>
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
     <button class="mob-nav-btn"        id="mob-nav-inventario-salud" onclick="navTo('inventario-salud')"><i data-lucide="package-x"></i>Salud Inventario</button>
-    <button class="mob-nav-btn"        id="mob-nav-devoluciones"  onclick="navTo('devoluciones')"><i data-lucide="rotate-ccw"></i>Devoluciones</button>
     <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="package-search"></i>Tránsitos</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
     <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa Almacén</button>
-    <button class="mob-nav-btn"        id="mob-nav-nuevos-despachos" onclick="navTo('nuevos-despachos')"><i data-lucide="truck"></i>Nuevos Desp.</button>
     <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
     <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
     <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Despacho Obsoleto</button>
@@ -5962,32 +5945,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <div id="r-report"></div>
     </div>
     </div><!-- /section-buscar -->
-
-    <!-- ── ANALYTICS ──────────────────────────────────────── -->
-    <div id="section-devoluciones" class="page-section" style="display:none">
-
-    <!-- Devoluciones por mes -->
-    <div class="dev-card" style="margin-bottom:12px">
-      <div class="dev-header">
-        <h3>Devoluciones por mes</h3>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="dev-total" id="dev-total-label"></span>
-          <button onclick="_devRecargar()" title="Actualizar desde Odoo"
-            style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:4px 8px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:4px">
-            <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor"></i>Actualizar
-          </button>
-        </div>
-      </div>
-      <div id="dev-odoo-note" style="font-size:11px;color:var(--text-muted);padding:0 0 8px;display:none">
-        Últimos 90 días · Fuente: Odoo (<code>stock.picking</code> con <code>/RET/</code>)
-      </div>
-      <div class="dev-filter" id="dev-filter"></div>
-      <div id="dev-list"></div>
-    </div>
-
-    <!-- Comparativo VS -->
-    <div id="dev-comp" style="display:none;margin-bottom:18px"></div>
-    </div><!-- /section-devoluciones -->
 
     <!-- ── MONITOR DE TRÁNSITOS ──────────────────────────── -->
     <div id="section-validacion" class="page-section" style="display:none">
@@ -6798,48 +6755,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </div><!-- /section-despacho-obsoleto -->
 
     <!-- ══════════════════════════════════════════════════
-         NUEVOS DESPACHOS — Órdenes pendientes de procesar
-         ══════════════════════════════════════════════════ -->
-    <div id="section-nuevos-despachos" class="page-section" style="display:none">
-      <div class="nd-card" style="margin-bottom:12px">
-        <!-- Header -->
-        <div class="nd-header">
-          <h3>Nuevos despachos</h3>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span class="nd-count" id="nd-count-label"></span>
-            <button onclick="ndRecargar()" title="Actualizar lista"
-              style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:4px 8px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:4px">
-              <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor"></i>Actualizar
-            </button>
-          </div>
-        </div>
-
-        <!-- Filter bar -->
-        <div class="nd-filters" id="nd-filters"></div>
-
-        <!-- List/Cards -->
-        <div id="nd-list"></div>
-
-        <!-- Empty state -->
-        <div id="nd-empty" style="display:none;text-align:center;padding:32px 16px;color:var(--text-muted)">
-          <i data-lucide="inbox" style="width:48px;height:48px;margin:0 auto 12px;opacity:0.5"></i>
-          <p style="font-size:14px">No hay órdenes pendientes de procesar</p>
-        </div>
-
-        <!-- Error state -->
-        <div id="nd-error" style="display:none;padding:16px;background:var(--red-bg);border-radius:var(--radius);color:var(--red-text);font-size:13px">
-          Error al cargar órdenes. Verifica tu conexión.
-        </div>
-
-        <!-- Loading state -->
-        <div id="nd-loading" style="display:none;text-align:center;padding:24px;color:var(--text-muted)">
-          <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.6s linear infinite"></div>
-          <p style="font-size:13px;margin-top:8px">Cargando órdenes…</p>
-        </div>
-      </div>
-    </div><!-- /section-nuevos-despachos -->
-
-    <!-- ══════════════════════════════════════════════════
          SDV — PORTAL VENTAS (Nueva solicitud + Mis solicitudes)
          ══════════════════════════════════════════════════ -->
     <div id="section-sdv-portal" class="page-section" style="display:none">
@@ -7310,90 +7225,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div><!-- /section-sdv-reactivations -->
 
-    <!-- ══════════════════════════════════════════════════
-         REPORTES OPERACIONALES
-         ══════════════════════════════════════════════════ -->
-    <div id="section-reportes" class="page-section" style="display:none">
-
-      <div class="rpt-page-hdr">
-        <div>
-          <h2 class="rpt-page-title"><i data-lucide="bar-chart-2" class="tab-h2-icon"></i>Reportes Operacionales</h2>
-          <p class="rpt-page-sub">Análisis automático en tiempo real — Odoo ERP · Google Sheets · Sistema WWP</p>
-        </div>
-        <div class="rpt-controls">
-          <select id="rpt-periodo" class="rpt-sel" onchange="loadAllReports()">
-            <option value="7">Esta semana (7 días)</option>
-            <option value="30" selected>Este mes (30 días)</option>
-            <option value="90">Últimos 3 meses</option>
-            <option value="365">Este año completo</option>
-          </select>
-          <button class="rpt-refresh-btn" onclick="loadAllReports()"><i data-lucide="refresh-cw" class="sec-hdr-icon"></i>Actualizar</button>
-        </div>
-      </div>
-
-      <!-- ── R1: Cumplimiento de Despachos ─────────────── -->
-      <div class="rpt-card" id="rpt-card-cumplimiento">
-        <div class="rpt-card-header">
-          <h3 class="rpt-card-title"><i data-lucide="package-check" class="tab-h3-icon"></i>Reporte de Cumplimiento de Despachos</h3>
-          <span class="rpt-card-badge" id="rpt-cumplimiento-badge">—</span>
-        </div>
-        <p class="rpt-card-obj">Mide el porcentaje de órdenes entregadas a tiempo frente a las despachadas con retraso, desglosado por vendedor, almacén de origen y tipo de transporte. Permite identificar patrones de incumplimiento y las variables operacionales que los generan para tomar acciones correctivas informadas.</p>
-        <div class="rpt-kpis" id="rpt-kpis-cumplimiento"></div>
-        <div id="rpt-charts-cumplimiento"></div>
-      </div>
-
-      <!-- ── R2: Tiempo de Ciclo ────────────────────────── -->
-      <div class="rpt-card" id="rpt-card-ciclo">
-        <div class="rpt-card-header">
-          <h3 class="rpt-card-title"><i data-lucide="timer" class="tab-h3-icon"></i>Análisis de Tiempo de Ciclo por Etapa</h3>
-          <span class="rpt-card-badge" id="rpt-ciclo-badge">—</span>
-        </div>
-        <p class="rpt-card-obj">Desglosa cuántos días consume cada etapa del proceso de despacho — desde la solicitud hasta la preparación en almacén y la entrega final al cliente. Identifica dónde se concentran los cuellos de botella, el impacto de la instalación en los tiempos y qué segmentos de órdenes presentan los ciclos más largos.</p>
-        <div class="rpt-kpis" id="rpt-kpis-ciclo"></div>
-        <div id="rpt-charts-ciclo"></div>
-      </div>
-
-      <!-- ── R4: Transferencias Internas ───────────────── -->
-      <div class="rpt-card" id="rpt-card-transferencias">
-        <div class="rpt-card-header">
-          <h3 class="rpt-card-title"><i data-lucide="arrow-left-right" class="tab-h3-icon"></i>Resumen de Transferencias Internas</h3>
-          <span class="rpt-card-badge" id="rpt-transferencias-badge">—</span>
-        </div>
-        <p class="rpt-card-obj">Muestra el volumen y estado de todas las transferencias de inventario registradas en Odoo por tipo de movimiento — recepciones, despachos, traslados internos y fabricación — con tiempos de procesamiento promedio. Permite supervisar la actividad real del almacén sin acceder directamente al ERP.</p>
-        <div class="rpt-kpis" id="rpt-kpis-transferencias"></div>
-        <div id="rpt-charts-transferencias"></div>
-      </div>
-
-      <!-- ── R7: Productividad WWP ──────────────────────── -->
-      <div class="rpt-card" id="rpt-card-wwp">
-        <div class="rpt-card-header">
-          <h3 class="rpt-card-title"><i data-lucide="users" class="tab-h3-icon"></i>Productividad del Equipo de Almacén</h3>
-          <span class="rpt-card-badge" id="rpt-wwp-badge">—</span>
-        </div>
-        <p class="rpt-card-obj">Analiza el rendimiento individual de cada colaborador del equipo operativo: tareas asignadas, completadas y validadas por persona, distribución por estado y registro de pausas de almuerzo. Sirve como herramienta de gestión de equipo basada en datos objetivos del sistema de tareas WWP, sin requerir supervisión presencial.</p>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          <label style="font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap">Colaborador:</label>
-          <select id="rpt-wwp-user-filter" class="filter-sel" style="min-width:160px" onchange="renderRptWWP(parseInt((document.getElementById('rpt-periodo')||{}).value||30))">
-            <option value="">Todos</option>
-          </select>
-        </div>
-        <div class="rpt-kpis" id="rpt-kpis-wwp"></div>
-        <div id="rpt-charts-wwp"></div>
-      </div>
-
-      <!-- ── R9: Vehículos y Ruta ───────────────────────── -->
-      <div class="rpt-card" id="rpt-card-vehiculos">
-        <div class="rpt-card-header">
-          <h3 class="rpt-card-title"><i data-lucide="truck" class="tab-h3-icon"></i>Análisis de Despachos por Vehículo y Ruta</h3>
-          <span class="rpt-card-badge" id="rpt-vehiculos-badge">—</span>
-        </div>
-        <p class="rpt-card-obj">Consolida la distribución de entregas por vehículo asignado, tipo de transporte (flota propia vs. alquilada), turno horario (AM/PM), almacén de origen y requerimiento de instalación. Apoya la toma de decisiones sobre asignación de flota y permite cuantificar la dependencia del transporte externo en el período analizado.</p>
-        <div class="rpt-kpis" id="rpt-kpis-vehiculos"></div>
-        <div id="rpt-charts-vehiculos"></div>
-      </div>
-
-    </div><!-- /section-reportes -->
-
     <!-- ── DASHBOARD VENTAS ────────────────────────────────────── -->
     <div id="section-dashboard-ventas" class="page-section" style="display:none">
       <iframe id="dashboard-ventas-iframe" style="width:100%;height:100dvh;border:none;display:block" loading="lazy"></iframe>
@@ -7563,29 +7394,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         </aside>
       </div>
     </div><!-- /section-estado-ordenes -->
-
-    <!-- ── KPIs DE DESPACHO (admin/manager) ──────────────────────── -->
-    <div id="section-kpis-despacho" class="page-section" style="display:none;padding:20px;max-width:900px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-        <div>
-          <h2 style="font-size:18px;font-weight:800;margin:0 0 2px;color:var(--text-1)">KPIs de Despacho</h2>
-          <div style="font-size:11px;color:var(--text-2)">Solicitudes de despacho (SDV) · <span id="kpi-periodo-lbl">últimos 60 días</span></div>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <select id="kpi-days" onchange="kpisDespachoCargar()" class="sdv-input" style="width:auto;padding:6px 10px;font-size:12px">
-            <option value="30">30 días</option>
-            <option value="60" selected>60 días</option>
-            <option value="90">90 días</option>
-            <option value="365">1 año</option>
-          </select>
-          <button class="btn btn-sm btn-secondary" onclick="kpisDespachoCargar()" style="white-space:nowrap">
-            <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Actualizar
-          </button>
-        </div>
-      </div>
-      <div id="kpi-cards" class="eo-kpi-row"></div>
-      <div id="kpi-detail" style="margin-top:18px"></div>
-    </div><!-- /section-kpis-despacho -->
 
   </main>
   </div><!-- /page-layout -->
@@ -8808,7 +8616,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:0 0 6px">Secciones del historial</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="buscar"> Buscar artículos</label>
-          <label class="perm-check"><input type="checkbox" data-perm="devoluciones"> Devoluciones</label>
           <label class="perm-check"><input type="checkbox" data-perm="contenedores"> Contenedores</label>
           <label class="perm-check"><input type="checkbox" data-perm="reposicion"> Reposición Showroom</label>
           <label class="perm-check"><input type="checkbox" data-perm="solicitudes"> Solicitudes Showroom</label>
@@ -8817,10 +8624,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <label class="perm-check"><input type="checkbox" data-perm="despacho-obsoleto"> Despacho de Obsoleto</label>
           <label class="perm-check"><input type="checkbox" data-perm="validacion"> Monitor Tránsitos</label>
           <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
-          <label class="perm-check"><input type="checkbox" data-perm="reportes"> Reportes</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-portal"> Sol. Despacho (Ventas)</label>
-          <label class="perm-check"><input type="checkbox" data-perm="nuevos-despachos"> Nuevos despachos</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-bandeja"> Bandeja Solicitudes</label>
           <label class="perm-check"><input type="checkbox" data-perm="solicitudes-reposicion"> Solicitudes Repos.</label>
           <label class="perm-check"><input type="checkbox" data-perm="almacen-mapa"> Mapa Almacén</label>
@@ -9014,7 +8819,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v185';
+var APP_BUILD = 'v186';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9100,11 +8905,10 @@ function canSection(key) {
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'nuevos-despachos' || key === 'estado-ordenes' || key === 'kpis-despacho' || key === 'inventario-salud')) {
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'estado-ordenes' || key === 'inventario-salud')) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
   }
-  // kpis-despacho e inventario-salud: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
-  if (key === 'kpis-despacho') return false;
+  // inventario-salud: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
   if (key === 'inventario-salud') return false;
   // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
   if (key === 'estado-ordenes') {
@@ -9129,8 +8933,8 @@ function isHistorialUser(u) {
 }
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
-const _DESPACHOS_SECTIONS = ['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','validacion','averias','reportes','dashboard-ventas',
+const _DESPACHOS_SECTIONS = ['buscar','contenedores','reposicion','solicitudes-reposicion',
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','dashboard-ventas',
   'sdv-portal','sdv-bandeja'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
@@ -9145,9 +8949,9 @@ function isDespachosUser(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'dashboard-ventas','estado-ordenes','kpis-despacho','buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes',
-    'almacen-mapa','nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'validacion','averias','inventario-salud','reportes','wwp',
+    'dashboard-ventas','estado-ordenes','buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes',
+    'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
+    'validacion','averias','inventario-salud','wwp',
     'sdv-portal','sdv-bandeja'
   ];
   sections.forEach(function(s) {
@@ -9163,12 +8967,11 @@ function applyNavPerms() {
   // Ocultar cabeceras de grupo cuando todos sus ítems están ocultos
   var GROUPS = {
     'navg-consultar':   ['buscar'],
-    'navg-reportes':    ['reportes'],
-    'navg-analisis':    ['devoluciones','validacion','averias','inventario-salud'],
+    'navg-analisis':    ['validacion','averias','inventario-salud'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
-    'navg-despachos':   ['nuevos-despachos','sin-adjuntos','dev-cdp','despacho-obsoleto'],
-    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes','kpis-despacho']
+    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
+    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) no aplica a ventas.
@@ -20758,7 +20561,7 @@ async function saveRole() {
   errEl.classList.remove('show');
   if (!_editingRole && !name) { showErr(errEl, 'El nombre del rol es requerido'); return; }
   const sectionPerms = {};
-  const _MANAGER_AUTO_GRANT = ['nuevos-despachos','sdv-portal','sdv-bandeja'];
+  const _MANAGER_AUTO_GRANT = ['sdv-portal','sdv-bandeja'];
   document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
     if (cb.checked) {
       sectionPerms[cb.dataset.perm] = true;
@@ -21772,7 +21575,6 @@ window.addEventListener('DOMContentLoaded',function(){
   var _bb = document.getElementById('app-build-badge');
   if (_bb) _bb.textContent = 'Build ' + APP_BUILD;
   renderRecentTags();
-  loadDevoluciones();   // D1: carga desde Odoo; llama renderDevoluciones() al terminar
   initDespFiltro();
   // Fecha default del reporte Dev→CDP: último mes
   (function(){
@@ -26652,28 +26454,24 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','devoluciones','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','inventario-salud','reportes','dashboard-ventas','estado-ordenes','kpis-despacho','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','inventario-salud','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
   'buscar':                  'buscar',
-  'devoluciones':            'devoluciones',
   'contenedores':            'contenedores',
   'reposicion':              'reposicion',
   'solicitudes-reposicion':  'solicitudes-reposicion',
   'solicitudes':             'solicitudes',
   'almacen-mapa':            'almacen-mapa',
-  'nuevos-despachos':        'nuevos-despachos',
   'sin-adjuntos':            'sin-adjuntos',
   'validacion':              'validacion',
   'averias':                 'averias',
   'inventario-salud':        'inventario-salud',
-  'reportes':                'reportes',
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
   'dashboard-ventas':        'dashboard-ventas',
   'estado-ordenes':          'estado-ordenes',
-  'kpis-despacho':           'kpis-despacho',
   'sdv-portal':              'sdv-portal',
   'sdv-bandeja':             'sdv-bandeja'
 };
@@ -27565,10 +27363,8 @@ function navTo(section){
   if(target==='reposicion') { initReposicion(); loadSolicitudes(false); }
   if(target==='solicitudes-reposicion') { repCargarLista(); }
   if(target==='solicitudes') { loadSolicitudes(true); }
-  if(target==='reportes') loadAllReports();
   if(target==='dev-cdp') loadDevCdpReport();
   if(target==='inventario-salud') invSaludCargar();
-  if(target==='nuevos-despachos') ndCargarLista();
   if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='sdv-portal') sdvInitPortal();
   if(target==='sdv-bandeja') sdvBandejaCargar();
@@ -27581,7 +27377,6 @@ function navTo(section){
     if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
-  if(target==='kpis-despacho') kpisDespachoCargar();
   if(target==='validacion') tmCargar(false);
 }
 
@@ -27657,8 +27452,8 @@ function setHistorialUser() {
   // Para usuarios no-admin: navegar a la primera sección permitida
   // Usar navTo() para que se ejecuten los init específicos de cada sección (ej: initReposicion)
   if (_user.role !== 'admin') {
-    var ORDER = ['sdv-portal','buscar','devoluciones','contenedores','reposicion','solicitudes','pendientes',
-      'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias','reportes'];
+    var ORDER = ['sdv-portal','buscar','contenedores','reposicion','solicitudes','pendientes',
+      'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias'];
     var first = ORDER.find(function(s){ return canSection(s); });
     if (first) { navTo(first); }
   }
