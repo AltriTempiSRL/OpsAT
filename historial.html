@@ -5803,14 +5803,11 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </a>
 
     <div class="sidebar-group" id="navg-analisis">Análisis Operacional</div>
-    <a class="nav-item" id="nav-validacion" href="#sec-validacion" onclick="navTo('validacion');return false;">
-      <span class="nav-icon"><i data-lucide="package-search"></i></span>Monitor Tránsitos
+    <a class="nav-item" id="nav-inventario" href="#sec-inventario" onclick="navTo('inventario');return false;">
+      <span class="nav-icon"><i data-lucide="package-search"></i></span>Inventario
     </a>
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
       <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
-    </a>
-    <a class="nav-item" id="nav-inventario-salud" href="#" onclick="navTo('inventario-salud');return false;">
-      <span class="nav-icon"><i data-lucide="package-x"></i></span>Salud de Inventario
     </a>
 
     <div class="sidebar-group" id="navg-plataforma">Plataforma</div>
@@ -5890,8 +5887,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <button class="mob-nav-btn active" id="mob-nav-buscar"        onclick="navTo('buscar')"><i data-lucide="search"></i>Buscar</button>
     <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Workforce</button>
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
-    <button class="mob-nav-btn"        id="mob-nav-inventario-salud" onclick="navTo('inventario-salud')"><i data-lucide="package-x"></i>Salud Inventario</button>
-    <button class="mob-nav-btn"        id="mob-nav-validacion"    onclick="navTo('validacion')"><i data-lucide="package-search"></i>Tránsitos</button>
+    <button class="mob-nav-btn"        id="mob-nav-inventario"    onclick="navTo('inventario')"><i data-lucide="package-search"></i>Inventario</button>
     <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
@@ -5946,29 +5942,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </div>
     </div><!-- /section-buscar -->
 
-    <!-- ── MONITOR DE TRÁNSITOS ──────────────────────────── -->
-    <div id="section-validacion" class="page-section" style="display:none">
-    <div class="cont-card" style="padding:16px 18px 20px">
-
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
-        <div>
-          <h3 style="margin:0;font-size:15px">Monitor de Ubicaciones en Tránsito</h3>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;max-width:640px;line-height:1.5">
-            Mercancía que se transfirió y sigue varada en una ubicación de tránsito.
-            <strong style="color:var(--amber-text)">Huérfanos</strong> = el backorder se canceló y no tienen ruta de salida (recuperar).
-            <strong style="color:var(--text-secondary)">Pendientes</strong> = todavía tienen su transferencia abierta, van a entrar normal.
-          </div>
-        </div>
-        <button onclick="tmCargar(true)" id="tm-refresh" title="Actualizar desde Odoo"
-          style="background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:6px 12px;cursor:pointer;color:var(--text-secondary);font-size:11px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap">
-          <i data-lucide="refresh-cw" style="width:13px;height:13px;stroke:currentColor"></i>Actualizar
-        </button>
-      </div>
-
-      <div id="tm-body"></div>
-
-    </div>
-    </div>
+    <!-- ── MONITOR DE TRÁNSITOS — consolidado en la sección "inventario" (v187) ── -->
 
     <!-- ── ARTÍCULOS AVERIADOS ───────────────────────────── -->
     <div id="section-averias" class="page-section" style="display:none">
@@ -6529,51 +6503,118 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </div><!-- /section-dev-cdp -->
 
     <!-- ══════════════════════════════════════════════════
-         SALUD DE INVENTARIO — negativos Odoo + casos con seguimiento (v156)
+         INVENTARIO — dashboard consolidado (v187): fiabilidad operativa,
+         tránsitos, anomalías estructurales y cuadre por artículo.
+         Reemplaza "Monitor de Tránsitos" + "Salud de Inventario".
          ══════════════════════════════════════════════════ -->
-    <div id="section-inventario-salud" class="page-section" style="display:none">
+    <style id="invd-styles">
+      .invd-panel[hidden]{display:none!important}
+      .invd-hero-grid{display:grid;grid-template-columns:minmax(150px,.8fr) 1fr 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
+      @media(max-width:860px){.invd-hero-grid{grid-template-columns:1fr}}
+      .invd-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface-2)}
+      .invd-manos-n{font-size:34px;font-weight:800;line-height:1;color:var(--text)}
+      .invd-meter-rail{position:relative;height:12px;border-radius:7px;overflow:hidden;display:flex;margin:9px 0 7px}
+      .invd-meter-rail>span{display:block;height:100%}
+      .invd-meter-mark{position:absolute;top:-3px;width:3px;height:18px;background:var(--text);border-radius:2px;transform:translateX(-1.5px)}
+      .invd-meter-n{font-size:26px;font-weight:800;line-height:1}
+      .invd-kpi{flex:1 1 140px;min-width:128px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface-2);cursor:pointer;transition:transform .12s,background .12s;border-left-width:4px}
+      .invd-kpi:hover{background:var(--surface);transform:translateY(-1px)}
+      .invd-kpi.active{box-shadow:0 0 0 2px var(--accent) inset}
+      .invd-kpi-v{font-size:22px;font-weight:800;line-height:1;color:var(--text)}
+      .invd-kpi-l{font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.3}
+      .invd-tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+      .invd-tbl{width:100%;border-collapse:collapse;font-size:12px;min-width:720px}
+      .invd-tbl th{text-align:left;padding:8px;font-weight:600;color:var(--text-3);border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface-2)}
+      .invd-tbl td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+      .invd-tbl tr:last-child td{border-bottom:none}
+      .invd-tbl tr.clickable{cursor:pointer}
+      .invd-tbl tr.clickable:hover td{background:var(--surface-2)}
+      .invd-thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;background:var(--surface-2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);flex:none}
+      .invd-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;white-space:nowrap}
+      .invd-badge.huer{background:var(--red-bg);color:var(--red-text)}
+      .invd-badge.pend{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
+      .invd-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+      .invd-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+      .invd-kx-row{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-left:3px solid var(--border);margin-bottom:2px}
+      .invd-kx-row.culprit{border-left-color:var(--red-text);background:var(--red-bg);border-radius:0 8px 8px 0}
+      .invd-src{color:var(--text-secondary)}
+    </style>
+    <div id="section-inventario" class="page-section" style="display:none">
 
-      <!-- Header + Actualizar -->
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+      <!-- Header + indicador de frescura + acciones -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
         <div>
           <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text)">
-            <i data-lucide="package-x" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
-            Salud de Inventario — Negativos
+            <i data-lucide="package-search" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
+            Inventario
           </h2>
-          <p style="margin:0;font-size:12px;color:var(--text-3)">
-            Stock negativo en ubicaciones físicas de Odoo y recepciones de tránsito sin validar. Los <strong>casos</strong> agrupan artículos con su causa raíz y seguimiento hasta corregirlos.
+          <p style="margin:0;font-size:12px;color:var(--text-3);max-width:680px">
+            Salud del inventario en todas las localidades: fiabilidad operativa, tránsitos como transferencias incompletas, anomalías estructurales y cuadre por artículo. Foto de Odoo (solo lectura).
           </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span id="inv-updated" style="font-size:11px;color:var(--text-3)"></span>
-          <button id="inv-btn-auditoria" style="display:none;font-size:12px;padding:7px 14px;border:1.5px solid var(--purple-dot);border-radius:7px;background:transparent;color:var(--purple-text);cursor:pointer;font-weight:600" onclick="invAuditoriaGlobal()" title="Valida TODOS los negativos del sistema (no solo los conocidos), clasifica causa+transacción y agrega los que falten a un caso">
+          <span id="invd-fresh" style="font-size:11px;color:var(--text-3);display:inline-flex;align-items:center;gap:5px"></span>
+          <span id="inv-updated" style="display:none"></span>
+          <button id="inv-btn-auditoria" style="display:none;font-size:12px;padding:7px 14px;border:1.5px solid var(--purple-dot);border-radius:7px;background:transparent;color:var(--purple-text);cursor:pointer;font-weight:600" onclick="invAuditoriaGlobal()" title="Valida TODOS los negativos del sistema, clasifica causa+transacción y agrega los que falten a un caso">
             <i data-lucide="shield-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Auditoría global
           </button>
-          <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="invSaludCargar(true)">
+          <button class="btn-primary" id="invd-refresh" style="font-size:12px;padding:7px 14px" onclick="invdCargar(true)">
             <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar
           </button>
         </div>
       </div>
 
-      <!-- Banner de error / datos stale -->
+      <!-- Banner error / datos stale -->
+      <div id="invd-banner"></div>
       <div id="inv-banner"></div>
 
-      <!-- KPIs -->
-      <div id="inv-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+      <!-- HERO: manos que cerrar + 2 medidores -->
+      <div id="invd-hero"></div>
 
-      <!-- Negativos sin caso (callout) -->
-      <div id="inv-sincaso" style="margin-bottom:16px"></div>
+      <!-- PULSO: KPI cards clicables -->
+      <div id="invd-pulso" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
 
-      <!-- Recepciones de tránsito pendientes -->
-      <div id="inv-recepciones" style="margin-bottom:16px"></div>
+      <!-- BANDA accionables -->
+      <div id="invd-banda" style="margin-bottom:14px"></div>
 
-      <!-- Anomalías estructurales de ubicaciones (auditoría 10-jul) -->
-      <div id="inv-anomalias" style="margin-bottom:16px"></div>
+      <!-- TABS -->
+      <div class="wwp-tabs" id="invd-tabs">
+        <button class="wwp-tab active" data-invtab="fiabilidad" onclick="invdTab('fiabilidad')">Fiabilidad</button>
+        <button class="wwp-tab" data-invtab="transitos" onclick="invdTab('transitos')">Tránsitos</button>
+        <button class="wwp-tab" data-invtab="estructural" onclick="invdTab('estructural')">Estructural</button>
+        <button class="wwp-tab" data-invtab="cuadre" onclick="invdTab('cuadre')">Cuadre por artículo</button>
+      </div>
 
-      <!-- Casos con seguimiento -->
-      <div id="inv-casos"></div>
+      <!-- PANEL: Fiabilidad (reusa el motor de Salud de Inventario) -->
+      <div id="invd-panel-fiabilidad" class="invd-panel">
+        <div id="inv-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+        <div id="inv-sincaso" style="margin-bottom:16px"></div>
+        <div id="inv-recepciones" style="margin-bottom:16px"></div>
+        <div id="inv-casos"></div>
+      </div>
 
-    </div><!-- /section-inventario-salud -->
+      <!-- PANEL: Tránsitos (transferencias incompletas, enriquecido) -->
+      <div id="invd-panel-transitos" class="invd-panel" hidden>
+        <div id="invd-transit-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
+        <div id="invd-transit-body"></div>
+      </div>
+
+      <!-- PANEL: Estructural (anomalías de ubicaciones + duplicados de catálogo) -->
+      <div id="invd-panel-estructural" class="invd-panel" hidden>
+        <div id="inv-anomalias" style="margin-bottom:16px"></div>
+        <div id="invd-duplicados"></div>
+      </div>
+
+      <!-- PANEL: Cuadre por artículo (kardex + transacción culpable) -->
+      <div id="invd-panel-cuadre" class="invd-panel" hidden>
+        <div id="invd-cuadre-search" style="margin-bottom:12px"></div>
+        <div id="invd-cuadre-body"></div>
+      </div>
+
+      <!-- TENDENCIA -->
+      <div id="invd-tendencia" style="margin-top:18px"></div>
+
+    </div><!-- /section-inventario -->
 
     <!-- ══════════════════════════════════════════════════
          DESPACHO DE OBSOLETO — conduce documental (OBSOLETO / NAVE 2)
@@ -8622,7 +8663,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
           <label class="perm-check"><input type="checkbox" data-perm="dev-cdp"> Dev→CDP</label>
           <label class="perm-check"><input type="checkbox" data-perm="despacho-obsoleto"> Despacho de Obsoleto</label>
-          <label class="perm-check"><input type="checkbox" data-perm="validacion"> Monitor Tránsitos</label>
+          <label class="perm-check"><input type="checkbox" data-perm="inventario"> Inventario</label>
           <label class="perm-check"><input type="checkbox" data-perm="averias"> Averías</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp"> Workforce (WWP)</label>
           <label class="perm-check"><input type="checkbox" data-perm="sdv-portal"> Sol. Despacho (Ventas)</label>
@@ -8819,7 +8860,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v186';
+var APP_BUILD = 'v187';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8905,11 +8946,9 @@ function canSection(key) {
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'estado-ordenes' || key === 'inventario-salud')) {
+  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'estado-ordenes' || key === 'inventario')) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
   }
-  // inventario-salud: solo admin/manager (admin ya retornó true arriba; ventas/auxiliar no lo ven)
-  if (key === 'inventario-salud') return false;
   // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
   if (key === 'estado-ordenes') {
     return Object.prototype.hasOwnProperty.call(sp, 'estado-ordenes') ? !!sp['estado-ordenes'] : (!!sp['sdv-portal'] || !!sp['sdv-bandeja']);
@@ -8934,7 +8973,7 @@ function isHistorialUser(u) {
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
 const _DESPACHOS_SECTIONS = ['buscar','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','validacion','averias','dashboard-ventas',
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','inventario','averias','dashboard-ventas',
   'sdv-portal','sdv-bandeja'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
@@ -8951,7 +8990,7 @@ function applyNavPerms() {
   var sections = [
     'dashboard-ventas','estado-ordenes','buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'validacion','averias','inventario-salud','wwp',
+    'inventario','averias','wwp',
     'sdv-portal','sdv-bandeja'
   ];
   sections.forEach(function(s) {
@@ -8967,7 +9006,7 @@ function applyNavPerms() {
   // Ocultar cabeceras de grupo cuando todos sus ítems están ocultos
   var GROUPS = {
     'navg-consultar':   ['buscar'],
-    'navg-analisis':    ['validacion','averias','inventario-salud'],
+    'navg-analisis':    ['inventario','averias'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
@@ -10703,7 +10742,7 @@ function _notifRailClass(n) {
 
 // Etiqueta legible del DESTINO del clic (meta-fila "→ Tarea #0171").
 // kind=none → null (sin meta de destino: el clic no navega).
-var _NOTIF_SECCION_LBL = { 'inventario-salud': 'Salud de Inventario' };
+var _NOTIF_SECCION_LBL = { 'inventario': 'Inventario', 'inventario-salud': 'Inventario' };
 function _notifDestOf(n) {
   var t = _notifTargetOf(n);
   if (t.kind === 'none' || !t.id) return null;
@@ -26454,7 +26493,7 @@ async function cargarPendientesOut(){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','validacion','averias','inventario-salud','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario','averias','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -26465,9 +26504,8 @@ var NAV_SECTION_MAP={
   'solicitudes':             'solicitudes',
   'almacen-mapa':            'almacen-mapa',
   'sin-adjuntos':            'sin-adjuntos',
-  'validacion':              'validacion',
+  'inventario':              'inventario',
   'averias':                 'averias',
-  'inventario-salud':        'inventario-salud',
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
   'dashboard-ventas':        'dashboard-ventas',
@@ -26790,6 +26828,406 @@ function invRenderAll() {
   invRenderRecepciones();
   invRenderCasos();
   if (window.lucide) lucide.createIcons();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  DASHBOARD DE INVENTARIO (v187) — consolida Monitor de Tránsitos + Salud de
+//  Inventario. Orquesta /api/inventario/panorama (scores+manos+señales),
+//  /api/transit/monitor (enriquecido), /api/inventario/kardex/:pid (cuadre) y
+//  /api/inventario/tendencia. Reutiliza el motor de Salud (inv*) para la pestaña
+//  Fiabilidad y las anomalías estructurales. Solo lectura.
+// ════════════════════════════════════════════════════════════════════════════
+var _invdData = null;        // panorama
+var _invdTransit = null;     // /transit/monitor
+var _invdTab = 'fiabilidad';
+var _invdFreshTimer = null;
+var _invdImgObs = null;
+var _invdImgCache = {};      // pid -> dataURL | null
+var _invdTransitFilter = { estado: '' };
+
+function invdShort(s){ s = String(s||''); var p = s.split('/'); return (p[p.length-1]||s).trim(); }
+function invdFmtD(s){
+  if(!s) return '—';
+  var str = String(s); var iso = str.indexOf('T')<0 ? (str.replace(' ','T')+'Z') : str;
+  var d = new Date(iso); if(isNaN(d)) return esc(str);
+  return d.toLocaleDateString('es-DO',{day:'2-digit',month:'short'});
+}
+function invdDeltaHtml(delta, higherIsWorse){
+  if(delta==null||isNaN(delta)) return '<span style="color:var(--text-3)">sin base vs ayer</span>';
+  if(delta===0) return '<span style="color:var(--text-3)">igual que ayer</span>';
+  var up = delta>0, bad = higherIsWorse ? up : !up;
+  return '<span style="color:'+(bad?'var(--red-text)':'var(--green-text)')+'">'+(up?'▲ +':'▼ ')+(Math.round(delta*10)/10)+' vs ayer</span>';
+}
+
+async function invdCargar(force){
+  var sec = document.getElementById('section-inventario'); if(!sec) return;
+  var bn = document.getElementById('invd-banner');
+  try{
+    var r = await authFetch('/api/inventario/panorama'+(force?'?refresh=1':''));
+    var d = await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    _invdData = d;
+    if(bn) bn.innerHTML='';
+    invdRenderHero(); invdRenderPulso(); invdRenderBanda(); invdRenderFresh();
+  }catch(e){
+    if(bn) bn.innerHTML = '<div style="padding:10px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12px;margin-bottom:12px">No se pudo cargar el panorama: '+esc(e.message)+'</div>';
+  }
+  invdLoadTab(_invdTab, force);
+  invdTendCargar();
+  invdStartFreshTimer();
+  if(window.lucide) lucide.createIcons();
+}
+
+function invdTab(name){
+  _invdTab = name;
+  document.querySelectorAll('#invd-tabs .wwp-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.invtab===name); });
+  ['fiabilidad','transitos','estructural','cuadre'].forEach(function(t){
+    var p = document.getElementById('invd-panel-'+t); if(p) p.hidden = (t!==name);
+  });
+  invdLoadTab(name, false);
+}
+function invdLoadTab(name, force){
+  if(name==='fiabilidad' || name==='estructural'){ if(!_invData || force) invSaludCargar(force); }
+  else if(name==='transitos'){ if(!_invdTransit || force) invdTransitCargar(force); else invdTransitRender(); }
+  else if(name==='cuadre'){ invdCuadreRender(); }
+}
+
+// ── HERO: manos que cerrar + 2 medidores ─────────────────────────────────────
+function invdRenderHero(){
+  var el = document.getElementById('invd-hero'); if(!el) return;
+  var d = _invdData; if(!d){ el.innerHTML=''; return; }
+  var m = d.manos||{}, sc = d.scores||{};
+  el.innerHTML = '<div class="invd-hero-grid">'
+    + invdManosCard(m)
+    + invdMeterCard('Fiabilidad operativa', sc.fiabilidad||{}, '¿Puedo confiar en el stock para despachar hoy?')
+    + invdMeterCard('Higiene estructural', sc.higiene||{}, '¿Está ordenado el mapa de Odoo?')
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin:0 0 4px;display:flex;align-items:center;gap:5px"><i data-lucide="info" style="width:12px;height:12px;stroke:currentColor"></i>No promediamos ambos números: la higiene la hunden datos intencionales (obsoleto, staging).</div>';
+}
+function invdManosCard(m){
+  var bd = m.breakdown||{};
+  return '<div class="invd-card">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">Manos que cerrar hoy</div>'
+    + '<div class="invd-manos-n" style="margin:8px 0 5px">'+(m.total==null?'—':m.total)+'</div>'
+    + '<div style="font-size:11px">'+invdDeltaHtml(m.delta, true)+'</div>'
+    + '<div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.5">huérfanos '+(bd.huerfanosSinCaso||0)+' · negativos '+(bd.negativosAccionables||0)+' · staging '+(bd.stagingViejo||0)+'</div>'
+    + '</div>';
+}
+function invdMeterCard(title, s, sub){
+  var score = (s && s.score!=null) ? s.score : null;
+  var zona = (s && s.zona) ? s.zona : '';
+  var col = zona==='rojo' ? 'var(--red-text)' : (zona==='ambar' ? 'var(--amber-text)' : 'var(--green-text)');
+  var mark = score==null ? 0 : Math.max(0,Math.min(100,score));
+  return '<div class="invd-card">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">'+esc(title)+'</div>'
+      + '<div class="invd-meter-n" style="color:'+col+'">'+(score==null?'—':score)+'<span style="font-size:12px;color:var(--text-3);font-weight:600">/100</span></div>'
+    + '</div>'
+    + '<div class="invd-meter-rail">'
+      + '<span style="width:60%;background:var(--red-bg)"></span>'
+      + '<span style="width:25%;background:var(--amber-bg)"></span>'
+      + '<span style="width:15%;background:var(--green-bg)"></span>'
+      + (score==null?'':'<span class="invd-meter-mark" style="left:'+mark+'%"></span>')
+    + '</div>'
+    + '<div style="font-size:10px;color:var(--text-3)">'+esc(sub)+'</div>'
+    + '<div style="font-size:11px;color:var(--text-secondary);margin-top:5px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · <span class="invd-src">lo mueve: '+esc(s.driver)+'</span>'):'')+'</div>'
+    + '</div>';
+}
+
+// ── PULSO: KPI cards clicables ────────────────────────────────────────────────
+function invdRenderPulso(){
+  var el = document.getElementById('invd-pulso'); if(!el) return;
+  var d = _invdData; if(!d){ el.innerHTML=''; return; }
+  var s = d.senales||{}, s1=s.s1||{}, s2=s.s2||{}, s3=s.s3||{}, bd=(d.manos||{}).breakdown||{};
+  var cards = [
+    {v:(s2.count||0), l:'Negativos accionables', c:'var(--red-text)', act:"invdTab('fiabilidad')"},
+    {v:(s1.unidades||0), l:'Unidades huérfanas en tránsito', c:'var(--amber-text)', act:"invdTab('transitos');invdTransitSetFilter('estado','huerfano')"},
+    {v:(s3.count||0), l:'Riesgo de doble-venta', c:'var(--red-text)', act:"invdTab('cuadre')"},
+    {v:(bd.stagingViejo||0), l:'Staging &gt;30 días', c:'var(--amber-text)', act:"invdTab('estructural')"}
+  ];
+  el.innerHTML = cards.map(function(c){
+    return '<div class="invd-kpi" style="border-left-color:'+c.c+'" onclick="'+c.act+'"><div class="invd-kpi-v" style="color:'+c.c+'">'+c.v+'</div><div class="invd-kpi-l">'+c.l+'</div></div>';
+  }).join('');
+}
+
+// ── BANDA accionable ──────────────────────────────────────────────────────────
+function invdRenderBanda(){
+  var el = document.getElementById('invd-banda'); if(!el) return;
+  var d = _invdData; var s2 = (d && d.senales && d.senales.s2) || {};
+  var nodo = (s2.nodos||[]).slice().sort(function(a,b){ return (b.count||0)-(a.count||0); })[0];
+  if(!nodo || !nodo.count){ el.innerHTML=''; return; }
+  el.innerHTML = '<div style="padding:10px 14px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="invdTab(\'estructural\')">'
+    + '<i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:currentColor"></i>Requiere acción hoy: '+esc(nodo.locName)+' · '+nodo.count+' negativos por putaway al nodo padre <span style="opacity:.7;margin-left:auto">→</span></div>';
+}
+
+// ── TRÁNSITOS: transferencias incompletas con foto ───────────────────────────
+async function invdTransitCargar(force){
+  var body = document.getElementById('invd-transit-body'); if(!body) return;
+  body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:14px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Consultando tránsitos en Odoo…</div>';
+  try{
+    var r = await authFetch('/api/transit/monitor');
+    var d = await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    _invdTransit = d;
+    invdTransitRender();
+  }catch(e){
+    body.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px">No se pudieron cargar los tránsitos: '+esc(e.message)+'</div>';
+  }
+}
+function invdTransitFlat(){
+  var d = _invdTransit; if(!d) return [];
+  var out = [];
+  (d.locations||[]).forEach(function(l){ (l.items||[]).forEach(function(it){ out.push(Object.assign({locId:l.id, locName:l.name}, it)); }); });
+  return out;
+}
+function invdTransitSetFilter(k,v){ _invdTransitFilter[k]=v; if(_invdTransit) invdTransitRender(); }
+function invdTransitRender(){
+  var body = document.getElementById('invd-transit-body'); var tb = document.getElementById('invd-transit-toolbar');
+  if(!body) return;
+  var all = invdTransitFlat();
+  var t = (_invdTransit && _invdTransit.totals) || {};
+  var fe = _invdTransitFilter.estado;
+  if(tb) tb.innerHTML = ''
+    + '<span class="invd-chip'+(fe===''?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'\')">Todos ('+all.length+')</span>'
+    + '<span class="invd-chip'+(fe==='huerfano'?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'huerfano\')">Huérfanos ('+(t.countHuerfanos||0)+')</span>'
+    + '<span class="invd-chip'+(fe==='pendiente'?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'pendiente\')">En vuelo ('+(t.countPendientes||0)+')</span>'
+    + '<div style="flex:1"></div>'
+    + '<button class="invd-chip" onclick="invdTransitCsv()"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>CSV</button>';
+  var rows = all.filter(function(it){ return !fe || it.clase===fe; });
+  if(!rows.length){ body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px">Sin artículos en tránsito con este filtro.</div>'; if(window.lucide) lucide.createIcons(); return; }
+  var h = '<div class="invd-tblwrap"><table class="invd-tbl"><thead><tr>'
+    + '<th>Foto</th><th>Ref</th><th>Artículo</th><th>Barcode</th><th style="text-align:center">Cant</th><th>Origen → Destino</th><th>Responsable</th><th>Fecha</th><th style="text-align:center">Antig.</th><th>Estado</th>'
+    + '</tr></thead><tbody>';
+  rows.forEach(function(it){
+    var age = it.ageDays==null ? '—' : (it.ageDays+'d');
+    var ageCol = (it.ageDays!=null && it.ageDays>7) ? 'color:var(--amber-text);font-weight:700' : '';
+    var resp = it.responsable ? esc(it.responsable.name||'—') : '—';
+    var badge = it.clase==='huerfano' ? '<span class="invd-badge huer">Huérfano</span>' : '<span class="invd-badge pend">En vuelo</span>';
+    var thumb = '<span class="invd-thumb"'+(it.hasImage?(' data-pid="'+it.prodId+'"'):'')+'><i data-lucide="package" style="width:15px;height:15px"></i></span>';
+    h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')">'
+      + '<td>'+thumb+'</td>'
+      + '<td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td>'
+      + '<td>'+esc(it.name||'')+'</td>'
+      + '<td style="font-family:monospace;font-size:11px;color:var(--text-3)">'+esc(it.barcode||'—')+'</td>'
+      + '<td style="text-align:center;font-weight:700">'+it.qty+'</td>'
+      + '<td class="invd-src">'+esc(invdShort(it.locName))+' <span style="opacity:.6">→</span> '+esc(it.locationDest||'—')+'</td>'
+      + '<td>'+resp+'</td>'
+      + '<td style="white-space:nowrap">'+invdFmtD(it.pickingDate)+'</td>'
+      + '<td style="text-align:center;'+ageCol+'">'+age+'</td>'
+      + '<td>'+badge+'</td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  body.innerHTML = h;
+  if(window.lucide) lucide.createIcons();
+  invdSetupImgObserver();
+}
+function invdTransitCsv(){
+  var fe = _invdTransitFilter.estado;
+  var all = invdTransitFlat().filter(function(it){ return !fe || it.clase===fe; });
+  var head = ['Estado','Ref','Articulo','Barcode','Cant','Origen','Destino','Responsable','Fecha','AntiguedadDias','Picking'];
+  var body = all.map(function(it){ return [it.clase, it.code||'', it.name||'', it.barcode||'', it.qty, invdShort(it.locName), it.locationDest||'', (it.responsable&&it.responsable.name)||'', it.pickingDate||'', it.ageDays==null?'':it.ageDays, it.sourcePicking||'']; });
+  var csv = [head].concat(body).map(function(r){ return r.map(function(c){ c=String(c==null?'':c); return /[",\n;]/.test(c)?('"'+c.replace(/"/g,'""')+'"'):c; }).join(','); }).join('\r\n');
+  var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'transitos-inventario.csv'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+}
+
+// ── Fotos lazy (hidratación con authFetch → dataURL, cache + IntersectionObserver) ──
+function invdSetupImgObserver(){
+  if(_invdImgObs) _invdImgObs.disconnect();
+  var thumbs = document.querySelectorAll('#section-inventario .invd-thumb[data-pid]');
+  if(!('IntersectionObserver' in window)){ thumbs.forEach(invdHydrateImg); return; }
+  _invdImgObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if(en.isIntersecting){ invdHydrateImg(en.target); _invdImgObs.unobserve(en.target); } });
+  }, { root:null, rootMargin:'220px' });
+  thumbs.forEach(function(el){ _invdImgObs.observe(el); });
+}
+function invdPaintThumb(el, dataURL){
+  if(!el || !el.isConnected) return;
+  el.style.backgroundImage = 'url('+dataURL+')'; el.style.backgroundSize='cover'; el.style.backgroundPosition='center';
+  el.style.border='none'; el.innerHTML='';
+}
+async function invdHydrateImg(el){
+  if(!el || el.dataset.done) return;
+  el.dataset.done = '1';
+  var pid = el.dataset.pid;
+  if(_invdImgCache[pid]===null) return;
+  if(typeof _invdImgCache[pid]==='string'){ invdPaintThumb(el, _invdImgCache[pid]); return; }
+  try{
+    var r = await authFetch('/api/inventario/img/'+pid);
+    if(!r.ok){ _invdImgCache[pid]=null; return; }
+    var b = await r.blob();
+    var fr = new FileReader();
+    fr.onload = function(){ _invdImgCache[pid]=fr.result; invdPaintThumb(el, fr.result); };
+    fr.readAsDataURL(b);
+  }catch(e){ _invdImgCache[pid]=null; }
+}
+
+// ── KARDEX / cuadre por artículo (drawer) ─────────────────────────────────────
+function invdKardex(pid){
+  var old = document.getElementById('invKxOverlay'); if(old) old.remove();
+  document.body.insertAdjacentHTML('beforeend',
+    '<div class="eo-det-overlay" id="invKxOverlay" onclick="if(event.target===this)this.remove()">'
+    + '<div class="eo-det-modal" id="invKxModal"><div style="padding:18px"><div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Reconstruyendo kardex…</div></div></div></div>');
+  if(window.lucide) lucide.createIcons();
+  invdKardexFetch(pid);
+}
+async function invdKardexFetch(pid){
+  try{
+    var r = await authFetch('/api/inventario/kardex/'+pid);
+    var d = await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    var modal = document.getElementById('invKxModal'); if(!modal) return;
+    modal.innerHTML = invdKardexHtml(d);
+    if(window.lucide) lucide.createIcons();
+    var th = modal.querySelector('.invd-thumb[data-pid]'); if(th) invdHydrateImg(th);
+  }catch(e){
+    var m = document.getElementById('invKxModal');
+    if(m) m.innerHTML = '<div style="padding:20px;color:var(--red-text);font-size:13px">No se pudo cargar el kardex: '+esc(e.message)+'<div style="margin-top:12px"><button class="invd-chip" onclick="document.getElementById(\'invKxOverlay\').remove()">Cerrar</button></div></div>';
+  }
+}
+function invdKardexHtml(d){
+  var p = d.product||{};
+  var h = '<div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start">'
+    + '<span class="invd-thumb"'+(p.hasImage?(' data-pid="'+d.pid+'"'):'')+' style="width:56px;height:56px"><i data-lucide="package"></i></span>'
+    + '<div style="flex:1;min-width:0">'
+      + '<div style="font-family:monospace;font-size:12px;color:var(--text-3)">'+esc(p.ref||'')+(p.barcode?(' · '+esc(p.barcode)):'')+'</div>'
+      + '<div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">'+esc(p.name||'')+'</div>'
+      + '<div style="font-size:11px;color:var(--text-3);margin-top:4px">Neto interno hoy: <strong style="color:var(--text)">'+(d.netInterno!=null?d.netInterno:'—')+'</strong></div>'
+    + '</div>'
+    + '<button class="invd-chip" style="flex:none" onclick="document.getElementById(\'invKxOverlay\').remove()">Cerrar</button>'
+    + '</div>';
+  if(d.culprit){
+    h += '<div style="margin:14px 16px 0;padding:10px 12px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;font-size:12px;color:var(--red-text)">'
+      + '<strong><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px"></i> Transacción que rompió el cuadre:</strong> '
+      + esc(d.culprit.ref||'')+' · '+esc(invdShort(d.culprit.from))+' → '+esc(invdShort(d.culprit.to))+' · '+invdFmtD(d.culprit.date)+' · estado '+esc(d.culprit.state||'')+'</div>';
+  }
+  h += '<div style="padding:14px 16px 4px"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Foto de hoy por ubicación</div>';
+  if((d.quants||[]).length){
+    h += '<div class="invd-tblwrap" style="border-radius:8px"><table class="invd-tbl" style="min-width:0"><thead><tr><th>Ubicación</th><th style="text-align:center">Cant</th><th style="text-align:center">Reservado</th></tr></thead><tbody>';
+    d.quants.forEach(function(q){ h += '<tr><td>'+esc(q.loc||'')+'</td><td style="text-align:center;'+(q.qty<0?'color:var(--red-text);font-weight:700':'')+'">'+q.qty+'</td><td style="text-align:center;color:var(--text-3)">'+(q.reserved||0)+'</td></tr>'; });
+    h += '</tbody></table></div>';
+  } else { h += '<div style="font-size:12px;color:var(--text-3)">Sin stock en ninguna ubicación.</div>'; }
+  h += '</div>';
+  h += '<div style="padding:14px 16px 18px"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:8px">Historial de transacciones</div>';
+  (d.moves||[]).forEach(function(m){
+    h += '<div class="invd-kx-row'+(m.culprit?' culprit':'')+'">'
+      + '<div style="font-size:10px;color:var(--text-3);white-space:nowrap;min-width:52px">'+invdFmtD(m.date)+'</div>'
+      + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong>'+m.qty+'</strong></div>'
+        + '<div style="font-size:10px;color:var(--text-3)">'+esc(m.ref||'')+' · '+esc(m.state||'')+(m.responsable?(' · '+esc(m.responsable)):'')+'</div>'
+      + '</div>'+(m.culprit?'<span class="invd-badge huer" style="flex:none">culpable</span>':'')+'</div>';
+  });
+  if(!(d.moves||[]).length) h += '<div style="font-size:12px;color:var(--text-3)">Sin movimientos registrados.</div>';
+  h += '</div>';
+  return h;
+}
+
+// ── CUADRE: riesgo doble-venta (s3) + buscador de kardex ──────────────────────
+function invdCuadreRender(){
+  var box = document.getElementById('invd-cuadre-body'); var sb = document.getElementById('invd-cuadre-search');
+  if(!box) return;
+  if(sb) sb.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    + '<input id="invd-kx-input" placeholder="Ref, barcode o id de artículo…" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px" onkeydown="if(event.key===\'Enter\')invdCuadreSearch()">'
+    + '<button class="invd-chip" onclick="invdCuadreSearch()"><i data-lucide="search" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>Ver kardex</button>'
+    + '<span id="invd-kx-msg" style="font-size:11px;color:var(--red-text)"></span></div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Abre la línea de tiempo de cualquier artículo desde su carga inicial y resalta la transacción que rompió el cuadre.</div>';
+  var d = _invdData;
+  if(!d){ box.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:13px"><div class="spinner" style="display:inline-block;vertical-align:-3px;margin-right:6px"></div>Cargando panorama…</div>'; return; }
+  var s3 = (d.senales && d.senales.s3) || {items:[]};
+  var items = s3.items||[];
+  var h = '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">'
+    + '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)"><i data-lucide="alert-octagon" style="width:14px;height:14px;stroke:var(--red-text);vertical-align:-2px;margin-right:5px"></i>Riesgo de doble-venta ('+items.length+') — huérfano en tránsito y stock vendible del mismo SKU</div>';
+  if(!items.length){ h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún artículo con riesgo de doble-venta hoy.</div></div>'; }
+  else{
+    h += '<div class="invd-tblwrap" style="border:none;border-radius:0"><table class="invd-tbl"><thead><tr><th>Ref</th><th>Artículo</th><th style="text-align:center">En tránsito</th><th style="text-align:center">Vendible en bin</th><th></th></tr></thead><tbody>';
+    items.forEach(function(it){
+      h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')"><td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td><td>'+esc(it.name||'')+'</td><td style="text-align:center;color:var(--amber-text);font-weight:700">'+it.unidadesTransito+'</td><td style="text-align:center;color:var(--red-text);font-weight:700">'+it.unidadesBinVendible+'</td><td style="text-align:right"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '</div>';
+  box.innerHTML = h;
+  if(window.lucide) lucide.createIcons();
+}
+function invdCuadreSearch(){
+  var inp = document.getElementById('invd-kx-input'); var v = inp ? (inp.value||'').trim() : '';
+  var msg = document.getElementById('invd-kx-msg'); if(msg) msg.textContent='';
+  if(!v) return;
+  if(/^\d+$/.test(v)){ invdKardex(parseInt(v,10)); return; }
+  invdCuadreLookup(v);
+}
+async function invdCuadreLookup(q){
+  var msg = document.getElementById('invd-kx-msg');
+  try{
+    var r = await authFetch('/api/averias/search?q='+encodeURIComponent(q));
+    var d = await r.json();
+    var res = (d && d.results) || (Array.isArray(d)?d:[]);
+    var first = res[0];
+    var pid = first && (first.id || first.productId || first.prodId);
+    if(pid) invdKardex(pid);
+    else if(msg) msg.textContent = 'No se encontró un artículo con «'+q+'».';
+  }catch(e){ if(msg) msg.textContent = 'Error buscando: '+e.message; }
+}
+
+// ── TENDENCIA (snapshots) ─────────────────────────────────────────────────────
+async function invdTendCargar(){
+  var el = document.getElementById('invd-tendencia'); if(!el) return;
+  try{
+    var r = await authFetch('/api/inventario/tendencia?dias=30');
+    var d = await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    invdTendRender(d);
+  }catch(e){ el.innerHTML=''; }
+}
+function invdTendRender(d){
+  var el = document.getElementById('invd-tendencia'); if(!el) return;
+  var dias = d.dias||[];
+  if(!dias.length){ el.innerHTML = '<div style="font-size:11px;color:var(--text-3);border-top:1px dashed var(--border);padding-top:12px;margin-top:4px">Tendencia: aún sin snapshots. Se generan cada noche.</div>'; return; }
+  var rec = d.reincidencia||{};
+  el.innerHTML = '<div style="border-top:1px solid var(--border);padding-top:14px">'
+    + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Tendencia (30 días)</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+    + invdMiniBars('Fiabilidad operativa', dias, 'fiabilidad')
+    + invdMiniBars('Higiene estructural', dias, 'higiene')
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:10px">Reincidencia: '
+      + '<strong style="color:var(--text)">'+(rec.diasSinNegativoNuevoAcdp!=null?rec.diasSinNegativoNuevoAcdp:'—')+'</strong> días sin negativo nuevo en A-CDP · '
+      + '<strong style="color:var(--text)">'+(rec.huerfanosNuevosSemana!=null?rec.huerfanosNuevosSemana:'—')+'</strong> huérfanos nuevos/semana</div>'
+    + '</div>';
+}
+function invdMiniBars(title, dias, key){
+  var bars = dias.map(function(x){
+    var v = x[key]==null ? 0 : x[key];
+    var col = v<60 ? 'var(--red-bg)' : (v<85 ? 'var(--amber-bg)' : 'var(--green-bg)');
+    var hpx = Math.max(2, Math.round(v/100*54));
+    return '<span title="'+esc(x.fecha)+': '+v+'" style="flex:1;min-width:3px;height:'+hpx+'px;background:'+col+';border-radius:2px 2px 0 0"></span>';
+  }).join('');
+  var last = dias[dias.length-1]||{};
+  return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px">'
+    + '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;font-weight:700;margin-bottom:6px">'+esc(title)+'</div>'
+    + '<div style="display:flex;align-items:flex-end;gap:2px;height:56px">'+bars+'</div>'
+    + '<div style="font-size:10px;color:var(--text-3);margin-top:4px">hoy: <strong style="color:var(--text)">'+(last[key]!=null?last[key]:'—')+'</strong></div>'
+    + '</div>';
+}
+
+// ── Indicador de frescura ("Foto de Odoo · hace X min") ───────────────────────
+function invdRenderFresh(){
+  var el = document.getElementById('invd-fresh'); if(!el) return;
+  var ts = (_invdData && _invdData.ts) ? _invdData.ts : null;
+  if(!ts){ el.innerHTML=''; return; }
+  var mins = Math.floor((Date.now()-ts)/60000);
+  var col = mins<10 ? 'var(--green-text)' : (mins<30 ? 'var(--amber-text)' : 'var(--text-3)');
+  var txt = mins<1 ? 'ahora' : ('hace '+(mins<60 ? (mins+' min') : (Math.floor(mins/60)+' h')));
+  el.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:'+col+';display:inline-block"></span>Foto de Odoo · '+txt;
+}
+function invdStartFreshTimer(){
+  if(_invdFreshTimer) return;
+  _invdFreshTimer = setInterval(function(){
+    var sec = document.getElementById('section-inventario');
+    if(sec && sec.style.display!=='none') invdRenderFresh();
+  }, 45000);
 }
 
 // ── Anomalías estructurales de ubicaciones (auditoría 10-jul) ─────────────────
@@ -27355,6 +27793,7 @@ function navTo(section){
   // Si venimos de Workforce Labor, volver a la pantalla de Despachos para mostrar la sección
   var _appEl = document.getElementById('screen-app');
   if (_appEl && _appEl.classList.contains('active')) showScreen('screen-historial');
+  if(section==='inventario-salud'||section==='validacion') section='inventario';
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
   setNavActive(section);
@@ -27364,7 +27803,7 @@ function navTo(section){
   if(target==='solicitudes-reposicion') { repCargarLista(); }
   if(target==='solicitudes') { loadSolicitudes(true); }
   if(target==='dev-cdp') loadDevCdpReport();
-  if(target==='inventario-salud') invSaludCargar();
+  if(target==='inventario') invdCargar(false);
   if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='sdv-portal') sdvInitPortal();
   if(target==='sdv-bandeja') sdvBandejaCargar();
@@ -27377,7 +27816,6 @@ function navTo(section){
     if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
-  if(target==='validacion') tmCargar(false);
 }
 
 function setNavActive(section){
@@ -27453,7 +27891,7 @@ function setHistorialUser() {
   // Usar navTo() para que se ejecuten los init específicos de cada sección (ej: initReposicion)
   if (_user.role !== 'admin') {
     var ORDER = ['sdv-portal','buscar','contenedores','reposicion','solicitudes','pendientes',
-      'sin-adjuntos','pendientes-out','dev-cdp','validacion','averias'];
+      'sin-adjuntos','pendientes-out','dev-cdp','inventario','averias'];
     var first = ORDER.find(function(s){ return canSection(s); });
     if (first) { navTo(first); }
   }
