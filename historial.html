@@ -8428,6 +8428,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <div class="form-group">
           <label class="form-label">Fecha límite</label>
           <input id="mf-due" type="date" class="form-select">
+          <div id="mf-due-hint" style="display:none;margin-top:5px;font-size:11px;color:var(--amber-text,var(--text-3));line-height:1.4">
+            <i data-lucide="info" style="width:11px;height:11px;stroke:currentColor;vertical-align:-1px"></i>
+            La solicitud no trae fecha — puedes fijarla aquí.
+          </div>
         </div>
       </div>
       <!-- Opciones de cadena (solo subtareas) -->
@@ -8860,7 +8864,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v187';
+var APP_BUILD = 'v188';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -17198,7 +17202,20 @@ function openEditTaskModal() {
   _lastOrderCtx={ client:'', salesperson:'', deliveryAddress:'', phone:'' };
   // H2-1 (v113): en tareas SDV los campos propiedad de la solicitud se muestran pero no se editan
   var _sdvOwned = !!_editingTask.sdvId;
-  ['mf-type','mf-due','mf-accion-note'].forEach(function(fid){ var el=document.getElementById(fid); if (el) el.disabled=_sdvOwned; });
+  ['mf-type','mf-accion-note'].forEach(function(fid){ var el=document.getElementById(fid); if (el) el.disabled=_sdvOwned; });
+  // v188: la fecha se bloquea SOLO si la solicitud ya trae una (promesa de Ventas). Si viene
+  // vacía (solicitud especial con el campo opcional en blanco), Ops la puede SEMBRAR aquí — el
+  // server acepta la siembra null→valor sin violar la frontera H2-1.
+  var _hasDue = !!((_editingTask.dueDate||'').trim());
+  var _mfDue = document.getElementById('mf-due'); if (_mfDue) _mfDue.disabled = _sdvOwned && _hasDue;
+  var _dueHint = document.getElementById('mf-due-hint');
+  if (_dueHint) _dueHint.style.display = (_sdvOwned && !_hasDue) ? '' : 'none';
+  // v188: fotos de guía — limpiar restos de una sesión anterior del modal (es solo-edición y
+  // openEditTaskModal no llamaba resetTaskModal). Sin esto, al quitar el gate !_editingTask del
+  // uploader se re-subirían fotos rancias a la tarea equivocada.
+  _newTaskFotos=[];
+  var _fp=document.getElementById('mf-fotos-preview'); if(_fp) _fp.innerHTML='';
+  var _fl=document.getElementById('mf-fotos-btn-label'); if(_fl) _fl.textContent='Agregar fotos';
   var _sdvNote=document.getElementById('mf-sdv-note');
   if (_sdvNote) { _sdvNote.style.display=_sdvOwned?'':'none'; if(_sdvOwned){ _sdvNote.querySelector('b').textContent=_editingTask.sdvFolio||'la solicitud'; } }
   if (_editingTask.odooRef) { document.getElementById('mf-odoo-ref').value=_editingTask.odooRef; }
@@ -17212,7 +17229,14 @@ function openEditTaskModal() {
   applyManagerSelfMode();
   document.getElementById('modal-task').classList.add('open');
 }
-function closeTaskModal() { document.getElementById('modal-task').classList.remove('open'); _modalItems=[]; _modalSearch=[]; _modalCurrentRef=''; _subtaskParentId=null; }
+function closeTaskModal() {
+  document.getElementById('modal-task').classList.remove('open');
+  _modalItems=[]; _modalSearch=[]; _modalCurrentRef=''; _subtaskParentId=null;
+  // v188: limpiar fotos de guía para que no se arrastren a la próxima edición
+  _newTaskFotos=[];
+  var _fp=document.getElementById('mf-fotos-preview'); if(_fp) _fp.innerHTML='';
+  var _fl=document.getElementById('mf-fotos-btn-label'); if(_fl) _fl.textContent='Agregar fotos';
+}
 var _newTaskFotos = []; // [{b64, ext}] — fotos pendientes del formulario nueva tarea
 
 function resetTaskModal() {
@@ -17691,7 +17715,13 @@ async function saveTask() {
   // envían al editar (el server los rechazaría con 422; además _lastOrderCtx puede traer la
   // dirección de Odoo, no la de la SDV). Se editan en la solicitud y bajan solos (H2-2).
   if (_editingTask && _editingTask.sdvId) {
-    ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote','type'].forEach(function(k){ delete body[k]; });
+    // Siembra de fecha (2026-07-13): si la tarea SDV no traía fecha (solicitud especial con el
+    // campo opcional en blanco), Ops la puede fijar aquí y el server la acepta como null→valor
+    // (gate H2-1). Con fecha ya puesta por Ventas, dueDate sigue siendo de la solicitud y no se envía.
+    var _dueSeeding = !((_editingTask.dueDate||'').trim()) && !!(body.dueDate||'');
+    var _sdvOwnedKeys = ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote','type'];
+    if (_dueSeeding) _sdvOwnedKeys = _sdvOwnedKeys.filter(function(k){ return k!=='dueDate'; });
+    _sdvOwnedKeys.forEach(function(k){ delete body[k]; });
   }
   try {
     let r, d;
@@ -17707,8 +17737,11 @@ async function saveTask() {
     if (taskId && _modalItems.length) {
       await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(_modalItems)})});
     }
-    // Subir fotos de guía visual si las hay (solo en creación nueva)
-    if (taskId && !_editingTask && _newTaskFotos.length) {
+    // Subir fotos de guía visual si las hay. v188: antes se gateaba con !_editingTask, pero
+    // este modal es SOLO-edición (nuevas tareas usan el wizard) → la rama nunca corría y las
+    // fotos añadidas al editar se perdían. Ahora sube también en edición (p. ej. Ops agrega la
+    // guía que la vendedora no subió). openEditTaskModal/closeTaskModal limpian _newTaskFotos.
+    if (taskId && _newTaskFotos.filter(function(f){return f!==null;}).length) {
       toast('Subiendo ' + _newTaskFotos.length + ' foto' + (_newTaskFotos.length>1?'s':'') + ' de guía…');
       try {
         var fgRes = await authFetch('/api/wwp/tasks/'+taskId+'/fotos-guia', {

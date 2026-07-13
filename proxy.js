@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v187';
+const APP_BUILD = 'v188';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -12425,7 +12425,13 @@ const server = http.createServer(async (req, res) => {
         // para no sobreescribir el valor de la SDV con la variante normalizada (perdería la hora).
         const _norm = (k, v) => { const s = String(v ?? '').trim(); return k==='dueDate' ? s.slice(0,10) : s; };
         const _difiere = k => d[k] !== undefined && _norm(k, d[k]) !== _norm(k, tasks[idx][k]);
+        // Siembra de fecha por Ops (2026-07-13): si la SDV nunca fijó fecha (dueDate vacío en la
+        // tarea — típico de solicitud_especial con el campo "Fecha deseada" opcional en blanco),
+        // Ops PUEDE sembrarla desde WWP sin violar la frontera H2-1: un null no es una promesa de
+        // Ventas que proteger. Solo se permite null→valor; nunca pisar una fecha ya existente.
+        const _dueSeeding = !_norm('dueDate', tasks[idx].dueDate) && !!_norm('dueDate', d.dueDate);
         ['odooRef','client','salesperson','deliveryAddress','phone','location','dueDate','actionNote'].forEach(k => {
+          if (k === 'dueDate' && _dueSeeding) return;   // deja pasar la siembra al setter de abajo
           if (_difiere(k)) _owned.push(k);
           else if (d[k] !== undefined) delete d[k];
         });
