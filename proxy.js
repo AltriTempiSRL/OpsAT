@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v188';
+const APP_BUILD = 'v189';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1005,6 +1005,21 @@ function taskEsTrasladoInterno(task) {
   catch(e) { return false; }
 }
 
+// ── Handoff de empaque (2026-07-13): madre packaging YA completada (entregó el material
+// al despachador) cuya cadena de despacho/almacén sigue ABIERTA. Su status es 'completed'
+// por diseño anti-deadlock (exención en el PATCH ~11932: el despacho no inicia sin empaque
+// completo, y el empaque no cierra con despacho abierto → deadlock), pero operativamente NO
+// está "en espera de validación": el despacho ni siquiera ha salido. Este predicado —espejo
+// del gate— permite que las señales de "por validar" (KPIs, notifs) no la cuenten antes de
+// tiempo, SIN tocar los gates. Deriva del estado vivo de los hijos; no persiste nada.
+function isPackHandoff(task, allTasks) {
+  if (!task || task.parentId || task.type !== 'packaging' || task.status !== 'completed') return false;
+  const kids = (allTasks || []).filter(c => c.parentId === task.id
+    && ['dispatch_order','warehouse_move'].includes(c.type)
+    && !['completed','validated','cancelled'].includes(c.status));
+  return kids.length > 0;
+}
+
 // ── Nombre visible de artículo: "[default_code] descripción" ─────────────────
 // La descripción correcta (stock.move.description_picking / sale.order.line.name)
 // NO trae el prefijo [código] que sí traía display_name — y en 683/688 items vivos
@@ -1446,7 +1461,9 @@ function computeOpsAgentReport() {
   });
   missingEvidence.slice(0, 12).forEach(t => pushDecision('medium', 'Evidencia pendiente', 'Solicitar foto/evidencia para poder cerrar la tarea.', t, 'Hay articulos seleccionados sin evidencia.'));
 
-  const readyToValidate = tasks.filter(t => t.status === 'completed');
+  // El handoff de empaque (madre packaging con despacho abierto) NO está por validar: el
+  // despacho aún no sale. Se excluye para no inflar la cola de validación ni las señales de ops.
+  const readyToValidate = tasks.filter(t => t.status === 'completed' && !isPackHandoff(t, tasks));
   readyToValidate.forEach(t => pushDecision('high', 'Pendiente de validacion', 'Validar, devolver o documentar causa de espera.', t, 'La tarea ya fue marcada completada.'));
 
   const byOwner = {};
@@ -12540,7 +12557,11 @@ const server = http.createServer(async (req, res) => {
           // t2.status (no d.status): el auto-avance tras reactivación puede haber dejado
           // la tarea en 'assigned' aunque el body pidiera 'pending' — el mensaje debe
           // reflejar dónde quedó realmente, no lo que se pidió.
-          const [type,prefix,suffix] = STATUS_MSG[t2.status]||['status_changed','🔄 Estado actualizado',''];
+          let [type,prefix,suffix] = STATUS_MSG[t2.status]||['status_changed','🔄 Estado actualizado',''];
+          // Handoff de empaque (2026-07-13): la madre packaging pasa a 'completed' al entregar
+          // el material, pero el despacho sigue abierto → NO anunciar "lista para validar" (falso
+          // fin de cadena). El aviso de validación real llega cuando la cadena cierra completa.
+          if (t2.status==='completed' && isPackHandoff(t2, tasks)) { prefix='📦 Empaque completado'; suffix='Empaque entregado — el despacho continúa'; }
           recipients.forEach(uid => {
             // No notificar al que hizo el cambio
             if (uid === d.byUserId) return;

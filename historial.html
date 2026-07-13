@@ -8864,7 +8864,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v188';
+var APP_BUILD = 'v189';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12453,8 +12453,11 @@ var _TYPE_GROUPS = [
 ];
 function renderGroupedByType(visible, rowRenderer) {
   const ACTIVE_ST = new Set(['pending','assigned','in_progress']);
-  const active    = visible.filter(t => ACTIVE_ST.has(t.status));
-  const completed = visible.filter(t => t.status === 'completed');
+  // v189: el handoff de empaque (madre packaging completada con despacho abierto) va al bucket
+  // ACTIVO (grupo "Empaque"), NO al archivo "en espera de validación" — el despacho no ha salido.
+  // Cuando el despacho cierra, chainDisplayStatus deja de marcarlo handoff y cae a 'completed'.
+  const active    = visible.filter(t => ACTIVE_ST.has(t.status) || chainDisplayStatus(t).key==='handoff');
+  const completed = visible.filter(t => t.status === 'completed' && chainDisplayStatus(t).key!=='handoff');
   const closed    = visible.filter(t => t.status === 'validated' || t.status === 'cancelled');
 
   const known = new Set(_TYPE_GROUPS.map(g=>g.type));
@@ -12522,8 +12525,9 @@ function _updateTasksKpiStrip() {
   var act = (_tasks||[]).filter(function(t){ return !t.parentId; });
   var over = act.filter(function(t){ return t.dueDate && t.dueDate < today && !['completed','validated','cancelled'].includes(t.status); }).length;
   var pend = act.filter(function(t){ return t.status==='pending' || t.status==='assigned'; }).length;
-  var prog = act.filter(function(t){ return t.status==='in_progress'; }).length;
-  var comp = act.filter(function(t){ return t.status==='completed' || t.status==='validated'; }).length;
+  // v189: el handoff de empaque es WIP (despacho abierto), no una salida → cuenta en "progreso".
+  var prog = act.filter(function(t){ return t.status==='in_progress' || chainDisplayStatus(t).key==='handoff'; }).length;
+  var comp = act.filter(function(t){ return t.status==='validated' || (t.status==='completed' && chainDisplayStatus(t).key!=='handoff'); }).length;
   var set = function(id,v){ var e=document.getElementById(id); if(e) e.textContent=String(v).padStart(2,'0'); };
   set('tks-pend',pend); set('tks-prog',prog); set('tks-venc',over); set('tks-comp',comp);
 }
@@ -14196,6 +14200,29 @@ function seqLabel(t){
   }
   return (typeof t.seq==='number' && t.seq>0) ? '#'+String(t.seq).padStart(4,'0') : '';
 }
+// v189 — Estado a MOSTRAR (no el almacenado). Una madre de empaque YA completada (entregó el
+// material al despachador) cuya cadena de despacho/almacén sigue ABIERTA se muestra como
+// 'handoff': su status real es 'completed' por diseño anti-deadlock (el despacho no inicia sin
+// empaque completo, y el empaque no cierra con despacho abierto), pero operativamente NO está
+// "en espera de validación". Deriva del estado vivo de los hijos — NO persiste nada; cuando el
+// último despacho cierra, el helper deja de devolver 'handoff' y la madre cae sola al bucket
+// 'completed' JUNTO con el despacho. Espeja el gate de proxy.js (solo dispatch/warehouse; los
+// cancelados no cuentan). bucket: 'active' | 'completed' | 'closed' (agrupación de las vistas).
+function chainDisplayStatus(t){
+  if (t && !t.parentId && t.type==='packaging' && t.status==='completed'){
+    const kids = (_tasks||[]).filter(c => c.parentId===t.id
+      && ['dispatch_order','warehouse_move'].includes(c.type)
+      && !['completed','validated','cancelled'].includes(c.status));
+    if (kids.length){
+      const enCurso = kids.some(c => c.status==='in_progress');
+      return { key:'handoff', bucket:'active', dot:'var(--amber-dot)',
+        label: enCurso ? 'Empaque listo · despacho en curso' : 'Empaque listo · despacho pendiente' };
+    }
+  }
+  const st = t ? t.status : '';
+  const bucket = st==='completed' ? 'completed' : (st==='validated'||st==='cancelled') ? 'closed' : 'active';
+  return { key:st, bucket, label: STATUS_LABELS[st]||st, dot:null };
+}
 function renderListRow(t) {
   const today = new Date().toISOString().slice(0,10);
   const overdue = t.dueDate && t.dueDate < today && !['completed','validated'].includes(t.status);
@@ -14207,6 +14234,7 @@ function renderListRow(t) {
   const typeIcon = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'warehouse',general:'circle-dot',staffing:'users'}[t.type]||'circle-dot';
   const typeLabel = t.taskConcept==='customer_return' ? 'Devolución de cliente' : ({dispatch_order:'Despacho / Entrega',packaging:'Empaque y almacenamiento',item_pickup:'Recogida de articulos',truck_loading:'Carga de camion',warehouse_move:'Movimiento de almacen',staffing:'Solicitud de personal',general:'Tarea general'}[t.type] || (t.type || 'Tarea'));
   const stDot = {pending:'var(--text-3)',assigned:'var(--blue-dot)',in_progress:'var(--amber-dot)',completed:'var(--green-dot)',validated:'var(--purple-dot)',cancelled:'var(--red-dot)'}[t.status]||'var(--text-3)';
+  const cds = chainDisplayStatus(t);  // v189: estado a mostrar (handoff de empaque no dice "validación")
   const prDot = {high:'var(--red-dot)',medium:'var(--amber-dot)',low:'var(--green-dot)'}[t.priority||'medium'];
   const prLabel = {high:'Alta',medium:'Media',low:'Baja'}[t.priority||'medium'];
   const mi = (icon) => `<i data-lucide="${icon}" style="width:13px;height:13px;stroke:currentColor;flex-shrink:0"></i>`;
@@ -14239,8 +14267,8 @@ function renderListRow(t) {
     <span class="tlr-icon"><i data-lucide="${typeIcon}" style="width:17px;height:17px;stroke:currentColor"></i></span>
     <div class="task-list-main" style="min-width:0;flex:1">
       <div class="tlr-title-row">
-        <span class="task-list-title" style="white-space:normal">${t.parentId?'<i data-lucide="git-branch" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-1px;margin-right:3px"></i>':''}${esc(t.title)}</span>
-        ${t.odooRef?`<span class="tlr-ref">${esc(t.odooRef)}</span>`:(seqLabel(t)?`<span class="tlr-ref">${seqLabel(t)}</span>`:'')}
+        <span class="task-list-title" style="white-space:normal">${t.parentId?'<i data-lucide="git-branch" style="width:11px;height:11px;stroke:var(--accent);display:inline-block;vertical-align:-1px;margin-right:3px"></i>':''}${seqLabel(t)?`<span style="color:var(--text-3);font-weight:800;margin-right:5px">${seqLabel(t)}</span>`:''}${esc(t.title)}</span>
+        ${t.odooRef?`<span class="tlr-ref">${esc(t.odooRef)}</span>`:''}
       </div>
       ${rowSubMeta.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;font-size:var(--fs-xs);color:var(--text-muted);margin-top:1px">${rowSubMeta.join('<span style="color:var(--text-3)">·</span>')}</div>`:''}
       ${t.parentId?(()=>{const p=(_tasks||[]).find(x=>x.id===t.parentId);return `<div class="task-list-meta" style="color:var(--accent)">↳ Subtarea de ${p?(seqLabel(p)+' '+esc(p.title.slice(0,30))):'tarea madre'}</div>`;})():''}
@@ -14248,7 +14276,7 @@ function renderListRow(t) {
       ${subs.length?`<div class="tlr-prog-row"><div class="tlr-prog"><div class="tlr-prog-bar" style="width:${progPct}%;background:${stDot}"></div></div><span class="tlr-prog-lbl">${doneSubs}/${subs.length} subtareas</span></div>`:''}
     </div>
     <div class="tlr-right">
-      <span class="st-chip"><span class="st-dot" style="background:${stDot}"></span>${STATUS_LABELS[t.status]||t.status}</span>
+      <span class="st-chip"><span class="st-dot" style="background:${cds.dot||stDot}"></span>${cds.label}</span>
       <span class="tlr-pri"><span style="width:8px;height:8px;border-radius:50%;background:${prDot};display:inline-block"></span>${prLabel}</span>
       ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="Falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''} en Odoo"><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
       ${photoArchiveBadgeHtml(t)}
@@ -14267,7 +14295,8 @@ function renderKanbanView(tasks) {
     {key:'validated',  label:'Validado',   css:'b-validated'},
   ];
   return `<div class="task-kanban">${cols.map(col=>{
-    const ct = tasks.filter(t=>t.status===col.key);
+    // v189: el handoff de empaque cae en "En Progreso", no en "Completado" (despacho abierto).
+    const ct = tasks.filter(t=>{ const k=chainDisplayStatus(t).key; return k===col.key || (col.key==='in_progress' && k==='handoff'); });
     const today = new Date().toISOString().slice(0,10);
     const cards = ct.map(t=>{
       const mgr = t.managerId?(_authUsers||[]).find(u=>u.id===t.managerId):null;
@@ -14279,7 +14308,7 @@ function renderKanbanView(tasks) {
         draggable="true"
         ondragstart="event.dataTransfer.setData('taskId','${t.id}');event.currentTarget.style.opacity='.5'"
         ondragend="event.currentTarget.style.opacity=''">
-        <div class="kanban-mini-title">${esc(t.title)}</div>
+        <div class="kanban-mini-title">${seqLabel(t)?`<span style="color:var(--text-3);font-weight:800;margin-right:4px">${seqLabel(t)}</span>`:''}${esc(t.title)}</div>
         <div class="kanban-mini-meta">
           ${mgr?avatarHtml(mgr,17)+'<span>'+esc(mgr.name.split(' ')[0])+'</span>':''}
           ${t.dueDate?`<span style="margin-left:auto;${dateStyle}">${t.dueDate}</span>`:''}
@@ -14369,6 +14398,7 @@ function renderPersonView(tasks) {
 function renderTaskCard(t) {
   const subs = _tasks.filter(s=>s.parentId===t.id);
   const doneSubs = subs.filter(s=>s.status==='completed'||s.status==='validated').length;
+  const cds = chainDisplayStatus(t);  // v189: estado a mostrar (handoff de empaque)
   const progPct = subs.length ? Math.round(doneSubs/subs.length*100) : (t.status==='completed'||t.status==='validated'?100:0);
   const typeEmoji = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot'}[t.type]||'circle-dot';
   const typeIcon = `<i data-lucide="${typeEmoji}" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>`;
@@ -14421,7 +14451,9 @@ function renderTaskCard(t) {
     <div class="tc-grid">
       <div class="tc-field">
         <span class="tc-label">Estado</span>
-        <span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>
+        ${cds.key==='handoff'
+          ? `<span class="badge" style="background:var(--amber-bg);color:var(--amber-text)">${cds.label}</span>`
+          : `<span class="badge ${STATUS_CSS[t.status]||'b-pending'}">${STATUS_LABELS[t.status]||t.status}</span>`}
       </div>
       <div class="tc-field">
         <span class="tc-label">Prioridad</span>
@@ -15170,7 +15202,7 @@ function renderDrawer(t) {
       actionHtml += `<div class="step-ptr sptr-g">✓ Todo listo — toca para completar</div><div class="action-row"><button class="btn-primary btn-success" onclick="changeStatus('${t.id}','completed')">${completeButtonLabel}</button></div>`;
     }
   }
-  if (t.status==='completed' && isResponsibleCloser) {
+  if (t.status==='completed' && isResponsibleCloser && chainDisplayStatus(t).key!=='handoff') {
     const canAdminValidate  = _user.role === 'admin';
     const canDevolver       = _user.role === 'admin' || _user.role === 'manager';
     let rowBtns = '';
