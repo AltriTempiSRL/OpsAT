@@ -2275,6 +2275,36 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .op-modal-primary:hover{opacity:.9}
 .op-modal-primary:disabled{background:var(--surface-2);color:var(--text-muted);cursor:not-allowed;opacity:1}
 .rep-actual-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;margin-bottom:14px}
+/* Re-sincronizar desde pick — selector de pick vigente (admin) */
+.rsp-card{max-width:560px;display:flex;flex-direction:column;max-height:90vh}
+.rsp-body{flex:1;min-height:0;overflow-y:auto}
+.rsp-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:26px 14px;color:var(--text-secondary)}
+.rsp-state i{width:30px;height:30px;stroke:var(--text-3)}
+.rsp-sec-lbl{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 8px}
+.rsp-pick{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--surface)}
+.rsp-pick:hover{border-color:var(--text-secondary)}
+.rsp-pick.sel{border-color:var(--brand-primary);background:var(--surface-2)}
+.rsp-pick.ro{cursor:default;opacity:.7;background:var(--surface-2)}
+.rsp-pick.ro:hover{border-color:var(--border)}
+.rsp-pick input{margin-top:2px;width:17px;height:17px;flex-shrink:0;accent-color:var(--brand-primary);cursor:pointer}
+.rsp-pick-main{flex:1;min-width:0}
+.rsp-pick-name{font-size:13px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:6px;flex-wrap:wrap;word-break:break-word}
+.rsp-pick-meta{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.rsp-chip{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:5px;background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
+.rsp-pick.ro .rsp-chip{background:var(--surface)}
+.rsp-chip-now{background:var(--green-bg);color:var(--green-text);border-color:transparent}
+.rsp-summary{cursor:pointer;color:var(--text-secondary);font-size:12px;font-weight:600;padding:8px 0;display:flex;align-items:center;gap:6px;list-style:none}
+.rsp-summary::-webkit-details-marker{display:none}
+.rsp-summary:hover{color:var(--text-primary)}
+.rsp-toggle{background:none;border:none;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;padding:8px 0;display:inline-flex;align-items:center;gap:6px}
+.rsp-toggle:hover{color:var(--text-primary)}
+.rsp-preview-sum{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.rsp-sum-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 11px;border-radius:9px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.rsp-sum-chip i{width:14px;height:14px;stroke:var(--text-3);flex-shrink:0}
+.rsp-omit{background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;padding:10px 12px;margin-top:2px}
+.rsp-omit-hd{font-size:12px;font-weight:700;color:var(--amber-text);display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.rsp-omit-row{font-size:11px;color:var(--amber-text);padding:4px 0}
+.rsp-omit-row+.rsp-omit-row{border-top:1px solid var(--amber-dot)}
 @media(max-width:600px){
   .rep-item{grid-template-columns:1fr;gap:8px}
   .rep-item-side{flex-direction:row;align-items:center;justify-content:space-between}
@@ -2283,6 +2313,7 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
   .rep-modal-actions{position:sticky;bottom:0;background:var(--surface);padding-top:12px}
   .op-modal-overlay{align-items:flex-end;padding:0}
   .op-modal-card{max-width:100%;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+  .rsp-card{max-height:92dvh}
   .op-modal-footer{flex-direction:column-reverse}
   .op-modal-footer button{width:100%;min-height:44px}
 }
@@ -8916,7 +8947,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v192';
+var APP_BUILD = 'v193';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15371,6 +15402,8 @@ function renderDrawer(t) {
     const _canRemoveItem = isResponsibleCloser && !isClosedTask;
     const _pickName = (items.find(i=>i.pickName)||{}).pickName || '';
     const _canSyncPick = !isClosedTask && (_user.role==='admin'||_user.role==='manager') && t.odooRef;
+    // v190+: admin puede ELEGIR el pick vigente y re-sincronizar contra él (Odoo cancela picks y crea nuevos).
+    const _canResyncPick = !isClosedTask && _user.role==='admin' && t.odooRef;
     const itemSectionTitle = isStorageFlow ? storageCopy.sectionTitle : 'ARTÍCULOS';
     const sourceLabel = isStorageFlow ? storageCopy.sourceLabel : 'Surtido desde pick';
     const sourceIcon = isStorageFlow ? storageCopy.sourceIcon : 'clipboard-list';
@@ -15381,10 +15414,11 @@ function renderDrawer(t) {
       <span style="color:${sinConfirm?'#d97706':'#059669'};float:right;font-size:10px">${sinConfirm?sinConfirm+' SIN CONFIRMAR':'Todos confirmados'}</span>
       <span style="float:right;margin-right:8px;font-size:10px">${items.length-sinConfirm}/${items.length}</span>
     </div>
-    ${(_pickName||t.odooRef)?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+    ${(_pickName||t.odooRef)?`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;padding:7px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
       <i data-lucide="${sourceIcon}" style="width:13px;height:13px;stroke:var(--accent);flex-shrink:0"></i>
       <span style="font-size:11px;color:var(--text-2);flex:1;min-width:0">${sourceLabel}: <b>${esc(_pickName||'—')}</b>${t.odooRef?` · Orden ${esc(t.odooRef)}`:''}</span>
       ${_canSyncPick?`<button class="btn-sm" onclick="syncPickNow('${t.id}')" title="${sourceHint}" style="flex-shrink:0;padding:3px 9px"><i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>${sourceAction}</button>`:''}
+      ${_canResyncPick?`<button class="btn-sm" onclick="openResyncPickModal('${t.id}')" title="Elegir el pick vigente y re-sincronizar (Odoo cancela picks y genera nuevos)" style="flex-shrink:0;padding:3px 9px"><i data-lucide="list-checks" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Elegir pick…</button>`:''}
     </div>`:''}
     ${(missing>0&&!isClosedTask)?`<div class="items-alert"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>${evidenceAlert} ${missing} artículo(s). La tarea no puede cerrarse hasta completar todas las evidencias.</div>`:''}
     ${(()=>{
@@ -34067,6 +34101,193 @@ document.getElementById('devolver-modal') && document.getElementById('devolver-m
 document.getElementById('reprogramar-modal') && document.getElementById('reprogramar-modal').addEventListener('click', function(e){
   if (e.target === this) closeReprogramarModal();
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// RE-SINCRONIZAR DESDE PICK — selector de pick vigente (admin)
+// Odoo cancela picks y genera nuevos; syncPickNow (auto) resuelve el pick por
+// heurística. Este flujo deja que el ADMIN elija el/los pick(s) vigente(s) y
+// PREVISUALICE los cambios antes de aplicar. Backend (Carl):
+//   GET  /api/wwp/tasks/:id/picks       (admin/manager, read-only)
+//   POST /api/wwp/tasks/:id/sync-pick   (admin-only; apply:false=preview)
+// ════════════════════════════════════════════════════════════════════════
+var _rsp = { taskId:null, orderRef:'', picks:[], sel:{}, showCancel:false, step:'select', preview:null, pickNames:[] };
+
+function rspStateLabel(s){
+  return ({assigned:'Reservado · listo',confirmed:'Por reservar',waiting:'En espera',draft:'Borrador',done:'Despachado',cancel:'Cancelado'})[s] || (s||'—');
+}
+function rspErrMsg(status, d){
+  if (status===503) return 'No se pudo consultar Odoo, intenta de nuevo.';
+  if (d && d.error) return d.error;
+  if (status===409) return 'La tarea ya está validada o cancelada; no se puede re-sincronizar.';
+  if (status===422) return 'Ese pick no sirve para esta orden (cancelado, sin artículos o de otra orden).';
+  if (status===404) return 'La tarea ya no existe.';
+  if (status===400) return 'Faltan datos para re-sincronizar (orden o pick).';
+  return 'No se pudo re-sincronizar.';
+}
+function rspSetBody(html){ var b=document.getElementById('rsp-body'); if(b) b.innerHTML=html; }
+function rspSetFooter(html){ var f=document.getElementById('rsp-footer'); if(f) f.innerHTML=html; }
+
+async function openResyncPickModal(taskId){
+  if (!_user || _user.role!=='admin') { toast('Solo un administrador puede elegir el pick y re-sincronizar'); return; }
+  _rsp = { taskId:taskId, orderRef:'', picks:[], sel:{}, showCancel:false, step:'select', preview:null, pickNames:[] };
+  var ti=document.getElementById('rsp-task-id'); if(ti) ti.value=taskId;
+  document.getElementById('resync-pick-modal').style.display='flex';
+  rspSetBody('<div class="rsp-state"><i data-lucide="loader-2" class="do-spin"></i><div>Consultando picks en Odoo…</div></div>');
+  rspSetFooter('<button onclick="closeResyncPickModal()" class="op-modal-secondary">Cerrar</button>');
+  if(window.lucide) lucide.createIcons();
+  try{
+    var r=await authFetch('/api/wwp/tasks/'+taskId+'/picks');
+    var d=await r.json();
+    if(!r.ok || !d || !d.ok){ rspRenderError(rspErrMsg(r.status,d)); return; }
+    _rsp.orderRef=d.orderRef||'';
+    _rsp.picks=Array.isArray(d.picks)?d.picks:[];
+    rspRenderList();
+  }catch(e){ rspRenderError('No se pudo consultar Odoo, intenta de nuevo.'); }
+}
+function closeResyncPickModal(){ var m=document.getElementById('resync-pick-modal'); if(m) m.style.display='none'; }
+
+function rspRenderError(msg){
+  rspSetBody('<div class="rsp-state"><i data-lucide="cloud-off"></i><div><b>No se pudo cargar</b></div><div style="font-size:12px">'+esc(msg||'')+'</div></div>');
+  rspSetFooter('<button onclick="closeResyncPickModal()" class="op-modal-secondary">Cerrar</button><button onclick="openResyncPickModal(\''+_rsp.taskId+'\')" class="op-modal-primary">Reintentar</button>');
+  if(window.lucide) lucide.createIcons();
+}
+
+function rspPickRow(p){
+  var selectable = p.class==='vigente' && p.syncable!==false;
+  var checked = !!_rsp.sel[p.id];
+  var tipoChip = p.tipo ? '<span class="rsp-chip">'+esc(p.tipo)+'</span>' : '';
+  var nowChip = p.active ? '<span class="rsp-chip rsp-chip-now"><i data-lucide="circle-dot" style="width:10px;height:10px"></i>en uso hoy</span>' : '';
+  var lineage = p.backorderName ? ' · backorder de '+esc(p.backorderName) : '';
+  var noSync = (p.class==='vigente' && p.syncable===false) ? ' · no sincronizable' : '';
+  var meta = esc(rspStateLabel(p.state)) + lineage + noSync;
+  var name = esc(p.name || ('Pick '+p.id));
+  if (selectable){
+    return '<label class="rsp-pick'+(checked?' sel':'')+'">'
+      + '<input type="checkbox" '+(checked?'checked':'')+' onchange="rspToggle('+p.id+')">'
+      + '<div class="rsp-pick-main"><div class="rsp-pick-name">'+name+tipoChip+nowChip+'</div>'
+      + '<div class="rsp-pick-meta">'+meta+'</div></div></label>';
+  }
+  return '<div class="rsp-pick ro"><div class="rsp-pick-main"><div class="rsp-pick-name">'+name+tipoChip+nowChip+'</div>'
+    + '<div class="rsp-pick-meta">'+meta+'</div></div></div>';
+}
+
+function rspRenderList(){
+  _rsp.step='select';
+  var vig=_rsp.picks.filter(function(p){return p.class==='vigente';});
+  var don=_rsp.picks.filter(function(p){return p.class==='done';});
+  var can=_rsp.picks.filter(function(p){return p.class==='cancel';});
+  if(!_rsp.picks.length){
+    rspSetBody('<div class="rsp-state"><i data-lucide="inbox"></i><div><b>Sin transferencias en esta orden</b></div><div style="font-size:12px">Odoo no devolvió picks para la orden '+esc(_rsp.orderRef||'')+'.</div></div>');
+    rspSetFooter('<button onclick="closeResyncPickModal()" class="op-modal-secondary">Cerrar</button>');
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+  var html='<p class="op-modal-copy">Elige el/los pick(s) vigente(s) contra los que re-sincronizar los artículos'+(_rsp.orderRef?' de la orden <b>'+esc(_rsp.orderRef)+'</b>':'')+'. Verás los cambios antes de aplicar.</p>';
+  if(vig.length){
+    html+='<div class="rsp-sec-lbl">Picks vigentes</div>'+vig.map(rspPickRow).join('');
+  }else{
+    html+='<div class="rsp-state" style="padding:14px 12px"><i data-lucide="package-x"></i><div style="font-size:12px">No hay picks vigentes en Odoo para esta orden. Puede que todos estén despachados o cancelados — revisa el contexto abajo.</div></div>';
+  }
+  if(don.length){
+    html+='<details class="rsp-details"><summary class="rsp-summary"><i data-lucide="package-check" style="width:14px;height:14px"></i>Ya despachados ('+don.length+') · solo contexto</summary><div style="margin-top:8px">'+don.map(rspPickRow).join('')+'</div></details>';
+  }
+  if(can.length){
+    html+='<button type="button" class="rsp-toggle" onclick="rspToggleCancel()"><i data-lucide="eye" style="width:14px;height:14px"></i>'+(_rsp.showCancel?'Ocultar cancelados':'Ver cancelados ('+can.length+')')+'</button>';
+    if(_rsp.showCancel) html+='<div>'+can.map(rspPickRow).join('')+'</div>';
+  }
+  rspSetBody(html);
+  rspRenderFooterSelect();
+  if(window.lucide) lucide.createIcons();
+}
+
+function rspToggle(id){
+  if(_rsp.sel[id]) delete _rsp.sel[id]; else _rsp.sel[id]=true;
+  rspRenderFooterSelect();
+  var body=document.getElementById('rsp-body'); if(!body) return;
+  var cb=body.querySelector('input[onchange="rspToggle('+id+')"]');
+  if(cb){ var lbl=cb.closest('.rsp-pick'); if(lbl) lbl.classList.toggle('sel', !!_rsp.sel[id]); }
+}
+function rspToggleCancel(){ _rsp.showCancel=!_rsp.showCancel; rspRenderList(); }
+
+function rspRenderFooterSelect(){
+  var n=Object.keys(_rsp.sel).length;
+  rspSetFooter('<button onclick="closeResyncPickModal()" class="op-modal-secondary">Cancelar</button>'
+    +'<button onclick="rspPreview()" class="op-modal-primary"'+(n?'':' disabled')+'>Ver cambios'+(n>1?' ('+n+')':'')+'</button>');
+}
+
+async function rspPreview(){
+  var pickIds=Object.keys(_rsp.sel).map(Number);
+  if(!pickIds.length) return;
+  rspSetFooter('<button class="op-modal-secondary" disabled>Cancelar</button><button class="op-modal-primary" disabled><i data-lucide="loader-2" class="do-spin" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>Calculando…</button>');
+  if(window.lucide) lucide.createIcons();
+  try{
+    var r=await authFetch('/api/wwp/tasks/'+_rsp.taskId+'/sync-pick',{method:'POST',body:JSON.stringify({pickIds:pickIds,apply:false,by:_user.name,byUserId:_user.id})});
+    var d=await r.json();
+    if(!r.ok || !d || !d.ok){ toast(rspErrMsg(r.status,d),6000); rspRenderFooterSelect(); return; }
+    _rsp.preview=d; _rsp.pickNames=d.pickNames||[];
+    rspRenderPreview(d);
+  }catch(e){ toast('No se pudo consultar Odoo, intenta de nuevo.',6000); rspRenderFooterSelect(); }
+}
+
+function rspSumChip(icon,label){ return '<span class="rsp-sum-chip"><i data-lucide="'+icon+'"></i>'+label+'</span>'; }
+
+function rspRenderPreview(d){
+  _rsp.step='preview';
+  var s=d.resumen||{};
+  var omitted=Array.isArray(d.omitted)?d.omitted:[];
+  var names=(d.pickNames||[]).map(esc).join(', ') || (Object.keys(_rsp.sel).length+' pick(s)');
+  var nnew=s.new||0, nex=s.executed||0, nmv=s.moved||0, ncur=s.current||0;
+  var html='<p class="op-modal-copy">Vista previa contra <b>'+names+'</b>. Todavía no se aplica nada.</p>';
+  html+='<div class="rsp-preview-sum">';
+  html+=rspSumChip('plus-circle', nnew+' nuevo'+(nnew===1?'':'s'));
+  html+=rspSumChip('check-circle', nex+' ejecutado'+(nex===1?'':'s')+' en Odoo');
+  html+=rspSumChip('move', nmv+' en otro pick');
+  html+=rspSumChip('package', ncur+' vigente'+(ncur===1?'':'s'));
+  html+='</div>';
+  if(omitted.length){
+    html+='<div class="rsp-omit"><div class="rsp-omit-hd"><i data-lucide="alert-triangle" style="width:14px;height:14px"></i>'+omitted.length+' artículo(s) quedarían fuera</div>';
+    html+=omitted.map(function(o){
+      var u=(o.units!=null)?(' · '+o.units+' und'):'';
+      var pk=o.pickName?(' · '+esc(o.pickName)):'';
+      return '<div class="rsp-omit-row"><b>'+esc(o.sku||'')+'</b> '+esc(o.name||'')+u+pk+'</div>';
+    }).join('');
+    html+='</div>';
+  } else {
+    html+='<div style="font-size:12px;color:var(--green-text);display:flex;align-items:center;gap:6px"><i data-lucide="check-circle" style="width:14px;height:14px;stroke:currentColor"></i>Ningún artículo quedaría fuera.</div>';
+  }
+  rspSetBody(html);
+  rspSetFooter('<button onclick="rspRenderList()" class="op-modal-secondary">Volver</button><button onclick="rspApply()" class="op-modal-primary">Aplicar re-sincronización</button>');
+  if(window.lucide) lucide.createIcons();
+}
+
+async function rspApply(){
+  var pickIds=Object.keys(_rsp.sel).map(Number);
+  if(!pickIds.length){ rspRenderList(); return; }
+  rspSetFooter('<button class="op-modal-secondary" disabled>Volver</button><button class="op-modal-primary" disabled><i data-lucide="loader-2" class="do-spin" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>Aplicando…</button>');
+  if(window.lucide) lucide.createIcons();
+  try{
+    var r=await authFetch('/api/wwp/tasks/'+_rsp.taskId+'/sync-pick',{method:'POST',body:JSON.stringify({pickIds:pickIds,apply:true,by:_user.name,byUserId:_user.id})});
+    var d=await r.json();
+    if(!r.ok || !d || !d.ok){
+      toast(rspErrMsg(r.status,d),6000);
+      if(_rsp.preview) rspRenderPreview(_rsp.preview); else rspRenderList();
+      return;
+    }
+    var names=(d.pickNames||_rsp.pickNames||[]).join(', ') || 'el pick elegido';
+    var tid=_rsp.taskId;
+    toast('Artículos re-sincronizados desde '+names);
+    closeResyncPickModal();
+    openDrawer(tid);
+  }catch(e){ toast('No se pudo aplicar, intenta de nuevo.',6000); if(_rsp.preview) rspRenderPreview(_rsp.preview); }
+}
+
+// Cerrar el modal de re-sincronizar con Escape / click fuera
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){ var m=document.getElementById('resync-pick-modal'); if(m && m.style.display==='flex') closeResyncPickModal(); }
+});
+document.getElementById('resync-pick-modal') && document.getElementById('resync-pick-modal').addEventListener('click', function(e){
+  if(e.target===this) closeResyncPickModal();
+});
 </script>
 
 <script>
@@ -38523,6 +38744,22 @@ async function loadCancelacionesKPIs() {
   </div>
 </div>
 <input type="hidden" id="reprog-task-id">
+
+<!-- Modal: Re-sincronizar desde pick (elegir pick vigente — admin) -->
+<div id="resync-pick-modal" class="op-modal-overlay">
+  <div class="op-modal-card rsp-card" role="dialog" aria-modal="true" aria-labelledby="resync-pick-title">
+    <div class="op-modal-header">
+      <div class="op-modal-title-wrap">
+        <span class="op-modal-icon" aria-hidden="true" style="color:var(--brand-primary)"><i data-lucide="git-compare" style="width:18px;height:18px;stroke:currentColor;vertical-align:-3px"></i></span>
+        <span class="op-modal-title" id="resync-pick-title">Re-sincronizar desde pick</span>
+      </div>
+      <button onclick="closeResyncPickModal()" class="op-modal-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="op-modal-body rsp-body" id="rsp-body"></div>
+    <div class="op-modal-footer" id="rsp-footer"></div>
+  </div>
+</div>
+<input type="hidden" id="rsp-task-id">
 
 <!-- Modal: Editar Solicitud de Despacho -->
 <div id="sdv-edit-modal" class="sdv-edit-modal-overlay">

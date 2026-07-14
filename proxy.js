@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v192';
+const APP_BUILD = 'v193';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1067,37 +1067,56 @@ async function getOutletOutTypeIds() {
   } catch (e) { silentCatch(e,'getOutletOutTypeIds'); return new Set(); }
 }
 
-async function buildItemsFromPicks(orderName, stateFilter) {
+async function buildItemsFromPicks(orderName, stateFilter, opts = {}) {
   const pickStates = stateFilter || ['assigned','done'];
-  // Resolver nombre real de la orden (tolera ref sin prefijo, ej. "7647" → "S07647")
-  let realName = orderName;
+  // Capa 1 (14-jul): selección EXPLÍCITA de pick(s) por ID (endpoint sync-pick). Cuando el
+  // admin elige contra qué picking re-sincronizar, se ignora el auto-resolver por estado y
+  // se leen SOLO esos IDs. Sin `opts.selectedPickIds` → comportamiento por defecto INTACTO
+  // (todos los callers legacy no pasan opts → selectedIds=null → misma ruta de siempre).
+  const selectedIds = (opts && Array.isArray(opts.selectedPickIds) && opts.selectedPickIds.length)
+    ? new Set(opts.selectedPickIds.map(Number)) : null;
+  // Resolver la orden real + su sale_id (tolera ref sin prefijo, ej. "7647" → "S07647")
+  let realName = orderName, saleId = null;
   try {
-    const so = await odooCall('sale.order','search_read',[[['name','ilike',orderName]]],{fields:['name'],limit:1});
-    if (so && so.length) realName = so[0].name;
+    const so = await odooCall('sale.order','search_read',[[['name','ilike',orderName]]],{fields:['id','name'],limit:1});
+    if (so && so.length) { realName = so[0].name; saleId = so[0].id; }
   } catch {}
 
   // Estados a TRAER de Odoo: los solicitados + assigned/done. El OUT directo del outlet
   // nace normalmente 'done' (despacho inmediato), así que aunque el caller pida solo
   // ['assigned'] (primera carga), hay que traerlo. El filtrado fino se hace por categoría:
   // PICK/RET siguen respetando pickStates EXACTO (cero cambio para ALVEN); solo el OUT
-  // directo del outlet usa assigned/done.
-  const _fetchStates = [...new Set([...pickStates, 'assigned', 'done'])];
+  // directo del outlet usa assigned/done. Con selección explícita se trae todo salvo cancel
+  // (el admin ya eligió; el estado no debe descartar su pick).
+  const _fetchStates = selectedIds
+    ? ['draft','waiting','confirmed','partially_available','assigned','done']
+    : [...new Set([...pickStates, 'assigned', 'done'])];
+  // Vínculo por sale_id (Ron: `origin` es poco fiable ante cancel+regeneración) UNIDO a
+  // `origin` para NO perder RET/legacy que solo llevan origin. Superset del comportamiento
+  // previo (nunca pierde picks; solo suma los sale_id-linked correctos que origin no veía).
+  // Fallback a solo `origin` si la ref no resuelve a una orden de venta (transferencia suelta).
+  const _domain = saleId
+    ? ['|', ['sale_id','=',saleId], ['origin','=',realName], ['state','in',_fetchStates]]
+    : [['origin','=',realName], ['state','in',_fetchStates]];
   const picksAll = await odooCall('stock.picking','search_read',
-    [[['origin','=',realName],['state','in',_fetchStates]]],
-    {fields:['id','name','picking_type_id','state'],limit:50});
+    [_domain],
+    {fields:['id','name','picking_type_id','state','backorder_id'],limit:50});
 
-  // PICK y RET conservan EXACTAMENTE el comportamiento previo: solo los estados que el
-  // caller pidió (el filtro extra por pickStates compensa que _fetchStates es más amplio).
-  const pickList = (picksAll||[]).filter(p => /\/PICK\//i.test(p.name) && pickStates.includes(p.state));
-  const retList  = (picksAll||[]).filter(p => (/\/RET\//i.test(p.name)
-    || /return|devoluci/i.test((p.picking_type_id&&p.picking_type_id[1])||'')) && pickStates.includes(p.state));
+  // Universo de trabajo: con selección, solo los IDs elegidos; sin selección, todos.
+  const _pool = selectedIds ? (picksAll||[]).filter(p => selectedIds.has(p.id)) : (picksAll||[]);
+  // Con selección explícita NO se gatea por pickStates (el admin manda); sin selección,
+  // PICK/RET respetan pickStates EXACTO (cero cambio para ALVEN).
+  const _stateOk = p => selectedIds ? true : pickStates.includes(p.state);
+  const pickList = _pool.filter(p => /\/PICK\//i.test(p.name) && _stateOk(p));
+  const retList  = _pool.filter(p => (/\/RET\//i.test(p.name)
+    || /return|devoluci/i.test((p.picking_type_id&&p.picking_type_id[1])||'')) && _stateOk(p));
   // OUT directo del outlet (OUT27/OUTLE): fuente de artículos cuando no hay PICK. Excluye
-  // cancel; acepta assigned/done. Para una orden ALVEN normal el Set no matchea (su OUT es
-  // otro picking_type) → outletOutList vacío → cero impacto en el flujo existente.
+  // cancel; acepta assigned/done (o el ID elegido). Para una orden ALVEN normal el Set no
+  // matchea (su OUT es otro picking_type) → outletOutList vacío → cero impacto.
   const _outletOutTypes = await getOutletOutTypeIds();
-  const outletOutList = (picksAll||[]).filter(p =>
+  const outletOutList = _pool.filter(p =>
     p.picking_type_id && _outletOutTypes.has(p.picking_type_id[0])
-    && ['assigned','done'].includes(p.state));
+    && (selectedIds ? true : ['assigned','done'].includes(p.state)));
 
   if (!pickList.length && !retList.length && !outletOutList.length) return { noPick:true, items:[], picks:[], pickNames:[] };
 
@@ -1175,6 +1194,58 @@ async function buildItemsFromPicks(orderName, stateFilter) {
   });
 
   return { noPick:false, items, picks, pickNames:[...pickList,...outletOutList].map(p=>p.name) };
+}
+
+// ── Selector de pick (Capa 1, 14-jul) ────────────────────────────────────────
+// Lista TODOS los pickings de una orden clasificados para el selector del admin.
+// Vínculo por sale_id (Ron: `origin` poco fiable ante cancel+regeneración) UNIDO a
+// `origin` (no perder RET/legacy que solo llevan origin). Incluye cancel y done para
+// transparencia; el front por defecto muestra vigentes y señala el activo.
+// `class`: 'vigente' (state not in cancel/done) | 'done' | 'cancel'.
+// `syncable`: fuente que buildItemsFromPicks sabe leer (PICK / RET / OUT de outlet).
+// `backorderId/backorderName`: linaje (pick del que este es backorder).
+// No lanza hacia arriba de forma cruda: el caller decide el status (503 si Odoo cae).
+async function listOrderPicks(orderName) {
+  let realName = orderName, saleId = null;
+  try {
+    const so = await odooCall('sale.order','search_read',[[['name','ilike',orderName]]],{fields:['id','name'],limit:1});
+    if (so && so.length) { realName = so[0].name; saleId = so[0].id; }
+  } catch {}
+  const domain = saleId
+    ? ['|', ['sale_id','=',saleId], ['origin','=',realName]]
+    : [['origin','=',realName]];
+  const picks = await odooCall('stock.picking','search_read',
+    [domain],
+    {fields:['id','name','state','picking_type_id','backorder_id','scheduled_date','date_done'],limit:100});
+  const outletTypes = await getOutletOutTypeIds();
+  const classify = st => st === 'cancel' ? 'cancel' : (st === 'done' ? 'done' : 'vigente');
+  return (picks||[]).map(p => {
+    const typeName = (p.picking_type_id && p.picking_type_id[1]) || '';
+    const isPick = /\/PICK\//i.test(p.name);
+    const isRet  = /\/RET\//i.test(p.name) || /return|devoluci/i.test(typeName);
+    const isOutletOut = !!(p.picking_type_id && outletTypes.has(p.picking_type_id[0]));
+    const cls = classify(p.state);
+    // `tipo` legible del picking (PICK interno, OUT despacho —incl. OUT directo de outlet—,
+    // RET devolución, IN entrada) según el name/picking_type. Contrato del selector.
+    const tipo = isPick ? 'PICK'
+      : (/\/OUT\//i.test(p.name) || isOutletOut) ? 'OUT'
+      : isRet ? 'RET'
+      : /\/IN\//i.test(p.name) ? 'IN'
+      : (typeName || 'OTRO');
+    return {
+      id: p.id, name: p.name, state: p.state, tipo,
+      // `class` es el estado colapsado; el triple booleano lo expone explícito (contrato pedido).
+      class: cls,
+      esVigente: cls === 'vigente', yaDespachado: p.state === 'done', cancelado: p.state === 'cancel',
+      syncable: isPick || isRet || isOutletOut,
+      pickingType: typeName,
+      backorder_id: (p.backorder_id && p.backorder_id[0]) || null,
+      backorderId:  (p.backorder_id && p.backorder_id[0]) || null,   // alias legacy/camelCase
+      backorderName: (p.backorder_id && p.backorder_id[1]) || null,
+      scheduledDate: p.scheduled_date || null,
+      dateDone: p.date_done || null
+    };
+  }).sort((a,b) => a.id - b.id);
 }
 
 // ── Resolvedor de nombre correcto por ORDEN (soporte del pase retroactivo v127) ──
@@ -1593,7 +1664,7 @@ function getOrderClaims(orderRef, excludeRootId) {
 // ── Merge pick↔tarea (v113) — extraído del endpoint GET /api/wwp/tasks/:id/pick-diff
 // para reusarlo al CREAR la cadena SDV (los items viajan solos; el banner "Sincronizar"
 // queda como respaldo). Lógica idéntica, cubierta por _test_v113.mjs. Read-only sobre `t`.
-async function buildPickMergeForTask(t) {
+async function buildPickMergeForTask(t, opts = {}) {
   if (!t.odooRef) return { ok:true, hasChanges:false, reason:'sin orden' };
   // v113: primera carga (tarea sin artículos seleccionados) → SOLO picks 'assigned'.
   // Un pick 'done' es historia de otro despacho de la misma orden: incluirlo hacía que
@@ -1601,7 +1672,9 @@ async function buildPickMergeForTask(t) {
   // Con items ya cargados se mantiene el default ['assigned','done'] para poder
   // clasificar como 'executed' las unidades propias cuando el pick se ejecuta.
   const _firstLoad = !(t.items||[]).some(i => i.selected);
-  const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined);
+  // Capa 1: con selección explícita (opts.selectedPickIds) el stateFilter es indiferente
+  // (buildItemsFromPicks lo ignora ante selección), pero se mantiene la ruta de primera carga.
+  const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined, opts);
   if (pr.noPick) return { ok:true, hasChanges:false, noPick:true };
   const sBin = b => (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
   // Estado de cada pick (done/assigned) por nombre
@@ -15778,7 +15851,12 @@ const server = http.createServer(async (req, res) => {
       const sol = loadSdv().find(s => s.id === id);
       if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       const isOps = ['admin','manager'].includes(jp.role);
-      if (!isOps && sol.creadoPor !== jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
+      // v193 (Gabriel 14-jul): TODO el rol ventas ve TODAS las fotos de cualquier SDV — revierte
+      // la restricción del 2-jul (solo entrega+vehículo, y solo la dueña). Ventas reportaba "dice
+      // 12 fotos y solo veo 2" y 403 en SDVs de otras vendedoras; Estado de Órdenes y la bandeja
+      // usan este mismo endpoint. Alineado con GET /api/sdv/:id (v114: ventas LEE cualquier SDV).
+      const isVentas = jp.role === 'ventas';
+      if (!isOps && !isVentas && sol.creadoPor !== jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin acceso'})); return; }
       const TIPO_LABEL = { articulo:'Evidencia de artículo', entrega:'Documentos firmados (entrega)', recepcion:'Documentos recibidos', vehiculo:'Vehículo cargado', guia:'Guía visual', kit:'Kit armado', chat:'Chat', otro:'Otra' };
       const VENTAS_TIPOS = new Set(['entrega','vehiculo']); // lo que la vendedora puede mostrar al cliente
       const clasifTipo = rest => {
@@ -15808,7 +15886,7 @@ const server = http.createServer(async (req, res) => {
         // para la vendedora dueña de la SDV, aunque sea evidencia de SU propia solicitud
         // (caso SD-2026-0013, Heidy, 9-jul). Solo dispatch_order/packaging sí tienen esa
         // separación real (recepción/empaque interno vs entrega/vehículo al cliente).
-        }).filter(x => isOps || VENTAS_TIPOS.has(x.tipo) || t.type === 'general');
+        }).filter(x => isOps || isVentas || VENTAS_TIPOS.has(x.tipo) || t.type === 'general');
         fotos.sort((a,b) => String(a.tipo).localeCompare(String(b.tipo)) || String(a.date||'').localeCompare(String(b.date||'')));
         if (fotos.some(x => x.tipo === 'entrega')) hayEntrega = true;
         if (fotos.length) {
@@ -15820,7 +15898,7 @@ const server = http.createServer(async (req, res) => {
       // Badge "despachada sin evidencia" (Ops): la SDV cerró pero no hay foto de entrega firmada.
       const entregaSinEvidencia = sol.estado === 'despachada' && !hayEntrega;
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ ok:true, totalFotos, grupos, entregaSinEvidencia, soloEntregaVehiculo: !isOps }));
+      res.end(JSON.stringify({ ok:true, totalFotos, grupos, entregaSinEvidencia, soloEntregaVehiculo: !isOps && !isVentas }));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -16317,6 +16395,98 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok:true, hasPick:true, ready:allDone, picks,
         reason: allDone ? 'Todos los picks realizados (o cancelados)' : 'Pick aún en preparación' }));
     } catch(e) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, ready:false, error:e.message})); }
+    return;
+  }
+
+  // GET /api/wwp/tasks/:id/picks — lista los pickings de la orden de la tarea, clasificados
+  // (vigente / done / cancel), para el SELECTOR de pick del admin (Capa 1, 14-jul). Vínculo
+  // por sale_id (Ron). `active` = el/los pick que alimentan HOY los items de la tarea
+  // (derivado de item.pickName). Lectura → admin/manager (el pick-diff legacy ni pide rol;
+  // esto es más restrictivo). El front por defecto muestra solo los `class:'vigente'`.
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/picks$/) && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ROLE_PERMISSIONS.edit_task)) return;   // fuente única (=['admin','manager'])
+    const id = reqPath.split('/')[4];
+    try {
+      const t = loadWwpTasks().find(x => x.id === id);
+      if (!t) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      if (!t.odooRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea no tiene una orden de Odoo vinculada'})); return; }
+      const picks = await listOrderPicks(t.odooRef);
+      const activeNames = new Set((t.items||[]).map(i => i.pickName).filter(Boolean));
+      picks.forEach(p => { p.active = activeNames.has(p.name); });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, taskId:id, orderRef:t.odooRef, picks}));
+    } catch(e) {
+      const msg = String((e && e.message) || e);
+      const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
+      res.writeHead(odooDown ? 503 : 500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error: odooDown ? 'No se pudo consultar Odoo en este momento. Intenta de nuevo.' : msg}));
+    }
+    return;
+  }
+
+  // POST /api/wwp/tasks/:id/sync-pick — re-sincroniza los items de la tarea contra el/los
+  // pick ELEGIDO(s) por ID (Capa 1, 14-jul). NO auto-resuelve: el admin manda. Reusa el
+  // merge v113 (executed/moved/new/current + omitidos) → preserva fotos/confirmación de los
+  // items que sobreviven (match por pid+bin, no por item_id) y CONSERVA los huérfanos (no
+  // borra nada). body { pickIds:[int], apply?:bool (default false=preview), by, byUserId }.
+  // RBAC admin (override potente de la fuente de datos). Valida los pickIds contra la orden.
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/sync-pick$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    const id = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      const pickIds = Array.isArray(d.pickIds) ? d.pickIds.map(Number).filter(n => Number.isFinite(n)) : [];
+      if (!pickIds.length) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Debes elegir al menos un pick (pickIds)'})); return; }
+      const apply = d.apply === true;
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(x => x.id === id);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const t = tasks[idx];
+      if (!t.odooRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea no tiene una orden de Odoo vinculada'})); return; }
+      if (['validated','cancelled'].includes(t.status)) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea está cerrada; sus artículos ya no se pueden re-sincronizar.'})); return; }
+      // Validar los pick elegidos: existen, son de la orden, no están cancelados y son sincronizables.
+      const disponibles = await listOrderPicks(t.odooRef);
+      const byId = new Map(disponibles.map(p => [p.id, p]));
+      for (const pid of pickIds) {
+        const p = byId.get(pid);
+        if (!p) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El pick '+pid+' no pertenece a la orden '+t.odooRef})); return; }
+        if (p.class === 'cancel') { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El pick '+p.name+' está cancelado en Odoo; elige un pick vigente.'})); return; }
+        if (!p.syncable) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El pick '+p.name+' no es una fuente de artículos (no es PICK / RET / OUT de outlet).'})); return; }
+      }
+      const out = await buildPickMergeForTask(t, { selectedPickIds: pickIds });
+      if (out.noPick) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'El/los pick elegido(s) no tienen artículos que sincronizar.'})); return; }
+      const chosenNames = pickIds.map(pid => (byId.get(pid)||{}).name).filter(Boolean);
+      // `resumen` = contrato pedido (executed/moved/new/current/omitidos). El motor v113 nombra
+      // 'added' a lo nuevo → se re-expone como `new`. Contrato estable para Mark.
+      const resumen = out.summary ? { executed:out.summary.executed, moved:out.summary.moved,
+        new:out.summary.added, current:out.summary.current, omitidos:out.summary.omitidos } : null;
+      if (!apply) {
+        // Preview: NO persiste (POST idempotente hasta apply:true).
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:true, applied:false, taskId:id, orderRef:t.odooRef, pickIds, pickNames:chosenNames,
+          resumen, omitted:out.omitted||[], picks:out.picks||[], items:out.merged||[]}));
+        return;
+      }
+      // Aplicar: reemplaza items (el merge ya preservó evidencia por pid+bin y conservó huérfanos).
+      const now = new Date().toISOString();
+      t.items = out.merged || [];
+      t.updatedAt = now; t.itemsUpdatedAt = now;
+      syncKitStructureToChildren(t, tasks); // mismo patrón que PUT /items (propaga kits a hijas)
+      saveWwpTasks(tasks);
+      broadcastWwpTasks('items_updated', t, { taskId:id, items:t.items });
+      appendAuditLog('task_pick_resynced', { taskId:id, taskTitle:t.title, orderRef:t.odooRef, pickIds, pickNames:chosenNames,
+        resumen, by: jp.name || d.by || '', byUserId: jp.userId || d.byUserId || '' });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, applied:true, taskId:id, orderRef:t.odooRef, pickIds, pickNames:chosenNames,
+        resumen, omitted:out.omitted||[], picks:out.picks||[], items:t.items}));
+    } catch(e) {
+      const msg = String((e && e.message) || e);
+      const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
+      res.writeHead(odooDown ? 503 : 500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error: odooDown ? 'No se pudo consultar Odoo en este momento. Intenta de nuevo.' : msg}));
+    }
     return;
   }
 
