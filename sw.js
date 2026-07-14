@@ -125,6 +125,7 @@ const NOTIF_URGENCY = {
   sdv_seller_en_ruta:    'info',
   sdv_seller_pausa:      'alert',
   sdv_seller_reactivada: 'info',
+  sdv_seller_reprogramada: 'alert',
   curso_retake:          'info',
 };
 

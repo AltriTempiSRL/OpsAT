@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v191';
+const APP_BUILD = 'v192';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4714,6 +4714,7 @@ const NOTIF_LABELS = {
   sdv_seller_pausa      : '⚠️ Despacho en pausa',
   sdv_seller_cancelada  : '🚫 Solicitud cancelada',
   sdv_seller_reactivada : '🔄 Solicitud reactivada',
+  sdv_seller_reprogramada : '📅 Fecha reprogramada',
   reposicion_nueva      : '📦 Solicitud de reposición',
   reposicion_aprobada   : '✅ Reposición aprobada',
   reposicion_rechazada  : '⛔ Reposición rechazada',
@@ -4759,6 +4760,7 @@ const NOTIF_META = {
   sdv_seller_pausa       : { cat:'sdv', urg:'alert' },
   sdv_seller_cancelada   : { cat:'sdv', urg:'alert' },
   sdv_seller_reactivada  : { cat:'sdv', urg:'info' },
+  sdv_seller_reprogramada: { cat:'sdv', urg:'alert' },
   // operacion (alertas de picking/empaque/stock/reposición)
   pick_incomplete     : { cat:'operacion', urg:'critical' },
   packing_blocked     : { cat:'operacion', urg:'critical' },
@@ -4835,6 +4837,7 @@ const SUPERVISOR_SKIP_TYPES = new Set([
   // heredan el skip para NO crear un forwarding a supervisores que hoy no existe.
   'sdv_seller_aprobada','sdv_seller_rechazada','sdv_seller_en_ruta','sdv_seller_despachada',
   'sdv_seller_parcial','sdv_seller_pausa','sdv_seller_cancelada','sdv_seller_reactivada',
+  'sdv_seller_reprogramada',
   // v180 — curso_retake reemplaza a task_assigned (que estaba en skip) en el re-examen LMS.
   'curso_retake',
   // v180 — reposicion_nueva ya se envía DIRECTO a todos los admins (9009/9091): sin skip,
@@ -16909,6 +16912,94 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
       }
     })();
+    return;
+  }
+
+  // ── POST /api/wwp/tasks/:id/reprogramar — reprogramar la fecha de un despacho SDV con motivo ──
+  // (Decisión 26, Fase A) La SDV sigue siendo la ÚNICA dueña de la fecha: la escritura aterriza en
+  // `sdv.fechaSolicitudDeseada` y baja a las tareas ACTIVAS del vínculo con la misma semántica que
+  // H2-2, pero por un endpoint dedicado que EXIGE y PERSISTE el motivo (el PATCH genérico lo
+  // descartaba). NO toca el gate H2-1, NO mide OTIF ni sella fechaSolicitudDeseadaOriginal (Fase B).
+  // 8 motivos de Pit; 'otro' exige motivoTexto. admin/manager (edit_task).
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/reprogramar$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ROLE_PERMISSIONS.edit_task)) return;
+    const taskId = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      const nuevaFecha  = String(d.nuevaFecha || '').trim();
+      const motivo      = String(d.motivo || '').trim();
+      const motivoTexto = String(d.motivoTexto || '');
+      const by          = String(d.by || jp.name || '').slice(0, 120);
+      const byUserId    = String(d.byUserId || jp.userId || '');
+      // Catálogo de motivos (los 8 de Pit): code → etiqueta legible. Fuente única server-side.
+      const MOTIVOS = {
+        transporte    : 'Transporte / ruta llena',
+        cliente       : 'Cliente reprograma',
+        mercancia     : 'Mercancía no lista',
+        averia_qc     : 'Avería / QC',
+        cuadrilla     : 'Falta cuadrilla',
+        fuerza_mayor  : 'Fuerza mayor (clima/festivo)',
+        consolidacion : 'Consolidación de ruta',
+        otro          : 'Otro'
+      };
+      // 1) Tarea + vínculo SDV (400 si no existe o no viene de una SDV).
+      const tasks = loadWwpTasks();
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      if (!task.sdvId) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Esta tarea no viene de una solicitud SDV'})); return; }
+      // 2) Validar fecha (YYYY-MM-DD) y motivo (∈ los 8; 'otro' exige texto).
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(nuevaFecha)) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Fecha inválida (formato YYYY-MM-DD)'})); return; }
+      if (!MOTIVOS[motivo]) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Motivo inválido o ausente'})); return; }
+      if (motivo === 'otro' && !motivoTexto.trim()) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:"El motivo 'Otro' requiere una descripción"})); return; }
+      const motivoLabel = MOTIVOS[motivo];
+      // 3) SDV dueña de la fecha. fechaAnterior date-only; 400 si la fecha no cambió.
+      const sdvList = loadSdv();
+      const sdv = sdvList.find(s => s.id === task.sdvId);
+      if (!sdv) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solicitud SDV no encontrada'})); return; }
+      const fechaAnterior = String(sdv.fechaSolicitudDeseada || '').slice(0, 10);
+      if (nuevaFecha === fechaAnterior) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La fecha no cambió'})); return; }
+      const now = new Date().toISOString();
+      // 4) Escribir en la SDV (date-only) + historial `reprogramaciones` EN el objeto sdv (lo lee el frontend).
+      sdv.fechaSolicitudDeseada = nuevaFecha;
+      sdv.reprogramaciones = [ ...(sdv.reprogramaciones || []), {
+        fechaAnterior, fechaNueva: nuevaFecha, motivo, motivoLabel,
+        motivoTexto: (motivo === 'otro' ? motivoTexto.trim() : ''),
+        por: byUserId, porNombre: by, at: now
+      } ];
+      saveSdv(sdvList);
+      // 5) Propagar a TODAS las tareas ACTIVAS del vínculo (misma regla que H2-2) — dueDate date-only.
+      const _finales = ['completed','validated','cancelled'];
+      const _nota = 'Reprogramada: ' + fechaAnterior + ' → ' + nuevaFecha + ' · ' + motivoLabel + (motivoTexto ? (' (' + motivoTexto.trim() + ')') : '');
+      let _tocadas = 0;
+      tasks.forEach(t => {
+        if (t.sdvId === sdv.id && !_finales.includes(t.status)) {
+          t.dueDate = nuevaFecha;
+          (t.statusHistory = t.statusHistory || []).push({ status: t.status, date: now, by: 'system', note: _nota });
+          t.updatedAt = now;
+          _tocadas++;
+        }
+      });
+      if (_tocadas) saveWwpTasks(tasks);
+      // Tarea madre = raíz del vínculo SDV (fallback a la tarea del :id). Es lo que devolvemos/broadcasteamos.
+      const madre = tasks.find(t => t.sdvId === sdv.id && !t.parentId) || task;
+      broadcastWwpTasks('task_updated', madre, { taskId: madre.id, sdvId: sdv.id, reprogramada: true, nuevaFecha });
+      // 6) Avisar a Ventas (dueña de la SDV) con el motivo — canal vendedora (sol.creadoPor).
+      try {
+        notifySeller(sdv, {
+          type: 'sdv_seller_reprogramada',
+          title: '📅 Fecha de despacho reprogramada',
+          message: `Tu solicitud ${sdv.folio||sdv.id} se reprogramó: ${fechaAnterior||'sin fecha'} → ${nuevaFecha}. Motivo: ${motivoLabel}${(motivo==='otro'&&motivoTexto.trim())?(' — '+motivoTexto.trim()):''}.`
+        });
+      } catch(e) { silentCatch(e, 'notifySellerReprogramada'); }
+      // 7) Auditoría inmutable (usuario/timestamp/estado anterior→final + motivo).
+      try { appendAuditLog('task_duedate_changed', { taskId, sdvId: sdv.id, folio: sdv.folio||null, fechaAnterior, fechaNueva: nuevaFecha, motivo, motivoLabel, motivoTexto: (motivo==='otro'?motivoTexto.trim():''), by, byUserId }); } catch(e) { silentCatch(e,'auditReprogramar'); }
+      // 8) Responder con la tarea madre actualizada.
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:true, task: madre, nuevaFecha, reprogramaciones: (sdv.reprogramaciones||[]).length }));
+    } catch(e) {
+      res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
+    }
     return;
   }
 

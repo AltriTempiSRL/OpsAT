@@ -2271,6 +2271,10 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .op-modal-secondary{padding:8px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-secondary)}
 .op-modal-secondary:hover{background:var(--border-light)}
 .op-modal-danger:hover{opacity:.9}
+.op-modal-primary{padding:8px 18px;background:var(--brand-primary);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff}
+.op-modal-primary:hover{opacity:.9}
+.op-modal-primary:disabled{background:var(--surface-2);color:var(--text-muted);cursor:not-allowed;opacity:1}
+.rep-actual-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;margin-bottom:14px}
 @media(max-width:600px){
   .rep-item{grid-template-columns:1fr;gap:8px}
   .rep-item-side{flex-direction:row;align-items:center;justify-content:space-between}
@@ -8912,7 +8916,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v191';
+var APP_BUILD = 'v192';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9851,6 +9855,7 @@ var _NOTIF_META = {
   // del ciclo para la vendedora (precursor de cancelación; a menudo ella destraba)
   sdv_seller_pausa:{cat:'sdv',urg:'alert'},
   sdv_seller_cancelada:{cat:'sdv',urg:'alert'}, sdv_seller_reactivada:{cat:'sdv',urg:'info'},
+  sdv_seller_reprogramada:{cat:'sdv',urg:'alert'},
   // operacion
   pick_incomplete:{cat:'operacion',urg:'critical'}, packing_blocked:{cat:'operacion',urg:'critical'},
   damage_detected:{cat:'operacion',urg:'critical'}, cancel_blocked:{cat:'operacion',urg:'critical'},
@@ -9939,6 +9944,7 @@ var _NOTIF_ICONS = {
   sdv_seller_pausa       : { icon:'pause-circle', cls:'ni-info',    bg:'--amber-bg', color:'--amber-text' },
   sdv_seller_cancelada   : { icon:'slash',        cls:'ni-alert',   bg:'--amber-bg', color:'--amber-text' },
   sdv_seller_reactivada  : { icon:'rotate-ccw',   cls:'ni-info',    bg:'--sky-bg',   color:'--sky-text'   },
+  sdv_seller_reprogramada: { icon:'calendar-clock',cls:'ni-alert',  bg:'--amber-bg', color:'--amber-text' },
   curso_retake           : { icon:'graduation-cap',cls:'ni-info',   bg:'--blue-bg',  color:'--blue-text'  },
   // Operación (picking/empaque/stock/reposición)
   pick_incomplete  : { icon:'alert-triangle', cls:'ni-critical',bg:'--red-bg',    color:'--red-text'    },
@@ -15279,6 +15285,13 @@ function renderDrawer(t) {
         </div>
       </div>`;
     }
+  }
+  // Reprogramar despacho SDV (motivo obligatorio) — mueve la PROMESA al cliente. Solo aparece en
+  // tareas que vienen de SDV (t.sdvId), con fecha ya puesta (t.dueDate), para quien puede cerrar la
+  // tarea (isResponsibleCloser) y mientras no esté cerrada. Distinto de "Editar" y de "Cancelar tarea":
+  // color de marca + ícono calendar-clock. La nota del porqué queda en el timeline (statusHistory).
+  if (t.sdvId && t.dueDate && isResponsibleCloser && !['validated','cancelled'].includes(t.status)) {
+    actionHtml += `<div class="action-row"><button class="btn-primary" onclick="openReprogramarModal('${t.id}')" style="background:var(--surface-2);color:var(--brand-primary);border:1.5px solid var(--border)"><i data-lucide="calendar-clock" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Reprogramar fecha</button></div>`;
   }
   // Cancelar tarea/subtarea (admin o encargado responsable) — libera la orden/pick para reasignar
   if (isResponsibleCloser && !['validated','cancelled'].includes(t.status)) {
@@ -33970,15 +33983,89 @@ async function confirmDevolver() {
   closeDevolverModal();
   await changeStatus(taskId, 'in_progress', razon);
 }
+
+// ── Reprogramar despacho SDV (motivo obligatorio) ─────────────────────────
+// Mueve la promesa de fecha al cliente. Contrato: POST /api/wwp/tasks/:id/reprogramar
+// { nuevaFecha, motivo, motivoTexto, by, byUserId }. La fecha ACTUAL se muestra como chip
+// de solo lectura (no se pre-marca en el input: elección deliberada de la nueva fecha).
+function openReprogramarModal(taskId) {
+  var t = (_tasks||[]).find(function(x){ return x.id===taskId; });
+  document.getElementById('reprog-task-id').value = taskId;
+  document.getElementById('reprog-fecha').value = '';
+  document.getElementById('reprog-motivo').value = '';
+  document.getElementById('reprog-detalle').value = '';
+  document.getElementById('reprog-detalle-wrap').style.display = 'none';
+  var actualEl = document.getElementById('reprog-actual');
+  var cur = t && t.dueDate ? String(t.dueDate).slice(0,10) : '';
+  if (cur) { actualEl.innerHTML = 'Fecha actual: <b>'+esc(cur)+'</b>'; actualEl.style.display=''; }
+  else { actualEl.innerHTML=''; actualEl.style.display='none'; }
+  // No permitir fechas pasadas (la promesa se mueve hacia adelante).
+  try { document.getElementById('reprog-fecha').min = new Date().toISOString().slice(0,10); } catch(e){}
+  reprogValidate();
+  var m = document.getElementById('reprogramar-modal');
+  m.style.display = 'flex';
+  if (window.lucide) lucide.createIcons();
+  setTimeout(function(){ document.getElementById('reprog-fecha').focus(); }, 80);
+}
+function closeReprogramarModal() {
+  document.getElementById('reprogramar-modal').style.display = 'none';
+}
+function reprogOnMotivoChange() {
+  var mv = document.getElementById('reprog-motivo').value;
+  document.getElementById('reprog-detalle-wrap').style.display = (mv==='otro') ? '' : 'none';
+  reprogValidate();
+}
+function reprogValidate() {
+  var fecha  = document.getElementById('reprog-fecha').value;
+  var motivo = document.getElementById('reprog-motivo').value;
+  var detalle = (document.getElementById('reprog-detalle').value||'').trim();
+  var ok = !!fecha && !!motivo && (motivo!=='otro' || !!detalle);
+  document.getElementById('reprog-confirm').disabled = !ok;
+}
+async function submitReprogramar(taskId) {
+  taskId = taskId || document.getElementById('reprog-task-id').value;
+  var nuevaFecha  = document.getElementById('reprog-fecha').value;
+  var motivo      = document.getElementById('reprog-motivo').value;
+  var motivoTexto = (document.getElementById('reprog-detalle').value||'').trim();
+  if (!nuevaFecha || !motivo || (motivo==='otro' && !motivoTexto)) { reprogValidate(); return; }
+  var btn = document.getElementById('reprog-confirm');
+  btn.disabled = true;
+  try {
+    var r = await authFetch('/api/wwp/tasks/'+taskId+'/reprogramar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ nuevaFecha:nuevaFecha, motivo:motivo, motivoTexto:motivoTexto, by:_user.name, byUserId:_user.id })
+    });
+    var d = await r.json();
+    if (d && d.ok) {
+      toast('Fecha reprogramada');
+      closeReprogramarModal();
+      openDrawer(taskId);
+    } else {
+      toast((d && d.error) || 'No se pudo reprogramar', 6000);
+      btn.disabled = false;
+    }
+  } catch(e) {
+    toast('No se pudo reprogramar', 6000);
+    btn.disabled = false;
+  }
+}
+
 // Cerrar con Escape
 document.addEventListener('keydown', function(e){
   if (e.key === 'Escape' && document.getElementById('devolver-modal').style.display === 'flex') {
     closeDevolverModal();
   }
+  if (e.key === 'Escape' && (document.getElementById('reprogramar-modal')||{}).style && document.getElementById('reprogramar-modal').style.display === 'flex') {
+    closeReprogramarModal();
+  }
 });
 // Cerrar al click fuera del box
 document.getElementById('devolver-modal') && document.getElementById('devolver-modal').addEventListener('click', function(e){
   if (e.target === this) closeDevolverModal();
+});
+document.getElementById('reprogramar-modal') && document.getElementById('reprogramar-modal').addEventListener('click', function(e){
+  if (e.target === this) closeReprogramarModal();
 });
 </script>
 
@@ -37368,6 +37455,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.odooOrderRef?'<div class="sdv-detail-row"><dt>Despacho (Odoo)</dt><dd id="sdv-pickstatus"><span style="color:var(--text-3);font-size:12px">Consultando…</span></dd></div>':'')+
         '</div>'+
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+
+        (s.reprogramaciones&&s.reprogramaciones.length?'<div class="sdv-detail-section"><h4>Reprogramaciones</h4>'+s.reprogramaciones.map(function(rp){ return '<div class="sdv-detail-row"><dt>'+esc((rp.fechaAnterior||'—'))+' → '+esc((rp.fechaNueva||'—'))+'</dt><dd>'+esc(rp.motivoLabel||rp.motivo||'')+(rp.motivoTexto?' — '+esc(rp.motivoTexto):'')+(rp.porNombre?' · '+esc(rp.porNombre):'')+(rp.at?' · '+sdvFmtDate(rp.at):'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.wwpTaskId && isOps?'<div class="sdv-detail-section"><h4>Tarea WWP</h4><div class="sdv-detail-row"><dt>Vínculo</dt><dd><a href="javascript:void(0)" onclick="sdvIrATarea(\''+s.wwpTaskId+'\')" style="color:var(--brand-primary);cursor:pointer;font-weight:600">Ver tarea en WWP →</a></dd></div></div>':'')+
         (s.wwpTareas&&s.wwpTareas.length?'<div class="sdv-detail-section"><h4>Historial Tareas WWP</h4>'+s.wwpTareas.map(function(t){ return '<div class="sdv-detail-row"><dt>'+sdvFmtDate(t.creadoAt)+'</dt><dd>'+esc(t.titulo||'')+(t.status?' · <span class="eo-ops-chip">'+(STATUS_LABELS[t.status]||t.status)+'</span>':'')+'</dd></div>'; }).join('')+'</div>':'')+
         (s.adjuntos&&s.adjuntos.length?'<div class="sdv-detail-section"><h4>Adjuntos de la solicitud</h4>'+sdvAdjuntosHtml(s)+'</div>':'')+
@@ -38394,6 +38482,47 @@ async function loadCancelacionesKPIs() {
   </div>
 </div>
 <input type="hidden" id="devolver-task-id">
+
+<!-- Modal: Reprogramar despacho SDV (motivo obligatorio) -->
+<div id="reprogramar-modal" class="op-modal-overlay">
+  <div class="op-modal-card" role="dialog" aria-modal="true" aria-labelledby="reprogramar-modal-title">
+    <div class="op-modal-header">
+      <div class="op-modal-title-wrap">
+        <span class="op-modal-icon" aria-hidden="true" style="color:var(--brand-primary)"><i data-lucide="calendar-clock" style="width:18px;height:18px;stroke:currentColor;vertical-align:-3px"></i></span>
+        <span class="op-modal-title" id="reprogramar-modal-title">Reprogramar despacho</span>
+      </div>
+      <button onclick="closeReprogramarModal()" class="op-modal-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="op-modal-body">
+      <p class="op-modal-copy">Cambiar la fecha mueve la promesa al cliente. Se registrará el motivo y se avisará a Ventas.</p>
+      <div class="rep-actual-chip" id="reprog-actual" style="display:none"></div>
+      <label class="rep-lbl" for="reprog-fecha">Nueva fecha <span style="color:var(--red-text)">*</span></label>
+      <input type="date" id="reprog-fecha" class="rep-input" oninput="reprogValidate()">
+      <label class="rep-lbl" for="reprog-motivo" style="margin-top:14px">Motivo <span style="color:var(--red-text)">*</span></label>
+      <select id="reprog-motivo" class="rep-select" onchange="reprogOnMotivoChange()">
+        <option value="">— Elige un motivo —</option>
+        <option value="transporte">Transporte / ruta llena</option>
+        <option value="cliente">Cliente reprograma</option>
+        <option value="mercancia">Mercancía no lista</option>
+        <option value="averia_qc">Avería / QC</option>
+        <option value="cuadrilla">Falta cuadrilla</option>
+        <option value="fuerza_mayor">Fuerza mayor (clima/festivo)</option>
+        <option value="consolidacion">Consolidación de ruta</option>
+        <option value="otro">Otro</option>
+      </select>
+      <div id="reprog-detalle-wrap" style="display:none;margin-top:14px">
+        <label class="rep-lbl" for="reprog-detalle">Detalle <span style="color:var(--red-text)">*</span></label>
+        <textarea id="reprog-detalle" class="rep-textarea" placeholder="Explica brevemente el motivo…" oninput="reprogValidate()"
+          onfocus="this.style.borderColor='var(--border-focus)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      </div>
+    </div>
+    <div class="op-modal-footer">
+      <button onclick="closeReprogramarModal()" class="op-modal-secondary">Cancelar</button>
+      <button id="reprog-confirm" onclick="submitReprogramar()" class="op-modal-primary" disabled>Confirmar</button>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="reprog-task-id">
 
 <!-- Modal: Editar Solicitud de Despacho -->
 <div id="sdv-edit-modal" class="sdv-edit-modal-overlay">
