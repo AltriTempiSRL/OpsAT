@@ -16206,6 +16206,82 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // DELETE /api/wwp/tasks/:id/items — quitar UN artículo (grupo) o un KIT completo de la tarea [admin|manager]
+  // Body: { kind:'kit'|'group', key, by, byUserId }. Borrado dirigido (no ciego como el PUT):
+  //  · kit   → elimina TODOS los item_id con kitId===key (tarjeta sintética + componentes, todas las instancias)
+  //  · group → elimina todas las unidades del artículo (group_ref||item_id===key)
+  // Además: unlink de las fotos de evidencia en disco, auditoría, cascada a subtareas de despacho/
+  // almacén ABIERTAS (bloquea si el paso ya cerró: ya salió físicamente) y protección de la promesa
+  // de Ventas en tareas SDV. NO llama syncKitStructureToChildren (re-resucitaría el kit borrado).
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/items$/) && req.method === 'DELETE') {
+    const _jpDelItem = requireJwt(req, res); if (!_jpDelItem) return;
+    if (!requireRole(_jpDelItem, res, ROLE_PERMISSIONS.edit_task)) return;
+    const id = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      const kind = d.kind === 'kit' ? 'kit' : 'group';
+      const key = String(d.key || '').trim();
+      if (!key) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Falta la referencia del artículo a quitar'})); return; }
+      const tasks = loadWwpTasks();
+      const idx = tasks.findIndex(t => t.id === id);
+      if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      const task = tasks[idx];
+      if (['validated','cancelled'].includes(task.status)) {
+        res.writeHead(409,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false,error:'La tarea está cerrada; sus artículos ya no se pueden modificar.'}));
+        return;
+      }
+      const matches = (i) => kind === 'kit' ? (i.kitId === key) : ((i.group_ref || i.item_id) === key);
+      const removed = (task.items || []).filter(matches);
+      if (!removed.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado en la tarea'})); return; }
+      // Protección SDV: no quitar en silencio un artículo que Ventas prometió (está en sdvArticulos).
+      // Los extras agregados por Ops (fuera de la promesa) sí se pueden quitar.
+      if (task.sdvId) {
+        const promSkus = new Set((task.sdvArticulos || []).map(a => (a.sku || '').trim()).filter(Boolean));
+        if (removed.some(i => promSkus.has((i.sku || '').trim()))) {
+          res.writeHead(409,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:false, sdvBlocked:true, sdvId:task.sdvId, sdvFolio:task.sdvFolio || null,
+            error:'Este artículo proviene de la solicitud de Ventas ' + (task.sdvFolio || task.sdvId) + '. Para no romper el acuerdo con Ventas, quítalo desde "Corregir" en la solicitud.'}));
+          return;
+        }
+      }
+      // Cascada: subtareas de despacho/almacén con el mismo artículo. Si una ya cerró (el material
+      // ya salió), bloquear — no se puede "des-despachar" sin cancelar ese paso.
+      const children = tasks.filter(c => c.parentId === task.id && ['dispatch_order','warehouse_move'].includes(c.type));
+      const closedChild = children.find(c => ['completed','validated'].includes(c.status) && (c.items || []).some(matches));
+      if (closedChild) {
+        res.writeHead(409,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No se puede quitar: el paso "' + (closedChild.title || 'despacho') + '" ya cerró con este artículo (ya salió físicamente). Cancela ese paso primero si de verdad hay que revertirlo.'}));
+        return;
+      }
+      const now = new Date().toISOString();
+      const unlinkEv = (arr) => (arr || []).forEach(it => (it.evidence_images || []).forEach(ev => { try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(ev.url))); } catch(e) {} }));
+      unlinkEv(removed);
+      task.items = (task.items || []).filter(i => !matches(i));
+      task.updatedAt = now; task.itemsUpdatedAt = now;
+      const cascadedTo = [];
+      children.filter(c => ['pending','assigned','in_progress'].includes(c.status)).forEach(c => {
+        const childRemoved = (c.items || []).filter(matches);
+        if (childRemoved.length) {
+          unlinkEv(childRemoved);
+          c.items = (c.items || []).filter(i => !matches(i));
+          c.updatedAt = now; c.itemsUpdatedAt = now;
+          cascadedTo.push(c.id);
+        }
+      });
+      saveWwpTasks(tasks);
+      const prodName = (removed.find(i => i.product_name) || {}).product_name
+        || (removed.find(i => i.kitName) || {}).kitName || (removed[0] || {}).sku || '';
+      appendAuditLog('task_item_removed', { taskId:id, taskTitle:task.title || '', odooRef:task.odooRef || '',
+        kind, key, removedItemIds:removed.map(i => i.item_id), productName:prodName, cascadedTo,
+        by:d.by || '', byUserId:d.byUserId || _jpDelItem.userId });
+      broadcastWwpTasks('items_updated', task, { taskId:id, items:task.items });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, items:task.items, removed:removed.length, cascadedTo}));
+    } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
   // GET /api/wwp/tasks/:id/pick-status — estado de los pickings (PICK) de la orden en Odoo
   // Para tareas de despacho: el despacho solo puede iniciar cuando el pick está 'done' (realizado).
   if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/pick-status$/) && req.method === 'GET') {

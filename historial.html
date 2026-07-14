@@ -3089,6 +3089,16 @@ body{font-family:var(--font);min-height:100dvh}
   background:var(--red);color:white;border:none;font-size:10px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;line-height:1;
 }
+/* Quitar artículo/kit de la tarea — papelera fantasma (gris → rojo al apuntar). Se
+   distingue del ✕ de borrar-foto (círculo rojo relleno) por la forma, no solo el color. */
+.item-del{
+  flex-shrink:0;width:30px;height:30px;border-radius:7px;border:1px solid transparent;
+  background:none;color:var(--text-3);cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .12s,color .12s,border-color .12s;
+}
+.item-del:hover,.item-del:focus-visible{background:var(--red-bg);color:var(--red-text);border-color:var(--red-dot)}
+@media (max-width:640px){.item-del{min-width:40px;min-height:40px}}
 .btn-add-photo{
   display:flex;align-items:center;gap:6px;padding:7px 14px;
   border:1.5px dashed var(--border);border-radius:8px;background:none;
@@ -15343,6 +15353,9 @@ function renderDrawer(t) {
     const missing    = items.filter(i=>(!i.evidence_images||!i.evidence_images.length) && !i.groupEvidence).length;
     const sinConfirm = items.filter(i=>!i.confirmado).length;
     const canConfirmItem = !isClosedTask && canParticipate;
+    // v190: quien puede cerrar la tarea (admin / encargado responsable / creador) puede QUITAR un
+    // artículo o kit. No auxiliares, no en tareas cerradas. En tareas SDV el backend protege la promesa.
+    const _canRemoveItem = isResponsibleCloser && !isClosedTask;
     const _pickName = (items.find(i=>i.pickName)||{}).pickName || '';
     const _canSyncPick = !isClosedTask && (_user.role==='admin'||_user.role==='manager') && t.odooRef;
     const itemSectionTitle = isStorageFlow ? storageCopy.sectionTitle : 'ARTÍCULOS';
@@ -15432,6 +15445,7 @@ function renderDrawer(t) {
             })()}
           </div>
           <span class="${(evs.length||it.groupEvidence)?'item-badge-ok':'item-badge-pend'}">${evs.length?'✓ '+evs.length+' foto'+(evs.length>1?'s':''):(it.groupEvidence?'✓ Foto de grupo':emptyPhotoBadge)}</span>
+          ${(_canRemoveItem && !it.kitId && !it.isKit)?`<button class="item-del" title="Quitar «${esc(it.product_name||it.sku||'')}» de la tarea" aria-label="Quitar artículo de la tarea" onclick="event.stopPropagation();removeTaskItem('${t.id}','${it.group_ref||it.item_id}')"><i data-lucide="trash-2" style="width:15px;height:15px;stroke:currentColor"></i></button>`:''}
         </div>
         ${(()=>{ const dmg=it.condition==='damaged'; const good=it.condition==='good'; const unset=!it.condition; const DMG=['Rayado','Con golpe','Desperfecto de pintura','Defecto de fábrica'];
           const _bord = dmg?'var(--red-dot)':(unset?'var(--amber-dot)':'var(--border)');
@@ -15498,6 +15512,7 @@ function renderDrawer(t) {
               <div style="font-size:9px;color:var(--purple-text);font-weight:700;text-transform:uppercase;letter-spacing:.5px">🧩 Kit / Set · ${instances.length} ${instances.length>1?'unidades':'unidad'}</div>
               <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${esc(kf.kitName||kf.kitRef||'Kit')}</div>
             </div>
+            ${_canRemoveItem?`<button class="item-del" title="Quitar el kit «${esc(kf.kitName||kf.kitRef||'Kit')}» completo" aria-label="Quitar kit completo" onclick="event.stopPropagation();removeTaskKit('${t.id}','${kitId}')"><i data-lucide="trash-2" style="width:15px;height:15px;stroke:currentColor"></i></button>`:''}
           </div>
           ${_inner}
         </div>`;
@@ -17192,6 +17207,52 @@ async function deleteItemEvidence(taskId, itemId, evId) {
   } catch(e) { toast(e.message); }
 }
 
+// v190 — Quitar un artículo (grupo) o un KIT completo de la tarea. Endpoint dedicado
+// DELETE /items (borrado dirigido en el server: unlink de fotos, auditoría, cascada a
+// despachos abiertos, protección de tareas SDV). Admin / encargado responsable.
+function removeTaskItem(taskId, groupKey){ return _removeTaskArticulo(taskId, 'group', groupKey); }
+function removeTaskKit(taskId, kitId){ return _removeTaskArticulo(taskId, 'kit', kitId); }
+async function _removeTaskArticulo(taskId, kind, key){
+  const t = _drawerTask; if (!t) return;
+  const match = kind==='kit' ? (i=>i.kitId===key) : (i=>(i.group_ref||i.item_id)===key);
+  const removed = (t.items||[]).filter(match);
+  if (!removed.length) { toast('No se encontró el artículo'); return; }
+  const nFotos = removed.reduce((s,i)=>s+((i.evidence_images||[]).length),0);
+  let msg;
+  if (kind==='kit'){
+    const comps = removed.filter(i=>!i.isKit);
+    const units = new Set(removed.map(i=>i.unit_index||1)).size;
+    const name = (removed.find(i=>i.kitName)||{}).kitName || (removed.find(i=>i.kitRef)||{}).kitRef || 'este kit';
+    msg = '¿Quitar el kit «'+name+'» completo de esta tarea?'
+      + (comps.length?(' Se quitarán sus '+comps.length+' componente'+(comps.length>1?'s':'')+(units>1?(' ('+units+' unidades)'):'')+'.'):'')
+      + (nFotos?(' Se eliminarán también '+nFotos+' foto'+(nFotos>1?'s':'')+' de evidencia.'):'')
+      + ' Esta acción no se puede deshacer.';
+  } else {
+    const name = removed[0].product_name || removed[0].sku || 'este artículo';
+    const anyConf = removed.some(i=>i.confirmado);
+    msg = '¿Quitar «'+name+'» de esta tarea?'
+      + (nFotos?(' Se eliminarán también '+nFotos+' foto'+(nFotos>1?'s':'')+' de evidencia.'):'')
+      + (anyConf?' Se perderá su confirmación.':'')
+      + ' Esta acción no se puede deshacer.';
+  }
+  if (!await _iosConfirm(msg)) return;
+  try {
+    const r = await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'DELETE',body:JSON.stringify({kind, key, by:_user.name, byUserId:_user.id})});
+    const d = await r.json();
+    if (!d.ok) {
+      if (d.sdvBlocked) {
+        if (await _iosConfirm(d.error + '\n\n¿Ir a la solicitud para corregir?')) {
+          navTo('sdv-portal'); if (typeof sdvVerDetalle==='function') sdvVerDetalle(d.sdvId, 'mis');
+        }
+        return;
+      }
+      toast(d.error||'No se pudo quitar el artículo', 6000); return;
+    }
+    toast(kind==='kit'?'Kit quitado de la tarea':'Artículo quitado de la tarea');
+    openDrawer(taskId);
+  } catch(e){ toast('Error: '+e.message); }
+}
+
 // Evidencia por GRUPO idéntico (empaque/almacén): UNA foto + buen estado cubre las N
 // unidades del mismo producto (lote idéntico, caso #0119). Elimina la repetición sin perder
 // trazabilidad — cada unidad queda confirmada, el conteo se preserva. Las averías se marcan
@@ -17804,7 +17865,10 @@ async function saveTask() {
     }
     if (!d.ok&&!d.task) { toast(d.error||'Error al guardar'); return; }
     const taskId = d.task?.id||_editingTask?.id;
-    if (taskId && _modalItems.length) {
+    // v190: PUT también cuando el carrito quedó VACÍO tras editar una tarea que SÍ tenía artículos
+    // (antes `_modalItems.length` saltaba el PUT y quitar el último artículo no persistía). No se
+    // hace PUT-empty espurio en tareas que nunca tuvieron ítems (creación → _editingTask null).
+    if (taskId && (_modalItems.length || (_editingTask && (_editingTask.items||[]).some(it=>it.selected)))) {
       await authFetch('/api/wwp/tasks/'+taskId+'/items',{method:'PUT',body:JSON.stringify({items:expandUnitRows(_modalItems)})});
     }
     // Subir fotos de guía visual si las hay. v188: antes se gateaba con !_editingTask, pero
