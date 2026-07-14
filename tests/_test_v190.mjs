@@ -130,7 +130,7 @@ const exists = (fname) => fs.existsSync(path.join(FOTOS_DIR,fname));
 
     console.log('\n── Front ──');
     const fh=await fetch(BASE+'/historial.html'); const ft=await fh.text();
-    ok('historial.html 200 + build v190', fh.status===200 && ft.includes("APP_BUILD = 'v190'"), {status:fh.status});
+    ok('historial.html 200 + build v191', fh.status===200 && ft.includes("APP_BUILD = 'v191'"), {status:fh.status});
     ok('funciones removeTaskItem/removeTaskKit presentes', ft.includes('function removeTaskItem(') && ft.includes('function removeTaskKit('), {});
     ok('CSS .item-del presente', ft.includes('.item-del{'), {});
     ok('fix del carrito vacío en saveTask', ft.includes('(_editingTask && (_editingTask.items||[]).some(it=>it.selected))'), {});
