@@ -90,6 +90,12 @@ function _loadXlsx(cb){
   --purple-bg:#f0ecf8;--purple-text:#522d7a;--purple-dot:#7c3aed;
   --sky-bg:#e6f2fc;--sky-text:#0e5282;--sky-dot:#0284c7;
   --orange-bg:#fceee2;--orange-text:#7c3410;--orange-dot:#c4510d;
+  /* ── Inventario · rediseño 4b (panel de control) ── */
+  --inv-navy:#1e4685; --inv-chip:#eef0ee;
+  --inv-red:#7f1616;   --inv-redbg:#f9e2e2;  --inv-reddot:#c01d1d;
+  --inv-amber:#6d4708; --inv-amberbg:#fbf1da; --inv-amberdot:#b97a00;
+  --inv-green:#0e5330; --inv-greenbg:#ddefe4; --inv-greendot:#188a4c;
+  --inv-gc:#f4c9c9; --inv-ga:#f3e2b4; --inv-gs:#c7e6d2;
   /* ── Radios ── */
   --radius-sm:4px;--radius:6px;--radius-md:8px;--radius-lg:12px;--radius-full:9999px;
   --shadow:0 0 0 1px var(--border);
@@ -134,6 +140,12 @@ function _loadXlsx(cb){
   --purple-bg:#1e1230;--purple-text:#b28af5;--purple-dot:#9f6ef0;
   --sky-bg:#0e1e30;--sky-text:#62c4f5;--sky-dot:#0ea5e9;
   --orange-bg:#2a1408;--orange-text:#f5a25a;--orange-dot:#e87020;
+  /* ── Inventario · rediseño 4b (panel de control) ── */
+  --inv-navy:#5a94e0; --inv-chip:#232a35;
+  --inv-red:#ff9096;   --inv-redbg:#31191c;  --inv-reddot:#ff5a5f;
+  --inv-amber:#e8bb6a; --inv-amberbg:#332711; --inv-amberdot:#cf9b2a;
+  --inv-green:#7fd7a4; --inv-greenbg:#12301f; --inv-greendot:#2ea365;
+  --inv-gc:#4a2626; --inv-ga:#4a3d1e; --inv-gs:#234634;
   --shadow:0 0 0 1px var(--border-light);
   --tip-bg:#f4f4f6;--tip-fg:#1a1d24;
 }
@@ -6509,8 +6521,34 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
          ══════════════════════════════════════════════════ -->
     <style id="invd-styles">
       .invd-panel[hidden]{display:none!important}
-      .invd-hero-grid{display:grid;grid-template-columns:minmax(150px,.8fr) 1fr 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
+      .invd-hero-grid{display:grid;grid-template-columns:minmax(150px,.8fr) 1.55fr 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
       @media(max-width:860px){.invd-hero-grid{grid-template-columns:1fr}}
+      /* ── 4b: score primario (Fiabilidad) vs secundario (Higiene) — nunca gemelos ── */
+      .invd-score-primary{border:1px solid var(--border);border-radius:14px;padding:16px 20px;background:var(--surface)}
+      .invd-score-secondary{border:1px solid var(--border);border-radius:14px;padding:16px 20px;background:var(--surface-2)}
+      .invd-gauge{position:relative;height:9px;border-radius:999px;margin:9px 0 7px;
+        background:linear-gradient(90deg,var(--inv-gc) 0 45%,var(--inv-ga) 45% 80%,var(--inv-gs) 80% 100%)}
+      .invd-gauge-mark{position:absolute;top:-4px;width:3px;height:17px;background:var(--text);border-radius:2px;transform:translateX(-1.5px)}
+      .invd-gauge-flat{height:5px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin:8px 0}
+      .invd-gauge-flat>span{display:block;height:100%;background:var(--text-3);opacity:.7;border-radius:999px}
+      /* ── 4b: tira de KPIs sin ceros ── */
+      .invd-kpi-strip{display:flex;gap:18px;align-items:center;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px 16px;margin-bottom:14px}
+      .invd-kpi-sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+      /* ── 4b: grid principal (worklist por causa | columna derecha) ── */
+      .invd-wl-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;margin-bottom:16px}
+      @media(max-width:960px){.invd-wl-grid{grid-template-columns:1fr}}
+      .invd-wl-box{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+      .invd-wl-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .invd-wl-group{padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);cursor:pointer}
+      .invd-wl-group:hover{background:var(--surface-2)}
+      .invd-wl-group.expanded{background:var(--surface-2)}
+      .invd-wl-letter{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0}
+      .invd-fixed-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11.5px}
+      .invd-fixed-tbl td,.invd-fixed-tbl th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .invd-wl-more{padding:7px 16px;font-size:11.5px;color:var(--accent);font-weight:600;border-bottom:1px solid var(--border);cursor:pointer}
+      .invd-side-card{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px}
+      .invd-side-card.flash{animation:invdFlash 1.1s ease}
+      @keyframes invdFlash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px var(--accent)}}
       .invd-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface-2)}
       .invd-manos-n{font-size:34px;font-weight:800;line-height:1;color:var(--text)}
       .invd-meter-rail{position:relative;height:12px;border-radius:7px;overflow:hidden;display:flex;margin:9px 0 7px}
@@ -6587,7 +6625,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
       <!-- PANEL: Fiabilidad (reusa el motor de Salud de Inventario) -->
       <div id="invd-panel-fiabilidad" class="invd-panel">
-        <div id="inv-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+        <div id="inv-kpis"></div>
         <div id="inv-sincaso" style="margin-bottom:16px"></div>
         <div id="inv-recepciones" style="margin-bottom:16px"></div>
         <div id="inv-casos"></div>
@@ -8864,7 +8902,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v189';
+var APP_BUILD = 'v190';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -26807,6 +26845,8 @@ function devCdpCrearTareaSeleccion() {
 // ═══════════════════════════════════════════════════════════════════════
 var _invData = null;            // última respuesta de /api/inventario/salud
 var _invSel  = new Set();       // refs seleccionados en "sin caso"
+var _invWlExpanded = 'A';       // 4b: causa expandida en "Qué corregir hoy"
+var _invWlMoreOpen = {};        // 4b: letra -> bool ("Ver N más" abierto)
 var _invDrawerMov = {};         // itemId → {moves,causa,kit} (cache del drawer)
 
 var _INV_CAUSAS = {
@@ -26964,8 +27004,8 @@ function invdRenderHero(){
   var m = d.manos||{}, sc = d.scores||{};
   el.innerHTML = '<div class="invd-hero-grid">'
     + invdManosCard(m)
-    + invdMeterCard('Fiabilidad operativa', sc.fiabilidad||{}, '¿Puedo confiar en el stock para despachar hoy?')
-    + invdMeterCard('Higiene estructural', sc.higiene||{}, '¿Está ordenado el mapa de Odoo?')
+    + invdMeterCard('Fiabilidad operativa', sc.fiabilidad||{}, '¿Puedo confiar en el stock para despachar hoy?', true)
+    + invdMeterCard('Higiene estructural', sc.higiene||{}, '¿Está ordenado el mapa de Odoo?', false)
     + '</div>'
     + '<div style="font-size:11px;color:var(--text-3);margin:0 0 4px;display:flex;align-items:center;gap:5px"><i data-lucide="info" style="width:12px;height:12px;stroke:currentColor"></i>No promediamos ambos números: la higiene la hunden datos intencionales (obsoleto, staging).</div>';
 }
@@ -26978,24 +27018,34 @@ function invdManosCard(m){
     + '<div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.5">huérfanos '+(bd.huerfanosSinCaso||0)+' · negativos '+(bd.negativosAccionables||0)+' · staging '+(bd.stagingViejo||0)+'</div>'
     + '</div>';
 }
-function invdMeterCard(title, s, sub){
+// 4b: Fiabilidad (primary) grande con gauge de 3 bandas + marcador; Higiene
+// (secondary) chica/atenuada con barra plana — nunca "medidores gemelos".
+function invdMeterCard(title, s, sub, primary){
   var score = (s && s.score!=null) ? s.score : null;
   var zona = (s && s.zona) ? s.zona : '';
-  var col = zona==='rojo' ? 'var(--red-text)' : (zona==='ambar' ? 'var(--amber-text)' : 'var(--green-text)');
+  var col = zona==='rojo' ? 'var(--inv-red)' : (zona==='ambar' ? 'var(--inv-amber)' : 'var(--inv-green)');
   var mark = score==null ? 0 : Math.max(0,Math.min(100,score));
-  return '<div class="invd-card">'
-    + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
-      + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">'+esc(title)+'</div>'
-      + '<div class="invd-meter-n" style="color:'+col+'">'+(score==null?'—':score)+'<span style="font-size:12px;color:var(--text-3);font-weight:600">/100</span></div>'
+  if (primary) {
+    return '<div class="invd-score-primary">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
+        + '<span style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text)">'+esc(title)+'</span>'
+        + '<span style="font-size:24px;font-weight:800;color:'+col+'">'+(score==null?'—':score)+'<span style="font-size:13px;color:var(--text-3)">/100</span></span>'
+      + '</div>'
+      + '<div style="font-size:11.5px;color:var(--text-3);margin:3px 0 10px">'+esc(sub)+'</div>'
+      + '<div class="invd-gauge">'+(score==null?'':'<span class="invd-gauge-mark" style="left:'+mark+'%"></span>')+'</div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3);font-weight:600"><span>crítico</span><span>atención</span><span>sano</span></div>'
+      + '<div style="font-size:12px;color:var(--text-2);margin-top:9px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · Lo mueve: <b style="color:var(--text)">'+esc(s.driver)+'</b>'):'')+'</div>'
+      + '</div>';
+  }
+  return '<div class="invd-score-secondary">'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline">'
+      + '<span style="font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-3)">'+esc(title)+'</span>'
+      + '<span style="font-size:16px;font-weight:700;color:var(--text-3)">'+(score==null?'—':score)+'</span>'
     + '</div>'
-    + '<div class="invd-meter-rail">'
-      + '<span style="width:60%;background:var(--red-bg)"></span>'
-      + '<span style="width:25%;background:var(--amber-bg)"></span>'
-      + '<span style="width:15%;background:var(--green-bg)"></span>'
-      + (score==null?'':'<span class="invd-meter-mark" style="left:'+mark+'%"></span>')
-    + '</div>'
-    + '<div style="font-size:10px;color:var(--text-3)">'+esc(sub)+'</div>'
-    + '<div style="font-size:11px;color:var(--text-secondary);margin-top:5px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · <span class="invd-src">lo mueve: '+esc(s.driver)+'</span>'):'')+'</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin:3px 0 8px">'+esc(sub)+'</div>'
+    + '<div class="invd-gauge-flat">'+(score==null?'':'<span style="width:'+mark+'%"></span>')+'</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:8px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · '+esc(s.driver)):'')+'</div>'
+    + '<div style="font-size:10px;color:var(--text-3);margin-top:6px;font-style:italic;opacity:.8">Segundo plano — no se promedia con fiabilidad</div>'
     + '</div>';
 }
 
@@ -27315,6 +27365,9 @@ async function invAnomCargar(force) {
   }
 }
 
+// 4b: mismos 3 paneles de siempre (nodos padre con detalle por-SKU, fuera del
+// árbol, ajustes de conteo) pero SIN scroll horizontal — table-layout:fixed +
+// colgroup + elipsis en vez de overflow-x:auto, con la paleta 4b.
 function invAnomRender(d) {
   var box = document.getElementById('inv-anomalias');
   if (!box) return;
@@ -27326,33 +27379,33 @@ function invAnomRender(d) {
   var h = '';
 
   // ── Panel 1: nodos padre con negativos (putaway mal aplicado) ──
-  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">';
-  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="git-fork" style="width:14px;height:14px;stroke:var(--red-text)"></i>Stock en nodos padre (putaway mal aplicado)</div>';
-  h += '<span style="font-size:10px;color:var(--text-3);max-width:320px;text-align:right">El físico está en una hija pero el sistema lo registra en el padre → negativos al despachar</span>';
+  h += '<div class="invd-wl-box" style="margin-bottom:14px">';
+  h += '<div class="invd-wl-hdr">';
+  h += '<span style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="git-fork" style="width:14px;height:14px;stroke:var(--inv-red)"></i>Stock en nodos padre (putaway mal aplicado)</span>';
+  h += '<span style="margin-left:auto;font-size:10px;color:var(--text-3);max-width:320px;text-align:right">El físico está en una hija pero el sistema lo registra en el padre → negativos al despachar</span>';
   h += '</div>';
   if (!anomalias.length) {
-    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún nodo padre con negativos. Sin anomalía de putaway activa.</div></div>';
+    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i><div style="margin-top:4px">Ningún nodo padre con negativos. Sin anomalía de putaway activa.</div></div>';
   } else {
     anomalias.forEach(function(loc){
       h += '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">';
       h += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">';
       h += '<div style="font-size:12px;font-weight:700;color:var(--text)"><i data-lucide="map-pin" style="width:12px;height:12px;stroke:var(--text-3);vertical-align:-1px;margin-right:3px"></i>' + esc(loc.name) + '</div>';
-      h += '<div style="display:flex;gap:6px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--red-bg);color:var(--red-text)">' + loc.negativos + ' negativos</span><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)">neto ' + loc.neto + '</span></div>';
+      h += '<div style="display:flex;gap:6px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--inv-redbg);color:var(--inv-red)">' + loc.negativos + ' negativos</span><span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)">neto ' + loc.neto + '</span></div>';
       h += '</div>';
-      h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+      h += '<table class="invd-fixed-tbl"><colgroup><col style="width:16%"><col style="width:auto"><col style="width:56px"><col style="width:76px"><col style="width:110px"></colgroup>';
       h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:5px 8px;font-weight:600">Referencia</th><th style="padding:5px 8px;font-weight:600">Artículo</th><th style="padding:5px 8px;font-weight:600;text-align:center">Cant.</th><th style="padding:5px 8px;font-weight:600;text-align:center">Antigüedad</th><th style="padding:5px 8px;font-weight:600">Transferencia</th></tr></thead><tbody>';
       loc.items.forEach(function(it){
         var neg = it.qty < 0;
         h += '<tr style="border-top:1px solid var(--border)">'
-          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text);white-space:nowrap">' + esc(it.code || '—') + '</td>'
-          + '<td style="padding:5px 8px;color:var(--text-secondary);max-width:260px">' + esc(it.name || '') + '</td>'
-          + '<td style="padding:5px 8px;text-align:center;font-weight:700;color:' + (neg ? 'var(--red-text)' : 'var(--text)') + '">' + it.qty + '</td>'
-          + '<td style="padding:5px 8px;text-align:center;color:var(--text-3);white-space:nowrap">' + tmAge(it.ageDays) + '</td>'
-          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;color:var(--text-3);white-space:nowrap">' + esc(it.sourcePicking || '—') + '</td>'
+          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text)">' + esc(it.code || '—') + '</td>'
+          + '<td style="padding:5px 8px;color:var(--text-secondary)" title="' + esc(it.name || '') + '">' + esc(it.name || '') + '</td>'
+          + '<td style="padding:5px 8px;text-align:center;font-weight:700;color:' + (neg ? 'var(--inv-red)' : 'var(--text)') + '">' + it.qty + '</td>'
+          + '<td style="padding:5px 8px;text-align:center;color:var(--text-3)">' + tmAge(it.ageDays) + '</td>'
+          + '<td style="padding:5px 8px;font-family:monospace;font-size:10px;color:var(--text-3)">' + esc(it.sourcePicking || '—') + '</td>'
           + '</tr>';
       });
-      h += '</tbody></table></div></div>';
+      h += '</tbody></table></div>';
     });
   }
   if (revisar.length) {
@@ -27364,61 +27417,61 @@ function invAnomRender(d) {
   h += '</div>';
 
   // ── Panel 2: ubicaciones fuera del árbol de almacén ──
-  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">';
-  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="unlink" style="width:14px;height:14px;stroke:var(--amber-text)"></i>Ubicaciones fuera del árbol de almacén</div>';
-  h += '<span style="font-size:10px;color:var(--text-3)">' + (t.rootsAnomalos || 0) + ' requieren revisión · ' + (t.rootsLegit || 0) + ' showroom legítimos · invisibles al reporte por almacén</span>';
+  h += '<div class="invd-wl-box">';
+  h += '<div class="invd-wl-hdr">';
+  h += '<span style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="unlink" style="width:14px;height:14px;stroke:var(--inv-amber)"></i>Ubicaciones fuera del árbol de almacén</span>';
+  h += '<span style="margin-left:auto;font-size:10px;color:var(--text-3)">' + (t.rootsAnomalos || 0) + ' requieren revisión · ' + (t.rootsLegit || 0) + ' showroom legítimos</span>';
   h += '</div>';
   if (!roots.length) {
     h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px">Sin ubicaciones raíz con stock.</div>';
   } else {
-    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 12px;font-weight:600">Ubicación</th><th style="padding:6px 12px;font-weight:600">Estado</th><th style="padding:6px 12px;font-weight:600;text-align:center">Artículos</th><th style="padding:6px 12px;font-weight:600;text-align:center">Unidades</th><th style="padding:6px 12px;font-weight:600;text-align:center">Antigüedad máx</th></tr></thead><tbody>';
+    h += '<table class="invd-fixed-tbl"><colgroup><col style="width:auto"><col style="width:120px"><col style="width:60px"><col style="width:64px"><col style="width:84px"></colgroup>';
+    h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 12px;font-weight:600">Ubicación</th><th style="padding:6px 8px;font-weight:600">Estado</th><th style="padding:6px 8px;font-weight:600;text-align:center">Art.</th><th style="padding:6px 8px;font-weight:600;text-align:center">Und</th><th style="padding:6px 12px;font-weight:600;text-align:right">Antigüedad</th></tr></thead><tbody>';
     roots.forEach(function(loc){
       var viejo = !loc.legit && loc.maxAge > 180;
       var estado = loc.legit
-        ? '<span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-3);white-space:nowrap">showroom legítimo</span>'
-        : '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amber-bg);color:var(--amber-text);white-space:nowrap">revisar</span>';
+        ? '<span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-3)">showroom</span>'
+        : '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--inv-amberbg);color:var(--inv-amber)">revisar</span>';
       h += '<tr style="border-top:1px solid var(--border)' + (loc.legit ? ';opacity:.6' : '') + '">'
         + '<td style="padding:6px 12px;font-weight:600;color:var(--text)">' + esc(loc.name) + '</td>'
-        + '<td style="padding:6px 12px">' + estado + '</td>'
-        + '<td style="padding:6px 12px;text-align:center;color:var(--text-secondary)">' + loc.count + '</td>'
-        + '<td style="padding:6px 12px;text-align:center;font-weight:700;color:var(--text)">' + loc.undTotal + '</td>'
-        + '<td style="padding:6px 12px;text-align:center;font-weight:' + (viejo ? '700' : '400') + ';color:' + (viejo ? 'var(--amber-text)' : 'var(--text-3)') + ';white-space:nowrap">' + tmAge(loc.maxAge) + '</td>'
+        + '<td style="padding:6px 8px">' + estado + '</td>'
+        + '<td style="padding:6px 8px;text-align:center;color:var(--text-secondary)">' + loc.count + '</td>'
+        + '<td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--text)">' + loc.undTotal + '</td>'
+        + '<td style="padding:6px 12px;text-align:right;font-weight:' + (viejo ? '700' : '400') + ';color:' + (viejo ? 'var(--inv-amber)' : 'var(--text-3)') + '">' + tmAge(loc.maxAge) + '</td>'
         + '</tr>';
     });
-    h += '</tbody></table></div>';
+    h += '</tbody></table>';
   }
-  h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3)">Antigüedad = fecha de la última transferencia hacia la ubicación. Los showrooms/consignación (MICHELL, MONTIBELLO, LOB, Stam House) están confirmados como legítimos y se atenúan; solo resaltan las que requieren revisión (ej. DIF.PTN).</div>';
+  h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3);background:var(--surface-2)">Showrooms/consignación (MICHELL, MONTIBELLO, LOB, Stam House) confirmados como legítimos y atenuados; solo resalta lo que requiere revisión (ej. DIF.PTN).</div>';
   h += '</div>';
 
   // ── Panel 3: correcciones por ajuste de conteo (posible enmascaramiento) ──
   var adj = d.adjustments || [];
   var win = d.adjWindowDays || 90;
-  h += '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-top:14px">';
-  h += '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="pencil-ruler" style="width:14px;height:14px;stroke:var(--amber-text)"></i>Correcciones por ajuste de conteo</div>';
-  h += '<span style="font-size:10px;color:var(--text-3);max-width:340px;text-align:right">Ajustes de inventario (últimos ' + win + ' días) sobre ubicaciones con desvíos. Un ajuste que <strong>sube</strong> el stock puede estar tapando un negativo sin resolver el putaway; una reubicación real no aparece aquí.</span>';
+  h += '<div class="invd-wl-box" style="margin-top:14px">';
+  h += '<div class="invd-wl-hdr">';
+  h += '<span style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="pencil-ruler" style="width:14px;height:14px;stroke:var(--inv-amber)"></i>Correcciones por ajuste de conteo</span>';
+  h += '<span style="margin-left:auto;font-size:10px;color:var(--text-3);max-width:340px;text-align:right">Últimos ' + win + ' días sobre ubicaciones con desvíos — un ajuste que <strong>sube</strong> el stock puede tapar un negativo sin resolver el putaway.</span>';
   h += '</div>';
   if (!adj.length) {
-    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">0 ajustes de conteo en ' + win + ' días sobre las ubicaciones con desvíos. Las correcciones no se están enmascarando con ajustes.</div></div>';
+    h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i><div style="margin-top:4px">0 ajustes de conteo en ' + win + ' días sobre las ubicaciones con desvíos.</div></div>';
   } else {
-    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    h += '<table class="invd-fixed-tbl"><colgroup><col style="width:14%"><col style="width:auto"><col style="width:120px"><col style="width:70px"><col style="width:64px"><col style="width:100px"></colgroup>';
     h += '<thead><tr style="text-align:left;color:var(--text-3)"><th style="padding:6px 10px;font-weight:600">Referencia</th><th style="padding:6px 10px;font-weight:600">Artículo</th><th style="padding:6px 10px;font-weight:600">Ubicación</th><th style="padding:6px 10px;font-weight:600;text-align:center">Ajuste</th><th style="padding:6px 10px;font-weight:600;text-align:center">Cuándo</th><th style="padding:6px 10px;font-weight:600">Doc.</th></tr></thead><tbody>';
     adj.forEach(function(a){
       var mask = a.delta > 0;
       h += '<tr style="border-top:1px solid var(--border)">'
-        + '<td style="padding:6px 10px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text);white-space:nowrap">' + esc(a.code || '—') + '</td>'
-        + '<td style="padding:6px 10px;color:var(--text-secondary);max-width:220px">' + esc(a.name || '') + '</td>'
-        + '<td style="padding:6px 10px;color:var(--text-3);white-space:nowrap">' + esc(String(a.location || '').replace('ALVEN/Stock/', '')) + '</td>'
-        + '<td style="padding:6px 10px;text-align:center;font-weight:700;color:' + (mask ? 'var(--amber-text)' : 'var(--text)') + ';white-space:nowrap">' + (a.delta > 0 ? '+' : '') + a.delta + (mask ? ' ▲' : '') + '</td>'
-        + '<td style="padding:6px 10px;text-align:center;color:var(--text-3);white-space:nowrap">' + tmAge(a.ageDays) + '</td>'
-        + '<td style="padding:6px 10px;color:var(--text-3);font-size:10px;white-space:nowrap">' + esc(a.reference || '—') + '</td>'
+        + '<td style="padding:6px 10px;font-family:monospace;font-size:10px;font-weight:700;color:var(--text)">' + esc(a.code || '—') + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-secondary)" title="' + esc(a.name || '') + '">' + esc(a.name || '') + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-3)">' + esc(String(a.location || '').replace('ALVEN/Stock/', '')) + '</td>'
+        + '<td style="padding:6px 10px;text-align:center;font-weight:700;color:' + (mask ? 'var(--inv-amber)' : 'var(--text)') + '">' + (a.delta > 0 ? '+' : '') + a.delta + (mask ? ' ▲' : '') + '</td>'
+        + '<td style="padding:6px 10px;text-align:center;color:var(--text-3)">' + tmAge(a.ageDays) + '</td>'
+        + '<td style="padding:6px 10px;color:var(--text-3);font-size:10px">' + esc(a.reference || '—') + '</td>'
         + '</tr>';
     });
-    h += '</tbody></table></div>';
+    h += '</tbody></table>';
     if ((t.adjustmentsMask || 0) > 0) {
-      h += '<div style="padding:8px 14px;font-size:11px;color:var(--amber-text);background:var(--amber-bg)">▲ ' + t.adjustmentsMask + ' ajuste(s) subieron stock en una ubicación con desvío — revisar si tapan un negativo en vez de resolver el putaway.</div>';
+      h += '<div style="padding:8px 14px;font-size:11px;color:var(--inv-amber);background:var(--inv-amberbg)">▲ ' + t.adjustmentsMask + ' ajuste(s) subieron stock en una ubicación con desvío — revisar si tapan un negativo en vez de resolver el putaway.</div>';
     }
   }
   h += '</div>';
@@ -27427,24 +27480,41 @@ function invAnomRender(d) {
   if (window.lucide) lucide.createIcons();
 }
 
+// KPI strip 4b — una fila con separadores; nunca tarjetas en 0 (colapsan a texto
+// "en orden" a la derecha). Solo el doble-venta viene de /panorama (ya cargado en
+// _invdData por invdCargar antes de entrar a esta pestaña) — /salud no lo trae.
 function invRenderKpis() {
   var d = _invData, k = d.kpis || {};
-  function chip(val, lbl, sub, bgVar, txVar, icon) {
-    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(' + (bgVar || '--surface-2') + ');border:1px solid var(--border);border-radius:10px;min-width:130px">' +
-      (icon ? '<i data-lucide="' + icon + '" style="width:16px;height:16px;stroke:var(' + (txVar || '--text') + ');flex-shrink:0"></i>' : '') +
-      '<div><div style="font-size:20px;font-weight:800;color:var(' + (txVar || '--text') + ')">' + val + '</div>' +
-      '<div style="font-size:11px;color:var(' + (txVar || '--text-3') + ');font-weight:600">' + lbl + (sub ? ' <span style="font-weight:400;opacity:.8">· ' + sub + '</span>' : '') + '</div></div></div>';
+  var s3 = (_invdData && _invdData.senales && _invdData.senales.s3) || {};
+  function num(val, lbl, colorVar, onclick) {
+    return '<div' + (onclick ? ' style="cursor:pointer" onclick="' + onclick + '"' : '') + '>' +
+      '<span style="font-size:22px;font-weight:800;color:var(' + colorVar + ')">' + val + '</span> ' +
+      '<span style="font-size:12px;color:var(--text-2)">' + lbl + '</span></div>';
   }
-  var html =
-    chip(k.activos || 0, 'negativos activos', (k.skus || 0) + ' SKUs', (k.activos ? '--red-bg' : '--green-bg'), (k.activos ? '--red-text' : '--green-text'), 'package-x') +
-    chip(k.sinCaso || 0, 'sin caso', null, (k.sinCaso ? '--amber-bg' : '--surface-2'), (k.sinCaso ? '--amber-text' : '--text'), 'inbox') +
-    chip(k.recepPend || 0, 'recepciones tránsito', (k.recepPend24h || 0) + ' con >24h', ((k.recepPend24h) ? '--amber-bg' : '--surface-2'), ((k.recepPend24h) ? '--amber-text' : '--text'), 'truck');
+  var items = [
+    num((k.activos || 0), 'negativos activos · ' + (k.skus || 0) + ' SKU', (k.activos ? '--inv-red' : '--inv-green'))
+  ];
+  items.push(num((s3.count || 0), 'riesgo doble-venta', (s3.count ? '--inv-red' : '--text-3'), "invdTab('cuadre')"));
+  var zeroLabels = [];
+  if (k.recepPend) items.push(num(k.recepPend, 'recepciones tránsito', '--inv-amber')); else zeroLabels.push('Recepciones tránsito');
+  if (k.sinCaso) items.push(num(k.sinCaso, 'sin clasificar', '--inv-amber')); else zeroLabels.push('sin clasificar');
   if (k.avanceCasoPct !== null && k.avanceCasoPct !== undefined) {
-    html += chip(k.avanceCasoPct + '%', 'avance', esc((k.avanceCasoTitulo || '').slice(0, 30)), '--surface-2', '--text', 'target');
+    items.push('<div><span style="font-size:18px;font-weight:700;color:var(--inv-green)">' + k.avanceCasoPct + '%</span> ' +
+      '<span style="font-size:12px;color:var(--text-2)">avance auditoría' + (k.avanceCasoTitulo ? ' · ' + esc(k.avanceCasoTitulo.slice(0, 24)) : '') + '</span></div>');
   }
+  var html = items.map(function(it, i){ return (i ? '<div class="invd-kpi-sep"></div>' : '') + it; }).join('');
+  if (zeroLabels.length) {
+    html += '<span style="margin-left:auto;font-size:11.5px;color:var(--text-3)">' + zeroLabels.join(' y ') + ': <b style="color:var(--inv-green)">en orden</b></span>';
+  }
+  document.getElementById('inv-kpis').className = 'invd-kpi-strip';
   document.getElementById('inv-kpis').innerHTML = html;
 }
 
+// 4b: "Grid principal" — izquierda: worklist por causa raíz (sinCaso sin
+// clasificar + items de casos abiertos aún no corregidos); derecha: caso en
+// seguimiento + riesgo de doble-venta + huérfanas en tránsito. Mantiene el
+// mecanismo existente de selección→caso (invToggleSel/invCrearCaso/invAgregarACaso)
+// dentro del grupo "Sin clasificar".
 function invRenderSinCaso() {
   var zone = document.getElementById('inv-sincaso');
   var d = _invData;
@@ -27460,36 +27530,164 @@ function invRenderSinCaso() {
     '</div>';
   }
 
-  if (!sin.length) { zone.innerHTML = seedHtml; return; }
+  // Reunir "qué corregir hoy": sin-caso (sin clasificar, sin causa) + items de
+  // casos abiertos que aún no están corregidos, agrupados por causa (A/B/C/'?').
+  var groups = { A: [], B: [], C: [], '?': [] };
+  casosAbiertos.forEach(function(c) {
+    (c.items || []).forEach(function(it) {
+      if (it.seguimiento === 'corregido') return;
+      var causa = (it.causa === 'A' || it.causa === 'B' || it.causa === 'C') ? it.causa : '?';
+      var ageDays = it.causaFecha ? Math.floor((Date.now() - new Date(String(it.causaFecha).replace(' ','T') + 'Z').getTime()) / 86400000) : null;
+      groups[causa].push({ kind:'caso', casoId:c.id, itemId:it.itemId, ref:it.ref, name:it.productName, qty:it.qtyNeg, ageDays:ageDays });
+    });
+  });
+  sin.forEach(function(s) {
+    groups['?'].push({ kind:'sincaso', ref:s.ref, name:s.name, qty:s.qtyTotal, ageDays:null });
+  });
+  var total = groups.A.length + groups.B.length + groups.C.length + groups['?'].length;
 
-  var rows = sin.map(function(s) {
-    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;cursor:pointer;background:var(--surface)">' +
-      '<input type="checkbox" data-ref="' + esc(s.ref) + '" onchange="invToggleSel(this)"' + (_invSel.has(s.ref) ? ' checked' : '') + ' style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex-shrink:0">' +
-      '<span style="font-size:12px;font-weight:700;color:var(--amber-text);white-space:nowrap">' + s.qtyTotal + '</span>' +
-      '<span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(s.ref) + '</span>' +
-      '<span style="font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="' + esc(s.name) + '">' + esc(s.name) + '</span>' +
-      '<span style="font-size:11px;color:var(--text-3);white-space:nowrap">' + esc((s.locs || []).map(function(l){ return l.split('/').slice(2).join('/'); }).join(' · ')) + '</span>' +
-    '</label>';
+  if (!total) {
+    zone.innerHTML = seedHtml + '<div class="invd-wl-grid">' +
+      '<div class="invd-wl-box"><div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">' +
+        '<i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i>' +
+        '<div style="margin-top:6px">Nada por corregir hoy — todo está en orden o ya corregido.</div></div></div>' +
+      invWlSideColumn() +
+    '</div>';
+    if (window.lucide) lucide.createIcons();
+    return;
+  }
+
+  if (!groups[_invWlExpanded] || !groups[_invWlExpanded].length) {
+    _invWlExpanded = ['A','B','C','?'].filter(function(k){ return groups[k].length; })[0] || 'A';
+  }
+
+  var groupsHtml = ['A','B','C','?'].map(function(code) {
+    var items = groups[code];
+    if (!items.length) return '';
+    var meta = _INV_CAUSAS[code] || _INV_CAUSAS['?'];
+    var nombre = meta.lbl.replace(/^[A-C?]\s*·\s*/, '');
+    var expanded = (code === _invWlExpanded);
+    var letterBg = code === 'A' ? '--inv-redbg' : code === '?' ? '--surface-2' : '--inv-amberbg';
+    var letterTx = code === 'A' ? '--inv-red' : code === '?' ? '--text-3' : '--inv-amber';
+    var hdr = '<div class="invd-wl-group' + (expanded ? ' expanded' : '') + '" onclick="invWlExpand(\'' + code + '\')">' +
+      '<span class="invd-wl-letter" style="background:var(' + letterBg + ');color:var(' + letterTx + ')">' + (code === '?' ? '?' : code) + '</span>' +
+      '<div style="min-width:0;flex:1"><div style="font-size:13.5px;font-weight:700;color:var(--text)">' + esc(nombre) + '</div><div style="font-size:11.5px;color:var(--text-3)">' + esc(meta.hint) + '</div></div>' +
+      '<span style="font-size:17px;font-weight:800;color:var(' + letterTx + ')">' + items.length + '</span>' +
+      '<span style="font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0">' + (expanded ? 'Ocultar ↑' : 'Corregir →') + '</span>' +
+    '</div>';
+    if (!expanded) return hdr;
+    var showAll = !!_invWlMoreOpen[code];
+    var visible = showAll ? items : items.slice(0, 4);
+    var rowsHtml = visible.map(function(it) {
+      var ageTxt = it.ageDays == null ? '—' : tmAge(it.ageDays);
+      var check = (it.kind === 'sincaso')
+        ? '<input type="checkbox" data-ref="' + esc(it.ref) + '" onchange="invToggleSel(this)"' + (_invSel.has(it.ref) ? ' checked' : '') + ' style="width:12px;height:12px;accent-color:var(--accent);cursor:pointer;vertical-align:-1px;margin-right:5px" onclick="event.stopPropagation()">'
+        : '';
+      var rowAttrs = (it.kind === 'caso') ? ' onclick="invAbrirDetalle(\'' + esc(it.casoId) + '\',\'' + esc(it.itemId) + '\')" style="cursor:pointer"' : '';
+      return '<tr' + rowAttrs + '>' +
+        '<td style="padding:7px 12px;font-family:monospace;font-size:10.5px;font-weight:700;color:var(--text)">' + check + esc(it.ref) + '</td>' +
+        '<td style="padding:7px 6px;color:var(--text-2)" title="' + esc(it.name || '') + '">' + esc(it.name || '') + '</td>' +
+        '<td style="padding:7px 6px;text-align:center;font-weight:700;color:var(--inv-red)">' + (it.qty == null ? '—' : it.qty) + '</td>' +
+        '<td style="padding:7px 12px;text-align:right;color:var(--text-3)">' + ageTxt + '</td>' +
+      '</tr>';
+    }).join('');
+    var tbl = '<table class="invd-fixed-tbl"><colgroup><col style="width:30%"><col style="width:auto"><col style="width:56px"><col style="width:70px"></colgroup><tbody>' + rowsHtml + '</tbody></table>';
+    var more = (!showAll && items.length > 4) ? '<div class="invd-wl-more" onclick="invWlToggleMore(\'' + code + '\')">Ver ' + (items.length - 4) + ' más de ' + esc(nombre.toLowerCase()) + ' →</div>' : '';
+    return hdr + tbl + more;
   }).join('');
 
-  var opts = casosAbiertos.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.titulo.slice(0, 45)) + '</option>'; }).join('');
+  zone.innerHTML = seedHtml + '<div class="invd-wl-grid">' +
+    '<div class="invd-wl-box">' +
+      '<div class="invd-wl-hdr"><span style="font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text)">Qué corregir hoy — por causa raíz</span><span style="margin-left:auto;font-size:11px;color:var(--text-3)">' + total + ' SKU' + (total !== 1 ? 's' : '') + '</span></div>' +
+      groupsHtml +
+      (groups['?'].length ? invWlTriageFooter(casosAbiertos) : '') +
+    '</div>' +
+    invWlSideColumn() +
+  '</div>';
+  if (window.lucide) lucide.createIcons();
+}
 
-  zone.innerHTML = seedHtml +
-    '<div style="padding:14px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">' +
-        '<i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:var(--amber-text)"></i>' +
-        '<strong style="font-size:13px;color:var(--amber-text)">' + sin.length + ' SKU' + (sin.length !== 1 ? 's' : '') + ' en negativo sin caso de seguimiento</strong>' +
+// Footer de triage: mismo mecanismo de siempre (seleccionar sin-clasificar → crear
+// caso nuevo o agregarlos a uno abierto), ahora colgado del grupo "Sin clasificar".
+function invWlTriageFooter(casosAbiertos) {
+  var opts = casosAbiertos.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.titulo.slice(0, 45)) + '</option>'; }).join('');
+  return '<div style="padding:11px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface-2)">' +
+    '<span style="font-size:11px;color:var(--text-3);width:100%">Marca SKU(s) de "sin clasificar" arriba y fílalos a un caso de seguimiento:</span>' +
+    (casosAbiertos.length
+      ? '<select id="inv-caso-dest" class="form-select" style="font-size:12px;padding:6px 10px;max-width:280px">' + opts + '</select>' +
+        '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAgregarACaso()">Agregar al caso</button>'
+      : '') +
+    '<input type="text" id="inv-nuevo-titulo" class="form-input" placeholder="Título del caso nuevo…" style="max-width:240px;font-size:12px;padding:6px 10px">' +
+    '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invCrearCaso()">Crear caso nuevo</button>' +
+  '</div>';
+}
+
+function invWlExpand(code) { _invWlExpanded = code; _invWlMoreOpen = {}; invRenderSinCaso(); }
+function invWlToggleMore(code) { _invWlMoreOpen[code] = true; invRenderSinCaso(); }
+
+// Columna derecha del grid: caso(s) en seguimiento (resumen, "Abrir caso" hace
+// scroll a la tabla completa en #inv-casos) + riesgo de doble-venta + huérfanas
+// en tránsito. s1/s3 vienen de _invdData (panorama, ya cargado por invdCargar
+// antes de entrar a esta pestaña) — no se toca el contrato de /salud.
+function invWlSideColumn() {
+  var d = _invData || {};
+  var casosAbiertos = (d.casos || []).filter(function(c){ return c.estado === 'abierto'; });
+  var s3 = (_invdData && _invdData.senales && _invdData.senales.s3) || { items:[], count:0 };
+  var s1 = (_invdData && _invdData.senales && _invdData.senales.s1) || { items:[], count:0 };
+
+  var casoCards = casosAbiertos.map(function(c) {
+    var items = c.items || [];
+    var tot = items.length || 1;
+    var corr = items.filter(function(i){ return i.seguimiento === 'corregido'; }).length;
+    var pct = Math.round(100 * corr / tot);
+    return '<div class="invd-side-card">' +
+      '<div style="font-size:10.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text-3)">Caso en seguimiento</div>' +
+      '<div style="font-size:14px;font-weight:700;margin-top:6px;line-height:1.3;color:var(--text)">' + esc(c.titulo) + '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-top:10px">' +
+        '<div style="flex:1;height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden"><div style="width:' + pct + '%;height:100%;background:var(--inv-greendot);border-radius:999px"></div></div>' +
+        '<span style="font-size:12.5px;font-weight:700"><span style="color:var(--inv-green)">' + corr + '</span>/' + items.length + '</span>' +
       '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;margin-bottom:10px">' + rows + '</div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-        (casosAbiertos.length
-          ? '<select id="inv-caso-dest" class="form-select" style="font-size:12px;padding:6px 10px;max-width:280px">' + opts + '</select>' +
-            '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAgregarACaso()">Agregar al caso</button>'
-          : '') +
-        '<input type="text" id="inv-nuevo-titulo" class="form-input" placeholder="Título del caso nuevo…" style="max-width:240px;font-size:12px;padding:6px 10px">' +
-        '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invCrearCaso()">Crear caso nuevo</button>' +
-      '</div>' +
+      (c.descripcion ? '<div style="font-size:11px;color:var(--text-3);margin-top:8px">' + esc(c.descripcion) + '</div>' : '') +
+      '<button style="margin-top:11px;width:100%;border:1.5px solid var(--border);background:transparent;color:var(--text-2);font-family:inherit;font-size:12px;font-weight:700;padding:8px;border-radius:6px;cursor:pointer" onclick="invWlScrollToCaso(\'' + esc(c.id) + '\')">Abrir caso</button>' +
     '</div>';
+  }).join('');
+
+  var s3Items = (s3.items || []).slice(0, 3);
+  var dobleVenta = '<div class="invd-side-card" style="padding:0;overflow:hidden">' +
+    '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:var(--inv-reddot);flex-shrink:0"></span>' +
+      '<span style="font-size:12.5px;font-weight:800;color:var(--text)">Riesgo de doble-venta</span>' +
+      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-red)">' + (s3.count || 0) + '</span>' +
+    '</div>' +
+    (s3Items.length
+      ? s3Items.map(function(it) {
+          var bin = (it.bins && it.bins[0]) ? it.bins[0].locName : '—';
+          return '<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="font-family:monospace;font-size:10.5px;font-weight:700;color:var(--text)">' + esc(it.code || '—') + '</div><div style="font-size:11.5px;color:var(--text-3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.name || '') + ' · ' + esc(bin) + '</div></div>';
+        }).join('')
+      : '<div style="padding:14px 16px;font-size:12px;color:var(--text-3)">Sin riesgo detectado.</div>') +
+    ((s3.count || 0) > s3Items.length ? '<div class="invd-wl-more" style="border-bottom:none" onclick="invdTab(\'cuadre\')">Ver ' + ((s3.count || 0) - s3Items.length) + ' más →</div>' : '') +
+  '</div>';
+
+  var s1First = (s1.items && s1.items[0]) || {};
+  var huerfanas = '<div class="invd-side-card">' +
+    '<div style="display:flex;align-items:center;gap:8px">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:var(--inv-amberdot);flex-shrink:0"></span>' +
+      '<span style="font-size:12.5px;font-weight:800;color:var(--text)">Huérfanas en tránsito</span>' +
+      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-amber)">' + (s1.count || 0) + '</span>' +
+    '</div>' +
+    '<div style="font-size:11.5px;color:var(--text-3);margin-top:7px">' + (s1First.sourcePicking ? ('Recepción sin validar · <span style="font-family:monospace">' + esc(s1First.sourcePicking) + '</span>') : 'Sin huérfanos en tránsito.') + '</div>' +
+    ((s1.count || 0) > 0 ? '<button style="margin-top:11px;width:100%;border:none;background:var(--text);color:var(--surface);font-family:inherit;font-size:12px;font-weight:700;padding:9px;border-radius:6px;cursor:pointer" onclick="invdTab(\'transitos\');invdTransitSetFilter(\'estado\',\'huerfano\')">Validar recepción</button>' : '') +
+  '</div>';
+
+  return '<div style="display:flex;flex-direction:column;gap:14px">' + (casoCards || '') + dobleVenta + huerfanas + '</div>';
+}
+
+function invWlScrollToCaso(casoId) {
+  var el = document.getElementById('inv-caso-card-' + casoId);
+  if (!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'start' });
+  el.classList.add('flash');
+  setTimeout(function(){ el.classList.remove('flash'); }, 1200);
 }
 
 function invToggleSel(cb) {
@@ -27631,7 +27829,7 @@ function invRenderCasos() {
         '<td style="padding:8px 10px;text-align:center"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td>' +
       '</tr>';
     }).join('');
-    return '<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px' + (cerrado ? ';opacity:.65' : '') + '">' +
+    return '<div id="inv-caso-card-' + esc(c.id) + '" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px' + (cerrado ? ';opacity:.65' : '') + '">' +
       '<div style="padding:12px 14px;background:var(--surface-2)">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
