@@ -8978,7 +8978,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v195';
+var APP_BUILD = 'v196';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27374,10 +27374,15 @@ function invdKardexHtml(d){
   h += '</div>';
   h += '<div style="padding:14px 16px 18px"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:8px">Historial de transacciones</div>';
   (d.moves||[]).forEach(function(m){
-    h += '<div class="invd-kx-row'+(m.culprit?' culprit':'')+'">'
+    // v196: una transacción CANCELADA nunca movió stock — su cantidad es la PREVISTA, no la
+    // hecha. Sin distinción visual parecía que sumaba al cuadre igual que una done (reporte
+    // Gabriel 15-jul: OUT27/INT/00042 cancel se leía como +2 real). Atenuada + tachada + badge.
+    var _esCancel = m.state==='cancel';
+    h += '<div class="invd-kx-row'+(m.culprit?' culprit':'')+'"'+(_esCancel?' style="opacity:.55"':'')+'>'
       + '<div style="font-size:10px;color:var(--text-3);white-space:nowrap;min-width:52px">'+invdFmtD(m.date)+'</div>'
       + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong>'+m.qty+'</strong></div>'
+        + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong'+(_esCancel?' style="text-decoration:line-through;color:var(--text-3);font-weight:600"':'')+'>'+m.qty+'</strong>'
+        + (_esCancel?' <span style="display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:5px;background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot);vertical-align:1px">cancelada · no cuenta</span>':'')+'</div>'
         + '<div style="font-size:10px;color:var(--text-3)">'+esc(m.ref||'')+' · '+esc(m.state||'')+(m.responsable?(' · '+esc(m.responsable)):'')+'</div>'
       + '</div>'+(m.culprit?'<span class="invd-badge huer" style="flex:none">culpable</span>':'')+'</div>';
   });
