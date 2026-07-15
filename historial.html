@@ -2305,6 +2305,24 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .rsp-omit-hd{font-size:12px;font-weight:700;color:var(--amber-text);display:flex;align-items:center;gap:6px;margin-bottom:4px}
 .rsp-omit-row{font-size:11px;color:var(--amber-text);padding:4px 0}
 .rsp-omit-row+.rsp-omit-row{border-top:1px solid var(--amber-dot)}
+/* Dividir por sede — separar la cadena en cadenas independientes por almacén (admin) */
+.dvs-card{max-width:640px;display:flex;flex-direction:column;max-height:90vh}
+.dvs-body{flex:1;min-height:0;overflow-y:auto}
+.dvs-group{border:1.5px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:12px;background:var(--surface)}
+.dvs-group-hd{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.dvs-sede{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--surface-2);color:var(--text-primary);border:1px solid var(--border)}
+.dvs-sede i{width:12px;height:12px;stroke:var(--text-secondary);flex-shrink:0}
+.dvs-group-n{font-size:11px;font-weight:600;color:var(--text-secondary)}
+.dvs-items{margin-bottom:4px}
+.dvs-item{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:11px;color:var(--text-secondary);padding:4px 0;border-top:1px solid var(--border-light)}
+.dvs-item b{color:var(--text-primary);font-weight:600}
+.dvs-bin{margin-left:auto;font-size:10px;color:var(--text-3);white-space:nowrap}
+.dvs-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.dvs-f-due{grid-column:1 / -1}
+.dvs-banner{display:flex;align-items:flex-start;gap:8px;border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.45;margin-bottom:12px}
+.dvs-banner i{width:15px;height:15px;stroke:currentColor;flex-shrink:0;margin-top:1px}
+.dvs-banner-err{background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot)}
+.dvs-banner-info{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
 @media(max-width:600px){
   .rep-item{grid-template-columns:1fr;gap:8px}
   .rep-item-side{flex-direction:row;align-items:center;justify-content:space-between}
@@ -2314,6 +2332,8 @@ main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
   .op-modal-overlay{align-items:flex-end;padding:0}
   .op-modal-card{max-width:100%;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}
   .rsp-card{max-height:92dvh}
+  .dvs-card{max-height:92dvh}
+  .dvs-fields{grid-template-columns:1fr}
   .op-modal-footer{flex-direction:column-reverse}
   .op-modal-footer button{width:100%;min-height:44px}
 }
@@ -8958,7 +8978,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v194';
+var APP_BUILD = 'v195';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15588,6 +15608,10 @@ function renderDrawer(t) {
   let subsHtml = '';
   if (!t.parentId) {
     const canAddSub = t.status !== 'validated' && (_user.role==='admin' || _user.role==='manager');
+    // Capa 2: dividir la cadena en cadenas de empaque→despacho independientes por SEDE
+    // (caso S08982: mercancía en 2 almacenes). Solo admin, raíz con artículos, no cerrada.
+    // La elegibilidad real la valida el backend (POST /dividir-sedes → 409 + motivo).
+    const canSplitSede = _user.role==='admin' && items.length>0 && !['validated','cancelled'].includes(t.status);
     const ordered = subs.slice().sort((a,b)=>(a.subIndex||0)-(b.subIndex||0));
     const doneN = ordered.filter(s=>['completed','validated'].includes(s.status)).length;
     const TYPE_LBL = {dispatch_order:'Despacho',warehouse_move:'Movimiento',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',general:'General'};
@@ -15607,10 +15631,11 @@ function renderDrawer(t) {
         <span class="badge ${STATUS_CSS[s.status]||'b-pending'}" style="flex-shrink:0">${STATUS_LABELS[s.status]||s.status}</span>
       </div>`;
     }).join('');
-    subsHtml = `<div class="sec-header" style="display:flex;align-items:center;gap:6px">
+    subsHtml = `<div class="sec-header" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px">
         <i data-lucide="git-branch" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>
         CADENA DE ACCIONES${ordered.length?` <span style="font-weight:600;color:var(--text-3)">(${doneN}/${ordered.length})</span>`:''}
         ${canAddSub?`<button class="btn-sm" onclick="event.stopPropagation();openNewSubtaskModal('${t.id}')" style="margin-left:auto;padding:3px 10px"><i data-lucide="plus" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Nueva subtarea</button>`:''}
+        ${canSplitSede?`<button class="btn-sm" onclick="event.stopPropagation();openDividirSedesModal('${t.id}')" title="Separar esta cadena en cadenas de empaque→despacho independientes por sede (cada almacén trabaja lo suyo)" style="padding:3px 10px${canAddSub?'':';margin-left:auto'}"><i data-lucide="split" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Dividir por sede</button>`:''}
       </div>
       ${ordered.length ? stepsHtml : '<div style="color:var(--text-3);font-size:13px;padding:6px 0 10px">Sin subtareas. Crea una para encadenar acciones de otros equipos (ej. empaque → despacho).</div>'}`;
   }
@@ -34299,6 +34324,171 @@ document.addEventListener('keydown', function(e){
 document.getElementById('resync-pick-modal') && document.getElementById('resync-pick-modal').addEventListener('click', function(e){
   if(e.target===this) closeResyncPickModal();
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// DIVIDIR POR SEDE (Capa 2, admin) — separar una cadena empaque→despacho en
+// cadenas independientes por sede/almacén. Caso S08982: la mercancía vive en
+// 2 almacenes (PTN y CDP) y cada sede empaca y despacha lo suyo.
+// Backend (Carl): POST /api/wwp/tasks/:id/dividir-sedes
+//   apply:false = preview (clasifica items por sede, valida elegibilidad)
+//   apply:true  = ejecuta con grupos:[{sede, empaqueEncargados, despachoEncargados, due?}]
+// ════════════════════════════════════════════════════════════════════════
+var _dvs = { taskId:null, raiz:null, sedes:[], sinAsignar:[], elegible:false, motivo:'', sel:{}, bound:false };
+
+function dvsErrMsg(status, d){
+  if (status===503) return 'No se pudo consultar, intenta de nuevo.';
+  if (d && (d.motivoNoElegible || d.error)) return d.motivoNoElegible || d.error;
+  if (status===409) return 'Esta cadena no se puede dividir en su estado actual.';
+  if (status===422) return 'La partición por sede no cubre todos los artículos.';
+  if (status===403) return 'Solo un administrador puede dividir por sede.';
+  if (status===400) return 'Faltan datos para dividir (encargados por sede).';
+  if (status===404) return 'La tarea ya no existe.';
+  return 'No se pudo dividir por sede.';
+}
+function dvsSetBody(html){ var b=document.getElementById('dvs-body'); if(b) b.innerHTML=html; }
+function dvsSetFooter(html){ var f=document.getElementById('dvs-footer'); if(f) f.innerHTML=html; }
+
+async function openDividirSedesModal(taskId){
+  if (!_user || _user.role!=='admin') { toast('Solo un administrador puede dividir una cadena por sede'); return; }
+  _dvs = { taskId:taskId, raiz:null, sedes:[], sinAsignar:[], elegible:false, motivo:'', sel:{}, bound:_dvs.bound };
+  var m=document.getElementById('dividir-sedes-modal');
+  if(m && !_dvs.bound){ _dvs.bound=true; m.addEventListener('click', function(e){ if(e.target===m) closeDividirSedesModal(); }); }
+  if(m) m.style.display='flex';
+  dvsSetBody('<div class="rsp-state"><i data-lucide="loader-2" class="do-spin"></i><div>Clasificando artículos por sede…</div></div>');
+  dvsSetFooter('<button onclick="closeDividirSedesModal()" class="op-modal-secondary">Cerrar</button>');
+  if(window.lucide) lucide.createIcons();
+  try{
+    var r=await authFetch('/api/wwp/tasks/'+taskId+'/dividir-sedes',{method:'POST',body:JSON.stringify({apply:false,by:_user.name,byUserId:_user.id})});
+    var d=await r.json();
+    if(!r.ok || !d || !d.ok){ dvsRenderError(dvsErrMsg(r.status,d)); return; }
+    _dvs.raiz=d.raiz||null;
+    _dvs.sedes=Array.isArray(d.sedes)?d.sedes:[];
+    _dvs.sinAsignar=Array.isArray(d.sinAsignar)?d.sinAsignar:[];
+    _dvs.elegible=d.elegible!==false;
+    _dvs.motivo=d.motivoNoElegible||'';
+    _dvs.sedes.forEach(function(g){ _dvs.sel[g.sede]={emp:'',desp:'',due:''}; });
+    dvsRenderPreview();
+  }catch(e){ dvsRenderError('No se pudo consultar, intenta de nuevo.'); }
+}
+function closeDividirSedesModal(){ var m=document.getElementById('dividir-sedes-modal'); if(m) m.style.display='none'; }
+
+function dvsRenderError(msg){
+  dvsSetBody('<div class="rsp-state"><i data-lucide="cloud-off"></i><div><b>No se pudo cargar</b></div><div style="font-size:12px">'+esc(msg||'')+'</div></div>');
+  dvsSetFooter('<button onclick="closeDividirSedesModal()" class="op-modal-secondary">Cerrar</button><button onclick="openDividirSedesModal(\''+_dvs.taskId+'\')" class="op-modal-primary">Reintentar</button>');
+  if(window.lucide) lucide.createIcons();
+}
+
+function dvsItemRow(it){
+  var u=(it.unidades!=null)?('<span>'+it.unidades+' und</span>'):'';
+  var sku=it.sku?('<span>'+esc(it.sku)+'</span>'):'';
+  var bin=it.bin?('<span class="dvs-bin">'+esc(it.bin)+'</span>'):'';
+  return '<div class="dvs-item"><b>'+esc(it.product_name||it.sku||'Artículo')+'</b>'+sku+u+bin+'</div>';
+}
+
+function dvsMgrOptions(selId){
+  return (_authUsers||[]).filter(function(u){ return u.active!==false && (u.role==='manager'||u.role==='admin'); })
+    .map(function(u){ return '<option value="'+esc(u.id)+'"'+(String(selId)===String(u.id)?' selected':'')+'>'+esc(u.name)+'</option>'; }).join('');
+}
+
+function dvsGroupHtml(g, conCampos){
+  var s=_dvs.sel[g.sede]||{emp:'',desp:'',due:''};
+  var n=(g.nItems!=null)?g.nItems:(g.items||[]).length;
+  var html='<div class="dvs-group">'
+    + '<div class="dvs-group-hd"><span class="dvs-sede"><i data-lucide="warehouse"></i>'+esc(g.sede||'—')+'</span>'
+    + '<span class="dvs-group-n">'+n+' artículo'+(n===1?'':'s')+'</span></div>'
+    + '<div class="dvs-items">'+(g.items||[]).map(dvsItemRow).join('')+'</div>';
+  if(conCampos){
+    html+='<div class="dvs-fields">'
+      + '<div><label class="rep-lbl">Encargado de empaque</label><select class="rep-select" data-sede="'+esc(g.sede)+'" data-k="emp" onchange="dvsSetSel(this)"><option value="">— Sin asignar —</option>'+dvsMgrOptions(s.emp)+'</select></div>'
+      + '<div><label class="rep-lbl">Encargado de despacho <span style="color:var(--red-text)">*</span></label><select class="rep-select" data-sede="'+esc(g.sede)+'" data-k="desp" onchange="dvsSetSel(this)"><option value="">— Elige encargado —</option>'+dvsMgrOptions(s.desp)+'</select></div>'
+      + '<div class="dvs-f-due"><label class="rep-lbl">Fecha límite (opcional)</label><input type="date" class="rep-input" value="'+esc(s.due||'')+'" data-sede="'+esc(g.sede)+'" data-k="due" onchange="dvsSetSel(this)"></div>'
+      + '</div>';
+  }
+  return html+'</div>';
+}
+
+function dvsSetSel(el){
+  var sede=el.getAttribute('data-sede'), k=el.getAttribute('data-k');
+  if(!_dvs.sel[sede]) _dvs.sel[sede]={emp:'',desp:'',due:''};
+  _dvs.sel[sede][k]=el.value;
+  dvsValidate();
+}
+function dvsValidate(){
+  var btn=document.getElementById('dvs-apply'); if(!btn) return;
+  var ok=_dvs.sedes.length>1 && _dvs.sedes.every(function(g){ var s=_dvs.sel[g.sede]; return s && s.desp; });
+  btn.disabled=!ok;
+}
+
+function dvsRenderPreview(){
+  var sedes=_dvs.sedes;
+  // No elegible o artículos sin sede → explicar y NO dejar aplicar (el backend también bloquea)
+  if(!_dvs.elegible || _dvs.sinAsignar.length){
+    var msg=_dvs.motivo || (_dvs.sinAsignar.length
+      ? 'Hay artículos sin sede asignada. Corrige su ubicación en Odoo y vuelve a intentar.'
+      : 'Esta cadena no se puede dividir en su estado actual.');
+    var html='<div class="dvs-banner dvs-banner-err"><i data-lucide="octagon-alert"></i><div><b>No se puede dividir</b><br>'+esc(msg)+'</div></div>';
+    if(_dvs.sinAsignar.length){
+      html+='<div class="rsp-sec-lbl">Artículos sin sede ('+_dvs.sinAsignar.length+')</div><div class="dvs-items">'+_dvs.sinAsignar.map(dvsItemRow).join('')+'</div>';
+    }
+    if(sedes.length) html+='<div class="rsp-sec-lbl" style="margin-top:10px">Cómo quedaría por sede (referencia)</div>'+sedes.map(function(g){ return dvsGroupHtml(g,false); }).join('');
+    dvsSetBody(html);
+    dvsSetFooter('<button onclick="closeDividirSedesModal()" class="op-modal-secondary">Cerrar</button>');
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+  // Una sola sede → no hay nada que dividir
+  if(sedes.length<=1){
+    var unica=sedes.length?sedes[0]:null;
+    dvsSetBody('<div class="dvs-banner dvs-banner-info"><i data-lucide="info"></i><div>Todos los artículos están en la misma sede'+(unica?' (<b>'+esc(unica.sede)+'</b>)':'')+' — no hay nada que dividir.</div></div>'
+      +(unica?dvsGroupHtml(unica,false):''));
+    dvsSetFooter('<button onclick="closeDividirSedesModal()" class="op-modal-secondary">Cerrar</button>');
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+  // N sedes → asignar encargados por sede y dividir
+  var html='<p class="op-modal-copy">Los artículos'+(_dvs.raiz&&_dvs.raiz.title?' de <b>'+esc(_dvs.raiz.title)+'</b>':'')+' se clasificaron por sede. Asigna quién empaca y quién despacha en cada una.</p>';
+  html+=sedes.map(function(g){ return dvsGroupHtml(g,true); }).join('');
+  html+='<div class="dvs-banner dvs-banner-info" style="margin-bottom:0"><i data-lucide="info"></i><div>Se crearán cadenas de empaque→despacho independientes por sede. Cada equipo trabaja y cierra lo suyo. El empaque sin encargado nace pendiente de asignar.</div></div>';
+  dvsSetBody(html);
+  dvsSetFooter('<button onclick="closeDividirSedesModal()" class="op-modal-secondary">Cancelar</button><button id="dvs-apply" onclick="dvsApply()" class="op-modal-primary" disabled>Dividir</button>');
+  dvsValidate();
+  if(window.lucide) lucide.createIcons();
+}
+
+async function dvsApply(){
+  var sedes=_dvs.sedes;
+  if(sedes.length<2) return;
+  if(!sedes.every(function(g){ var s=_dvs.sel[g.sede]; return s && s.desp; })){ dvsValidate(); return; }
+  var okGo=await _iosConfirm('¿Dividir esta cadena en '+sedes.length+' por sede? Esta acción reorganiza las tareas.');
+  if(!okGo) return;
+  var byId=function(id){ var u=(_authUsers||[]).find(function(x){ return String(x.id)===String(id); }); return u?{id:u.id,name:u.name}:null; };
+  var grupos=sedes.map(function(g){
+    var s=_dvs.sel[g.sede]||{};
+    var gr={ sede:g.sede, empaqueEncargados:[], despachoEncargados:[] };
+    var e=s.emp?byId(s.emp):null; if(e) gr.empaqueEncargados.push(e);
+    var d2=s.desp?byId(s.desp):null; if(d2) gr.despachoEncargados.push(d2);
+    if(s.due) gr.due=s.due;
+    return gr;
+  });
+  dvsSetFooter('<button class="op-modal-secondary" disabled>Cancelar</button><button class="op-modal-primary" disabled><i data-lucide="loader-2" class="do-spin" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"></i>Dividiendo…</button>');
+  if(window.lucide) lucide.createIcons();
+  try{
+    var r=await authFetch('/api/wwp/tasks/'+_dvs.taskId+'/dividir-sedes',{method:'POST',body:JSON.stringify({apply:true,grupos:grupos,by:_user.name,byUserId:_user.id})});
+    var d=await r.json();
+    if(!r.ok || !d || !d.ok){ toast(dvsErrMsg(r.status,d),6000); dvsRenderPreview(); return; }
+    var rid=(_dvs.raiz&&_dvs.raiz.id)||_dvs.taskId;
+    toast('Cadena dividida por sede');
+    closeDividirSedesModal();
+    openDrawer(rid);
+    loadTasks();
+  }catch(e){ toast('No se pudo aplicar, intenta de nuevo.',6000); dvsRenderPreview(); }
+}
+
+// Cerrar el modal de dividir por sede con Escape (el click-fuera se registra al abrir,
+// porque este script corre antes de que el modal exista en el DOM)
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){ var m=document.getElementById('dividir-sedes-modal'); if(m && m.style.display==='flex') closeDividirSedesModal(); }
+});
 </script>
 
 <script>
@@ -38883,6 +39073,21 @@ async function loadCancelacionesKPIs() {
   </div>
 </div>
 <input type="hidden" id="rsp-task-id">
+
+<!-- Modal: Dividir cadena por sede (Capa 2 — admin) -->
+<div id="dividir-sedes-modal" class="op-modal-overlay">
+  <div class="op-modal-card dvs-card" role="dialog" aria-modal="true" aria-labelledby="dvs-title">
+    <div class="op-modal-header">
+      <div class="op-modal-title-wrap">
+        <span class="op-modal-icon" aria-hidden="true" style="color:var(--brand-primary)"><i data-lucide="split" style="width:18px;height:18px;stroke:currentColor;vertical-align:-3px"></i></span>
+        <span class="op-modal-title" id="dvs-title">Dividir por sede</span>
+      </div>
+      <button onclick="closeDividirSedesModal()" class="op-modal-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="op-modal-body dvs-body" id="dvs-body"></div>
+    <div class="op-modal-footer" id="dvs-footer"></div>
+  </div>
+</div>
 
 <!-- Modal: Editar Solicitud de Despacho -->
 <div id="sdv-edit-modal" class="sdv-edit-modal-overlay">

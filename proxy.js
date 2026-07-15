@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v194';
+const APP_BUILD = 'v195';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4544,6 +4544,136 @@ function deriveLocalidad(t) {
     if (m) return m[1].toUpperCase();
   }
   return 'SIN_LOCALIDAD';
+}
+
+// ── División por sede (Capa 2, 14-jul) ────────────────────────────────────────
+// Localidad/sede de UNA unidad (item de tarea). Port del `_wizItemLocalidad` del wizard
+// (historial.html), con el bug del prefijo CORREGIDO: el front solo quitaba '^A-' y dejaba
+// 'D-PTN' sin normalizar; aquí se quita CUALQUIER '<letra>-' inicial del primer segmento:
+//   'ALVEN/Stock/A-CDP/CD3' → 'A-CDP/CD3' → 'A-CDP' → 'CDP'
+//   'D-PTN/SHOWROOM'        → 'D-PTN'     → 'PTN'
+// Sin ubicación derivable → null (el caller decide: sinAsignar, bloqueante).
+function localidadDeUnidad(it) {
+  let raw = (it && it.selected_location_name) || '';
+  if (!raw && it && Array.isArray(it.unitBins) && it.unitBins.length) raw = it.unitBins[0];
+  if (!raw && it && Array.isArray(it.locations) && it.locations.length) {
+    if (typeof it.selected_location === 'number') raw = (it.locations[it.selected_location] || {}).location_name || '';
+    else if (it.locations.length === 1) raw = it.locations[0].location_name || '';
+  }
+  raw = String(raw || '').trim();
+  if (!raw) return null;
+  const short = raw.replace(/^ALVEN\/Stock\//i, '').replace(/^WH\/Stock\//i, '');
+  const seg = short.split('/')[0].trim();
+  if (!seg) return null;
+  const sede = seg.replace(/^[A-Za-z]-/, '').trim();
+  return (sede || seg).toUpperCase();
+}
+
+// Clasifica los items de una cadena por sede. Regla de kits (Pit): un kit (kitId) NUNCA se
+// parte entre sedes — todas sus tarjetas-kit y componentes van a la sede UNÁNIME de sus
+// componentes con ubicación (los componentes sin ubicación se arrastran a la sede del kit);
+// si los componentes cruzan sedes, o ninguno tiene ubicación, el kit COMPLETO cae en
+// `sinAsignar` (bloqueante, regla de Pit: no se divide con incógnitas). Items sueltos sin
+// ubicación clara → `sinAsignar`. Devuelve { porSede: Map(sede→[items]), sinAsignar:[{item,motivo}] }.
+function clasificarItemsPorSede(items) {
+  const porSede = new Map();
+  const sinAsignar = [];
+  const kitGroups = new Map();  // kitId → todos sus items (componentes + tarjeta-kit sintética)
+  const sueltos = [];
+  (items || []).forEach(it => {
+    if (!it) return;
+    if (it.kitId) {
+      if (!kitGroups.has(it.kitId)) kitGroups.set(it.kitId, []);
+      kitGroups.get(it.kitId).push(it);
+    } else sueltos.push(it);
+  });
+  const asigna = (sede, it) => { if (!porSede.has(sede)) porSede.set(sede, []); porSede.get(sede).push(it); };
+  sueltos.forEach(it => {
+    const sede = localidadDeUnidad(it);
+    if (sede) asigna(sede, it);
+    else sinAsignar.push({ item: it, motivo: 'sin ubicación clara' });
+  });
+  kitGroups.forEach((grp, kitId) => {
+    const sedes = new Set();
+    grp.forEach(it => { if (!it.isKit) { const s = localidadDeUnidad(it); if (s) sedes.add(s); } });
+    if (sedes.size === 1) {
+      const sede = [...sedes][0];
+      grp.forEach(it => asigna(sede, it));
+    } else if (sedes.size === 0) {
+      grp.forEach(it => sinAsignar.push({ item: it, motivo: 'kit sin ubicación en sus componentes' }));
+    } else {
+      const lista = [...sedes].sort().join(', ');
+      grp.forEach(it => sinAsignar.push({ item: it, motivo: 'kit cruza sedes (' + lista + ') — un kit no se divide' }));
+    }
+  });
+  return { porSede, sinAsignar };
+}
+
+// Evalúa si la cadena de la tarea `t` es elegible para dividirse por sede y clasifica sus
+// items. Candado pre-inicio (conservador, decisión Gabriel/Pit 14-jul): raíz packaging en
+// pending/assigned/in_progress SIN evidencia en items, hijos despacho en pending/assigned,
+// cero fotos de despacho, cero items sin sede. `t` puede ser CUALQUIER tarea del vínculo:
+// se resuelve la raíz por parentId. Devuelve { root, hijos, clasif, sedes:[{sede,items}]
+// (orden: más items primero — esa sede se queda con la raíz existente), hijoSede:Map,
+// elegible, motivo }. NO muta nada (evaluación pura sobre el array vivo).
+function evaluarDivisionSedes(tasks, t) {
+  const res = { root: null, hijos: [], clasif: null, sedes: [], hijoSede: new Map(), elegible: false, motivo: null };
+  const fail = m => { res.motivo = m; return res; };
+  const root = t.parentId ? tasks.find(x => x.id === t.parentId) : t;
+  if (!root) return fail('No se encontró la tarea raíz de la cadena');
+  res.root = root;
+  res.hijos = tasks.filter(x => x.parentId === root.id && x.status !== 'cancelled');
+  if (['completed', 'validated', 'cancelled'].includes(root.status))
+    return fail('La cadena ya está ' + (root.status === 'cancelled' ? 'cancelada' : 'cerrada') + ' — solo se divide una cadena antes de terminar el trabajo');
+  if (root.type !== 'packaging')
+    return fail('La raíz de la cadena no es una tarea de empaque (tipo: ' + (root.type || '?') + ') — la división por sede crea mini-cadenas empaque→despacho');
+  if (!root.sdvId)
+    return fail('La cadena no está vinculada a una solicitud SDV');
+  if (Array.isArray(root.odooRefs) && root.odooRefs.length > 1)
+    return fail('La cadena es multi-orden — la división por sede de cadenas multi-orden aún no está soportada');
+  const hijoRaro = res.hijos.find(h => !['dispatch_order', 'warehouse_move'].includes(h.type));
+  if (hijoRaro)
+    return fail('La cadena tiene una subtarea activa de tipo "' + hijoRaro.type + '" — resuélvela antes de dividir');
+  const hijoAvanzado = res.hijos.find(h => !['pending', 'assigned'].includes(h.status));
+  if (hijoAvanzado)
+    return fail('El despacho "' + hijoAvanzado.title + '" ya está en curso (' + hijoAvanzado.status + ') — la división solo aplica antes de iniciar');
+  const conEvidencia = [root, ...res.hijos].find(x =>
+    (x.items || []).some(i => (i.evidence_images || []).length || i.confirmado || i.deliveryStatus) ||
+    (x.fotos_recepcion || []).length || (x.fotos_vehiculo || []).length || (x.fotos_entrega || []).length);
+  if (conEvidencia)
+    return fail('La cadena ya tiene evidencia registrada ("' + conEvidencia.title + '") — no se puede reestructurar sin perder trazabilidad');
+  const itemsRoot = root.items || [];
+  if (!itemsRoot.length)
+    return fail('La tarea de empaque no tiene artículos cargados — sincroniza el pick antes de dividir');
+  res.clasif = clasificarItemsPorSede(itemsRoot);
+  // Orden: sede con MÁS items primero (se queda con la raíz existente); empate → alfabético.
+  res.sedes = [...res.clasif.porSede.entries()]
+    .map(([sede, its]) => ({ sede, items: its }))
+    .sort((a, b) => (b.items.length - a.items.length) || (a.sede < b.sede ? -1 : 1));
+  if (res.clasif.sinAsignar.length)
+    return fail('Hay ' + res.clasif.sinAsignar.length + ' artículo(s) sin sede clara — corrige su ubicación en Odoo y re-sincroniza el pick antes de dividir');
+  if (res.sedes.length < 2)
+    return fail(res.sedes.length === 1
+      ? 'Todos los artículos están en la misma sede (' + res.sedes[0].sede + ') — no hay nada que dividir'
+      : 'No hay artículos clasificables por sede');
+  // Emparejar cada hijo despacho existente con UNA sede (por `localidad` o por sus items);
+  // ambiguo/total → sede ancla. Dos hijos en la misma sede = no hay emparejado 1-a-1 → bloquea.
+  const anchor = res.sedes[0].sede;
+  const usadas = new Set();
+  for (const h of res.hijos) {
+    let s = String(h.localidad || '').trim().toUpperCase();
+    if (!s || !res.sedes.some(x => x.sede === s)) {
+      const cl = clasificarItemsPorSede(h.items || []);
+      const ss = [...cl.porSede.keys()];
+      s = (ss.length === 1 && res.sedes.some(x => x.sede === ss[0])) ? ss[0] : anchor;
+    }
+    if (usadas.has(s))
+      return fail('La cadena tiene más de un despacho para la sede ' + s + ' — no se pueden emparejar 1-a-1 con las sedes; divide manualmente');
+    usadas.add(s);
+    res.hijoSede.set(h.id, s);
+  }
+  res.elegible = true;
+  return res;
 }
 
 // Cálculo central. opts.localidad = código de sede o null (todas). Ventana N días (calibrable).
@@ -16645,6 +16775,269 @@ const server = http.createServer(async (req, res) => {
       const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
       res.writeHead(odooDown ? 503 : 500,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:false,error: odooDown ? 'No se pudo consultar Odoo en este momento. Intenta de nuevo.' : msg}));
+    }
+    return;
+  }
+
+  // POST /api/wwp/tasks/:id/dividir-sedes — Capa 2 (14-jul, Decisión 28): divide una cadena
+  // SDV viva (empaque→despacho) en UNA mini-cadena POR SEDE (decisión Gabriel: empaque por
+  // sede, cada uno donde está la mercancía). `:id` = cualquier tarea del vínculo; el server
+  // resuelve y opera sobre la RAÍZ. Estructura resultante = 2+ ROOTS (parentId por sede):
+  // el gate madre-predecesora solo mira su propio parentId → el despacho de la sede A inicia
+  // cuando SU empaque completa, aunque el empaque B siga abierto (gate emparejado, sin tocar
+  // los gates). La raíz EXISTENTE se conserva como la mini-cadena de la sede con MÁS items
+  // (mantiene seq, encargado —si el grupo no lo pisa—, fotos_guia); por cada otra sede se
+  // crea raíz packaging nueva (nuevo seq, snapshot SDV completo H2-3) + su hijo despacho.
+  // body { apply?:bool (default false=PREVIEW), grupos?:[{sede, empaqueEncargados:[máx 2],
+  // despachoEncargados:[máx 2], due?:'YYYY-MM-DD'}], by, byUserId }. PREVIEW clasifica por
+  // sede (localidadDeUnidad, NO llama a Odoo) y reporta elegibilidad; APPLY exige grupos
+  // cubriendo TODAS las sedes. Candados: pre-inicio sin evidencia (409), partición exacta
+  // unión==total sin duplicados (422), kits nunca se parten, sinAsignar bloquea (regla Pit).
+  // RBAC admin (reestructura potente, consistente con sync-pick).
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/dividir-sedes$/) && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    const id = reqPath.split('/')[4];
+    const _bad = (code, error, extra) => { res.writeHead(code,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error, ...(extra||{})})); };
+    try {
+      const d = await readBody(req);
+      const apply = d.apply === true;
+      const tasks = loadWwpTasks();
+      const t = tasks.find(x => x.id === id);
+      if (!t) { _bad(404, 'Tarea no encontrada'); return; }
+      const ev = evaluarDivisionSedes(tasks, t);
+      const _binOf = it => String(it.selected_location_name || (Array.isArray(it.unitBins) && it.unitBins[0]) || '')
+        .replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
+      const _itemPreview = it => ({ item_id: it.item_id, product_name: it.product_name || '', sku: it.sku || '',
+        unidades: it.quantity || 1, bin: _binOf(it), ...(it.kitId ? { kitId: it.kitId } : {}), ...(it.isKit ? { isKit: true } : {}) });
+      const previewSedes = (ev.sedes || []).map(s => ({ sede: s.sede, items: s.items.map(_itemPreview), nItems: s.items.length }));
+      const previewSin = ((ev.clasif && ev.clasif.sinAsignar) || []).map(x => ({ ..._itemPreview(x.item), motivo: x.motivo }));
+      if (!apply) {
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, preview:true, sedes: previewSedes, sinAsignar: previewSin,
+          raiz: ev.root ? { id: ev.root.id, title: ev.root.title, status: ev.root.status } : null,
+          elegible: ev.elegible, ...(ev.elegible ? {} : { motivoNoElegible: ev.motivo }) }));
+        return;
+      }
+      // ── APPLY ──────────────────────────────────────────────────────────────
+      if (!ev.elegible) { _bad(409, ev.motivo, { sinAsignar: previewSin }); return; }
+      const root = ev.root;
+      const grupos = Array.isArray(d.grupos) ? d.grupos : null;
+      if (!grupos || !grupos.length) { _bad(400, 'Faltan los grupos por sede (encargados de empaque y despacho de cada sede)'); return; }
+      const sedesDetectadas = ev.sedes.map(s => s.sede);
+      const gruposPorSede = new Map();
+      for (const g of grupos) {
+        const sede = String((g && g.sede) || '').trim().toUpperCase();
+        if (!sede) { _bad(400, 'Cada grupo debe indicar su sede'); return; }
+        if (!sedesDetectadas.includes(sede)) { _bad(400, 'Sede desconocida en grupos: ' + sede + ' (sedes de la cadena: ' + sedesDetectadas.join(', ') + ')'); return; }
+        if (gruposPorSede.has(sede)) { _bad(400, 'Sede duplicada en grupos: ' + sede); return; }
+        for (const k of ['empaqueEncargados','despachoEncargados']) {
+          if (g[k] !== undefined && !Array.isArray(g[k])) { _bad(400, k + ' debe ser una lista de {id,name}'); return; }
+          if ((g[k] || []).length > 2) { _bad(400, 'Máximo 2 encargados de ' + (k === 'empaqueEncargados' ? 'empaque' : 'despacho') + ' por sede'); return; }
+        }
+        if (g.due !== undefined && g.due !== null && g.due !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(g.due))) { _bad(400, 'Fecha inválida en el grupo ' + sede + ' (formato YYYY-MM-DD)'); return; }
+        gruposPorSede.set(sede, g);
+      }
+      const faltantes = sedesDetectadas.filter(s => !gruposPorSede.has(s));
+      if (faltantes.length) { _bad(400, 'Faltan grupos para: ' + faltantes.join(', ') + ' — la partición debe cubrir TODAS las sedes'); return; }
+      const sdvList = loadSdv();
+      const sdvIdx = sdvList.findIndex(s => s.id === root.sdvId);
+      if (sdvIdx < 0) { _bad(409, 'No se encontró la solicitud SDV de la cadena (' + root.sdvId + ')'); return; }
+      const sol = sdvList[sdvIdx];
+      // ── Candado de partición (422): unión de subsets == items de la raíz, sin duplicados.
+      // El server clasificó, así que no debería fallar — es el seguro antes de persistir.
+      const originalIds = (root.items || []).map(i => i.item_id);
+      const unionIds = [];
+      ev.sedes.forEach(s => s.items.forEach(i => unionIds.push(i.item_id)));
+      const _seen = new Set();
+      const hayDup = unionIds.some(x => _seen.has(x) ? true : (_seen.add(x), false));
+      if (hayDup || unionIds.length !== originalIds.length || originalIds.some(x => !_seen.has(x))) {
+        _bad(422, 'Partición inconsistente: la división no cubre exactamente los artículos de la cadena. No se aplicó ningún cambio.');
+        return;
+      }
+      const now = new Date().toISOString();
+      const _users = loadAuthUsers();
+      const byName = jp.name || d.by || 'Sistema';
+      const byUserId = jp.userId || d.byUserId || '';
+      const cliente = root.client || sol.clienteNombre || root.odooRef || 'Sin cliente';
+      const stripPrefix = s => String(s || '').replace(/^\[[^\]]+\]\s*/, '');
+      const notifTargets = [];
+      // Asignación (patrón createSdvTasks): pisa manager/co/assignedTo; máx 2 (1º manager).
+      const asignar = (task, encargados, nota) => {
+        const enc = (encargados || []).filter(e => e && e.id).slice(0, 2);
+        if (!enc.length) return false;
+        const u = _users.find(x => x.id === enc[0].id);
+        task.managerId = enc[0].id;
+        task.managerName = enc[0].name || (u && u.name) || '';
+        task.assignedTo = (u && u.odooId) ? ('oe_' + u.odooId) : null;
+        task.coManagerIds = enc[1] ? [enc[1].id] : [];
+        if (task.status === 'pending') {
+          task.status = 'assigned';
+          task.statusHistory.push({ status:'assigned', date: now, by: byName, note: nota });
+        }
+        notifTargets.push(task);
+        return true;
+      };
+      // Copia limpia de items para tareas nuevas (defensa: el candado ya garantiza cero evidencia).
+      const copiaLimpia = its => its.map(i => {
+        const c = JSON.parse(JSON.stringify(i));
+        c.evidence_images = []; c.confirmado = false; c.status = 'pending';
+        c.deliveryStatus = ''; c.deliveryDamageType = '';
+        return c;
+      });
+      // sdvArticulos por sede = partición autoritativa del presupuesto H3-3 (patrón multi-orden:
+      // sin subset, dos sedes se contarían mutuamente los faltantes — clase S09644).
+      const _artBySku = new Map(); (root.sdvArticulos || []).forEach(a => { const k = (a.sku || '').trim(); if (k && !_artBySku.has(k)) _artBySku.set(k, a); });
+      const sdvArtDeSubset = subset => {
+        const acc = new Map();
+        subset.forEach(i => {
+          if (i.isKit) return;
+          const k = (i.sku || '').trim(); if (!k) return;
+          if (!acc.has(k)) acc.set(k, { sku: k, quantity: 0, name: i.product_name || ((_artBySku.get(k) || {}).name) || '' });
+          acc.get(k).quantity += (parseInt(i.quantity, 10) || 1);
+        });
+        return [...acc.values()];
+      };
+      // Presupuesto original NO presente en ningún subset (unidades omitidas del pick) → queda
+      // en la ANCLA (heredera de la cadena original): un re-sync futuro ahí puede traerlas.
+      const anchorSede = ev.sedes[0].sede;
+      const anchorSubset = ev.sedes[0].items;
+      const otras = ev.sedes.slice(1);
+      const usadoPorSku = new Map();
+      ev.sedes.forEach(s => sdvArtDeSubset(s.items).forEach(a => usadoPorSku.set(a.sku, (usadoPorSku.get(a.sku) || 0) + a.quantity)));
+      const anchorArts = sdvArtDeSubset(anchorSubset);
+      (root.sdvArticulos || []).forEach(a => {
+        const k = (a.sku || '').trim(); if (!k) return;
+        const resto = (parseInt(a.quantity, 10) || 1) - (usadoPorSku.get(k) || 0);
+        if (resto > 0) {
+          const ex = anchorArts.find(x => x.sku === k);
+          if (ex) ex.quantity += resto; else anchorArts.push({ sku: k, quantity: resto, name: a.name || '' });
+        }
+      });
+      const hijoTipo = (ev.hijos[0] && ev.hijos[0].type) || 'dispatch_order';
+      const hijoLabel = hijoTipo === 'warehouse_move' ? 'Almacenamiento ' : 'Despacho ';
+      const nuevas = [];
+      const crearHijo = (parent, sede, subset, g) => {
+        const h = createWwpTaskFromSdv(sol, byName);
+        h.type = hijoTipo;
+        h.title = '[' + sede + '] ' + hijoLabel + cliente;
+        h.parentId = parent.id;
+        h.subIndex = 2;
+        h.dependsOnPrev = true;
+        h.localidad = sede;
+        h.items = copiaLimpia(subset);
+        if (h.items.length) h.itemsUpdatedAt = now;
+        h.sdvArticulos = sdvArtDeSubset(subset);
+        h.statusHistory[0].note = 'Creada por división por sede desde la cadena #' + (root.seq || root.id);
+        if (g && g.due) h.dueDate = g.due;
+        if (g) asignar(h, g.despachoEncargados, 'Asignada al dividir por sede');
+        tasks.push(h); nuevas.push(h);
+        return h;
+      };
+      // 1) ANCLA: la raíz existente = mini-cadena de la sede con MÁS items (conserva seq,
+      //    evidencia-guía y encargado salvo que el grupo lo pise).
+      const gAnchor = gruposPorSede.get(anchorSede);
+      root.items = anchorSubset;
+      root.itemsUpdatedAt = now;
+      root.sdvArticulos = anchorArts;
+      root.localidad = anchorSede;
+      root.title = '[' + anchorSede + '] ' + stripPrefix(root.title);
+      root.statusHistory.push({ status: root.status, date: now, by: byName,
+        note: 'División por sede: esta cadena queda con ' + anchorSede + ' (' + anchorSubset.length + ' artículo/s); nuevas cadenas: ' + otras.map(o => o.sede).join(', ') });
+      if ((gAnchor.empaqueEncargados || []).length) asignar(root, gAnchor.empaqueEncargados, 'Encargado de empaque reasignado al dividir por sede');
+      root.updatedAt = now;
+      // 2) Hijo despacho de la sede ancla: conservar el existente acotado; si no existe, crearlo.
+      const anchorIds = new Set(anchorSubset.map(i => i.item_id));
+      let anchorHijo = ev.hijos.find(h => ev.hijoSede.get(h.id) === anchorSede) || null;
+      if (anchorHijo) {
+        const filtrados = (anchorHijo.items || []).filter(i => anchorIds.has(i.item_id));
+        anchorHijo.items = filtrados.length ? filtrados : copiaLimpia(anchorSubset);
+        anchorHijo.itemsUpdatedAt = now;
+        anchorHijo.sdvArticulos = sdvArtDeSubset(anchorSubset);
+        anchorHijo.localidad = anchorSede;
+        anchorHijo.title = '[' + anchorSede + '] ' + stripPrefix(anchorHijo.title);
+        anchorHijo.statusHistory.push({ status: anchorHijo.status, date: now, by: byName,
+          note: 'División por sede: acotado a ' + anchorSede + ' (' + anchorHijo.items.length + ' artículo/s)' });
+        if ((gAnchor.despachoEncargados || []).length) asignar(anchorHijo, gAnchor.despachoEncargados, 'Encargado de despacho reasignado al dividir por sede');
+        if (gAnchor.due) anchorHijo.dueDate = gAnchor.due;
+        anchorHijo.updatedAt = now;
+      } else {
+        anchorHijo = crearHijo(root, anchorSede, anchorSubset, gAnchor);
+      }
+      const cadenas = [{ sede: anchorSede, rootId: root.id, rootSeq: root.seq || null, dispatchIds: [anchorHijo.id], nItems: anchorSubset.length, ancla: true }];
+      // 3) Por cada OTRA sede: raíz packaging nueva + su hijo despacho (reparentando el hijo
+      //    existente de esa sede si lo hay — conserva su encargado/due si el grupo no los pisa).
+      for (const s of otras) {
+        const g = gruposPorSede.get(s.sede);
+        const r2 = createWwpTaskFromSdv(sol, byName);
+        r2.type = 'packaging';
+        r2.title = '[' + s.sede + '] Empaque ' + cliente;
+        r2.description = 'Empaque previo al despacho — división por sede de la cadena #' + (root.seq || root.id) + ' — solicitud SDV ' + sol.id;
+        r2.seq = nextTaskSeq();   // raíz nueva = tarea sin parentId → lleva su propio seq (convención de los callers)
+        r2.localidad = s.sede;
+        r2.items = copiaLimpia(s.items);
+        if (r2.items.length) r2.itemsUpdatedAt = now;
+        r2.sdvArticulos = sdvArtDeSubset(s.items);
+        r2.statusHistory[0].note = 'Creada por división por sede desde la cadena #' + (root.seq || root.id);
+        if ((g.empaqueEncargados || []).length) asignar(r2, g.empaqueEncargados, 'Asignada al dividir por sede');
+        tasks.push(r2); nuevas.push(r2);
+        const idsSede = new Set(s.items.map(i => i.item_id));
+        const hExist = ev.hijos.find(h => h.id !== anchorHijo.id && ev.hijoSede.get(h.id) === s.sede);
+        let h2;
+        if (hExist) {
+          hExist.parentId = r2.id;   // re-parentar: su empaque ahora es la raíz de SU sede
+          const filtrados = (hExist.items || []).filter(i => idsSede.has(i.item_id));
+          hExist.items = filtrados.length ? filtrados : copiaLimpia(s.items);
+          hExist.itemsUpdatedAt = now;
+          hExist.sdvArticulos = sdvArtDeSubset(s.items);
+          hExist.localidad = s.sede;
+          hExist.title = '[' + s.sede + '] ' + stripPrefix(hExist.title);
+          hExist.statusHistory.push({ status: hExist.status, date: now, by: byName,
+            note: 'División por sede: movido a la cadena de ' + s.sede + ' (' + hExist.items.length + ' artículo/s)' });
+          if ((g.despachoEncargados || []).length) asignar(hExist, g.despachoEncargados, 'Encargado de despacho reasignado al dividir por sede');
+          if (g.due) hExist.dueDate = g.due;
+          hExist.updatedAt = now;
+          h2 = hExist;
+        } else {
+          h2 = crearHijo(r2, s.sede, s.items, g);
+        }
+        cadenas.push({ sede: s.sede, rootId: r2.id, rootSeq: r2.seq || null, dispatchIds: [h2.id], nItems: s.items.length, ancla: false });
+      }
+      // 4) Vínculo SDV: las tareas nuevas entran a sol.wwpTareas (idempotente); wwpTaskId sigue
+      //    apuntando a la raíz conservada (el cierre de SDV escanea por sdvId, no por wwpTaskId
+      //    — verificado: gobierna por los dispatch_order del vínculo, multi-raíz OK).
+      sol.wwpTareas = sol.wwpTareas || [];
+      nuevas.forEach(nt => { if (!sol.wwpTareas.some(w => w.taskId === nt.id)) sol.wwpTareas.push({ taskId: nt.id, titulo: nt.title, creadoAt: now }); });
+      sol.wwpTareas.forEach(w => { const tt = tasks.find(x => x.id === w.taskId); if (tt) w.titulo = tt.title; });
+      sdvList[sdvIdx] = sol;
+      saveSdv(sdvList);
+      saveWwpTasks(tasks);
+      // 5) Trazabilidad + tiempo real + notificaciones (usuario/timestamp/estado, §5C).
+      appendAuditLog('chain_sede_split', {
+        sdvId: sol.id, folio: sol.folio || '', rootId: root.id, rootSeq: root.seq || null, anchorSede,
+        sedes: cadenas.map(c => ({ sede: c.sede, rootId: c.rootId, dispatchIds: c.dispatchIds, nItems: c.nItems, ancla: !!c.ancla,
+          empaqueEncargados: ((gruposPorSede.get(c.sede) || {}).empaqueEncargados || []).map(e => e && e.id),
+          despachoEncargados: ((gruposPorSede.get(c.sede) || {}).despachoEncargados || []).map(e => e && e.id) })),
+        totalItems: originalIds.length, by: byName, byUserId
+      });
+      broadcastWwpTasks('task_updated', root);
+      nuevas.forEach(nt => broadcastWwpTasks(nt.parentId ? 'subtask_created' : 'task_created', nt, nt.parentId ? { parentId: nt.parentId } : {}));
+      notifTargets.forEach(task => {
+        try {
+          createNotification(task.managerId, {
+            type: 'task_assigned',
+            title: task.parentId ? '📋 Subtarea asignada' : '📋 Nueva tarea asignada',
+            message: `"${task.title}"${task.odooRef ? ' · ' + task.odooRef : ''}${task.dueDate ? ' · Vence: ' + task.dueDate : ''}`,
+            relatedTaskId: task.id, priority: task.priority, dueDate: task.dueDate, by: byName,
+            target: { kind: 'task', id: task.id }
+          });
+        } catch (ne) { console.error('Notif dividir-sedes:', ne.message); }
+      });
+      res.writeHead(200,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok: true, applied: true, sdvId: sol.id, folio: sol.folio || '', cadenas }));
+    } catch (e) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:false, error: e.message }));
     }
     return;
   }
