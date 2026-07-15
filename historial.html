@@ -4631,6 +4631,15 @@ details[open].task-archive-section .task-archive-chevron{transform:rotate(180deg
 .sdv-lookup-info{font-size:var(--fs-sm);color:var(--text-2);margin-bottom:14px;min-height:20px}
 .sdv-lookup-info.ok{color:var(--green-text)}
 .sdv-lookup-info.err{color:var(--red-text)}
+/* Multi-orden: chips de las órdenes agregadas (solo visibles con 2+) */
+.sdv-ord-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.sdv-ord-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--border);background:var(--surface-2);color:var(--text-2)}
+.sdv-ord-chip-x{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:none;border-radius:50%;background:transparent;color:var(--text-3);cursor:pointer;padding:0;font-size:16px;line-height:1}
+.sdv-ord-chip-x:hover,.sdv-ord-chip-x:focus-visible{background:var(--red-bg);color:var(--red-text)}
+@media(pointer:coarse){.sdv-ord-chip-x{width:34px;height:34px}}
+/* Multi-orden: cabecera de grupo por orden dentro de la lista de artículos */
+.sdv-ord-group{padding:8px 14px 5px;font-size:11px;font-weight:700;color:var(--text-2);border-bottom:1px solid var(--border);background:var(--surface-3)}
+.sdv-ord-group span{font-weight:400;color:var(--text-3)}
 /* Ayuda contextual por campo (corregir en Odoo + refrescar) — touch-friendly */
 .sdv-help{display:inline-flex;align-items:center;justify-content:center;background:none;border:0;cursor:pointer;padding:2px;margin-left:5px;color:var(--text-muted);vertical-align:-3px}
 .sdv-help:hover{color:var(--brand-primary)}
@@ -6937,8 +6946,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               </button>
             </div>
             <div class="sdv-lookup-info" id="sdv-lookup-info"></div>
+            <!-- Multi-orden: chips de las órdenes agregadas (se pintan solo con 2+; con 1 el flujo es idéntico al de siempre) -->
+            <div class="sdv-ord-chips" id="sdv-orders-chips" style="display:none"></div>
             <div class="sdv-lookup-hint" style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:4px;line-height:1.45">
-              Escribe el N° de orden y toca <strong>Buscar / Actualizar</strong>. Traemos cliente, dirección y artículos directo de Odoo — tú solo confirmas quién recibe. Si corregiste algo en Odoo, vuelve a tocarlo para refrescar.
+              Escribe el N° de orden y toca <strong>Buscar / Actualizar</strong>. Traemos cliente, dirección y artículos directo de Odoo — tú solo confirmas quién recibe. Si corregiste algo en Odoo, vuelve a tocarlo para refrescar.<span id="sdv-multi-hint" style="display:none"> ¿El cliente tiene <strong>más de una orden</strong>? Busca la siguiente: se agrega a esta misma solicitud sin borrar la anterior.</span>
             </div>
           </div>
 
@@ -8947,7 +8958,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v193';
+var APP_BUILD = 'v194';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -34299,7 +34310,8 @@ var _sdvTipo = '';             // tipo seleccionado
 var _sdvItems = [];            // artículos confirmados (de Odoo)
 var _sdvOdooDir = '';          // dirección que trajo Odoo (restaurar al desmarcar decorador)
 var _sdvOdooCiudad = '';       // ciudad que trajo Odoo (ídem)
-var _sdvOrderRef = '';         // ref de orden resuelta
+var _sdvOrderRef = '';         // ref de orden resuelta (mono-orden / primera orden)
+var _sdvOrders = [];           // multi-orden (despacho_cliente): [{ref, client}] órdenes agregadas
 var _sdvSolicitudOrigenId = null; // si esta nueva SDV es "adicional" de una ya en despacho
 var _sdvOrigenPrev = '';       // valor previo del select origen (para revertir)
 var _sdvMisFiltro = '';        // filtro activo en "Mis solicitudes"
@@ -34409,6 +34421,11 @@ function sdvSetTipo(tipo) {
   _sdvTipo = tipo;
   _sdvItems = [];
   _sdvOrderRef = '';
+  _sdvOrders = [];
+  sdvRenderOrderChips();
+  // El hint de multi-orden solo aplica al tipo despacho (la acumulación está acotada a él)
+  var _mh = document.getElementById('sdv-multi-hint');
+  if (_mh) _mh.style.display = (tipo==='despacho_cliente') ? '' : 'none';
   // Solicitud especial no es "adicional" de otra orden en despacho — evita que un vínculo
   // iniciado antes de cambiar de tarjeta se cuele en el payload de esta solicitud.
   _sdvSolicitudOrigenId = null;
@@ -34476,9 +34493,42 @@ async function sdvBuscar() {
         return;
       }
     }
-    _sdvOrderRef = d.orderRef || d.retRef || ref;
-    _sdvItems = (d.items||[]).map(function(it,i){ return Object.assign({},it,{_idx:i, maxQty:it.quantity}); });
-    // Auto-llenar campos
+    // ── Multi-orden (solo despacho_cliente): las órdenes se ACUMULAN, no se pisan ──
+    var _resolvedRef = d.orderRef || d.retRef || ref;
+    // Sin pick: rechazar ANTES de tocar el estado (antes los items nuevos pisaban en memoria
+    // lo ya agregado aunque la búsqueda "fallara" — ahora lo anterior se conserva intacto).
+    if (d.noPick && _sdvTipo==='despacho_cliente') { sdvInfo('Sin pick ASSIGNED en Odoo para esta orden', 'err'); return; }
+    var _multi = _sdvTipo==='despacho_cliente';
+    var _existIdx = _multi ? _sdvOrders.findIndex(function(o){ return o.ref===_resolvedRef; }) : -1;
+    // Validación suave de mismo cliente: una SDV agrupa órdenes de UN solo cliente
+    if (_multi && _sdvOrders.length && _existIdx < 0) {
+      var _c0 = (_sdvOrders[0].client||'').trim().toLowerCase();
+      var _c1 = (d.client||'').trim().toLowerCase();
+      if (_c0 && _c1 && _c0 !== _c1) {
+        sdvInfo('Esta orden es de otro cliente'+(d.client?' ('+d.client+')':'')+' — una SDV agrupa órdenes del mismo cliente. No se agregó; lo anterior se conserva.', 'err');
+        return;
+      }
+    }
+    var _isPrimary = !_multi || !_sdvOrders.length || _existIdx===0;  // 1ª orden (o su refresh): auto-llena el formulario
+    var _fresh = (d.items||[]).map(function(it){ return Object.assign({},it,{maxQty:it.quantity, orderRef:_resolvedRef}); });
+    if (_existIdx >= 0) {
+      // Refresh de una orden ya agregada: reemplaza SOLO sus artículos
+      _sdvOrders[_existIdx] = { ref:_resolvedRef, client: d.client || _sdvOrders[_existIdx].client };
+      _sdvItems = _sdvItems.filter(function(it){ return it.orderRef!==_resolvedRef; }).concat(_fresh);
+    } else if (_multi && _sdvOrders.length) {
+      // Orden adicional del mismo cliente: acumular
+      _sdvOrders.push({ ref:_resolvedRef, client: d.client||'' });
+      _sdvItems = _sdvItems.concat(_fresh);
+    } else {
+      // Primera orden (y tipos sin acumulación: devolución/traslado): reemplaza, como siempre
+      _sdvOrders = [{ ref:_resolvedRef, client: d.client||'' }];
+      _sdvItems = _fresh;
+    }
+    _sdvItems.forEach(function(it,i){ it._idx=i; });   // _idx único sobre la lista plana
+    _sdvOrderRef = _sdvOrders[0].ref;
+    // Auto-llenar campos — solo con la 1ª orden (o su refresh): una orden adicional del
+    // mismo cliente NO pisa dirección/ciudad/receptor ya confirmados (la SDV tiene UNA entrega).
+    if (_isPrimary) {
     if (d.client) _sdv$('sdv-cliente').value = d.client;
     if (d.salesperson) { _sdv$('sdv-vendedora').value = d.salesperson; _sdv$('sdv-vendedora-int').value = d.salesperson; }
     // Decorador: guardar lo que trae Odoo (para restaurar al desmarcar) pero NO pisar
@@ -34501,11 +34551,13 @@ async function sdvBuscar() {
     // F3-3: aviso suave si Odoo no trae teléfono del contacto (nudge a corregirlo en la fuente).
     var _telEl = _sdv$('sdv-receptor-contacto'), _telWarnEl = document.getElementById('sdv-tel-warn');
     if (_telWarnEl) _telWarnEl.style.display = (!(_telEl && _telEl.value.trim()) && _sdvTipo !== 'traslado_interno') ? '' : 'none';
+    }
     // Info de resultado
     var infoMsg = _sdvOrderRef ? ('Orden: '+_sdvOrderRef) : '';
     if (d.tipo==='devolucion') infoMsg = 'RET: '+d.retRef+' ('+d.retState+') · Orden: '+d.orderRef;
-    if (d.noPick && _sdvTipo==='despacho_cliente') { sdvInfo('Sin pick ASSIGNED en Odoo para esta orden', 'err'); return; }
+    if (_multi && _sdvOrders.length>1) infoMsg = 'Órdenes: '+_sdvOrders.map(function(o){ return o.ref; }).join(', ');
     sdvInfo(infoMsg + ' · ' + _sdvItems.length + ' artículo(s)', 'ok');
+    sdvRenderOrderChips();
     sdvRenderItems();
     // Mostrar formulario de datos
     _sdv$('sdv-entrega-section').style.display = (_sdvTipo==='traslado_interno') ? 'none' : '';
@@ -34533,6 +34585,9 @@ async function sdvCrearAdicional(origenId) {
     if (!r.ok||!d.ok) { toast('Error al cargar la solicitud original'); return; }
     var s = d.solicitud;
     if (!s.odooOrderRef) { toast('Esta solicitud no tiene una orden de Odoo asociada; no se puede calcular qué cambió.'); return; }
+    // Multi-orden: el diff contra Odoo es POR ORDEN — sobre una SDV que agrupa varias
+    // órdenes aún no hay camino automático. Guía honesta en vez de un lookup roto.
+    if (s.odooOrderRefs && s.odooOrderRefs.length > 1) { toast('Esta solicitud agrupa varias órdenes ('+s.odooOrderRefs.join(', ')+'). La solicitud adicional automática aún no soporta multi-orden: crea una solicitud nueva buscando la orden puntual que cambió.', 10000); return; }
     toast('Consultando cambios en Odoo…');
     var rf = await authFetch('/api/sdv/'+origenId+'/odoo/refresh');
     var df = await rf.json();
@@ -34698,7 +34753,7 @@ function sdvRenderItems() {
   sec.style.display = '';
   cnt.textContent = _sdvItems.length + ' artículo(s)';
   var canDel = _sdvTipo === 'traslado_interno' || _sdvTipo === 'despacho_cliente'; // permite quitar: entregas parciales (feedback Ventas 8-jul)
-  list.innerHTML = _sdvItems.map(function(it) {
+  var rowHtml = function(it) {
     var img = it.image
       ? '<img class="sdv-item-img" src="'+it.image+'" alt="">'
       : '<div class="sdv-item-img-ph"><i data-lucide="package" style="width:14px;height:14px"></i></div>';
@@ -34715,13 +34770,56 @@ function sdvRenderItems() {
     return '<div class="sdv-item-row">'+img+
       '<div><div class="sdv-item-name">'+it.product_name+'</div>'+(it.sku?'<div class="sdv-item-sku">'+it.sku+'</div>':'')+'</div>'+
       ctrl+'</div>';
-  }).join('');
+  };
+  if (_sdvOrders.length > 1) {
+    // Multi-orden: artículos agrupados por orden (cabecera discreta por grupo)
+    list.innerHTML = _sdvOrders.map(function(o) {
+      var its = _sdvItems.filter(function(it){ return it.orderRef===o.ref; });
+      if (!its.length) return '';
+      return '<div class="sdv-ord-group">'+esc(o.ref)+' <span>· '+its.length+' artículo(s)</span></div>'+its.map(rowHtml).join('');
+    }).join('');
+  } else {
+    list.innerHTML = _sdvItems.map(rowHtml).join('');
+  }
   if (window.lucide) lucide.createIcons();
+}
+
+// ── Multi-orden: chips de las órdenes agregadas (solo se pintan con 2+) ───
+// Con una sola orden el flujo visible es EXACTAMENTE el de siempre (cero fricción extra).
+function sdvRenderOrderChips() {
+  var box = document.getElementById('sdv-orders-chips');
+  if (!box) return;
+  if (_sdvOrders.length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display = '';
+  box.innerHTML = _sdvOrders.map(function(o) {
+    return '<span class="sdv-ord-chip">'+esc(o.ref)+
+      '<button type="button" class="sdv-ord-chip-x" onclick="sdvQuitarOrden(\''+esc(o.ref)+'\')" title="Quitar esta orden y sus artículos" aria-label="Quitar orden '+esc(o.ref)+'">&times;</button></span>';
+  }).join('');
+}
+
+// Quitar una orden agregada: se van SUS artículos; el resto se conserva.
+function sdvQuitarOrden(ref) {
+  _sdvOrders = _sdvOrders.filter(function(o){ return o.ref!==ref; });
+  _sdvItems  = _sdvItems.filter(function(it){ return it.orderRef!==ref; });
+  _sdvItems.forEach(function(it,i){ it._idx=i; });
+  _sdvOrderRef = _sdvOrders.length ? _sdvOrders[0].ref : '';
+  sdvRenderOrderChips();
+  sdvRenderItems();
+  if (!_sdvItems.length) { _sdv$('sdv-extra-section').style.display='none'; _sdv$('sdv-interno-section').style.display='none'; }
+  sdvInfo(_sdvOrders.length
+    ? (_sdvOrders.length>1?'Órdenes: ':'Orden: ')+_sdvOrders.map(function(o){ return o.ref; }).join(', ')+' · '+_sdvItems.length+' artículo(s)'
+    : 'Orden quitada. Busca una orden para continuar.', _sdvOrders.length?'ok':'');
 }
 
 function sdvQuitarItem(idx) {
   _sdvItems = _sdvItems.filter(function(it){ return it._idx!==idx; });
   _sdvItems.forEach(function(it,i){ it._idx=i; });
+  // Multi-orden: si una orden se quedó sin artículos, su chip también se va
+  if (_sdvOrders.length > 1) {
+    _sdvOrders = _sdvOrders.filter(function(o){ return _sdvItems.some(function(it){ return it.orderRef===o.ref; }); });
+    if (_sdvOrders.length) _sdvOrderRef = _sdvOrders[0].ref;
+    sdvRenderOrderChips();
+  }
   sdvRenderItems();
   if (!_sdvItems.length) { _sdv$('sdv-extra-section').style.display='none'; _sdv$('sdv-interno-section').style.display='none'; }
 }
@@ -35450,9 +35548,14 @@ async function sdvEnviar() {
   try {
     var body = {
       tipoSolicitud: _sdvTipo,
-      odooOrderRef: _sdvOrderRef,
-      articulosOdoo: _sdvItems.map(function(it){ return {item_id:it.item_id,odoo_product_id:it.odoo_product_id,product_name:it.product_name,sku:it.sku||'',quantity:it.quantity}; }),
+      articulosOdoo: _sdvItems.map(function(it){ return {item_id:it.item_id,odoo_product_id:it.odoo_product_id,product_name:it.product_name,sku:it.sku||'',quantity:it.quantity,orderRef:it.orderRef||_sdvOrderRef||''}; }),
     };
+    // Multi-orden (contrato Carl): odooOrderRefs = array 1..N (solo despacho_cliente acumula).
+    // Con 1 orden se manda TAMBIÉN odooOrderRef string, como siempre (cero regresión mono-orden);
+    // devolución/traslado siguen mandando solo el string.
+    var _refs = (_sdvTipo==='despacho_cliente') ? _sdvOrders.map(function(o){ return o.ref; }) : [];
+    if (_refs.length) body.odooOrderRefs = _refs;
+    if (_refs.length <= 1) body.odooOrderRef = _sdvOrderRef;
     if (_sdvSolicitudOrigenId) body.solicitudOrigenId = _sdvSolicitudOrigenId;
     if (_sdvTipo!=='traslado_interno') {
       Object.assign(body,{
@@ -35489,6 +35592,10 @@ async function sdvEnviar() {
 }
 
 // ── Envío de solicitud especial — sin flujo Odoo, sin gates de pick/RET ───
+// ⚠ Regla del proyecto: toda feature nueva del form de creación se replica también en el
+// modal "Corregir" (sdv-esp-edit-modal). PENDIENTE aquí: MULTI-ORDEN (odooOrderRefs) — el
+// form de despacho ya acumula varias órdenes del mismo cliente (v1); la solicitud especial
+// y su modal Corregir siguen mono-orden. Replicar cuando se apruebe esa fase.
 async function sdvEnviarEspecial() {
   var subtipo = (_sdv$('sdv-esp-subtipo')||{}).value || '';
   if (!subtipo) { toast('Elige el tipo de solicitud'); return; }
@@ -35536,6 +35643,7 @@ function sdvReset(skipConfirm) {
     if (!confirm('¿Limpiar el formulario? Se perderán los datos ingresados.')) return;
   }
   _sdvTipo=''; _sdvItems=[]; _sdvOrderRef=''; _sdvSolicitudOrigenId=null;
+  _sdvOrders=[]; sdvRenderOrderChips();
   ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'].forEach(function(t){
     var b=document.getElementById('sdv-tipo-'+t); if(b) b.classList.remove('selected');
   });
@@ -37556,7 +37664,7 @@ async function sdvVerDetalle(id, ctx) {
     var isOps = _user&&(_user.role==='admin'||_user.role==='manager');
     // Artículos — sin image en payload (las SDV se guardan sin base64): el placeholder lleva
     // data-oprodimg y hydrateProductImgs trae la foto on-demand desde Odoo por odoo_product_id.
-    var artHtml = (s.articulosOdoo||[]).map(function(it){
+    var _artRow = function(it){
       var imgHtml;
       if (it.image) imgHtml = '<img class="sdv-item-img" src="'+esc(it.image)+'" alt="">';
       else imgHtml = '<div class="sdv-item-img-ph"'+(it.odoo_product_id?' data-oprodimg="'+esc(String(it.odoo_product_id))+'"':'')+'><i data-lucide="package" style="width:14px;height:14px"></i></div>';
@@ -37564,7 +37672,21 @@ async function sdvVerDetalle(id, ctx) {
         imgHtml+
         '<div><div class="sdv-item-name">'+esc(it.product_name)+'</div>'+(it.sku?'<div class="sdv-item-sku">'+esc(it.sku)+'</div>':'')+'</div>'+
         '<span class="sdv-item-qty">×'+esc(it.quantity)+'</span></div>';
-    }).join('');
+    };
+    // Multi-orden: agrupar los artículos por la orden a la que pertenecen (item.orderRef)
+    var _multiRefs = (s.odooOrderRefs && s.odooOrderRefs.length > 1) ? s.odooOrderRefs : null;
+    var artHtml;
+    if (_multiRefs) {
+      var _grpHdr = function(txt,n){ return '<div style="font-size:11px;font-weight:700;color:var(--text-2);margin:8px 0 6px">'+txt+' <span style="font-weight:400;color:var(--text-3)">· '+n+' artículo(s)</span></div>'; };
+      artHtml = _multiRefs.map(function(refO){
+        var its = (s.articulosOdoo||[]).filter(function(it){ return (it.orderRef||'')===refO; });
+        return its.length ? _grpHdr(esc(refO), its.length)+its.map(_artRow).join('') : '';
+      }).join('');
+      var _sinRef = (s.articulosOdoo||[]).filter(function(it){ return _multiRefs.indexOf(it.orderRef||'') < 0; });
+      if (_sinRef.length) artHtml += _grpHdr('Sin orden asignada', _sinRef.length)+_sinRef.map(_artRow).join('');
+    } else {
+      artHtml = (s.articulosOdoo||[]).map(_artRow).join('');
+    }
     var acciones = '';
     // Contexto Bandeja (Ops)
     if (ctx==='bandeja' && isOps && s.estado==='pendiente_revision') {
@@ -37673,6 +37795,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+esc(s.gpsCoords)+' 🗺</a></dd></div>':'')+
           (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
+          (_multiRefs?'<div class="sdv-detail-row"><dt>Órdenes (Odoo)</dt><dd>'+_multiRefs.map(function(x){ return '<span class="eo-ops-chip">'+esc(x)+'</span>'; }).join(' ')+'</dd></div>':'')+
           (s.odooOrderRef?'<div class="sdv-detail-row"><dt>Despacho (Odoo)</dt><dd id="sdv-pickstatus"><span style="color:var(--text-3);font-size:12px">Consultando…</span></dd></div>':'')+
         '</div>'+
         (s.statusHistory&&s.statusHistory.length?'<div class="sdv-detail-section"><h4>Seguimiento</h4>'+s.statusHistory.map(function(h){ return '<div class="sdv-detail-row"><dt>'+(SDV_ESTADO_LABEL[h.estado]||h.estado)+'</dt><dd>'+sdvFmtDate(h.at)+(h.nombre?' · '+esc(h.nombre):'')+(h.nota?' — '+esc(h.nota):'')+'</dd></div>'; }).join('')+'</div>':'')+

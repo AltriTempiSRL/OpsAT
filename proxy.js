@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v193';
+const APP_BUILD = 'v194';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1641,11 +1641,17 @@ function getOrderClaims(orderRef, excludeRootId) {
   const claims = {}; // pid → { idxs:{idx:{seq,title,taskId}}, productName }
   tasks.forEach(t => {
     if (['cancelled','validated'].includes(t.status)) return;
-    if (normRef(t.odooRef) !== key) return;
+    // Multi-orden (14-jul): la raíz de una cadena multi lleva odooRefs=[...]. Matchea si
+    // CUALQUIERA de sus órdenes es la consultada, y solo cuentan sus items de ESA orden
+    // (item.orderRef); un item sin orderRef cuenta siempre (conservador: mejor sobre-reclamar
+    // que asignar la misma unidad a dos cadenas). Mono-orden: comportamiento idéntico.
+    const _tRefs = (Array.isArray(t.odooRefs) && t.odooRefs.length) ? t.odooRefs : [t.odooRef];
+    if (!_tRefs.some(r => normRef(r) === key)) return;
     const root = rootOf(t);
     if (excludeRootId && root === excludeRootId) return; // misma cadena → no bloquea
     const rt = byId[root] || t;
-    (t.items||[]).filter(i=>i.selected && i.odoo_product_id && !i.isKit).forEach(i => {
+    (t.items||[]).filter(i=>i.selected && i.odoo_product_id && !i.isKit
+      && (!i.orderRef || normRef(i.orderRef) === key)).forEach(i => {
       const pid = i.odoo_product_id;
       if (!claims[pid]) claims[pid] = { idxs:{}, productName:i.product_name||'' };
       claims[pid].idxs[i.unit_index||1] = { seq:rt.seq||null, title:rt.title||t.title, taskId:t.id };
@@ -1665,7 +1671,13 @@ function getOrderClaims(orderRef, excludeRootId) {
 // para reusarlo al CREAR la cadena SDV (los items viajan solos; el banner "Sincronizar"
 // queda como respaldo). Lógica idéntica, cubierta por _test_v113.mjs. Read-only sobre `t`.
 async function buildPickMergeForTask(t, opts = {}) {
-  if (!t.odooRef) return { ok:true, hasChanges:false, reason:'sin orden' };
+  // Multi-orden (14-jul): la RAÍZ (empaque) de una cadena multi-orden lleva `t.odooRefs`
+  // (array de órdenes) — se itera cada orden y se CONCATENAN los items, etiquetando cada
+  // uno con su `orderRef`. Los hijos (despachos) son mono-orden (t.odooRef = una orden) →
+  // ruta single de siempre, byte-idéntica. Sin `odooRefs` NO se parsea el string joined
+  // (tareas legacy con "S0..., S0..." conservan su comportamiento actual).
+  const _mergeRefs = (Array.isArray(t.odooRefs) && t.odooRefs.length) ? t.odooRefs : (t.odooRef ? [t.odooRef] : []);
+  if (!_mergeRefs.length) return { ok:true, hasChanges:false, reason:'sin orden' };
   // v113: primera carga (tarea sin artículos seleccionados) → SOLO picks 'assigned'.
   // Un pick 'done' es historia de otro despacho de la misma orden: incluirlo hacía que
   // la tarea de una 2ª SDV heredara los artículos ya despachados por la 1ª (caso S09644).
@@ -1674,7 +1686,23 @@ async function buildPickMergeForTask(t, opts = {}) {
   const _firstLoad = !(t.items||[]).some(i => i.selected);
   // Capa 1: con selección explícita (opts.selectedPickIds) el stateFilter es indiferente
   // (buildItemsFromPicks lo ignora ante selección), pero se mantiene la ruta de primera carga.
-  const pr = await buildItemsFromPicks(t.odooRef, _firstLoad ? ['assigned'] : undefined, opts);
+  let pr;
+  if (_mergeRefs.length === 1) {
+    pr = await buildItemsFromPicks(_mergeRefs[0], _firstLoad ? ['assigned'] : undefined, opts);
+  } else {
+    // Concatenar por orden. item_id ya es único entre órdenes ('oi_<pid>_<pickSuffix>':
+    // el nombre del pick es único en Odoo). Si UNA orden no tiene pick, se sigue con las
+    // demás; noPick solo si NINGUNA aportó fuente. Un fallo de Odoo lanza (el caller decide).
+    pr = { noPick:true, items:[], picks:[], pickNames:[] };
+    for (const _ref of _mergeRefs) {
+      const part = await buildItemsFromPicks(_ref, _firstLoad ? ['assigned'] : undefined, opts);
+      if (part.noPick) continue;
+      pr.noPick = false;
+      (part.items||[]).forEach(it => { it.orderRef = _ref; pr.items.push(it); });
+      (part.picks||[]).forEach(p => { pr.picks.push({ ...p, orderRef:_ref }); });
+      (part.pickNames||[]).forEach(n => pr.pickNames.push(n));
+    }
+  }
   if (pr.noPick) return { ok:true, hasChanges:false, noPick:true };
   const sBin = b => (b||'').replace(/^ALVEN\/Stock\//i,'').replace(/^WH\/Stock\//i,'');
   // Estado de cada pick (done/assigned) por nombre
@@ -1710,6 +1738,7 @@ async function buildPickMergeForTask(t, opts = {}) {
     (targByPid[it.odoo_product_id] = targByPid[it.odoo_product_id] || []).push(
       { pid:it.odoo_product_id, bin:sBin(bin), sku:it.sku, barcode:it.barcode, name:it.product_name, image:it.image,
         kitId:it.kitId||null, kitRef:it.kitRef||'', kitName:it.kitName||'', kitImage:it.kitImage||'',
+        orderRef:it.orderRef||'',
         pickNameNow:it.pickName||'', pickStateNow:pickState[it.pickName]||'assigned' });
   }); });
   // Kits ARMADOS actuales: se preservan tal cual.
@@ -1719,11 +1748,17 @@ async function buildPickMergeForTask(t, opts = {}) {
   const current = (t.items||[]).filter(i => i.selected && !i.isKit);
   const curByPid = {};
   current.forEach(i => { (curByPid[i.odoo_product_id] = curByPid[i.odoo_product_id] || []).push(i); });
-  // Unidades reclamadas por OTRAS tareas activas de la misma orden (split entre encargados)
+  // Unidades reclamadas por OTRAS tareas activas de la misma orden (split entre encargados).
+  // Multi-orden: se consultan los claims de CADA orden y se suman por producto (getOrderClaims
+  // ya cuenta solo los items de esa orden en tareas multi — filtro por item.orderRef).
   const _rootDiff = t.parentId || t.id;
-  const _claimsDiff = getOrderClaims(t.odooRef, _rootDiff);
   const claimedByOthers = {};
-  Object.entries(_claimsDiff).forEach(([pid, c]) => { claimedByOthers[pid] = c.count || (c.idxList ? c.idxList.length : 0); });
+  _mergeRefs.forEach(_ref => {
+    const _claimsDiff = getOrderClaims(_ref, _rootDiff);
+    Object.entries(_claimsDiff).forEach(([pid, c]) => {
+      claimedByOthers[pid] = (claimedByOthers[pid]||0) + (c.count || (c.idxList ? c.idxList.length : 0));
+    });
+  });
 
   // ── Sincronización NO destructiva: nunca se eliminan artículos ya cargados (preservan
   // fotos/evidencia). Cada artículo se clasifica en grupo: executed | moved | new | current ──
@@ -1745,6 +1780,7 @@ async function buildPickMergeForTask(t, opts = {}) {
         quantity:1, units:n, unit_index:i+1, unit_total:n, group_ref:'oi_'+pidKey,
         fromPick:true, pickName:u.pickNameNow||(pr.pickNames[0]||''), pickNameNow:u.pickNameNow,
         kitId:u.kitId||null, kitRef:u.kitRef||'', kitName:u.kitName||'', kitImage:u.kitImage||'',
+        ...(u.orderRef ? { orderRef:u.orderRef } : {}),   // multi-orden: a qué orden pertenece la unidad
         selected:true, locations:[], selected_location:null, selected_location_name:u.bin };
       if (reuse) {
         // Artículo ya cargado: preservar TODO (fotos, confirmación, condición)
@@ -2615,7 +2651,9 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     gpsCoords: sdv.gpsCoords || null,
     transporteIncluido: !!sdv.transporteIncluido,
     // H3-3: lo SOLICITADO por la vendedora (para comparar contra lo que traiga el pick de Odoo).
-    sdvArticulos: (sdv.articulosOdoo||[]).map(function(it){ return { sku:(it.sku||'').trim(), quantity:it.quantity||1, name:it.product_name||'' }; }).filter(function(x){ return x.sku; }),
+    // Multi-orden (14-jul): si el item trae orderRef (a cuál orden pertenece), se conserva —
+    // permite re-derivar el subset por orden. Mono-orden: shape idéntico al de siempre.
+    sdvArticulos: (sdv.articulosOdoo||[]).map(function(it){ return { sku:(it.sku||'').trim(), quantity:it.quantity||1, name:it.product_name||'', ...((it.orderRef||'').trim() ? { orderRef:(it.orderRef||'').trim() } : {}) }; }).filter(function(x){ return x.sku; }),
     staffStart: null,
     staffEnd: null,
     staffFrom: '',
@@ -2669,8 +2707,17 @@ function createSdvTasks(sdv, createdBy, estructura) {
   if (typeof estructura !== 'object' || estructura === null || Array.isArray(estructura)) {
     estructura = { concepto: estructura === true ? 'empaque_despacho' : 'solo_despacho' };
   }
-  const concepto = ['solo_despacho','empaque_despacho','empaque_almacen'].includes(estructura.concepto)
+  let concepto = ['solo_despacho','empaque_despacho','empaque_almacen'].includes(estructura.concepto)
     ? estructura.concepto : 'empaque_despacho';
+  // ── Multi-orden (14-jul, opción b de Vera): odooOrderRefs.length > 1 → la cadena es
+  // SIEMPRE "1 raíz empaque + 1 hijo POR ORDEN". Cada hijo nace MONO-orden (su propio
+  // odooRef + subset de sdvArticulos por item.orderRef): claims, pick-diff v113 y el gate
+  // de OUT — que son por-orden — siguen intactos por diseño. estructura.despachos[i]
+  // (encargados/due/localidad) se empareja por índice con odooOrderRefs[i]; los `skus`
+  // de grupo se IGNORAN en multi (el subset por orden es la partición autoritativa).
+  const _multiRefs = (Array.isArray(sdv.odooOrderRefs) && sdv.odooOrderRefs.length > 1)
+    ? sdv.odooOrderRefs.map(r => String(r||'').trim()).filter(Boolean) : null;
+  if (_multiRefs && concepto === 'solo_despacho') concepto = 'empaque_despacho';
   const grupos = (Array.isArray(estructura.despachos) && estructura.despachos.length)
     ? estructura.despachos : [{}];
   const subTipo = concepto === 'empaque_almacen' ? 'warehouse_move' : 'dispatch_order';
@@ -2713,6 +2760,33 @@ function createSdvTasks(sdv, createdBy, estructura) {
   }
   const tasks = [root];
   const dispatchIds = concepto === 'solo_despacho' ? [root.id] : [];
+  if (_multiRefs) {
+    // La raíz empaca TODAS las órdenes: odooRef queda joined (display) y odooRefs guarda el
+    // array para los consumidores que iteran (buildPickMergeForTask, selector de picks).
+    root.odooRefs = _multiRefs.slice();
+    _multiRefs.forEach((ref, i) => {
+      const g = grupos[i] || {};                       // estructura.despachos[i] ↔ odooOrderRefs[i]
+      const t = createWwpTaskFromSdv(sdv, createdBy);
+      t.type = subTipo;
+      t.odooRef = ref;                                 // hijo MONO-orden: claims/pick-diff/OUT por SU orden
+      t.title = (subTipo === 'warehouse_move' ? 'Almacenamiento ' : 'Despacho ')
+        + (sdv.clienteNombre || ref) + ' · ' + ref;
+      if (subTipo === 'warehouse_move') t.description = 'Almacenamiento posterior al empaque — solicitud SDV ' + sdv.id;
+      // Subset autoritativo: SOLO los artículos de ESTA orden (item.orderRef del form).
+      t.sdvArticulos = (sdv.articulosOdoo||[])
+        .filter(it => ((it.orderRef||'').trim().toUpperCase() === ref.toUpperCase()))
+        .map(it => ({ sku:(it.sku||'').trim(), quantity:it.quantity||1, name:it.product_name||'', orderRef:ref }))
+        .filter(x => x.sku);
+      t.parentId = root.id;
+      t.subIndex = 2;                                  // despachos por orden EN PARALELO (patrón multi-localidad)
+      t.dependsOnPrev = true;                          // esperan el empaque raíz, no a los otros despachos
+      aplicarGrupo(t, { localidad: g.localidad, due: g.due });  // sin skus: el subset por orden manda
+      asignar(t, g.encargados);
+      tasks.push(t);
+      dispatchIds.push(t.id);
+    });
+    return { tasks, rootId: root.id, dispatchIds, mainId: root.id };
+  }
   const hijas = concepto === 'solo_despacho' ? grupos.slice(1) : grupos;
   hijas.forEach((g) => {
     const t = createWwpTaskFromSdv(sdv, createdBy);
@@ -2739,6 +2813,12 @@ function validarEstructuraSdv(e, sdv) {
   if (e.despachos !== undefined && (!Array.isArray(e.despachos) || !e.despachos.length)) return 'estructura.despachos debe ser una lista con al menos un grupo';
   const grupos = Array.isArray(e.despachos) ? e.despachos : [{}];
   if (grupos.length > 10) return 'Demasiados grupos de despacho (máx 10)';
+  // Multi-orden: los grupos se emparejan por índice con odooOrderRefs (1 hijo POR ORDEN);
+  // un grupo de más quedaría ignorado en silencio → 422 explícito.
+  if (Array.isArray(sdv.odooOrderRefs) && sdv.odooOrderRefs.length > 1
+      && Array.isArray(e.despachos) && e.despachos.length > sdv.odooOrderRefs.length) {
+    return 'estructura.despachos ('+e.despachos.length+') excede el número de órdenes de la solicitud ('+sdv.odooOrderRefs.length+') — en multi-orden cada grupo corresponde a una orden';
+  }
   if ((((e.empaque||{}).encargados)||[]).length > 2) return 'Máximo 2 encargados de empaque';
   const skusSdv = new Set((sdv.articulosOdoo||[]).map(it => (it.sku||'').trim()).filter(Boolean));
   for (const g of grupos) {
@@ -15080,8 +15160,13 @@ const server = http.createServer(async (req, res) => {
     const ref = ((parsed.query||{}).ref || '').trim();
     if (!ref) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'ref requerido'})); return; }
     try {
-      const activas = loadSdv().filter(s => (s.odooOrderRef||'').trim().toUpperCase() === ref.toUpperCase()
-        && ['pendiente_revision','en_proceso'].includes(s.estado));
+      // Multi-orden (14-jul): una SDV multi cubre CADA una de sus órdenes — se matchea
+      // contra odooOrderRefs (fallback al string legacy: comportamiento mono idéntico).
+      const activas = loadSdv().filter(s => {
+        if (!['pendiente_revision','en_proceso'].includes(s.estado)) return false;
+        const _sRefs = (Array.isArray(s.odooOrderRefs) && s.odooOrderRefs.length) ? s.odooOrderRefs : [s.odooOrderRef||''];
+        return _sRefs.some(r => String(r||'').trim().toUpperCase() === ref.toUpperCase());
+      });
       const activa = activas.length ? { id:activas[0].id, folio:activas[0].folio||null, estado:activas[0].estado, wwpTaskId:activas[0].wwpTaskId||null } : null;
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, activa, count:activas.length}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -15318,9 +15403,32 @@ const server = http.createServer(async (req, res) => {
         if (!sol) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Not found'})); return; }
         // v114: Ventas puede consultar el estado del pick de cualquier solicitud (read-only)
         if (!['admin','manager','ventas'].includes(jp.role) && sol.creadoPor!==jp.userId) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No access'})); return; }
-        if (!sol.odooOrderRef) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null})); return; }
-        const pickStatus = await sdvComputePickStatus(sol.odooOrderRef);
-        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus}));
+        // Multi-orden (14-jul): el estado del OUT es POR ORDEN → se itera odooOrderRefs y se
+        // devuelve `porOrden:[{ref,label,severity,code,outs}]` (aditivo). El shape viejo se
+        // mantiene: `pickStatus` sigue siendo un único objeto — en mono-orden es el de siempre;
+        // en multi es el AGREGADO para el badge único (la orden menos avanzada manda; mezcla
+        // despachado/no-despachado → 'parcial').
+        const _psRefs = (Array.isArray(sol.odooOrderRefs) && sol.odooOrderRefs.length)
+          ? sol.odooOrderRefs : (sol.odooOrderRef ? [sol.odooOrderRef] : []);
+        if (!_psRefs.length) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null})); return; }
+        if (_psRefs.length === 1) {
+          const pickStatus = await sdvComputePickStatus(_psRefs[0]);
+          res.writeHead(200,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ok:true,pickStatus,porOrden:[{ref:_psRefs[0],...pickStatus}]}));
+          return;
+        }
+        const _sts = await Promise.all(_psRefs.map(r => sdvComputePickStatus(r)));
+        const porOrden = _psRefs.map((r,i) => ({ ref:r, ..._sts[i] }));
+        const _rank = { despachado:4, parcial:3, listo:2, por_validar:1, sin_out:0, sin_orden:0 };
+        let _agg = porOrden.reduce((a,b) => ((_rank[b.code]??0) < (_rank[a.code]??0) ? b : a), porOrden[0]);
+        const _allOuts = porOrden.reduce((acc,o) => acc.concat(o.outs||[]), []);
+        let pickStatus = { label:_agg.label, severity:_agg.severity, code:_agg.code, outs:_allOuts, multi:true, ordenes:_psRefs.length };
+        const _someDone = porOrden.some(o => o.code==='despachado' || o.code==='parcial');
+        const _allDone  = porOrden.every(o => o.code==='despachado');
+        if (_someDone && !_allDone && (_rank[_agg.code]??0) < 3) {
+          pickStatus = { label:'Despacho parcial', severity:'info', code:'parcial', outs:_allOuts, multi:true, ordenes:_psRefs.length };
+        }
+        res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus,porOrden}));
       } catch(e) {
         // fail-open: Odoo caído no rompe la vista
         res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true,pickStatus:null,odooError:true}));
@@ -15392,23 +15500,30 @@ const server = http.createServer(async (req, res) => {
             }
           }
         } else {
-          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name','partner_id','partner_shipping_id','user_id'],limit:1});
-          if (sos && sos.length) {
+          // Multi-orden (14-jul): el refresh compara TODO lo solicitado (articulosOdoo de las
+          // N órdenes) contra la CONCATENACIÓN de los picks de cada orden. Cabecera (cliente/
+          // dirección) desde la primera orden que resuelva — es el MISMO cliente por diseño.
+          const _refsR = (Array.isArray(sol.odooOrderRefs) && sol.odooOrderRefs.length) ? sol.odooOrderRefs : [ref];
+          for (const _r of _refsR) {
+            const sos = await odooCall('sale.order','search_read',[[['name','ilike',_r]]],{fields:['id','name','partner_id','partner_shipping_id','user_id'],limit:1});
+            if (!sos || !sos.length) continue;
             const so = sos[0];
-            // Cabecera fresca desde Odoo (misma lógica que el lookup del formulario)
-            let deliveryAddress='', city='', phone='';
-            try {
-              const shipId=(so.partner_shipping_id&&so.partner_shipping_id[0])||(so.partner_id&&so.partner_id[0]);
-              if(shipId){
-                const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
-                if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
-              }
-            } catch {}
-            odooFields = {
-              clienteNombre: so.partner_id?so.partner_id[1]:'',
-              salesperson: so.user_id?so.user_id[1]:'',
-              direccionEntrega: deliveryAddress, ciudadEntrega: city, receptorContacto: phone
-            };
+            if (!odooFields) {
+              // Cabecera fresca desde Odoo (misma lógica que el lookup del formulario)
+              let deliveryAddress='', city='', phone='';
+              try {
+                const shipId=(so.partner_shipping_id&&so.partner_shipping_id[0])||(so.partner_id&&so.partner_id[0]);
+                if(shipId){
+                  const ps=await odooCall('res.partner','read',[[shipId]],{fields:['contact_address','street','city','phone','mobile']});
+                  if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
+                }
+              } catch {}
+              odooFields = {
+                clienteNombre: so.partner_id?so.partner_id[1]:'',
+                salesperson: so.user_id?so.user_id[1]:'',
+                direccionEntrega: deliveryAddress, ciudadEntrega: city, receptorContacto: phone
+              };
+            }
             const pickRes = await buildItemsFromPicks(so.name, ['assigned']);
             (pickRes.items||[]).forEach(item=>{
               odooItems.push({sku:item.sku,quantity:item.quantity});
@@ -15704,13 +15819,46 @@ const server = http.createServer(async (req, res) => {
         _asociada = list.find(s => s.id === d.sdvAsociadaId);
         if (!_asociada) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'SDV asociada no encontrada: '+d.sdvAsociadaId})); return; }
       }
+      // ── Multi-orden (14-jul): `odooOrderRefs` (array 1..N, MISMO cliente) es la fuente de
+      // verdad; `odooOrderRef` (string) queda como display/compat = refs.join(', ').
+      // Compat total: si solo llega odooOrderRef, el array se deriva de él (mono-orden).
+      let _orderRefs = [];
+      if (d.odooOrderRefs !== undefined) {
+        if (!Array.isArray(d.odooOrderRefs)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'odooOrderRefs debe ser una lista de referencias'})); return; }
+        const _seen = new Set();
+        for (const r of d.odooOrderRefs) {
+          if (typeof r !== 'string' || !r.trim()) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'odooOrderRefs: cada referencia debe ser un texto no vacío'})); return; }
+          const v = r.trim(), k = v.toUpperCase();
+          if (!_seen.has(k)) { _seen.add(k); _orderRefs.push(v); }   // dedup case-insensitive
+        }
+      } else if (d.odooOrderRef && String(d.odooOrderRef).trim()) {
+        _orderRefs = [String(d.odooOrderRef).trim()];
+      }
+      // Con VARIAS órdenes, cada artículo debe declarar a cuál pertenece (orderRef ∈ refs):
+      // sin eso el subset por orden al aprobar lo perdería en silencio. Se normaliza al
+      // valor canónico del array (match case-insensitive).
+      const _articulos = Array.isArray(d.articulosOdoo) ? d.articulosOdoo : [];
+      if (_orderRefs.length > 1) {
+        const _byUpper = new Map(_orderRefs.map(r => [r.toUpperCase(), r]));
+        for (const it of _articulos) {
+          const _or = String((it && it.orderRef) || '').trim();
+          const _canon = _byUpper.get(_or.toUpperCase());
+          if (!_or || !_canon) {
+            res.writeHead(422,{'Content-Type':'application/json'});
+            res.end(JSON.stringify({ok:false,error:'Con varias órdenes, cada artículo debe llevar orderRef (una de: '+_orderRefs.join(', ')+'). Artículo sin orden: '+((it&&(it.sku||it.product_name))||'(sin sku)')}));
+            return;
+          }
+          it.orderRef = _canon;
+        }
+      }
       const now = new Date().toISOString();
       const folio = sdvNextFolio();
       const sol = {
         id: wwpId('sdv'), folio,
         tipoSolicitud: d.tipoSolicitud,
-        odooOrderRef: d.odooOrderRef||'',
-        articulosOdoo: d.articulosOdoo||[],
+        odooOrderRef: _orderRefs.length ? _orderRefs.join(', ') : (d.odooOrderRef||''),
+        odooOrderRefs: _orderRefs,
+        articulosOdoo: _articulos,
         clienteNombre: d.clienteNombre||'',
         direccionEntrega: d.direccionEntrega||'',
         ciudadEntrega: d.ciudadEntrega||'',
@@ -16411,11 +16559,18 @@ const server = http.createServer(async (req, res) => {
       const t = loadWwpTasks().find(x => x.id === id);
       if (!t) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       if (!t.odooRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea no tiene una orden de Odoo vinculada'})); return; }
-      const picks = await listOrderPicks(t.odooRef);
+      // Multi-orden (14-jul): la raíz de una cadena multi lleva odooRefs=[...] → se listan los
+      // picks de CADA orden, etiquetados con su orderRef. Mono-orden: una sola llamada, igual.
+      const _refsP = (Array.isArray(t.odooRefs) && t.odooRefs.length) ? t.odooRefs : [t.odooRef];
+      const picks = [];
+      for (const _r of _refsP) {
+        const ps = await listOrderPicks(_r);
+        (ps||[]).forEach(p => { p.orderRef = _r; picks.push(p); });
+      }
       const activeNames = new Set((t.items||[]).map(i => i.pickName).filter(Boolean));
       picks.forEach(p => { p.active = activeNames.has(p.name); });
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, taskId:id, orderRef:t.odooRef, picks}));
+      res.end(JSON.stringify({ok:true, taskId:id, orderRef:t.odooRef, orderRefs:_refsP, picks}));
     } catch(e) {
       const msg = String((e && e.message) || e);
       const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
@@ -16447,7 +16602,11 @@ const server = http.createServer(async (req, res) => {
       if (!t.odooRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea no tiene una orden de Odoo vinculada'})); return; }
       if (['validated','cancelled'].includes(t.status)) { res.writeHead(409,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La tarea está cerrada; sus artículos ya no se pueden re-sincronizar.'})); return; }
       // Validar los pick elegidos: existen, son de la orden, no están cancelados y son sincronizables.
-      const disponibles = await listOrderPicks(t.odooRef);
+      // Multi-orden (14-jul): el universo válido es la UNIÓN de los picks de todas las órdenes
+      // de la tarea (raíz multi lleva odooRefs). Mono-orden: una sola llamada, igual que antes.
+      const _refsS = (Array.isArray(t.odooRefs) && t.odooRefs.length) ? t.odooRefs : [t.odooRef];
+      const disponibles = [];
+      for (const _r of _refsS) { const ps = await listOrderPicks(_r); (ps||[]).forEach(p => disponibles.push(p)); }
       const byId = new Map(disponibles.map(p => [p.id, p]));
       for (const pid of pickIds) {
         const p = byId.get(pid);
