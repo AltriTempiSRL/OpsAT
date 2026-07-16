@@ -5276,6 +5276,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .eo2-age.amber{background:var(--amber-bg);color:var(--amber-text)}
 .eo2-age.red{background:var(--red-bg);color:var(--red-text)}
 .eo2-cdp-row .eo2-age{margin-top:0}
+.eo2-repro{display:inline-flex;align-items:flex-start;gap:4px;font-size:10px;font-weight:600;line-height:1.3;padding:1px 6px;border-radius:5px;white-space:normal;margin-top:3px;max-width:100%;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.eo2-repro i{width:11px;height:11px;stroke:currentColor;flex-shrink:0;margin-top:1px}
+.eo2-cdp-row .eo2-repro,.eo2-kb-sub .eo2-repro{margin-top:0}
 /* WWP calendario/gráficos (Mark): responsable en la fila del panel del día */
 .wwp-cdp-resp{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 .wwp-cal,.wwp-charts{margin-top:2px}
@@ -8978,7 +8981,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v196';
+var APP_BUILD = 'v197';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -36535,6 +36538,36 @@ function eoEnumEstado(s, tasks){
   }
   return 'ops';
 }
+// ── Reprogramación (v192) → tratamiento en EO ───────────────────────────────
+// Motivos de reprogramación AJENOS a Operaciones: NO cuentan como atraso de Ops
+// (decisión Gabriel 2026-07-16). Los demás sí son atraso operativo → rojo normal.
+var EO_REPROG_MOT_EXT = ['cliente','fuerza_mayor'];
+// Etiqueta corta para la línea de promesa (el detalle/chip usa repro.motivoLabel del backend).
+var EO_REPROG_MOT_CORTO = { cliente:'cliente', fuerza_mayor:'fuerza mayor' };
+// Última reprogramación registrada (la vigente) de una SDV, o null. (_mock no aplica.)
+function eoUltimaReprog(s){
+  if(!s || s._mock) return null;
+  var arr = s.reprogramaciones;
+  if(!Array.isArray(arr) || !arr.length) return null;
+  return arr[arr.length-1] || null;
+}
+// ¿La SDV está vencida? (activa + fecha deseada NUEVA ya en el pasado). Mismo cómputo de fecha
+// que eoProm/eoFlagsOf (eoToD + hoy 00:00) para que flag y tinte SIEMPRE coincidan.
+function eoEstaVencida(s, tasks){
+  var e = eoEnumEstado(s, tasks);
+  if(e==='desp' || e==='rech') return false;
+  var due = eoToD(s.fechaSolicitudDeseada); if(!due) return false;
+  var t = new Date(); t.setHours(0,0,0,0);
+  return due.getTime() < t.getTime();
+}
+// FUENTE ÚNICA del criterio "reprogramada por motivo ajeno a Ops": vencida + reprog vigente con
+// motivo ∈ EO_REPROG_MOT_EXT. La comparten eoFlagsOf (flag 'venc') y eoView→eoProm (tinte/estado)
+// para que el conteo rojo y el pintado NO se contradigan (lección del comentario de 'venc').
+function eoReprogExterna(s, tasks){
+  var rp = eoUltimaReprog(s);
+  if(!rp || EO_REPROG_MOT_EXT.indexOf(rp.motivo)===-1) return false;
+  return eoEstaVencida(s, tasks);
+}
 // Flags ortogonales (excepciones) de la SDV — para alertas y filtro de alerta.
 function eoFlagsOf(s, tasks){
   var flags = [];
@@ -36543,7 +36576,9 @@ function eoFlagsOf(s, tasks){
   // sin desfase de zona vía eoToD → el flag y el tinte de la fila siempre coinciden).
   if(e!=='desp' && e!=='rech'){
     var _due = eoToD(s.fechaSolicitudDeseada), _t = new Date(); _t.setHours(0,0,0,0);
-    if(_due && _due.getTime() < _t.getTime()) flags.push('venc');
+    // vencida SALVO reprogramación por motivo ajeno a Ops (mismo criterio compartido que el
+    // tinte de eoProm, vía eoReprogExterna): esa NO cuenta como vencida ni entra al segmento rojo.
+    if(_due && _due.getTime() < _t.getTime() && !eoReprogExterna(s, tasks)) flags.push('venc');
   }
   if(s._mock){ return (s.flags||[]); }
   var linked = (tasks||[]).filter(function(t){ return t.sdvId===s.id && t.status!=='cancelled'; });
@@ -36596,6 +36631,8 @@ function eoView(s, tasks){
     loc: eoLocOf(s, tasks),
     nArts: (s.articulosOdoo||[]).length || (s._mock?s.nArts:0) || 0,
     fdes: s.fechaSolicitudDeseada,
+    repro: eoUltimaReprog(s),                 // última reprogramación (vigente) o null
+    reprogExterna: eoReprogExterna(s, tasks), // vencida por motivo ajeno a Ops (criterio compartido)
     ent: s._mock ? s.ent : eoDispatchDate(s),
     evid: eoEvidOf(s, tasks),
     age: eoAging(s),   // {h,tier} o null — solo tiñe estados activos (ver eoAging)
@@ -36608,6 +36645,22 @@ function eoAgeChipHtml(v){
   var cls = v.age.tier==='bad' ? 'red' : 'amber';
   var lbl = eoAgeLabel(v.age.h);
   return '<span class="eo2-age '+cls+'" title="'+esc('Lleva '+lbl+' en este estado sin avanzar')+'"><i data-lucide="hourglass"></i>'+esc(lbl)+'</span>';
+}
+// Chip discreto de reprogramación (v192): se pinta SIEMPRE que la SDV tenga reprogramaciones,
+// aunque NO esté vencida. Muestra motivo + transición de fecha (+×N si hubo varias). Si la línea
+// de promesa ya dice "Reprogramada · motivo" (caso vencida-externa neutral de eoProm), el chip
+// evita repetir el motivo (§3.1 no-duplicar) y muestra solo la transición de fecha.
+function eoReprogChipHtml(v, p){
+  var rp = v.repro; if(!rp) return '';
+  var arr = (v.s && Array.isArray(v.s.reprogramaciones)) ? v.s.reprogramaciones : null;
+  var n = arr ? arr.length : 1;
+  var lbl = rp.motivoLabel || EO_REPROG_MOT_CORTO[rp.motivo] || rp.motivo || '';
+  var ant = rp.fechaAnterior ? eoFmtD(rp.fechaAnterior) : '—';
+  var nue = rp.fechaNueva ? eoFmtD(rp.fechaNueva) : eoFmtD(v.fdes);
+  var suf = n>1 ? ' (×'+n+')' : '';
+  var full = 'Reprogramada'+(lbl?' · '+lbl:'')+' · '+ant+' → '+nue+suf;
+  var txt = (p && p.reprogramada) ? (ant+' → '+nue+suf) : full;
+  return '<span class="eo2-repro" title="'+esc(full)+'"><i data-lucide="calendar-clock"></i>'+esc(txt)+'</span>';
 }
 
 // Promesa dinámica: texto/color/tinte de fila desde la vista.
@@ -36622,7 +36675,15 @@ function eoProm(v){
   if(!due) return { d:'—', r:'sin fecha', c:'mut', tint:'', overdue:false, today:false };
   var today = new Date(); today.setHours(0,0,0,0);
   var diff = eoDaysBetween(today, due);
-  if(diff < 0)  return { d:eoFmtD(v.fdes), r:'vencida · hace '+(-diff)+(diff===-1?' día':' días'), c:'red', tint:'red', overdue:true, today:false };
+  if(diff < 0){
+    // Reprogramada por motivo ajeno a Operaciones (cliente/fuerza mayor) → NEUTRAL, no rojo, no
+    // cuenta como vencida (overdue:false). Mismo predicado que eoFlagsOf, vía v.reprogExterna.
+    if(v.reprogExterna){
+      var _rc = (v.repro && (EO_REPROG_MOT_CORTO[v.repro.motivo] || v.repro.motivoLabel)) || 'motivo externo';
+      return { d:eoFmtD(v.fdes), r:'Reprogramada · '+_rc, c:'mut', tint:'', overdue:false, today:false, reprogramada:true };
+    }
+    return { d:eoFmtD(v.fdes), r:'vencida · hace '+(-diff)+(diff===-1?' día':' días'), c:'red', tint:'red', overdue:true, today:false };
+  }
   if(diff===0)  return { d:eoFmtD(v.fdes), r:'hoy',      c:'amber', tint:'amber', overdue:false, today:true };
   if(diff===1)  return { d:eoFmtD(v.fdes), r:'mañana',   c:'amber', tint:'amber', overdue:false, today:false };
   return { d:eoFmtD(v.fdes), r:'en '+diff+' días', c:'mut', tint:'', overdue:false, today:false };
@@ -36810,7 +36871,7 @@ function eoRowHtml(v){
     '<td class="eo2-c-cli"><div class="eo2-cli">'+esc(v.cliente)+'</div>'+(v.ciudad?'<div class="eo2-ciu"><i data-lucide="map-pin"></i>'+esc(v.ciudad)+'</div>':'')+'</td>'+
     '<td class="eo2-c-vend"><span class="eo2-vend"><span class="eo2-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+'</span></td>'+
     '<td class="eo2-c-est"><div class="eo2-est-w"><span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+subchips+'</div></td>'+
-    '<td class="eo2-c-prom"><div class="eo2-pd">'+esc(p.d)+'</div><div class="eo2-pr '+p.c+'">'+esc(p.r)+'</div>'+eoAgeChipHtml(v)+'</td>'+
+    '<td class="eo2-c-prom"><div class="eo2-pd">'+esc(p.d)+'</div><div class="eo2-pr '+p.c+'">'+esc(p.r)+'</div>'+eoAgeChipHtml(v)+eoReprogChipHtml(v,p)+'</td>'+
     '<td class="eo2-c-evid">'+evid+'</td>'+
     '<td class="eo2-c-loc"><span class="eo2-loc">'+esc(v.loc)+'</span></td>'+
   '</tr>';
@@ -36850,12 +36911,13 @@ function eoKbCard(v){
   var subchips = eoSubchips(v).slice(0,2).map(function(c){
     return '<span class="eo2-subchip'+(c.c?' '+c.c:'')+'"><i data-lucide="'+c.i+'"></i>'+esc(c.t)+'</span>';
   }).join('');
+  var reproChip = eoReprogChipHtml(v, p);
   return '<button type="button" class="eo2-kb-card'+(p.tint?' eo2-due-'+p.tint:'')+'" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
     '<div class="eo2-kb-top"><span class="eo2-kb-ord">'+esc(v.id)+'</span>'+
       '<span class="eo2-kb-prom '+p.c+'">'+esc(p.r)+'</span></div>'+
     '<div class="eo2-kb-cli">'+esc(v.cliente)+'</div>'+
     '<div class="eo2-kb-meta"><span class="eo2-kb-av">'+esc(EO_VEND_INI(v.vendNom))+'</span>'+esc(v.vendNom.split(' ')[0])+' · '+esc(v.loc)+' · '+v.nArts+' art.</div>'+
-    ((subchips || eoAgeChipHtml(v)) ? '<div class="eo2-kb-sub">'+subchips+eoAgeChipHtml(v)+'</div>' : '')+
+    ((subchips || eoAgeChipHtml(v) || reproChip) ? '<div class="eo2-kb-sub">'+subchips+eoAgeChipHtml(v)+reproChip+'</div>' : '')+
   '</button>';
 }
 function eoRenderKanban(vis){
@@ -37157,7 +37219,7 @@ function eoDayPanelHtml(d, list){
     return '<button type="button" class="eo2-cdp-row" data-id="'+esc(v.sdvId)+'" aria-label="Ver detalle de '+esc(v.id)+' — '+esc(v.cliente)+'">'+
       '<span class="eo2-cdp-ord">'+esc(v.id)+'</span>'+
       '<span class="eo2-cdp-cli">'+esc(v.cliente)+'</span>'+
-      '<span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+eoAgeChipHtml(v)+extra+
+      '<span class="sdv-badge '+est.cls+'">'+esc(est.lbl)+'</span>'+eoAgeChipHtml(v)+eoReprogChipHtml(v,p)+extra+
     '</button>';
   }).join('');
   return '<div class="eo2-cal-day-panel">'+
@@ -37528,6 +37590,14 @@ async function eoAbrirDetalle(sdvId) {
     if (s.receptorNombre)         datosRows += '<div class="eo-det-row"><dt>Receptor</dt><dd>'+esc(s.receptorNombre)+'</dd></div>';
     if (s.receptorContacto)       datosRows += '<div class="eo-det-row"><dt>Contacto</dt><dd>'+esc(s.receptorContacto)+'</dd></div>';
     if (s.fechaSolicitudDeseada)  datosRows += '<div class="eo-det-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>';
+    if (evw.repro) {   // reprogramación vigente (v192): motivo + transición de fecha en el detalle
+      var _rp = evw.repro;
+      var _rl = _rp.motivoLabel || EO_REPROG_MOT_CORTO[_rp.motivo] || _rp.motivo || '';
+      var _rn = Array.isArray(s.reprogramaciones) ? s.reprogramaciones.length : 1;
+      datosRows += '<div class="eo-det-row"><dt>Reprogramada</dt><dd>'+esc(_rl)+(_rn>1?' (×'+_rn+')':'')+' · '+
+        (_rp.fechaAnterior?sdvFmtDate(_rp.fechaAnterior):'—')+' → '+(_rp.fechaNueva?sdvFmtDate(_rp.fechaNueva):'—')+
+        (_rp.porNombre?' · '+esc(_rp.porNombre):'')+'</dd></div>';
+    }
     var _entReal = eoDispatchDate(s);
     if (_entReal)                 datosRows += '<div class="eo-det-row"><dt>Fecha entrega</dt><dd>'+sdvFmtDate(_entReal)+'</dd></div>';
     if (loc && loc!=='—')         datosRows += '<div class="eo-det-row"><dt>Despacho desde</dt><dd>'+esc(loc)+'</dd></div>';
@@ -37636,6 +37706,12 @@ function eoClientMessage(v){
     return 'Entregado completo y a tiempo, con su evidencia. Puedes compartir las fotos con el cliente.';
   }
   if(v.e==='ruta') return 'Su pedido va en camino — salió a ruta y va hacia el cliente dentro del horario acordado.';
+  // Reprogramada por motivo ajeno a Ops y con la nueva fecha ya pasada: no es atraso de almacén,
+  // pero la fecha comprometida se movió → hay que confirmar la nueva con el cliente (no decir "a tiempo").
+  if(v.reprogExterna){
+    var _rm = (v.repro && (EO_REPROG_MOT_CORTO[v.repro.motivo] || v.repro.motivoLabel)) || 'un motivo ajeno a Operaciones';
+    return 'La entrega se reprogramó por '+_rm+'; la fecha comprometida se movió. Confirma con el cliente la nueva fecha de entrega.';
+  }
   if(v.e==='ops'){
     if(p.overdue) return 'En preparación pero fuera de fecha. Confirma la nueva fecha con Operaciones antes de avisar al cliente.';
     return 'En preparación en almacén. La entrega va encaminada a cumplirse como se prometió.';
