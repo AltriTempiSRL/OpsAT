@@ -7006,7 +7006,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
                 <input class="sdv-input" id="sdv-cliente" placeholder="Nombre del cliente" readonly>
               </div>
               <div class="sdv-field">
-                <label>Ciudad de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="ciudad" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
+                <label><span id="sdv-lbl-ciudad">Ciudad de Entrega</span> <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="ciudad" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-ciudad" placeholder="Ej: Santo Domingo" readonly>
                 <div id="sdv-ciudad-warn" style="display:none;font-size:11px;color:var(--red-text);margin-top:4px;line-height:1.4;padding:6px 8px;background:rgba(220,38,38,.06);border-radius:6px;border:1px solid rgba(220,38,38,.2)">
                   ⚠️ <b>Ciudad no encontrada en Odoo.</b> Ve a <span style="color:var(--amber-text);font-weight:700">Contactos › abre el cliente › campo Ciudad</span>, guarda y toca «Buscar / Actualizar».
@@ -7015,24 +7015,24 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             </div>
             <div class="sdv-form-grid cols1">
               <div class="sdv-field">
-                <label>Dirección de Entrega <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="direccion" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
+                <label><span id="sdv-lbl-direccion">Dirección de Entrega</span> <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="direccion" aria-label="Cómo corregir este dato"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-direccion" placeholder="Dirección completa" readonly>
                 <label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:12px;color:var(--text-2);cursor:pointer;line-height:1.4">
                   <input type="checkbox" id="sdv-decorador" onchange="sdvToggleDecorador(this.checked)" style="margin-top:2px;flex-shrink:0">
-                  <span><b>Entrega a decorador</b> — el cliente es un decorador y la entrega va a otra localidad: escribir dirección y ciudad manualmente.</span>
+                  <span id="sdv-lbl-decorador"><b>Entrega a decorador</b> — el cliente es un decorador y la entrega va a otra localidad: escribir dirección y ciudad manualmente.</span>
                 </label>
               </div>
             </div>
             <div class="sdv-form-grid">
               <div class="sdv-field">
-                <label>Nombre de Quien Recibe <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorNombre" aria-label="Más información"><i data-lucide="info"></i></button></label>
+                <label><span id="sdv-lbl-receptor">Nombre de Quien Recibe</span> <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorNombre" aria-label="Más información"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-receptor-nombre" placeholder="Nombre completo">
               </div>
               <div class="sdv-field">
                 <label>Contacto (tel / WhatsApp) <span class="req" style="color:var(--red-text)">*</span><button class="sdv-help" type="button" data-help="receptorContacto" aria-label="Más información"><i data-lucide="info"></i></button></label>
                 <input class="sdv-input" id="sdv-receptor-contacto" placeholder="+1 809 000 0000">
                 <div id="sdv-tel-warn" style="display:none;font-size:11px;color:var(--amber-text);margin-top:4px;line-height:1.4;padding:6px 8px;background:var(--amber-bg);border-radius:6px;border:1px solid rgba(245,158,11,.25)">
-                  ⓘ <b>Odoo no tiene teléfono para este contacto.</b> Escríbelo aquí para esta entrega, y corrígelo en <span style="font-weight:700">Contactos › abre el cliente › Teléfono</span> para futuras órdenes.
+                  ⓘ <b>Odoo no tiene teléfono para este contacto.</b> Escríbelo aquí para <span id="sdv-telwarn-uso">esta entrega</span>, y corrígelo en <span style="font-weight:700">Contactos › abre el cliente › Teléfono</span> para futuras órdenes.
                 </div>
               </div>
             </div>
@@ -8981,7 +8981,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v197';
+var APP_BUILD = 'v198';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15996,7 +15996,7 @@ function renderDrawer(t) {
   var sdvBlockHtml = t.sdvId ? `
     <div class="info-grid" style="background:var(--blue-bg,var(--surface-2));border:1px solid var(--border-light,var(--border));border-radius:10px;padding:10px 12px;margin-bottom:12px">
       <div class="info-cell info-cell-wide"><div class="info-cell-label"><i data-lucide="clipboard-list" style="width:12px;height:12px;stroke:currentColor;vertical-align:-2px"></i> Solicitud de Ventas</div><div class="info-cell-val"><b>${esc(t.sdvFolio||t.sdvId)}</b>${t.salesperson?` · ${esc(t.salesperson)}`:''}</div></div>
-      ${t.receptorNombre?`<div class="info-cell"><div class="info-cell-label">Recibe</div><div class="info-cell-val">${esc(t.receptorNombre)}</div></div>`:''}
+      ${t.receptorNombre?`<div class="info-cell"><div class="info-cell-label">${t.taskConcept==='customer_return'?'Quien entrega':'Recibe'}</div><div class="info-cell-val">${esc(t.receptorNombre)}</div></div>`:''}
       ${t.phone?`<div class="info-cell"><div class="info-cell-label">Contacto</div><div class="info-cell-val"><a href="tel:${esc(t.phone)}" style="color:var(--brand-primary)">${esc(t.phone)}</a></div></div>`:''}
       ${t.transporteIncluido?`<div class="info-cell"><div class="info-cell-label">Transporte</div><div class="info-cell-val">Incluido</div></div>`:''}
       ${t.gpsCoords?`<div class="info-cell info-cell-wide"><div class="info-cell-label">GPS</div><div class="info-cell-val"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(t.gpsCoords)}" target="_blank" style="color:var(--brand-primary)">${esc(t.gpsCoords)} 📍</a></div></div>`:''}
@@ -16095,7 +16095,7 @@ function renderDrawer(t) {
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
       ${t.location?`<div class="info-cell"><div class="info-cell-label">Localidad</div><div class="info-cell-val">${esc(t.location)}</div></div>`:''}
       ${t.taskConcept==='customer_return'&&t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Dirección de recogida</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
-      ${t.taskConcept==='customer_return'&&t.phone?`<div class="info-cell"><div class="info-cell-label">Teléfono cliente</div><div class="info-cell-val">${esc(t.phone)}</div></div>`:''}
+      ${t.taskConcept==='customer_return'&&t.phone&&!t.sdvId?`<div class="info-cell"><div class="info-cell-label">Teléfono cliente</div><div class="info-cell-val">${esc(t.phone)}</div></div>`:''}
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
     </div>
@@ -34657,7 +34657,26 @@ function sdvSetTipo(tipo) {
   if (tipo === 'solicitud_especial') sdvEspClear();
   // Carrito de artículos adicionales para traslado interno
   _sdv$('sdv-articulo-section').style.display = (tipo==='traslado_interno') ? '' : 'none';
+  // Rótulos del bloque de datos: en DEVOLUCIÓN el flujo es de RECOGIDA (el chofer recoge en el
+  // cliente y alguien le ENTREGA la mercancía), no de entrega. Solo cambia el TEXTO visible;
+  // los IDs de los campos y el comportamiento (readonly, validaciones, payload) quedan intactos.
+  sdvRotularEntrega(tipo);
   if (window.lucide) lucide.createIcons();
+}
+
+// Ajusta los textos del bloque "Datos de entrega/recogida" según el tipo de solicitud.
+// Compartido por despacho_cliente (entrega) y devolucion (recogida) — misma estructura, otro copy.
+function sdvRotularEntrega(tipo) {
+  var esDev = (tipo === 'devolucion');
+  var setTxt = function(id, txt){ var el = document.getElementById(id); if (el) el.textContent = txt; };
+  setTxt('sdv-lbl-ciudad',    esDev ? 'Ciudad de Recogida'    : 'Ciudad de Entrega');
+  setTxt('sdv-lbl-direccion', esDev ? 'Dirección de Recogida' : 'Dirección de Entrega');
+  setTxt('sdv-lbl-receptor',  esDev ? 'Nombre de Quien Entrega la Mercancía' : 'Nombre de Quien Recibe');
+  setTxt('sdv-telwarn-uso',   esDev ? 'esta recogida' : 'esta entrega');
+  var dec = document.getElementById('sdv-lbl-decorador');
+  if (dec) dec.innerHTML = esDev
+    ? '<b>Recoger en otra localidad</b> — la mercancía se recoge en una dirección distinta a la registrada: escribir dirección y ciudad manualmente.'
+    : '<b>Entrega a decorador</b> — el cliente es un decorador y la entrega va a otra localidad: escribir dirección y ciudad manualmente.';
 }
 
 function _sdv$(id) { return document.getElementById(id) || {}; }
@@ -34848,11 +34867,17 @@ var SDV_HELP = {
   receptorNombre: 'Lo llenamos con el cliente para ahorrarte tiempo. Cámbialo aquí mismo si quien recibe en el sitio es otra persona.',
   receptorContacto: 'Pre-llenado del cliente. Si quien recibe usa otro número, escríbelo aquí — esto es solo para esta entrega.'
 };
+// Variantes para DEVOLUCIÓN: el flujo es de recogida, la persona ENTREGA la mercancía al chofer.
+var SDV_HELP_DEV = {
+  receptorNombre: 'Lo llenamos con el cliente para ahorrarte tiempo. Cámbialo aquí mismo si quien entrega la mercancía al chofer es otra persona.',
+  receptorContacto: 'Pre-llenado del cliente. Si quien entrega la mercancía usa otro número, escríbelo aquí — esto es solo para esta recogida.'
+};
 function sdvHelpFmt(t){ return esc(t).replace(/«([^»]+)»/g,'<span class="sdv-help-route">$1</span>'); }
 function sdvHelpShow(key, anchor){
   var pop = document.getElementById('sdv-help-pop');
   if(!pop){ pop=document.createElement('div'); pop.id='sdv-help-pop'; document.body.appendChild(pop); }
-  pop.innerHTML = '<div>'+sdvHelpFmt(SDV_HELP[key]||'')+'</div><div class="sdv-help-close" onclick="sdvHelpHide()">Entendido</div>';
+  var _txt = (_sdvTipo==='devolucion' && SDV_HELP_DEV[key]) ? SDV_HELP_DEV[key] : (SDV_HELP[key]||'');
+  pop.innerHTML = '<div>'+sdvHelpFmt(_txt)+'</div><div class="sdv-help-close" onclick="sdvHelpHide()">Entendido</div>';
   pop.classList.add('open');
   if(window.innerWidth>640 && anchor){
     var r=anchor.getBoundingClientRect();
@@ -38555,7 +38580,10 @@ function sdvAprobar(id, tipo) {
   // Devolución y solicitud especial siempre crean UNA tarea general — preguntar "¿empaque?"
   // sería engañoso (el backend lo ignora para estos tipos).
   if (tipo==='devolucion' || tipo==='solicitud_especial') {
-    if (confirm('Se creará una tarea general para esta solicitud. ¿Continuar?')) sdvAprobarConfirm(id, false);
+    var _msg = (tipo==='devolucion')
+      ? 'Se creará una tarea de RECOGIDA (devolución) para esta solicitud. El chofer recogerá la mercancía en el cliente. ¿Continuar?'
+      : 'Se creará una tarea general para esta solicitud. ¿Continuar?';
+    if (confirm(_msg)) sdvAprobarConfirm(id, false, tipo);
     return;
   }
   var old=document.getElementById('sdvAprobarOverlay'); if(old) old.remove();
@@ -38573,13 +38601,14 @@ function sdvAprobar(id, tipo) {
     '</div>');
   if (window.lucide) lucide.createIcons();
 }
-async function sdvAprobarConfirm(id, conEmpaque) {
+async function sdvAprobarConfirm(id, conEmpaque, tipo) {
   var ov=document.getElementById('sdvAprobarOverlay'); if(ov) ov.remove();
   try {
     var r = await authFetch('/api/sdv/'+id,{method:'PATCH',body:JSON.stringify({estado:'en_proceso',conEmpaque:conEmpaque})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al aprobar'); return; }
-    toast('Aprobada · '+(conEmpaque?'cadena de empaque + despacho creada':'tarea de despacho creada')+' — asígnale el encargado','success');
+    var _tareaLbl = (tipo==='devolucion') ? 'tarea de recogida creada' : (conEmpaque?'cadena de empaque + despacho creada':'tarea de despacho creada');
+    toast('Aprobada · '+_tareaLbl+' — asígnale el encargado','success');
     sdvBandejaCargar();
     sdvCloseDrawer();
     // Abrir la tarea recién creada (raíz de la cadena) para asignar encargado sin buscarla
@@ -38662,7 +38691,10 @@ function sdvCrearTarea(id, tipo) {
   // Devolución y solicitud especial siempre crean UNA tarea general — preguntar "¿empaque?"
   // sería engañoso (el backend lo ignora para estos tipos).
   if (tipo==='devolucion' || tipo==='solicitud_especial') {
-    if (confirm('Se creará una tarea general para esta solicitud. ¿Continuar?')) sdvCrearTareaConfirm(id, false);
+    var _msg = (tipo==='devolucion')
+      ? 'Se creará una tarea de RECOGIDA (devolución) para esta solicitud. El chofer recogerá la mercancía en el cliente. ¿Continuar?'
+      : 'Se creará una tarea general para esta solicitud. ¿Continuar?';
+    if (confirm(_msg)) sdvCrearTareaConfirm(id, false, tipo);
     return;
   }
   var old=document.getElementById('sdvCrearTareaOverlay'); if(old) old.remove();
@@ -38680,13 +38712,14 @@ function sdvCrearTarea(id, tipo) {
     '</div>');
   if (window.lucide) lucide.createIcons();
 }
-async function sdvCrearTareaConfirm(id, conEmpaque) {
+async function sdvCrearTareaConfirm(id, conEmpaque, tipo) {
   var ov=document.getElementById('sdvCrearTareaOverlay'); if(ov) ov.remove();
   try {
     var r = await authFetch('/api/sdv/'+id+'/crear-tarea',{method:'POST',body:JSON.stringify({conEmpaque:conEmpaque})});
     var d = await r.json();
     if (!r.ok||!d.ok) { toast(d.error||'Error al crear la tarea'); return; }
-    toast('Tarea de despacho creada'+(conEmpaque?' (con empaque)':'')+' — asígnale el encargado','success');
+    var _tareaMsg = (tipo==='devolucion') ? 'Tarea de recogida creada' : ('Tarea de despacho creada'+(conEmpaque?' (con empaque)':''));
+    toast(_tareaMsg+' — asígnale el encargado','success');
     sdvBandejaCargar();
     sdvCloseDrawer();
     // Abrir la tarea recién creada para asignar encargado sin buscarla

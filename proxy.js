@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v197';
+const APP_BUILD = 'v198';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -2681,6 +2681,26 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
     // WWP como items reales para que Ops sepa qué recoger (ver sdvEspecialItems).
     task.items = sdvEspecialItems(sdv);
     if (task.items.length) task.itemsUpdatedAt = now;
+  }
+  // Devolución (SDV tipo `devolucion`): NO es un despacho — es una tarea de RECOGIDA en el
+  // cliente. El chofer necesita saber QUÉ recoger, así que los artículos que la vendedora
+  // capturó (articulosOdoo) se siembran como items reales (checklist + evidencia por artículo,
+  // mismo motor que la solicitud especial vía sdvEspecialItems). `taskConcept:'customer_return'`
+  // enciende el drawer "Devolución de Cliente" en historial.html (Mark) y re-etiqueta el tipo.
+  // Los campos ya copiados por el molde (deliveryAddress, receptorNombre, phone, gpsCoords,
+  // transporteIncluido, dueDate) se conservan: aquí la dirección es el punto de RECOGIDA.
+  if (sdv.tipoSolicitud === 'devolucion') {
+    task.type = 'item_pickup';
+    task.taskConcept = 'customer_return';
+    task.title = 'Devolución ' + (sdv.clienteNombre || sdv.odooOrderRef || 'cliente');
+    task.description = 'Recoger en el cliente — solicitud SDV ' + sdv.id
+      + (sdv.folio ? ' (' + sdv.folio + ')' : '');
+    task.items = sdvEspecialItems(sdv);
+    if (task.items.length) task.itemsUpdatedAt = now;
+    // Trazabilidad de la devolución en Odoo (RET). Hoy el form aún no las persiste en la SDV
+    // (Vera) → quedan '' y NO bloquean; cuando la SDV las traiga, viajan a la tarea.
+    task.retRef = sdv.retRef || '';
+    task.retState = sdv.retState || '';
   }
   return task;
 }
@@ -15325,15 +15345,22 @@ const server = http.createServer(async (req, res) => {
         if (_errE) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_errE})); return; }
         estructura = d.estructura;
       }
-      // Devolución y solicitud especial generan UNA tarea `general` (sin cadena de empaque).
-      const _esGeneral = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
-      const conEmpaque = d.conEmpaque === true && !_esGeneral;
+      // Devolución y solicitud especial son UNA sola tarea (sin cadena empaque→despacho).
+      // Solo la solicitud especial se fuerza a `general`; la devolución ya nace item_pickup +
+      // customer_return (con items sembrados) en createWwpTaskFromSdv — NO se pisa su tipo.
+      const _esTareaUnica = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
+      const conEmpaque = d.conEmpaque === true && !_esTareaUnica;
       let nuevas, mainId;
-      if (_esGeneral) { const t = createWwpTaskFromSdv(sol, jp.userId); t.type='general'; nuevas=[t]; mainId=t.id; }
+      if (_esTareaUnica) {
+        const t = createWwpTaskFromSdv(sol, jp.userId);
+        if (sol.tipoSolicitud === 'solicitud_especial') t.type = 'general';
+        nuevas = [t]; mainId = t.id;
+      }
       else { const r = createSdvTasks(sol, jp.userId, estructura !== null ? estructura : conEmpaque); nuevas=r.tasks; mainId=r.mainId; }
       // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar").
-      // La solicitud especial no tiene pick en Odoo: sus artículos (si los hay) ya vienen marcados.
-      if (sol.tipoSolicitud !== 'solicitud_especial') {
+      // Devolución y solicitud especial NO tienen pick regular en Odoo: sus artículos ya vienen
+      // sembrados desde articulosOdoo (sdvEspecialItems) — no se re-poblan desde un pick.
+      if (!_esTareaUnica) {
         try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (crear-tarea):', e.message); }
       }
       const now = new Date().toISOString();
@@ -15346,6 +15373,7 @@ const server = http.createServer(async (req, res) => {
       nuevas.forEach(t => sol.wwpTareas.push({ taskId:t.id, titulo:t.title, creadoAt:now }));
       list[idx] = sol; saveSdv(list);
       const _lblEstructura = sol.tipoSolicitud === 'solicitud_especial' ? 'solicitud especial'
+        : sol.tipoSolicitud === 'devolucion' ? 'recogida de devolución'
         : nuevas.some(t=>t.type==='packaging')
         ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
         : 'despacho';
@@ -16004,6 +16032,10 @@ const server = http.createServer(async (req, res) => {
         esDecorador: d.esDecorador===true||d.esDecorador==='true',
         observaciones: d.observaciones||'',
         gpsCoords: d.gpsCoords||null,
+        // Devolución: trazabilidad Odoo (RET). Persistidos aquí para que cuando el form los
+        // envíe, viajen a la tarea de recogida (createWwpTaskFromSdv). Hoy suelen llegar '' .
+        retRef: d.retRef||'',
+        retState: d.retState||'',
         fechaSolicitudDeseada: d.fechaSolicitudDeseada||null,
         adjuntos: [],
         fechaSolicitud: now,
@@ -16330,9 +16362,11 @@ const server = http.createServer(async (req, res) => {
         // a saltarse la SDV (Pit R1).
         if (d.estado === 'en_proceso' && !sol.wwpTaskId) {
           try {
-            // Devolución y solicitud especial generan UNA tarea `general` (sin cadena de empaque).
-            const _esGeneral = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
-            const _conEmpaque = d.conEmpaque === true && !_esGeneral;
+            // Devolución y solicitud especial son UNA sola tarea (sin cadena empaque→despacho).
+            // Solo la especial se fuerza a `general`; la devolución nace item_pickup +
+            // customer_return (items sembrados) en createWwpTaskFromSdv — NO se pisa su tipo.
+            const _esTareaUnica = ['devolucion','solicitud_especial'].includes(sol.tipoSolicitud);
+            const _conEmpaque = d.conEmpaque === true && !_esTareaUnica;
             // Tarea compuesta: estructura opcional en la aprobación. Si viene inválida NO
             // se aborta la aprobación (ya transicionó): se cae al default con warning.
             let _estructura = null;
@@ -16342,16 +16376,18 @@ const server = http.createServer(async (req, res) => {
               else _estructura = d.estructura;
             }
             let nuevas, mainId;
-            if (_esGeneral) {
-              const t = createWwpTaskFromSdv(sol, jp.userId); t.type = 'general';
+            if (_esTareaUnica) {
+              const t = createWwpTaskFromSdv(sol, jp.userId);
+              if (sol.tipoSolicitud === 'solicitud_especial') t.type = 'general';
               nuevas = [t]; mainId = t.id;
             } else {
               const r = createSdvTasks(sol, jp.userId, _estructura !== null ? _estructura : _conEmpaque);
               nuevas = r.tasks; mainId = r.mainId;
             }
             // Los artículos viajan solos desde el pick (fail-open: sin Odoo, queda "Sincronizar").
-            // La solicitud especial no tiene pick en Odoo: sus artículos (si los hay) ya vienen marcados.
-            if (sol.tipoSolicitud !== 'solicitud_especial') {
+            // Devolución y solicitud especial NO tienen pick regular: sus artículos ya vienen
+            // sembrados desde articulosOdoo (sdvEspecialItems) — no se re-poblan desde un pick.
+            if (!_esTareaUnica) {
               try { await populateChainItemsFromPick(nuevas); } catch(e) { console.warn('[SDV→WWP] populate items (1-clic):', e.message); }
             }
             const tasks = loadWwpTasks();
@@ -16363,6 +16399,7 @@ const server = http.createServer(async (req, res) => {
             nuevas.forEach(t => sol.wwpTareas.push({ taskId: t.id, titulo: t.title, creadoAt: now }));
             // H1-4/B2: avisar a Ops que nació la tarea (antes nacía muda y sin encargado)
             const _lblE = sol.tipoSolicitud === 'solicitud_especial' ? 'solicitud especial'
+              : sol.tipoSolicitud === 'devolucion' ? 'recogida de devolución'
               : nuevas.some(t=>t.type==='packaging')
               ? (nuevas.some(t=>t.type==='warehouse_move') ? 'empaque + almacenamiento' : 'empaque + '+(nuevas.length-1)+' despacho(s)')
               : 'despacho';
