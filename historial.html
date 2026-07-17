@@ -5946,6 +5946,12 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
       <div id="hist-user-info" class="sidebar-user"></div>
+      <!-- Retorno de impersonación: visible en el shell global porque los usuarios
+           sin WWP (ventas) aterrizan en el historial y nunca ven la franja de screen-app -->
+      <div id="hist-imp-box" style="display:none;margin-bottom:6px;padding:7px 9px;background:rgba(124,58,237,.22);border:1px solid rgba(159,110,240,.45);border-radius:var(--radius)">
+        <div id="hist-imp-text" style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:rgba(255,255,255,.85);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i data-lucide="user-check" style="width:12px;height:12px;stroke:currentColor;flex-shrink:0"></i><span id="hist-imp-name"></span></div>
+        <button onclick="stopImpersonate()" style="width:100%;padding:6px 8px;background:var(--purple);border:none;border-radius:6px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center">↩ Volver a mi cuenta</button>
+      </div>
       <button class="notif-btn sidebar-notif" id="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones" aria-label="Notificaciones" aria-expanded="false" aria-haspopup="dialog">
         <span class="nav-icon"><i data-lucide="bell"></i></span>
         <span class="sidebar-notif-label">Notificaciones</span>
@@ -8977,7 +8983,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v200';
+var APP_BUILD = 'v201';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -21075,18 +21081,36 @@ function closeProfileMenu() { document.getElementById('profile-menu').classList.
 document.addEventListener('click', e=>{ if(!e.target.closest('#user-pill')&&!e.target.closest('#profile-menu')) closeProfileMenu(); });
 
 // ── Impersonation (admin actúa como otro usuario) ──────────────────────
-function _decodeJwt(t){ try{ return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }catch{ return {}; } }
+// atob() devuelve Latin-1: los bytes UTF-8 del payload (nombres con acentos, ej.
+// impersonatorName) salían como mojibake ("JoaquÃn"). TextDecoder los repara.
+function _decodeJwt(t){ try{ const b=atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')); return JSON.parse(new TextDecoder().decode(Uint8Array.from(b,c=>c.charCodeAt(0)))); }catch{ return {}; } }
 function _isImpersonating(){ return !!(_token && _decodeJwt(_token).impersonatedBy); }
 function renderImpersonateBanner(){
+  const p=_token?_decodeJwt(_token):{};
+  const imp=!!p.impersonatedBy;
+  const label='Actuando como '+(_user?_user.name:'usuario');
+  // Franja dentro de screen-app (WWP)
   const b=document.getElementById('impersonate-banner');
-  if(!b)return;
-  const p=_decodeJwt(_token);
-  if(p.impersonatedBy){
-    b.style.display='flex';
-    const txt=document.getElementById('imp-banner-text');
-    if(txt)txt.textContent='Actuando como '+( _user?_user.name:'usuario')+' · '+(p.impersonatorName||'Admin');
-    lucideHydrate(b);
-  } else b.style.display='none';
+  if(b){
+    if(imp){
+      b.style.display='flex';
+      const txt=document.getElementById('imp-banner-text');
+      if(txt)txt.textContent=label+' · '+(p.impersonatorName||'Admin');
+      lucideHydrate(b);
+    } else b.style.display='none';
+  }
+  // Espejo en el sidebar global: los usuarios sin WWP (ventas) aterrizan en el
+  // historial y no ven la franja de arriba — sin esto no habría cómo volver.
+  const box=document.getElementById('hist-imp-box');
+  if(box){
+    if(imp){
+      box.style.display='';
+      box.title=label+' — tu cuenta: '+(p.impersonatorName||'Admin');
+      const n=document.getElementById('hist-imp-name');
+      if(n)n.textContent=label;
+      lucideHydrate(box);
+    } else box.style.display='none';
+  }
 }
 async function openUserSwitcher(){
   closeProfileMenu();
