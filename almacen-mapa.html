@@ -7,13 +7,14 @@
 <!-- Three.js vendorizado LOCAL (nunca CDN, patrón leaflet). r147 UMD → THREE global; OrbitControls engancha THREE.OrbitControls -->
 <script src="/three.min.js"></script>
 <script src="/OrbitControls.js"></script>
+<script src="/lucide.min.js" defer></script>
 <style>
 :root{
   --bg:#e8e9e4;--surface:#fff;--surface-2:#f4f4f0;--border:#d8dbd5;
   --text:#1f2d3d;--text-2:#4a5568;--text-3:#94a3b8;--accent:#1b3b6f;
   --radius:8px;
   --scrollbar-thumb:rgba(31,45,61,.22);--scrollbar-thumb-hover:rgba(31,45,61,.42);
-  /* ── Escena 3D (digital twin) — fondo, piso, luces por tema ── */
+  /* ── Escena 3D esquemática — fondo, piso y luces por tema ── */
   --scene-bg-top:#eef1f4;      /* cielo del degradé de fondo (claro) */
   --scene-bg-bottom:#d4d8dd;   /* horizonte del degradé de fondo (claro) */
   --scene-floor:#dfe3e6;       /* piso de nave */
@@ -48,8 +49,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .topbar{background:var(--accent);color:#fff;padding:8px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;height:40px}
 .topbar h1{font-size:14px;font-weight:700}
 .topbar .sub{font-size:10px;opacity:.65;margin-top:1px}
-.mock-badge{background:#fff3cd;border:1px solid #ffc107;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;color:#856404}
-[data-theme='dark'] .mock-badge{background:#3a2f12;border-color:#b58a1c;color:#e7c765}
 #btn-refresh,#btn-theme{background:rgba(255,255,255,.15);border:none;color:#fff;padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600}
 #btn-theme{padding:3px 8px}
 .layout{flex:1;display:grid;grid-template-columns:190px 1fr 290px;overflow:hidden;min-height:0}
@@ -127,157 +126,182 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 .item-card .ref{font-size:10px;font-weight:700;color:var(--accent);font-family:monospace}
 .item-card .name{font-size:10px;color:var(--text);margin-top:1px;line-height:1.3}
 .item-card .dims{font-size:9px;color:var(--text-2);margin-top:2px;font-family:monospace}
-.bdims{font-size:8px;background:#e8f5e9;color:#2e7d32;border-radius:3px;padding:1px 4px;font-weight:700}
-.bnodim{font-size:8px;background:#e3f2fd;color:#1976d2;border-radius:3px;padding:1px 4px;font-weight:700}
 
 /* Loading */
 #loading-overlay{position:fixed;inset:0;background:rgba(232,233,228,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:10px}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<link rel="stylesheet" href="/almacen-mapa.css">
 </head>
 <body>
 
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div id="loading-msg" style="font-size:13px;font-weight:600;color:var(--text-2)">Conectando con Odoo…</div>
-  <div id="loading-sub" style="font-size:11px;color:var(--text-3)"></div>
+<div id="loading-overlay" role="status" aria-live="polite" aria-busy="true">
+  <div class="spinner" aria-hidden="true"></div>
+  <div class="loading-icon" aria-hidden="true"><i data-lucide="triangle-alert" class="icon-lg"></i></div>
+  <div id="loading-msg">Conectando con Odoo…</div>
+  <div id="loading-sub"></div>
+  <button id="loading-action" type="button" onclick="initMap()"><i data-lucide="refresh-cw" class="icon-sm"></i>Reintentar</button>
 </div>
 
-<div class="topbar">
-  <div>
-    <h1>🏭 Mapa Almacén CDP · Vista 3D &nbsp;<span class="mock-badge">⚠ DIMS MOCK</span></h1>
-    <div class="sub">AlTriTempi · Arrastra = mover · Clic derecho = rotar/inclinar · Rueda = zoom · Clic = detalle</div>
+<header class="topbar">
+  <div class="brand-block">
+    <div class="brand-mark" aria-hidden="true"><i data-lucide="warehouse" class="icon"></i></div>
+    <div class="brand-copy">
+      <h1>Mapa de almacén</h1>
+      <div class="sub">CDP · Vista esquemática de ubicaciones</div>
+    </div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
-    <span id="last-update" style="font-size:10px;opacity:.6"></span>
-    <button id="btn-theme" onclick="toggleTheme()" title="Cambiar tema claro/oscuro">🌓 Tema</button>
-    <button id="btn-refresh" onclick="initMap()">↻ Actualizar</button>
+  <div class="header-actions">
+    <div class="sync-pill" id="sync-status" role="status">
+      <span class="sync-dot" aria-hidden="true"></span>
+      <span id="sync-label">Sincronizando…</span>
+      <span id="last-update"></span>
+    </div>
+    <button class="header-btn icon-only" id="btn-theme" type="button" onclick="toggleTheme()" title="Cambiar tema" aria-label="Cambiar tema claro u oscuro"><i data-lucide="moon" class="icon"></i></button>
+    <button class="header-btn" id="btn-refresh" type="button" onclick="initMap()"><i data-lucide="refresh-cw" class="icon-sm"></i><span class="btn-label">Actualizar</span></button>
   </div>
-</div>
+</header>
 
-<div class="layout">
-  <!-- LEFT -->
-  <div class="side-left">
-    <div>
-      <div class="panel-title">Dimensiones de Bins <span class="mock-badge">MOCK</span></div>
-      <div class="dim-group" style="margin-bottom:5px">
-        <h4>Tipo A · Estándar (A,B,E–I)</h4>
-        <div class="dim-row"><label>Ancho</label><input id="dA-w" type="number" value="120"><span class="dim-unit">cm</span></div>
-        <div class="dim-row"><label>Profund.</label><input id="dA-d" type="number" value="90"><span class="dim-unit">cm</span></div>
-        <div class="dim-row"><label>H/nivel</label><input id="dA-h" type="number" value="65"><span class="dim-unit">cm</span></div>
-        <div style="font-size:9px;color:var(--text-3)">Vol/slot: <b id="volA">—</b></div>
-      </div>
-      <div class="dim-group">
-        <h4>Tipo B · Alto (C,D · 7 niveles)</h4>
-        <div class="dim-row"><label>Ancho</label><input id="dB-w" type="number" value="120"><span class="dim-unit">cm</span></div>
-        <div class="dim-row"><label>Profund.</label><input id="dB-d" type="number" value="90"><span class="dim-unit">cm</span></div>
-        <div class="dim-row"><label>H/nivel</label><input id="dB-h" type="number" value="55"><span class="dim-unit">cm</span></div>
-        <div style="font-size:9px;color:var(--text-3)">Vol/slot: <b id="volB">—</b></div>
-      </div>
-      <button id="btn-apply-dims" onclick="applyDims()">✓ Aplicar y recalcular</button>
-    </div>
-    <div>
-      <div class="panel-title">Estadísticas</div>
-      <div class="stats-grid">
-        <div class="stat-box"><div class="num" id="st-total">—</div><div class="lbl">Bins</div></div>
-        <div class="stat-box"><div class="num" id="st-occupied">—</div><div class="lbl">Ocupados</div></div>
-        <div class="stat-box"><div class="num" id="st-empty">—</div><div class="lbl">Vacíos</div></div>
-        <div class="stat-box"><div class="num" id="st-pct">—</div><div class="lbl">Ocupación</div></div>
-      </div>
-    </div>
-    <div>
-      <div class="panel-title">Leyenda</div>
-      <div class="legend">
-        <div class="leg-item"><div class="leg-dot" style="background:#cdd6cd"></div>Vacío</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#facc54"></div>&lt; 50% lleno</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#f5a650"></div>50–80% lleno</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#e66868"></div>&gt; 80% lleno</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#7ca6e8"></div>Sin medidas</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#a878dc"></div>Frontal (frente de pasillos)</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#96a0af"></div>Obsoleto</div>
-        <div class="leg-item"><div class="leg-dot" style="background:#ffe082;border-color:#f9a825"></div>Pasillo (aisle)</div>
-      </div>
-    </div>
-    <div>
-      <div class="panel-title">Cobertura medidas</div>
-      <div style="font-size:10px;color:var(--text-2);line-height:1.7">
-        <div>✅ Con medidas: <b id="cov-yes">—</b></div>
-        <div>⚠️ Sin medidas: <b id="cov-no">—</b></div>
-        <div>❌ Sin descripción: <b id="cov-none">—</b></div>
-      </div>
-    </div>
+<section class="summary-strip" aria-label="Resumen operativo del almacén">
+  <div class="summary-item"><div class="summary-value" id="st-total">—</div><div class="summary-label">Bins registrados</div></div>
+  <div class="summary-item"><div class="summary-value" id="st-occupied">—</div><div class="summary-label">Con stock</div></div>
+  <div class="summary-item"><div class="summary-value" id="st-empty">—</div><div class="summary-label">Disponibles</div></div>
+  <div class="summary-item"><div class="summary-value" id="st-pct">—</div><div class="summary-label">Bins con stock</div></div>
+  <div class="summary-item alert"><div class="summary-value" id="st-critical">—</div><div class="summary-label">Sobre 80% estimado</div></div>
+  <div class="summary-item coverage-summary">
+    <div class="coverage-head"><span class="summary-label">Productos con medidas</span><b id="cov-pct">—</b></div>
+    <div class="coverage-track" aria-hidden="true"><div class="coverage-fill" id="cov-fill" style="width:0%"></div></div>
+    <div class="coverage-note" id="cov-note">Esperando datos de productos</div>
   </div>
+</section>
 
-  <!-- CENTER -->
-  <div class="map-center">
-    <div class="map-toolbar">
-      <button class="tgl-btn" id="tgl-left" onclick="togglePanel('left')" title="Mostrar/ocultar panel de dimensiones">⚙</button>
-      <div class="view-toggle">
-        <button class="view-btn" id="btn-view-plant" onclick="setView('plant')">🗺 Planta</button>
-        <button class="view-btn" id="btn-view-rack" onclick="setView('rack')">📐 Rack</button>
-        <button class="view-btn active" id="btn-view-3d" onclick="setView('3d')">🧊 3D</button>
+<div class="layout no-left no-right" id="warehouse-layout">
+  <aside class="side-left" id="capacity-panel" tabindex="-1" aria-label="Configuración de capacidad">
+    <div class="panel-shell-head">
+      <div><div class="panel-shell-title">Capacidad estimada</div><div class="panel-shell-sub">Parámetros locales del mapa</div></div>
+      <button class="panel-close" type="button" onclick="togglePanel('left',false)" aria-label="Cerrar configuración"><i data-lucide="x" class="icon"></i></button>
+    </div>
+    <div class="panel-scroll">
+      <div class="estimated-note"><i data-lucide="info" class="icon"></i><span>Estas dimensiones son una estimación visual y no modifican Odoo. Los porcentajes solo son confiables cuando todas las referencias del bin tienen medidas.</span></div>
+      <div class="panel-title">Dimensiones de bins</div>
+      <div class="dim-stack">
+        <div class="dim-group">
+          <h4>Tipo A · Estándar</h4>
+          <div class="dim-row"><label for="dA-w">Ancho</label><input id="dA-w" type="number" min="1" inputmode="decimal" value="120"><span class="dim-unit">cm</span></div>
+          <div class="dim-row"><label for="dA-d">Profundidad</label><input id="dA-d" type="number" min="1" inputmode="decimal" value="90"><span class="dim-unit">cm</span></div>
+          <div class="dim-row"><label for="dA-h">Alto/nivel</label><input id="dA-h" type="number" min="1" inputmode="decimal" value="65"><span class="dim-unit">cm</span></div>
+          <div class="slot-volume">Volumen por slot · <b id="volA">—</b></div>
+        </div>
+        <div class="dim-group">
+          <h4>Tipo B · Filas C y D</h4>
+          <div class="dim-row"><label for="dB-w">Ancho</label><input id="dB-w" type="number" min="1" inputmode="decimal" value="120"><span class="dim-unit">cm</span></div>
+          <div class="dim-row"><label for="dB-d">Profundidad</label><input id="dB-d" type="number" min="1" inputmode="decimal" value="90"><span class="dim-unit">cm</span></div>
+          <div class="dim-row"><label for="dB-h">Alto/nivel</label><input id="dB-h" type="number" min="1" inputmode="decimal" value="55"><span class="dim-unit">cm</span></div>
+          <div class="slot-volume">Volumen por slot · <b id="volB">—</b></div>
+        </div>
       </div>
-      <select class="filter-sel" id="filter-row" onchange="onFilterChange()">
-        <option value="">Todas las filas</option>
-      </select>
-      <select class="filter-sel" id="filter-level" onchange="onFilterChange()">
-        <option value="">Todos los niveles</option>
-        <option value="1">Nivel 1</option><option value="2">Nivel 2</option>
-        <option value="3">Nivel 3</option><option value="4">Nivel 4</option>
-        <option value="5">Nivel 5</option><option value="6">Nivel 6</option>
-        <option value="7">Nivel 7</option>
-      </select>
-      <input id="bin-search" class="filter-sel" placeholder="Buscar bin…" style="width:118px" title="Escribe un bin (ej. AC5) y presiona Enter" onkeydown="if(event.key==='Enter')goToBin(this.value)">
-      <button class="tgl-btn" id="btn-fit" onclick="fitView()" title="Encajar todo el mapa en pantalla">⤢ Encajar</button>
-      <button class="tgl-btn" id="tgl-right" onclick="togglePanel('right')" title="Mostrar/ocultar detalle de ubicación" style="margin-left:auto">📋 Detalle</button>
+      <button id="btn-apply-dims" type="button" onclick="applyDims()"><i data-lucide="calculator" class="icon-sm"></i>Aplicar y recalcular</button>
+      <div class="coverage-card">
+        <div class="panel-title">Cobertura de medidas</div>
+        <div class="coverage-list">
+          <div class="coverage-row"><b id="cov-yes">—</b><span>Con medidas</span></div>
+          <div class="coverage-row"><b id="cov-no">—</b><span>Medida incompleta</span></div>
+          <div class="coverage-row"><b id="cov-none">—</b><span>Sin descripción</span></div>
+          <div class="coverage-row"><b id="cov-total">—</b><span>Productos con stock</span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="map-center">
+    <div class="map-toolbar" aria-label="Controles del mapa">
+      <button class="toolbar-btn icon-only off" id="tgl-left" type="button" onclick="togglePanel('left')" title="Configurar capacidad" aria-label="Abrir configuración de capacidad" aria-expanded="false"><i data-lucide="settings-2" class="icon"></i></button>
+      <div class="view-toggle" role="group" aria-label="Vista del almacén">
+        <button class="view-btn" id="btn-view-plant" type="button" onclick="setView('plant')" aria-pressed="false"><i data-lucide="map" class="icon-sm"></i>Planta</button>
+        <button class="view-btn" id="btn-view-rack" type="button" onclick="setView('rack')" aria-pressed="false"><i data-lucide="rows-3" class="icon-sm"></i>Rack</button>
+        <button class="view-btn active" id="btn-view-3d" type="button" onclick="setView('3d')" aria-pressed="true"><i data-lucide="box" class="icon-sm"></i>3D</button>
+      </div>
+      <div class="search-shell">
+        <i data-lucide="search" class="icon"></i>
+        <label class="sr-only" for="warehouse-search">Buscar bin, referencia o código de barras</label>
+        <input id="warehouse-search" type="search" autocomplete="off" placeholder="Buscar bin, referencia o producto…" aria-controls="search-results" aria-expanded="false">
+        <button class="search-clear" id="search-clear" type="button" aria-label="Limpiar búsqueda" hidden><i data-lucide="x" class="icon-sm"></i></button>
+        <div class="search-results" id="search-results" role="listbox" hidden></div>
+      </div>
+      <div class="toolbar-filters">
+        <label class="sr-only" for="filter-row">Filtrar por fila</label>
+        <select class="filter-sel" id="filter-row" onchange="onFilterChange()"><option value="">Todas las filas</option></select>
+        <label class="sr-only" for="filter-level">Filtrar por nivel</label>
+        <select class="filter-sel" id="filter-level" onchange="onFilterChange()">
+          <option value="">Todos los niveles</option><option value="1">Nivel 1</option><option value="2">Nivel 2</option><option value="3">Nivel 3</option><option value="4">Nivel 4</option><option value="5">Nivel 5</option><option value="6">Nivel 6</option><option value="7">Nivel 7</option>
+        </select>
+        <label class="sr-only" for="filter-status">Filtrar por estado de capacidad</label>
+        <select class="filter-sel" id="filter-status" onchange="onFilterChange()">
+          <option value="">Todos los estados</option><option value="empty">Disponibles</option><option value="low">Menos de 50%</option><option value="mid">Entre 50% y 80%</option><option value="high">Sobre 80%</option><option value="nodata">Medidas incompletas</option>
+        </select>
+        <button class="toolbar-btn" id="btn-clear-filters" type="button" onclick="clearMapFilters()" hidden><i data-lucide="list-filter" class="icon-sm"></i>Limpiar</button>
+        <span class="results-count" id="results-count" aria-live="polite"></span>
+      </div>
+      <span class="toolbar-spacer"></span>
+      <button class="toolbar-btn" id="btn-fit" type="button" onclick="resetView()" title="Encajar todo el mapa"><i data-lucide="maximize-2" class="icon-sm"></i><span>Encajar</span></button>
+      <button class="toolbar-btn icon-only off" id="tgl-right" type="button" onclick="togglePanel('right')" title="Abrir detalle" aria-label="Abrir panel de detalle" aria-expanded="false"><i data-lucide="panel-right" class="icon"></i></button>
     </div>
     <div id="map-container">
-      <canvas id="canvas-3d"></canvas>
-      <div id="canvas-2d-wrap" style="display:none;width:100%;height:100%;overflow:auto;padding:12px"></div>
-      <div id="gl-fallback-note"><b>Modo compatible (2.5D)</b><br>Tu navegador no soporta WebGL; se muestra el mapa en modo ligero.</div>
-      <div id="map-legend">
-        <div class="ml-title">Estado del bin</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#cdd6cd"></span>Vacío</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#facc54"></span>&lt; 50% lleno</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#f5a650"></span>50–80% lleno</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#e66868"></span>&gt; 80% lleno</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#7ca6e8"></span>Sin medidas</div>
-        <div class="ml-row"><span class="ml-dot" style="background:#a878dc"></span>Frontal</div>
+      <canvas id="canvas-3d" role="img" aria-label="Vista tridimensional esquemática del almacén. Usa la búsqueda o la vista Planta para navegar con teclado."></canvas>
+      <div id="canvas-2d-wrap" style="display:none;width:100%;height:100%;overflow:auto;padding:12px" aria-live="polite"></div>
+      <div id="gl-fallback-note" role="status"><b>Modo compatible 2.5D</b><br>WebGL no está disponible; el mapa sigue operativo en modo ligero.</div>
+      <div class="map-empty-state" id="map-empty-state" hidden><i data-lucide="warehouse" class="icon-lg"></i><b>No hay bins registrados</b><span>Odoo respondió, pero no encontramos ubicaciones internas activas bajo A-CDP.</span></div>
+      <details id="map-legend" class="map-legend" open>
+        <summary><span>Estado estimado</span></summary>
+        <div class="legend-body">
+          <div class="ml-row"><span class="ml-dot dot-empty"></span>Disponible</div>
+          <div class="ml-row"><span class="ml-dot dot-low"></span>Menos de 50%</div>
+          <div class="ml-row"><span class="ml-dot dot-mid"></span>Entre 50% y 80%</div>
+          <div class="ml-row"><span class="ml-dot dot-high"></span>Sobre 80%</div>
+          <div class="ml-row"><span class="ml-dot dot-nodata"></span>Medidas incompletas</div>
+          <div class="ml-row"><span class="ml-dot dot-special"></span>Zona frontal</div>
+        </div>
+      </details>
+      <div class="map-toast" id="map-toast" role="status" aria-live="polite"></div>
+      <div id="iso-tooltip" role="tooltip">
+        <div class="tip-code" id="tip-code"></div><div class="tip-util" id="tip-util"></div><div class="tip-items" id="tip-items"></div>
       </div>
-      <div id="iso-tooltip">
-        <div class="tip-code" id="tip-code"></div>
-        <div class="tip-util" id="tip-util"></div>
-        <div class="tip-items" id="tip-items"></div>
-      </div>
-      <!-- Rotation widget -->
-      <div id="rot-widget">
+      <div id="rot-widget" aria-label="Controles de cámara">
         <div class="rot-btns">
-          <button class="rot-btn" onclick="rotateBy(-Math.PI/8)" title="Girar izquierda">◀</button>
-          <button class="rot-btn" onclick="resetView()" title="Vista por defecto">⌂</button>
-          <button class="rot-btn" onclick="rotateBy(Math.PI/8)" title="Girar derecha">▶</button>
+          <button class="rot-btn" type="button" onclick="rotateBy(-Math.PI/8)" title="Girar a la izquierda" aria-label="Girar a la izquierda"><i data-lucide="rotate-ccw" class="icon"></i></button>
+          <button class="rot-btn" type="button" onclick="resetView()" title="Restablecer vista" aria-label="Restablecer vista"><i data-lucide="home" class="icon"></i></button>
+          <button class="rot-btn" type="button" onclick="rotateBy(Math.PI/8)" title="Girar a la derecha" aria-label="Girar a la derecha"><i data-lucide="rotate-cw" class="icon"></i></button>
         </div>
-        <div class="rot-btns" style="margin-top:2px">
-          <button class="rot-btn" onclick="tiltBy(-0.12)" title="Inclinar arriba">▲</button>
-          <button class="rot-btn" onclick="tiltBy(0.12)" title="Inclinar abajo">▼</button>
+        <span class="rot-sep" aria-hidden="true"></span>
+        <div class="rot-btns tilt-controls">
+          <button class="rot-btn" type="button" onclick="tiltBy(-0.12)" title="Inclinar arriba" aria-label="Inclinar arriba"><i data-lucide="chevron-up" class="icon"></i></button>
+          <button class="rot-btn" type="button" onclick="tiltBy(0.12)" title="Inclinar abajo" aria-label="Inclinar abajo"><i data-lucide="chevron-down" class="icon"></i></button>
         </div>
-        <div class="rot-btns" style="margin-top:2px">
-          <button class="rot-btn" onclick="zoom3D(1.2)" title="Acercar">+</button>
-          <button class="rot-btn" onclick="zoom3D(0.83)" title="Alejar">−</button>
+        <span class="rot-sep tilt-controls" aria-hidden="true"></span>
+        <div class="rot-btns">
+          <button class="rot-btn" type="button" onclick="zoom3D(1.2)" title="Acercar" aria-label="Acercar"><i data-lucide="plus" class="icon"></i></button>
+          <button class="rot-btn" type="button" onclick="zoom3D(0.83)" title="Alejar" aria-label="Alejar"><i data-lucide="minus" class="icon"></i></button>
         </div>
-        <div id="rot-hint">Arrastra = mover · Der. = rotar · Rueda = zoom</div>
+        <div id="rot-hint">Arrastra para mover · botón derecho para girar</div>
       </div>
     </div>
-  </div>
+  </main>
 
-  <!-- RIGHT -->
-  <div class="side-right">
-    <div id="detail-placeholder">
-      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".35"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-      Haz clic en un bin<br>para ver su contenido
+  <aside class="side-right" id="detail-panel" tabindex="-1" aria-label="Detalle de ubicación">
+    <div class="panel-shell-head">
+      <div><div class="panel-shell-title">Detalle de ubicación</div><div class="panel-shell-sub">Inventario actual en Odoo</div></div>
+      <button class="panel-close" type="button" onclick="togglePanel('right',false)" aria-label="Cerrar detalle"><i data-lucide="x" class="icon"></i></button>
     </div>
-    <div id="bin-detail"></div>
-  </div>
+    <div class="panel-scroll" id="detail-scroll">
+      <div id="detail-placeholder">
+        <div class="placeholder-icon"><i data-lucide="scan-search" class="icon-lg"></i></div>
+        <b>Selecciona una ubicación</b>
+        <span>Haz clic en un bin o búscalo por código, referencia o código de barras.</span>
+      </div>
+      <div id="bin-detail" aria-live="polite"></div>
+    </div>
+  </aside>
 </div>
 
 <script>
@@ -291,8 +315,9 @@ let ROWS = [];                          // filas de rack presentes (ordenadas)
 let COLS = ['A','B','C','D','E','F','G']; // máximo global de columnas (para ejes)
 let COLS_BY_ROW = {};                   // fila → columnas presentes
 let LVLS_BY_ROW = {};                   // fila → # de niveles
-const BIN_PAT = /^([A-Q])([A-I])([1-7])$/;   // Q llega hasta col I (9 columnas)
+const BIN_PAT = /^([A-Z])([A-Z])([1-9]\d*)$/;
 const DIM_RX  = /(\d+(?:[.,]\d+)?)\s*[xX×\*]\s*(\d+(?:[.,]\d+)?)(?:\s*[xX×\*]\s*[HhDdCc]?\.?\s*(\d+(?:[.,]\d+)?))?/;
+const TYPE_B_ROWS = new Set(['C','D']);
 // Zonas especiales (no-rack). 'Frontal' = ALVEN/Stock/A-CDP/Obsoleto/Frontal.
 // 'Obsoleto' NO es zona plana: son los racks J–Q (se dibujan como racks normales).
 const FRONTAL_LOC = 'Frontal';
@@ -330,9 +355,27 @@ function buildLayout(rowsPresent){
 // ═══════════════════════════════════════════════════════════════════
 // DATA STATE
 // ═══════════════════════════════════════════════════════════════════
-let _locs=[], _quants=[], _prodMap={}, _binMap={};
+let _locs=[], _quants=[], _prodMap={}, _binMap={}, _binByLocId={};
 let _selectedBin=null, _currentView='3d';
 let _dimA={w:120,d:90,h:65}, _dimB={w:120,d:90,h:55};
+let _mapLoading=false, _hasLoaded=false, _loadSeq=0, _toastTimer=null, _searchTimer=null, _lastSearchResults=[];
+const _imageRequests=new Map();
+
+function esc(v){
+  return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function hydrateIcons(){
+  if(window.lucide){ try{ window.lucide.createIcons(); }catch(e){} }
+}
+function rackBinCodes(){
+  return Object.keys(_binMap).filter(code=>BIN_PAT.test(code)).sort((a,b)=>{
+    const ma=BIN_PAT.exec(a),mb=BIN_PAT.exec(b);
+    return ma[1].localeCompare(mb[1])||ma[2].localeCompare(mb[2])||(+ma[3])-(+mb[3]);
+  });
+}
+function sumUnits(items){ return (items||[]).reduce((n,it)=>n+(Number(it.qty)||0),0); }
+function fmtQty(v){ return new Intl.NumberFormat('es-DO',{maximumFractionDigits:2}).format(Number(v)||0); }
+function norm(v){ return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim(); }
 
 // ═══════════════════════════════════════════════════════════════════
 // 3D VIEWPORT STATE
@@ -352,7 +395,7 @@ const V = {
 const TW=50, TH=25, LH=30;   // tile width, tile height (2:1), level height px
 
 // ═══════════════════════════════════════════════════════════════════
-// THREE.JS — digital twin (motor 3D principal). El pipeline canvas 2.5D
+// THREE.JS — vista esquemática 3D (motor principal). El pipeline canvas 2.5D
 // de más abajo (proj/drawBox/render3D/hitTest) se CONSERVA como fallback
 // si no hay WebGL. GL.on decide cuál motor gobierna cada función de vista.
 // ═══════════════════════════════════════════════════════════════════
@@ -368,13 +411,14 @@ const GL = {
   dir:null, hemi:null,
   raf:null,          // handle del loop temporal (damping) — render on-demand
   _tmpColor:null, _tmpMat:null, _tmpObj:null,
-  ro:null            // ResizeObserver
+  ro:null, bgTex:null // ResizeObserver + textura de fondo actual
 };
+let _glRay=null;
 
 // ¿Hay WebGL utilizable? (una sola vez; barato)
 function _hasWebGL(){
   try{
-    if(typeof THREE==='undefined') return false;
+    if(typeof THREE==='undefined' || typeof THREE.OrbitControls!=='function') return false;
     const c=document.createElement('canvas');
     return !!(window.WebGLRenderingContext && (c.getContext('webgl')||c.getContext('experimental-webgl')));
   }catch(e){ return false; }
@@ -420,50 +464,56 @@ function _glPos(ci, rowLetter, lv){
 function glInit(){
   if(GL.ready || !_hasWebGL()) return GL.ready;
   const canvas=document.getElementById('canvas-3d');
-  const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
-  renderer.outputEncoding=THREE.sRGBEncoding;                 // r147
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.05;
-  renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  let renderer=null;
+  try{
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    renderer.outputEncoding=THREE.sRGBEncoding;                 // r147
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.05;
+    renderer.shadowMap.enabled=true;
+    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 
-  const scene=new THREE.Scene();
-  const camera=new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+    const controls=new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping=true; controls.dampingFactor=0.09;
+    controls.screenSpacePanning=false;
+    controls.maxPolarAngle=Math.PI*0.495;
+    controls.minDistance=3; controls.maxDistance=400;
+    controls.mouseButtons={ LEFT:THREE.MOUSE.PAN, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE };
+    controls.touches={ ONE:THREE.TOUCH.PAN, TWO:THREE.TOUCH.DOLLY_ROTATE };
+    controls.addEventListener('start', ()=>glStartLoop());
+    controls.addEventListener('change', ()=>glRenderOnce());
+    controls.addEventListener('end', ()=>glStartLoop());
 
-  // OrbitControls (examples/js → THREE.OrbitControls global). Damping + clamp de piso.
-  const controls=new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping=true; controls.dampingFactor=0.09;
-  controls.screenSpacePanning=false;
-  controls.maxPolarAngle=Math.PI*0.495;  // nunca bajo el piso
-  controls.minDistance=3; controls.maxDistance=400;
-  controls.mouseButtons={ LEFT:THREE.MOUSE.PAN, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE };
-  controls.touches={ ONE:THREE.TOUCH.PAN, TWO:THREE.TOUCH.DOLLY_ROTATE };
-  controls.addEventListener('start', ()=>glStartLoop());
-  controls.addEventListener('change', ()=>glRenderOnce());
-  controls.addEventListener('end', ()=>glStartLoop());  // deja correr el damping hasta que pare
+    const hemi=new THREE.HemisphereLight(0xffffff,0xffffff,1.0);
+    scene.add(hemi);
+    const dir=new THREE.DirectionalLight(0xffffff,1.0);
+    dir.castShadow=true;
+    dir.shadow.mapSize.set(1024,1024);
+    dir.shadow.bias=-0.0006;
+    scene.add(dir); scene.add(dir.target);
 
-  // Luces: relleno hemisférico + UNA direccional con sombra.
-  const hemi=new THREE.HemisphereLight(0xffffff,0xffffff,1.0);
-  scene.add(hemi);
-  const dir=new THREE.DirectionalLight(0xffffff,1.0);
-  dir.castShadow=true;
-  dir.shadow.mapSize.set(1024,1024);
-  dir.shadow.bias=-0.0006;
-  scene.add(dir);
-  scene.add(dir.target);
-
-  GL.renderer=renderer; GL.scene=scene; GL.camera=camera; GL.controls=controls;
-  GL.hemi=hemi; GL.dir=dir;
-  GL._tmpColor=new THREE.Color(); GL._tmpMat=new THREE.Matrix4(); GL._tmpObj=new THREE.Object3D();
-  GL.ready=true;
-
-  // Reaccionar a cambios de tamaño del contenedor (además del resize de ventana).
-  if(window.ResizeObserver){
-    GL.ro=new ResizeObserver(()=>{ if(GL.on) glResize(); });
-    GL.ro.observe(document.getElementById('map-container'));
+    GL.renderer=renderer; GL.scene=scene; GL.camera=camera; GL.controls=controls;
+    GL.hemi=hemi; GL.dir=dir;
+    GL._tmpColor=new THREE.Color(); GL._tmpMat=new THREE.Matrix4(); GL._tmpObj=new THREE.Object3D();
+    _glRay=new THREE.Raycaster();
+    GL.ready=true;
+    if(window.ResizeObserver){
+      GL.ro=new ResizeObserver(()=>{ if(GL.on) glResize(); });
+      GL.ro.observe(document.getElementById('map-container'));
+    }
+    return true;
+  }catch(e){
+    console.error('No se pudo iniciar WebGL; se activa el modo compatible.',e);
+    try{ if(renderer) renderer.dispose(); }catch(_e){}
+    const replacement=canvas.cloneNode(false);
+    canvas.replaceWith(replacement);
+    GL.renderer=GL.scene=GL.camera=GL.controls=GL.hemi=GL.dir=null;
+    GL.ready=false; _glRay=null;
+    return false;
   }
-  return true;
 }
 
 // Aplica los colores/intensidades del tema actual a fondo y luces.
@@ -472,7 +522,9 @@ function glApplyTheme(){
   const s=GL.scene;
   // Fondo: degradé vertical simple con dos colores del token → textura de 1x2.
   const top=_tok('--scene-bg-top','#eef1f4'), bot=_tok('--scene-bg-bottom','#d4d8dd');
-  s.background=_glBgTexture(top,bot);
+  const nextBg=_glBgTexture(top,bot);
+  if(GL.bgTex && GL.bgTex.dispose) GL.bgTex.dispose();
+  GL.bgTex=nextBg; s.background=nextBg;
   // Sin niebla: en un mapa de inventario los racks deben verse NÍTIDOS a cualquier zoom.
   // La THREE.Fog (near 2.2·r, far 6·r) lavaba el modelo hacia el fondo al alejarse
   // (se percibía como "blur cuando se aleja") — decisión de Gabriel 2026-07-06.
@@ -483,7 +535,10 @@ function glApplyTheme(){
   GL.dir.color.copy(_tok('--scene-dir','#fff6e8'));
   GL.dir.intensity=_tokNum('--scene-dir-int',1.05);
   if(GL.floor) GL.floor.material.color.copy(_tok('--scene-floor','#dfe3e6'));
+  if(GL.floor) GL.floor.traverse(o=>{ if(o.isMesh&&o.userData.aisle) o.material.color.copy(_tok('--scene-aisle','#e9d38a')); });
   if(GL.rackGroup) GL.rackGroup.traverse(o=>{ if(o.isMesh && o.userData.rack) o.material.color.copy(_tok('--scene-rack','#8a9099')); });
+  if(GL.frontMesh) GL.frontMesh.material.color.copy(_tok('--map-special','#a878dc'));
+  if(GL.selMesh) GL.selMesh.material.color.copy(_tok('--map-selection','#1b3b6f'));
 }
 // Textura de fondo (degradé vertical) — barata, 2px de alto.
 function _glBgTexture(top,bot){
@@ -526,6 +581,7 @@ function glBuildScene(){
     if(gi===AISLE_GROUPS.length-1) return;
     const ry0=ROW_POS[grp[grp.length-1]]+1;
     const strip=new THREE.Mesh(new THREE.PlaneGeometry(W, AISLE_W*GLU*0.9), aisleMat);
+    strip.userData.aisle=true;
     strip.rotation.x=-Math.PI/2;
     strip.position.set(W/2, 0.01, (ry0+AISLE_W/2)*GLU);
     strip.receiveShadow=false;
@@ -540,7 +596,7 @@ function glBuildScene(){
   ROWS.forEach(row=>{
     const ry=ROW_POS[row];
     const lv=lvlsOf(row);
-    const cols=colsOf(row).length;
+    const cols=COLS.length;
     const rowH=lv*GL_LVL;
     // Parales en las 4 esquinas de la fila + entre columnas cada 1
     for(let cx=0; cx<=cols; cx++){
@@ -568,13 +624,10 @@ function glBuildScene(){
   s.add(rackGroup); GL.rackGroup=rackGroup;
 
   // ── Bins como InstancedMesh (1 draw call para todos) ──
-  const binList=[];
-  ROWS.forEach(row=>{
-    const lv=lvlsOf(row);
-    colsOf(row).forEach((colL,ci)=>{
-      for(let l=0;l<lv;l++){ binList.push({ci,row,colL,l,code:row+colL+(l+1)}); }
-    });
-  });
+  const binList=rackBinCodes().map(code=>{
+    const m=BIN_PAT.exec(code);
+    return {ci:COLS.indexOf(m[2]),row:m[1],colL:m[2],l:+m[3]-1,code};
+  }).filter(b=>b.ci>=0);
   const N=binList.length;
   if(N){
     const binGeo=new THREE.BoxGeometry(GLU*0.82, GL_LVL*0.78, GLU*0.82);
@@ -598,18 +651,19 @@ function glBuildScene(){
   }
 
   // ── Franja Frontal (delante de la columna A, todo el frente) ──
-  const frontCnt=(_binMap[FRONTAL_LOC]?.items||[]).length;
-  const frontMat=new THREE.MeshStandardMaterial({color:new THREE.Color('#a878dc'),roughness:0.7,metalness:0.05,transparent:true,opacity:0.9});
-  const frontGeo=new THREE.BoxGeometry(GLU*0.9, GL_LVL*0.5, D);
-  const front=new THREE.Mesh(frontGeo, frontMat);
-  front.position.set(-0.8*GLU, GL_LVL*0.25, D/2);
-  front.castShadow=true; front.receiveShadow=true;
-  front.userData.frontal=true;
-  s.add(front); GL.frontMesh=front;
+  if(_binMap[FRONTAL_LOC]){
+    const frontMat=new THREE.MeshStandardMaterial({color:_tok('--map-special','#a878dc'),roughness:0.7,metalness:0.05,transparent:true,opacity:0.9});
+    const frontGeo=new THREE.BoxGeometry(GLU*0.9, GL_LVL*0.5, D);
+    const front=new THREE.Mesh(frontGeo, frontMat);
+    front.position.set(-0.8*GLU, GL_LVL*0.25, D/2);
+    front.castShadow=true; front.receiveShadow=true;
+    front.userData.frontal=true;
+    s.add(front); GL.frontMesh=front;
+  }
 
   // ── Caja de resaltado (invisible hasta seleccionar) ──
   const selGeo=new THREE.BoxGeometry(GLU*0.9, GL_LVL*0.86, GLU*0.9);
-  const selMat=new THREE.MeshBasicMaterial({color:new THREE.Color('#1b3b6f'),wireframe:true,transparent:true,opacity:0.95});
+  const selMat=new THREE.MeshBasicMaterial({color:_tok('--map-selection','#1b3b6f'),wireframe:true,transparent:true,opacity:0.95});
   const sel=new THREE.Mesh(selGeo, selMat);
   sel.visible=false; sel.renderOrder=999;
   s.add(sel); GL.selMesh=sel;
@@ -691,13 +745,13 @@ function glRecolor(){
 
 // Resalta el bin seleccionado (mueve la caja wireframe).
 function glHighlight(code){
-  if(!GL.ready) return;
+  if(!GL.ready || !GL.selMesh) return;
   const sel=GL.selMesh;
   if(code && GL.codeInst[code]!=null){
     const i=GL.codeInst[code];
     GL.binsMesh.getMatrixAt(i, GL._tmpMat);
     const pos=new THREE.Vector3().setFromMatrixPosition(GL._tmpMat);
-    sel.position.copy(pos); sel.visible=true;
+    sel.position.copy(pos); sel.scale.set(1,1,1); sel.visible=true;
   } else if(code===FRONTAL_LOC && GL.frontMesh){
     sel.position.copy(GL.frontMesh.position);
     sel.scale.set(GLU*0.9/(GLU*0.9), 1, (MAX_RY*GLU)/(GLU*0.9)); // aproxima la franja
@@ -720,6 +774,9 @@ function glFlyTo(code){
   } else return;
   const r=_glRadius();
   const camTo=target.clone().add(new THREE.Vector3(-r*0.28, r*0.34, r*0.4));
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    GL.controls.target.copy(target); GL.camera.position.copy(camTo); GL.controls.update(); glRenderOnce(); return;
+  }
   const startT=GL.controls.target.clone(), startC=GL.camera.position.clone();
   const t0=performance.now(), dur=520;
   const ease=k=>k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
@@ -736,7 +793,6 @@ function glFlyTo(code){
 }
 
 // ── Raycasting: pointer → código de bin ──
-const _glRay=new THREE.Raycaster ? new THREE.Raycaster() : null;
 const _glMouse={x:0,y:0};
 function glPick(clientX, clientY){
   if(!GL.ready || !_glRay) return null;
@@ -747,9 +803,10 @@ function glPick(clientX, clientY){
   const targets=[]; if(GL.binsMesh) targets.push(GL.binsMesh); if(GL.frontMesh) targets.push(GL.frontMesh);
   const hits=_glRay.intersectObjects(targets, false);
   if(!hits.length) return null;
-  const h=hits[0];
-  if(h.object===GL.frontMesh) return FRONTAL_LOC;
-  if(h.instanceId!=null) return GL.instMap[h.instanceId]||null;
+  for(const h of hits){
+    const code=h.object===GL.frontMesh?FRONTAL_LOC:(h.instanceId!=null?GL.instMap[h.instanceId]:null);
+    if(code&&matchesActiveFilters(code))return code;
+  }
   return null;
 }
 
@@ -767,9 +824,7 @@ function glInitEvents(){
     if(hit){
       const u=calcUtil(hit), bin=_binMap[hit], items=bin?bin.items:[];
       document.getElementById('tip-code').textContent=hit;
-      document.getElementById('tip-util').textContent=
-        (hit===FRONTAL_LOC||hit===OBSOLETO_LOC)?items.length+' artículo(s)':
-        (u.cnt===0?'Vacío':(!u.ok?u.cnt+' artículo(s) · sin medidas':Math.round(u.pct)+'% · '+u.cnt+' artículo(s)'));
+      document.getElementById('tip-util').textContent=utilSummary(hit,u);
       const first3=items.slice(0,3).map(it=>_prodMap[it.prodId]?.ref||'—').join(' · ');
       document.getElementById('tip-items').textContent=first3+(items.length>3?' +más':'');
       tip.style.display='block';
@@ -847,44 +902,88 @@ function fitView(){
 // ═══════════════════════════════════════════════════════════════════
 // COLORS (RGB arrays)
 // ═══════════════════════════════════════════════════════════════════
-const C={
-  empty:   [205,214,205],
-  low:     [250,204,84],
-  mid:     [245,166,80],
-  high:    [230,104,104],
-  nodata:  [124,166,232],
-  special: [168,120,220],
-  floor:   [205,207,200],
-  aisle:   [240,214,120],
-  aisleStr:[196,168,74],
-  sel:     [27,59,111],
-};
+const C={empty:[205,214,205],low:[250,204,84],mid:[245,166,80],high:[230,104,104],nodata:[124,166,232],special:[168,120,220],floor:[205,207,200],aisle:[240,214,120],aisleStr:[196,168,74],sel:[27,59,111]};
+function _cssRgb(token,fallback){
+  const raw=(getComputedStyle(document.documentElement).getPropertyValue(token).trim()||fallback).trim();
+  let m=raw.match(/^#([0-9a-f]{6})$/i);
+  if(m){const n=parseInt(m[1],16);return[(n>>16)&255,(n>>8)&255,n&255];}
+  m=raw.match(/^#([0-9a-f]{3})$/i);
+  if(m)return m[1].split('').map(x=>parseInt(x+x,16));
+  m=raw.match(/^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)/i);
+  return m?[+m[1],+m[2],+m[3]]:fallback.match(/\d+/g).slice(0,3).map(Number);
+}
+function syncPalette(){
+  C.empty=_cssRgb('--map-empty','#cdd6cd'); C.low=_cssRgb('--map-low','#facc54');
+  C.mid=_cssRgb('--map-mid','#f5a650'); C.high=_cssRgb('--map-high','#e66868');
+  C.nodata=_cssRgb('--map-nodata','#7ca6e8'); C.special=_cssRgb('--map-special','#a878dc');
+  C.floor=_cssRgb('--scene-floor','#dfe3e6'); C.aisle=_cssRgb('--scene-aisle','#e9d38a');
+  C.aisleStr=_cssRgb('--map-aisle','#cc8500'); C.sel=_cssRgb('--map-selection','#1b3b6f');
+}
 function rgb(c,f=1,a=1){
   if(a<1) return`rgba(${~~(c[0]*f)},${~~(c[1]*f)},${~~(c[2]*f)},${a})`;
   return`rgb(${~~(c[0]*f)},${~~(c[1]*f)},${~~(c[2]*f)})`;
 }
 function getC(code){
-  if(!code||code===FRONTAL_LOC||code===OBSOLETO_LOC) return C.special;
-  const u=calcUtil(code);
-  if(u.cnt===0) return C.empty;
-  if(!u.ok)     return C.nodata;
-  if(u.pct<50)  return C.low;
-  if(u.pct<80)  return C.mid;
-  return C.high;
+  if(!code||!BIN_PAT.test(code)) return C.special;
+  return C[binStatus(code)]||C.empty;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // UTILIZATION
 // ═══════════════════════════════════════════════════════════════════
-function getDim(code){const m=BIN_PAT.exec(code);return m&&lvlsOf(m[1])>=7?_dimB:_dimA;}
+function getDim(code){const m=BIN_PAT.exec(code);return m&&TYPE_B_ROWS.has(m[1])?_dimB:_dimA;}
 function calcUtil(code){
   const bin=_binMap[code];
-  if(!bin||!bin.items.length) return{cnt:0,ok:true,pct:0,volUsed:0,vol:getDim(code).w*getDim(code).d*getDim(code).h};
+  if(!BIN_PAT.test(code)) return{cnt:(bin&&bin.items.length)||0,units:sumUnits(bin&&bin.items),ok:false,partial:false,pct:-1,vol:0,volUsed:0,measured:0,total:(bin&&bin.items.length)||0,isZone:true};
+  if(!bin||!bin.items.length) return{cnt:0,units:0,ok:true,partial:false,pct:0,volUsed:0,vol:getDim(code).w*getDim(code).d*getDim(code).h,measured:0,total:0};
   const bVol=getDim(code).w*getDim(code).d*getDim(code).h;
-  let vUsed=0,hasDim=false;
-  bin.items.forEach(it=>{const p=_prodMap[it.prodId];if(p&&p.dims){vUsed+=p.dims.w*p.dims.d*p.dims.h*it.qty;hasDim=true;}});
-  if(!hasDim) return{cnt:bin.items.length,ok:false,pct:-1,vol:bVol,volUsed:0};
-  return{cnt:bin.items.length,ok:true,pct:Math.min(100,vUsed/bVol*100),vol:bVol,volUsed:vUsed};
+  let vUsed=0,measured=0;
+  bin.items.forEach(it=>{const p=_prodMap[it.prodId];if(p&&p.dims&&p.dims.w>0&&p.dims.d>0&&p.dims.h>0){vUsed+=p.dims.w*p.dims.d*p.dims.h*(Number(it.qty)||0);measured++;}});
+  const total=bin.items.length, complete=measured===total;
+  return{cnt:total,units:sumUnits(bin.items),ok:complete,partial:measured>0&&!complete,pct:measured?vUsed/bVol*100:-1,vol:bVol,volUsed:vUsed,measured,total};
+}
+
+function binStatus(code){
+  if(!BIN_PAT.test(code)) return'special';
+  const u=calcUtil(code);
+  if(u.cnt===0)return'empty';
+  if(!u.ok)return'nodata';
+  if(u.pct<50)return'low';
+  if(u.pct<80)return'mid';
+  return'high';
+}
+function statusMeta(status){
+  return({empty:['Disponible','empty'],low:['Menos de 50%','low'],mid:['Entre 50% y 80%','mid'],high:['Sobre 80%','high'],nodata:['Medidas incompletas','nodata'],special:['Zona especial','special']})[status]||['Sin estado',''];
+}
+function utilSummary(code,u){
+  if(!BIN_PAT.test(code))return u.cnt+' referencia(s) · '+fmtQty(u.units)+' unidades';
+  if(u.cnt===0)return'Disponible · sin stock';
+  if(!u.ok)return u.cnt+' referencia(s) · '+(u.partial?u.measured+' de '+u.total+' con medidas':'sin medidas confiables');
+  return Math.round(u.pct)+'% estimado · '+u.cnt+' referencia(s)';
+}
+function activeFilters(){
+  return{row:document.getElementById('filter-row')?.value||'',level:document.getElementById('filter-level')?.value||'',status:document.getElementById('filter-status')?.value||''};
+}
+function matchesActiveFilters(code){
+  const f=activeFilters(),m=BIN_PAT.exec(code);
+  if(!m)return !f.row&&!f.level&&!f.status;
+  if(!_binMap[code])return false;
+  return(!f.row||m[1]===f.row)&&(!f.level||m[3]===String(f.level))&&(!f.status||binStatus(code)===f.status);
+}
+function filteredRackCodes(){return rackBinCodes().filter(matchesActiveFilters);}
+function updateFilterUi(){
+  const total=rackBinCodes().length,visible=filteredRackCodes().length,f=activeFilters(),has=!!(f.row||f.level||f.status);
+  const out=document.getElementById('results-count'); if(out)out.textContent=has?visible+' de '+total+' bins':total+' bins';
+  const clear=document.getElementById('btn-clear-filters'); if(clear)clear.hidden=!has;
+}
+function clearMapFilters(){
+  ['filter-row','filter-level','filter-status'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  onFilterChange();
+}
+function showMapToast(message,type='info'){
+  const el=document.getElementById('map-toast');if(!el)return;
+  clearTimeout(_toastTimer);el.textContent=message;el.className='map-toast show'+(type==='error'?' error':'');
+  _toastTimer=setTimeout(()=>{el.classList.remove('show');},3200);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -902,8 +1001,7 @@ function fillPoly(ctx,pts,fill,stroke,sw){
 function drawBox(ctx, c, rowLetter, lv, code, isSel){
   const ry = ROW_POS[rowLetter];
   const base = getC(code);
-  const filterLv = +document.getElementById('filter-level').value||0;
-  const dim = filterLv && lv+1!==filterLv ? 0.18 : 1.0;
+  const dim = matchesActiveFilters(code) ? 1.0 : 0.14;
   const bord = isSel ? rgb(C.sel) : `rgba(30,30,30,${0.22*dim})`;
   const bsw  = isSel ? 2 : 0.5;
 
@@ -925,15 +1023,15 @@ function drawBox(ctx, c, rowLetter, lv, code, isSel){
 
   // Glow outline on selection
   if(isSel){
-    ctx.strokeStyle='rgba(27,59,111,0.9)';ctx.lineWidth=2;
+    ctx.strokeStyle=rgb(C.sel);ctx.lineWidth=2;
     ctx.strokeRect && null; // just redraw border on top
-    fillPoly(ctx,[p.t0,p.t1,p.t2,p.t3],null,'rgba(27,59,111,0.8)',2);
+    fillPoly(ctx,[p.t0,p.t1,p.t2,p.t3],null,rgb(C.sel),2);
     // Label
     const mid=proj(c+0.5,ry+0.5,lv+1.05);
     ctx.font='bold 8px Inter,system-ui,sans-serif';
-    ctx.fillStyle='rgba(10,20,60,0.95)';
+    ctx.fillStyle=cssVal('--text','#1c2430');
     ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.shadowColor='rgba(255,255,255,0.9)';ctx.shadowBlur=3;
+    ctx.shadowColor=cssVal('--scene-label-halo','rgba(255,255,255,.9)');ctx.shadowBlur=3;
     ctx.fillText(code,mid.x,mid.y);
     ctx.shadowBlur=0;
   }
@@ -945,7 +1043,7 @@ function drawBox(ctx, c, rowLetter, lv, code, isSel){
 function drawFloorTile(ctx, c, ry, isAisle){
   const pts=[proj(c,ry,0),proj(c+1,ry,0),proj(c+1,ry+1,0),proj(c,ry+1,0)];
   const bg=isAisle?rgb(C.aisle):rgb(C.floor);
-  const bd=isAisle?rgb(C.aisleStr,1,0.5):'rgba(180,182,176,0.6)';
+  const bd=isAisle?rgb(C.aisleStr,1,0.5):cssVal('--border','#d6d4cf');
   fillPoly(ctx,pts,bg,bd,0.6);
   // Yellow dashes in aisles
   if(isAisle){
@@ -963,18 +1061,18 @@ function drawLabels(ctx){
   ctx.save();
   ctx.font='bold 9px Inter,system-ui,sans-serif';
   ctx.textBaseline='middle'; ctx.textAlign='center';
-  ctx.shadowColor='rgba(255,255,255,0.9)'; ctx.shadowBlur=3; // halo para legibilidad
+  ctx.shadowColor=cssVal('--scene-label-halo','rgba(255,255,255,.9)'); ctx.shadowBlur=3; // halo para legibilidad
   // Col labels along the front edge (before row A)
   COLS.forEach((col,ci)=>{
     const p=proj(ci+0.5,-0.55,0);
-    ctx.fillStyle='rgba(35,45,65,0.92)';
+    ctx.fillStyle=cssVal('--scene-label','#45556a');
     ctx.fillText(col,p.x,p.y);
   });
   // Row labels along the left edge
   ROWS.forEach(row=>{
     const ry=ROW_POS[row];
     const p=proj(-0.6,ry+0.5,0);
-    ctx.fillStyle='rgba(35,45,65,0.92)';
+    ctx.fillStyle=cssVal('--scene-label','#45556a');
     ctx.fillText(row,p.x,p.y);
   });
   // Group labels (pasillo A-B, C-D, etc.)
@@ -984,7 +1082,7 @@ function drawLabels(ctx){
     const ry2=ry1+AISLE_W;
     const ryM=(ry1+ry2)/2;
     const p=proj(-1.1,ryM,0);
-    ctx.fillStyle='rgba(180,140,20,0.7)';
+    ctx.fillStyle=cssVal('--amber-text','#7a4f0d');
     ctx.font='bold 8px Inter,system-ui,sans-serif';
     ctx.fillText('pasillo',p.x,p.y);
   });
@@ -993,7 +1091,7 @@ function drawLabels(ctx){
   if(obsRows.length){
     const ry0=ROW_POS[obsRows[0]], ry1=ROW_POS[obsRows[obsRows.length-1]]+1;
     const p=proj(-2.7,(ry0+ry1)/2,0);
-    ctx.save();ctx.font='bold 12px Inter,system-ui,sans-serif';ctx.fillStyle='rgba(150,70,30,0.85)';
+    ctx.save();ctx.font='bold 12px Inter,system-ui,sans-serif';ctx.fillStyle=cssVal('--orange-text','#7c3410');
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.translate(p.x,p.y);ctx.fillText('OBSOLETO ▸',0,0);ctx.restore();
   }
@@ -1016,10 +1114,10 @@ function render3D(){
 
   // Background — base + viñeta para dar figura-fondo (el almacén "flota" sobre luz)
   const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#eef0f2');g.addColorStop(1,'#dcdee1');
+  g.addColorStop(0,cssVal('--scene-bg-top','#eef1f4'));g.addColorStop(1,cssVal('--scene-bg-bottom','#d4d8dd'));
   ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   const vg=ctx.createRadialGradient(W*0.5,H*0.46,Math.min(W,H)*0.08,W*0.5,H*0.52,Math.max(W,H)*0.62);
-  vg.addColorStop(0,'rgba(255,255,255,0.40)');vg.addColorStop(1,'rgba(28,38,58,0.12)');
+  vg.addColorStop(0,cssVal('--scene-vignette-center','rgba(255,255,255,.4)'));vg.addColorStop(1,cssVal('--scene-vignette-edge','rgba(28,36,48,.12)'));
   ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
 
   const {ox,oy}=viewOrigin(W,H);
@@ -1034,7 +1132,7 @@ function render3D(){
   const floorItems=[];
   ROWS.forEach(row=>{
     const ry=ROW_POS[row];
-    colsOf(row).forEach((_,ci)=>floorItems.push({c:ci,ry,isAisle:false,depth:sortDepth(ci+0.5,ry+0.5,0)}));
+    colsOf(row).forEach(col=>{const ci=COLS.indexOf(col);if(ci>=0)floorItems.push({c:ci,ry,isAisle:false,depth:sortDepth(ci+0.5,ry+0.5,0)});});
   });
   // Aisles between groups
   AISLE_GROUPS.forEach((grp,gi)=>{
@@ -1049,12 +1147,12 @@ function render3D(){
   floorItems.forEach(f=>drawFloorTile(ctx,f.c,f.ry,f.isAisle));
 
   // ── Sombras proyectadas: grounding por grupo de racks (figura-fondo) ──
-  if(!filterRow){
+  if(matchesActiveFilters(FRONTAL_LOC)){
     AISLE_GROUPS.forEach(grp=>{
       const ry0=ROW_POS[grp[0]], ry1=ROW_POS[grp[grp.length-1]]+1;
       const sh=0.30; // desplazamiento de la sombra (luz desde arriba-izquierda)
       const q=[proj(sh,ry0+sh,0),proj(COLS.length+sh,ry0+sh,0),proj(COLS.length+sh,ry1+sh,0),proj(sh,ry1+sh,0)];
-      fillPoly(ctx,q,'rgba(20,26,42,0.16)',null,0);
+      fillPoly(ctx,q,cssVal('--scene-shadow','rgba(28,36,48,.16)'),null,0);
     });
   }
 
@@ -1062,18 +1160,10 @@ function render3D(){
   drawLabels(ctx);
 
   // ── Boxes: collect → sort → draw ───────────────────────────────
-  const boxes=[];
-  ROWS.forEach(row=>{
-    if(filterRow&&row!==filterRow) return;
-    const ry=ROW_POS[row];
-    const maxLv=lvlsOf(row);
-    colsOf(row).forEach((colL,ci)=>{
-      for(let lv=0;lv<maxLv;lv++){
-        const code=row+colL+(lv+1);
-        boxes.push({c:ci,row,ry,lv,code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5)});
-      }
-    });
-  });
+  const boxes=rackBinCodes().map(code=>{
+    const m=BIN_PAT.exec(code),row=m[1],ci=COLS.indexOf(m[2]),lv=+m[3]-1,ry=ROW_POS[row];
+    return{c:ci,row,ry,lv,code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5)};
+  }).filter(x=>x.c>=0&&x.ry!=null);
   // Sort: largest depth first (furthest from viewer), then lower levels first within same rack
   boxes.sort((a,b)=> Math.abs(a.depth-b.depth)<0.05 ? a.lv-b.lv : b.depth-a.depth);
 
@@ -1083,15 +1173,15 @@ function render3D(){
   });
 
   // Frontal: franja larga a todo el frente de los pasillos (delante de col A, todas las filas)
-  if(!filterRow){
-    FRONT_ZONES.forEach(z=>{
+  if(matchesActiveFilters(FRONTAL_LOC)){
+    FRONT_ZONES.filter(z=>_binMap[z.code]).forEach(z=>{
       const cnt=(_binMap[z.code]?.items||[]).length;
       const isSel=_selectedBin===z.code;
       const quad=[proj(z.c0,0,0),proj(z.c1,0,0),proj(z.c1,MAX_RY,0),proj(z.c0,MAX_RY,0)];
       fillPoly(ctx,quad,rgb(z.col,1,0.85),isSel?rgb(C.sel):'rgba(120,60,170,0.6)',isSel?2.5:1.2);
       const mid=proj((z.c0+z.c1)/2,MAX_RY/2,0);
       ctx.save();ctx.font='bold 10px Inter,system-ui,sans-serif';
-      ctx.fillStyle='rgba(70,20,110,0.92)';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=cssVal('--scene-special-text','#522d7a');ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.translate(mid.x,mid.y);ctx.fillText(`${z.label} · ${cnt} art.`,0,0);ctx.restore();
     });
   }
@@ -1132,43 +1222,26 @@ function hitTest(cssX,cssY){
   const wx=(cssX-ox)/V.zoom;
   const wy=(cssY-oy)/V.zoom;
 
-  const filterRow=document.getElementById('filter-row').value;
   const candidates=[];
 
   // Frontal primero (franja al frente, sin racks encima)
-  if(!filterRow){
-    for(const z of FRONT_ZONES){
+  if(matchesActiveFilters(FRONTAL_LOC)){
+    for(const z of FRONT_ZONES.filter(z=>_binMap[z.code])){
       const quad=[proj(z.c0,0,0),proj(z.c1,0,0),proj(z.c1,MAX_RY,0),proj(z.c0,MAX_RY,0)];
       if(ptInPoly(wx,wy,quad)) return z.code;
     }
   }
 
-  const filterLv=+document.getElementById('filter-level').value||0;
-  ROWS.forEach(row=>{
-    if(filterRow&&row!==filterRow) return;
-    const ry=ROW_POS[row];
-    const maxLv=lvlsOf(row);
-    colsOf(row).forEach((colL,ci)=>{
-      for(let lv=maxLv-1;lv>=0;lv--){
-        if(filterLv && lv+1!==filterLv) continue;
-        const code=row+colL+(lv+1);
-        // Test top face of this bin
-        const topPts=[proj(ci,ry,lv+1),proj(ci+1,ry,lv+1),proj(ci+1,ry+1,lv+1),proj(ci,ry+1,lv+1)];
-        if(ptInPoly(wx,wy,topPts)){
-          candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
-        }
-        // Also test right face
-        const rPts=[proj(ci+1,ry,lv),proj(ci+1,ry,lv+1),proj(ci+1,ry+1,lv+1),proj(ci+1,ry+1,lv)];
-        if(ptInPoly(wx,wy,rPts)){
-          candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
-        }
-        // Also test front face
-        const fPts=[proj(ci,ry+1,lv),proj(ci+1,ry+1,lv),proj(ci+1,ry+1,lv+1),proj(ci,ry+1,lv+1)];
-        if(ptInPoly(wx,wy,fPts)){
-          candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
-        }
-      }
-    });
+  rackBinCodes().forEach(code=>{
+    if(!matchesActiveFilters(code))return;
+    const m=BIN_PAT.exec(code),row=m[1],ci=COLS.indexOf(m[2]),lv=+m[3]-1,ry=ROW_POS[row];
+    if(ci<0||ry==null)return;
+    const topPts=[proj(ci,ry,lv+1),proj(ci+1,ry,lv+1),proj(ci+1,ry+1,lv+1),proj(ci,ry+1,lv+1)];
+    if(ptInPoly(wx,wy,topPts))candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
+    const rPts=[proj(ci+1,ry,lv),proj(ci+1,ry,lv+1),proj(ci+1,ry+1,lv+1),proj(ci+1,ry+1,lv)];
+    if(ptInPoly(wx,wy,rPts))candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
+    const fPts=[proj(ci,ry+1,lv),proj(ci+1,ry+1,lv),proj(ci+1,ry+1,lv+1),proj(ci,ry+1,lv+1)];
+    if(ptInPoly(wx,wy,fPts))candidates.push({code,depth:sortDepth(ci+0.5,ry+0.5,lv+0.5),lv,ci,ry});
   });
 
   if(!candidates.length) return null;
@@ -1217,8 +1290,7 @@ function initEvents(){
         const bin=_binMap[hit];
         const items=bin?bin.items:[];
         document.getElementById('tip-code').textContent=hit;
-        document.getElementById('tip-util').textContent=
-          u.cnt===0?'Vacío':(!u.ok?u.cnt+' artículo(s) · sin medidas':Math.round(u.pct)+'% · '+u.cnt+' artículo(s)');
+        document.getElementById('tip-util').textContent=utilSummary(hit,u);
         const first3=items.slice(0,3).map(it=>_prodMap[it.prodId]?.ref||'—').join(' · ');
         document.getElementById('tip-items').textContent=first3+(items.length>3?' +más':'');
         tip.style.display='block';
@@ -1287,39 +1359,123 @@ function resetView(){
   V.azimuth=Math.PI*0.28; V.elevation=0.55; V.panX=0; V.panY=0; fitView();
 }
 
-// Buscar un bin por código, centrar la vista en él y seleccionarlo
+// Buscar un bin por código sin forzar al usuario a abandonar su vista actual.
 function goToBin(q){
-  const code=(q||'').trim().toUpperCase();
-  if(!code) return;
-  if(_currentView!=='3d') setView('3d'); // setView reencaja; enfocamos DESPUÉS
-  // ── Motor Three.js: vuela la cámara al bin y lo selecciona ──
-  if(GL.on){
-    if(GL.codeInst[code]!=null || code===FRONTAL_LOC){ glFlyTo(code); }
-    if(_binMap[code]) selectBin(code); else glRenderOnce();
-    return;
+  let code=String(q||'').trim().toUpperCase();
+  if(code==='FRONTAL')code=FRONTAL_LOC;
+  if(!code)return false;
+  if(/^[A-Z]{2}$/.test(code)&&rackBinCodes().some(x=>x.startsWith(code))){
+    const f=activeFilters();if(f.row||f.level||f.status){['filter-row','filter-level','filter-status'].forEach(id=>document.getElementById(id).value='');onFilterChange();showMapToast('Se limpiaron los filtros para mostrar el rack '+code+'.');}
+    selectRack(code);return true;
   }
-  // ── Fallback 2.5D ──
-  const m=BIN_PAT.exec(code);
-  if(m){
-    const row=m[1], col=m[2], lv=+m[3];
-    const ci=colsOf(row).indexOf(col), ry=ROW_POS[row];
-    if(ci>=0 && ry!=null){
-      const wc=proj(ci+0.5, ry+0.5, lv);  // centro del bin
-      V.cx=wc.x; V.cy=wc.y; V.panX=0; V.panY=0;
-      V.zoom=Math.max(V.zoom,0.9);
+  if(!_binMap[code]){
+    showMapToast('No encontramos la ubicación “'+code+'”.','error');
+    const input=document.getElementById('warehouse-search');if(input)input.focus();
+    return false;
+  }
+  if(!matchesActiveFilters(code)){
+    ['filter-row','filter-level','filter-status'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    onFilterChange();
+    showMapToast('Se limpiaron los filtros para mostrar '+code+'.');
+  }
+  if(_currentView==='3d'&&GL.on){ glFlyTo(code); }
+  else if(_currentView==='3d'){
+    const m=BIN_PAT.exec(code);
+    if(m){
+      const ci=COLS.indexOf(m[2]),ry=ROW_POS[m[1]],lv=+m[3]-1;
+      if(ci>=0&&ry!=null){const wc=proj(ci+0.5,ry+0.5,lv+0.5);V.cx=wc.x;V.cy=wc.y;V.panX=0;V.panY=0;V.zoom=Math.max(V.zoom,0.9);}
     }
   }
-  if(_binMap[code]) selectBin(code); else schedRender();
+  selectBin(code);
+  return true;
+}
+
+function findWarehouse(q){
+  const raw=String(q||'').trim(),needle=norm(raw);
+  if(!needle)return[];
+  const results=[],seen=new Set(),add=r=>{const key=r.bin+'|'+(r.prodId||'location');if(!seen.has(key)){seen.add(key);results.push(r);}};
+  Object.keys(_binMap).forEach(code=>{
+    if(norm(code)===needle||norm(code).startsWith(needle)){
+      const u=calcUtil(code);add({bin:code,title:'Ubicación '+code,meta:utilSummary(code,u),qty:'',rank:norm(code)===needle?0:1});
+    }
+  });
+  if(needle.length>=2){
+    Object.keys(_binMap).forEach(code=>{
+      const bin=_binMap[code];
+      (bin.items||[]).forEach(it=>{
+        const p=_prodMap[it.prodId];if(!p)return;
+        const ref=norm(p.ref),barcode=norm(p.barcode),name=norm(p.name);
+        if(ref.includes(needle)||barcode.includes(needle)||name.includes(needle)){
+          const rank=(ref===needle||barcode===needle)?0:(ref.startsWith(needle)||barcode.startsWith(needle)?1:2);
+          add({bin:code,prodId:it.prodId,title:p.name,meta:(p.ref||'Sin referencia')+' · '+code,qty:'×'+fmtQty(it.qty),rank});
+        }
+      });
+    });
+  }
+  return results.sort((a,b)=>a.rank-b.rank||a.bin.localeCompare(b.bin)||a.title.localeCompare(b.title)).slice(0,24);
+}
+function renderSearchResults(q){
+  const box=document.getElementById('search-results'),input=document.getElementById('warehouse-search');if(!box||!input)return;
+  _lastSearchResults=findWarehouse(q);
+  if(!String(q||'').trim()){box.hidden=true;input.setAttribute('aria-expanded','false');return;}
+  if(!_lastSearchResults.length)box.innerHTML='<div class="search-empty">No encontramos bins ni productos con ese criterio.</div>';
+  else box.innerHTML=_lastSearchResults.map((r,i)=>`<button class="search-result" type="button" role="option" data-search-index="${i}"><span class="search-result-code">${esc(r.bin)}</span><span class="search-result-main"><span class="search-result-title">${esc(r.title)}</span><span class="search-result-meta">${esc(r.meta)}</span></span><span class="search-result-qty">${esc(r.qty)}</span></button>`).join('');
+  box.hidden=false;input.setAttribute('aria-expanded','true');
+}
+function closeSearchResults(){
+  const box=document.getElementById('search-results'),input=document.getElementById('warehouse-search');if(box)box.hidden=true;if(input)input.setAttribute('aria-expanded','false');
+}
+function openSearchResult(index){
+  const r=_lastSearchResults[+index];if(!r)return;
+  const input=document.getElementById('warehouse-search');if(input)input.value=r.bin;
+  const clear=document.getElementById('search-clear');if(clear)clear.hidden=false;
+  closeSearchResults();goToBin(r.bin);
+}
+
+function wireUiEvents(){
+  const input=document.getElementById('warehouse-search'),clear=document.getElementById('search-clear'),results=document.getElementById('search-results'),wrap=document.getElementById('canvas-2d-wrap');
+  input.addEventListener('input',()=>{clear.hidden=!input.value;clearTimeout(_searchTimer);_searchTimer=setTimeout(()=>renderSearchResults(input.value),100);});
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){closeSearchResults();return;}
+    if(e.key==='Enter'){
+      e.preventDefault();clearTimeout(_searchTimer);_lastSearchResults=findWarehouse(input.value);
+      const exact=String(input.value||'').trim().toUpperCase();
+      if(_binMap[exact]||exact==='FRONTAL'||(/^[A-Z]{2}$/.test(exact)&&rackBinCodes().some(x=>x.startsWith(exact))))goToBin(exact);
+      else if(_lastSearchResults.length)openSearchResult(0);
+      else renderSearchResults(input.value);
+    }
+  });
+  clear.addEventListener('click',()=>{input.value='';clear.hidden=true;closeSearchResults();input.focus();});
+  results.addEventListener('click',e=>{const b=e.target.closest('[data-search-index]');if(b)openSearchResult(b.dataset.searchIndex);});
+  const activate2d=e=>{const target=e.target.closest('[data-bin],[data-rack]');if(!target)return;if(e.type==='keydown'&&e.key!=='Enter'&&e.key!==' ')return;if(e.type==='keydown')e.preventDefault();target.dataset.bin?selectBin(target.dataset.bin):selectRack(target.dataset.rack);};
+  wrap.addEventListener('click',activate2d);wrap.addEventListener('keydown',activate2d);
+  document.addEventListener('click',e=>{if(!e.target.closest('.search-shell'))closeSearchResults();});
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape')return;
+    closeSearchResults();
+    const L=document.getElementById('warehouse-layout');
+    if(!L.classList.contains('no-right'))togglePanel('right',false);else if(!L.classList.contains('no-left'))togglePanel('left',false);
+  });
 }
 
 // Retraer/expandir paneles laterales para ver el mapa completo
-function togglePanel(side){
+function togglePanel(side,force){
   const L=document.querySelector('.layout');
   const cls=side==='left'?'no-left':'no-right';
-  L.classList.toggle(cls);
+  const wasClosed=L.classList.contains(cls);
+  const shouldOpen=force==null?L.classList.contains(cls):!!force;
+  L.classList.toggle(cls,!shouldOpen);
+  if(shouldOpen&&window.innerWidth<=820){
+    const other=side==='left'?'no-right':'no-left'; L.classList.add(other);
+    const otherBtn=document.getElementById(side==='left'?'tgl-right':'tgl-left');if(otherBtn){otherBtn.classList.add('off');otherBtn.setAttribute('aria-expanded','false');}
+  }
   const btn=document.getElementById(side==='left'?'tgl-left':'tgl-right');
-  if(btn) btn.classList.toggle('off', L.classList.contains(cls));
-  setTimeout(()=>{ if(_currentView==='3d') resizeCanvas(); else renderMap(); }, 40);
+  if(btn){btn.classList.toggle('off',!shouldOpen);btn.setAttribute('aria-expanded',String(shouldOpen));}
+  setTimeout(()=>{
+    if(_currentView==='3d')resizeCanvas();else renderMap();
+    if(shouldOpen&&wasClosed){const panel=document.getElementById(side==='left'?'capacity-panel':'detail-panel');panel?.focus({preventScroll:true});}
+    else if(document.activeElement&&document.activeElement.closest?.(side==='left'?'.side-left':'.side-right'))btn?.focus({preventScroll:true});
+  },40);
 }
 
 function resizeCanvas(){
@@ -1337,74 +1493,77 @@ function resizeCanvas(){
   if(ROWS.length) fitView(); else schedRender();
 }
 
+function aggregateSlots(codes){
+  const valid=(codes||[]).filter(code=>_binMap[code]);
+  let refs=0,units=0,vU=0,bV=0,measured=0,total=0,items=[];
+  valid.forEach(code=>{
+    const u=calcUtil(code),bin=_binMap[code];
+    refs+=bin.items.length;units+=sumUnits(bin.items);vU+=u.volUsed||0;bV+=u.vol||0;measured+=u.measured||0;total+=u.total||0;
+    bin.items.forEach(it=>items.push({...it,slot:code}));
+  });
+  const ok=total===0||measured===total,partial=measured>0&&measured<total,pct=measured&&bV?vU/bV*100:(refs===0?0:-1);
+  const status=refs===0?'empty':(!ok?'nodata':pct<50?'low':pct<80?'mid':'high');
+  return{codes:valid,refs,units,vU,bV,measured,total,ok,partial,pct,status,items};
+}
+function cssVal(name,fallback){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()||fallback;}
+function uCss(u){
+  const status=u.status||(!u.cnt?'empty':!u.ok?'nodata':u.pct<50?'low':u.pct<80?'mid':'high');
+  const names={empty:['--map-empty-soft','--map-empty'],low:['--map-low-soft','--map-low'],mid:['--map-mid-soft','--map-mid'],high:['--map-high-soft','--map-high'],nodata:['--map-nodata-soft','--map-nodata'],special:['--map-special-soft','--map-special']}[status];
+  return{bg:cssVal(names[0],'#e8e7e4'),bd:cssVal(names[1],'#7a8c9e'),status};
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 2D PLANT VIEW
 // ═══════════════════════════════════════════════════════════════════
 function render2DPlant(){
   const wrap=document.getElementById('canvas-2d-wrap');
-  const fRow=document.getElementById('filter-row').value;
-  const fLv=document.getElementById('filter-level').value;
+  const f=activeFilters(),fRow=f.row;
   const CW=46,CH=28,G=4,LBL=20,LBH=17,AIS=16;
   const shown=fRow?[[fRow]]:AISLE_GROUPS.filter(g=>!fRow||g.includes(fRow));
   const totalW=LBL+COLS.length*(CW+G)+14;
   let totalH=LBH;
   shown.forEach(p=>totalH+=p.length*(CH+G)+AIS);
-  totalH+=FRONT_ZONES.length*(CH+G+4)+24;
-  let svg=`<svg class="warehouse-svg" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">`;
+  totalH+=FRONT_ZONES.filter(z=>_binMap[z.code]).length*(CH+G+4)+24;
+  const text=cssVal('--text-2','#45556a'),muted=cssVal('--text-3','#7a8c9e'),aisle=cssVal('--amber-bg','#fdf4e3'),aisleBd=cssVal('--map-aisle','#cc8500'),aisleText=cssVal('--amber-text','#7a4f0d');
+  let svg=`<svg class="warehouse-svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg" aria-label="Vista en planta del almacén">`;
   COLS.forEach((col,ci)=>{
-    svg+=`<text x="${LBL+ci*(CW+G)+CW/2}" y="${LBH-4}" text-anchor="middle" font-size="9" fill="#888" font-weight="700">${col}</text>`;
+    svg+=`<text x="${LBL+ci*(CW+G)+CW/2}" y="${LBH-4}" text-anchor="middle" font-size="9" style="fill:${muted}" font-weight="700">${col}</text>`;
   });
   let y=LBH;
   shown.forEach((grp,gi)=>{
     grp.forEach(row=>{
-      svg+=`<text x="${LBL-3}" y="${y+CH/2+4}" text-anchor="end" font-size="9" fill="#888" font-weight="700">${row}</text>`;
-      colsOf(row).forEach((col,ci)=>{
-        const bc=row+col;const lvls=lvlsOf(row);
-        let u;
-        if(fLv){ u=calcUtil(bc+fLv); }
-        else{
-          let tot=0,vU=0,ok=false;
-          for(let l=1;l<=lvls;l++){const x=calcUtil(bc+l);tot+=x.cnt;vU+=x.volUsed||0;if(x.ok&&x.cnt>0)ok=true;}
-          const bv=getDim(bc+'1').w*getDim(bc+'1').d*getDim(bc+'1').h*lvls;
-          u=tot===0?{cnt:0,ok:true,pct:0}:(!ok?{cnt:tot,ok:false,pct:-1}:{cnt:tot,ok:true,pct:Math.min(100,vU/bv*100)});
-        }
-        const cc=uCss(u);
-        const x=LBL+ci*(CW+G);
+      svg+=`<text x="${LBL-3}" y="${y+CH/2+4}" text-anchor="end" font-size="9" style="fill:${muted}" font-weight="700">${row}</text>`;
+      colsOf(row).forEach(col=>{
+        const bc=row+col,all=rackBinCodes().filter(code=>code.startsWith(bc)),matched=all.filter(matchesActiveFilters),hasMatch=matched.length>0||(!f.row&&!f.level&&!f.status);
+        const agg=aggregateSlots(matched.length?matched:all),cc=uCss(agg),ci=COLS.indexOf(col),x=LBL+ci*(CW+G);
         const isSel=_selectedBin&&_selectedBin.startsWith(bc);
-        svg+=`<g class="rack-cell${isSel?' selected':''}" onclick="selectRack('${bc}')">
-          <rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="3" fill="${cc.bg}" stroke="${cc.bd}" stroke-width="${isSel?2.5:1}"/>
-          <text x="${x+CW/2}" y="${y+CH/2-2}" text-anchor="middle" font-size="7" fill="#222" font-weight="700">${bc}</text>
-          <text x="${x+CW/2}" y="${y+CH/2+7}" text-anchor="middle" font-size="6" fill="#444">${u.cnt===0?'':(!u.ok?'?':Math.round(u.pct)+'%')}</text>
+        const detail=agg.refs===0?'Disponible':(!agg.ok?'Medidas incompletas':Math.round(agg.pct)+'%');
+        svg+=`<g class="rack-cell${isSel?' selected':''}" data-rack="${bc}" role="button" tabindex="${hasMatch?'0':'-1'}" aria-label="Rack ${bc}, ${detail}" style="opacity:${hasMatch?1:.16};${hasMatch?'':'pointer-events:none'}">
+          <rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="3" style="fill:${cc.bg};stroke:${isSel?cssVal('--map-selection','#1b3b6f'):cc.bd};stroke-width:${isSel?2.5:1}"/>
+          <text x="${x+CW/2}" y="${y+CH/2-2}" text-anchor="middle" font-size="7" style="fill:${text}" font-weight="700">${bc}</text>
+          <text x="${x+CW/2}" y="${y+CH/2+7}" text-anchor="middle" font-size="6" style="fill:${muted}">${agg.refs===0?'':(!agg.ok?'?':Math.round(agg.pct)+'%')}</text>
         </g>`;
       });
       y+=CH+G;
     });
     if(gi<shown.length-1){
-      svg+=`<rect x="${LBL}" y="${y}" width="${COLS.length*(CW+G)-G}" height="${AIS-4}" rx="2" fill="#ffe082" stroke="#f9a825" stroke-width="0.5" opacity="0.7"/>
-      <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+AIS/2}" text-anchor="middle" font-size="8" fill="#7a5800" opacity="0.8">pasillo</text>`;
+      svg+=`<rect x="${LBL}" y="${y}" width="${COLS.length*(CW+G)-G}" height="${AIS-4}" rx="2" style="fill:${aisle};stroke:${aisleBd};stroke-width:.5" opacity="0.75"/>
+      <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+AIS/2}" text-anchor="middle" font-size="8" style="fill:${aisleText}" opacity="0.9">pasillo</text>`;
       y+=AIS;
     }
   });
-  // Zonas frontales (Frontal = todo el frente de los pasillos; Obsoleto)
-  FRONT_ZONES.forEach((z,zi)=>{
+  FRONT_ZONES.filter(z=>_binMap[z.code]).forEach(z=>{
     const cnt=(_binMap[z.code]?.items||[]).length;
     const isSel=_selectedBin===z.code;
-    const fill=zi===0?'#e1bee7':'#cfd8dc', stroke=zi===0?'#7b1fa2':'#607d8b', tcol=zi===0?'#4a148c':'#37474f';
-    svg+=`<g class="rack-cell${isSel?' selected':''}" onclick="selectBin('${z.code}')">
-      <rect x="${LBL}" y="${y+4}" width="${COLS.length*(CW+G)-G}" height="${CH}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="${isSel?2.5:1}"/>
-      <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+4+CH/2+3}" text-anchor="middle" font-size="8" fill="${tcol}" font-weight="700">${z.label} · ${cnt} artículos</text>
+    const visible=matchesActiveFilters(z.code),fill=cssVal('--map-special-soft','#f0ecf8'),stroke=cssVal('--map-special','#a878dc'),tcol=cssVal('--purple-text','#522d7a');
+    svg+=`<g class="rack-cell${isSel?' selected':''}" data-bin="${z.code}" role="button" tabindex="${visible?'0':'-1'}" aria-label="Zona ${z.label}, ${cnt} referencias" style="opacity:${visible?1:.16};${visible?'':'pointer-events:none'}">
+      <rect x="${LBL}" y="${y+4}" width="${COLS.length*(CW+G)-G}" height="${CH}" rx="3" style="fill:${fill};stroke:${isSel?cssVal('--map-selection','#1b3b6f'):stroke};stroke-width:${isSel?2.5:1}"/>
+      <text x="${LBL+COLS.length*(CW+G)/2}" y="${y+4+CH/2+3}" text-anchor="middle" font-size="8" style="fill:${tcol}" font-weight="700">${z.label} · ${cnt} referencias</text>
     </g>`;
     y+=CH+G+4;
   });
   svg+='</svg>';
   wrap.innerHTML=svg;
-}
-function uCss(u){
-  if(u.cnt===0)  return{bg:'#c8e6c9',bd:'#4caf50'};
-  if(!u.ok)      return{bg:'#bbdefb',bd:'#1976d2'};
-  if(u.pct<50)   return{bg:'#fff9c4',bd:'#f9a825'};
-  if(u.pct<80)   return{bg:'#ffe0b2',bd:'#ef6c00'};
-  return               {bg:'#ffcdd2',bd:'#c62828'};
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1412,41 +1571,30 @@ function uCss(u){
 // ═══════════════════════════════════════════════════════════════════
 function render2DRack(){
   const wrap=document.getElementById('canvas-2d-wrap');
-  const fRow=document.getElementById('filter-row').value;
-  const rc=(_selectedBin&&_selectedBin.length>=2?_selectedBin.slice(0,2):(fRow?fRow+'A':'AA'));
-  const row=rc[0],lvls=lvlsOf(row);
-  const SW=104,SH=55,GAP=3;
-  let html=`<div style="padding:6px">
-    <div style="font-size:15px;font-weight:800;color:var(--accent);margin-bottom:4px">Rack ${rc} — Vista Frontal</div>
-    <div style="font-size:10px;color:var(--text-3);margin-bottom:10px">${colsOf(rc[0]).map(c=>rc[0]+c).join(' · ')} · ${lvls} niveles</div>
-    <div style="display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding-bottom:8px">
-    <div style="display:flex;flex-direction:column-reverse;gap:${GAP}px;margin-right:6px;padding-bottom:18px">`;
-  for(let l=1;l<=lvls;l++) html+=`<div style="height:${SH}px;display:flex;align-items:center;font-size:10px;color:var(--text-3);font-weight:600;white-space:nowrap;padding-right:4px">N${l}</div>`;
-  html+='</div>';
-  colsOf(rc[0]).forEach(col=>{
-    const bc=rc[0]+col;
-    html+=`<div style="display:flex;flex-direction:column">
-      <div style="display:flex;flex-direction:column-reverse;gap:${GAP}px">`;
-    for(let l=1;l<=lvls;l++){
-      const code=bc+l;const u=calcUtil(code);
-      const cc=uCss(u);const pct=u.cnt===0?0:(!u.ok?30:u.pct);
-      const fc=u.cnt===0?'#4caf50':(!u.ok?'#1976d2':(u.pct<50?'#f9a825':(u.pct<80?'#ef6c00':'#c62828')));
-      const isSel=_selectedBin===code;
-      const bin=_binMap[code];const first=bin&&bin.items[0]?_prodMap[bin.items[0].prodId]:null;
-      html+=`<div onclick="selectBin('${code}')" style="width:${SW}px;height:${SH}px;background:${cc.bg};border:${isSel?'2px solid var(--accent)':'1px solid '+cc.bd};border-radius:5px;cursor:pointer;overflow:hidden">
-        <div style="padding:4px 5px">
-          <div style="display:flex;justify-content:space-between">
-            <b style="font-size:9px">${code}</b>
-            <span style="font-size:8px;font-weight:700;color:${fc}">${u.cnt===0?'Vacío':(!u.ok?u.cnt+' ?':Math.round(u.pct)+'%')}</span>
-          </div>
-          <div style="font-size:8px;color:#444;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${first?first.ref+(u.cnt>1?' +'+(u.cnt-1):''):(u.cnt?u.cnt+' art.':'—')}</div>
-          <div style="height:3px;border-radius:2px;margin-top:3px;background:${fc};width:${pct}%"></div>
-        </div>
-      </div>`;
+  const f=activeFilters();
+  let row=f.row||(_selectedBin&&BIN_PAT.test(_selectedBin)?BIN_PAT.exec(_selectedBin)[1]:_selectedBin&&/^[A-Z]{2}$/.test(_selectedBin)?_selectedBin[0]:ROWS[0]);
+  if(!row||!ROWS.includes(row)){wrap.innerHTML='<div class="rack-empty">No hay filas disponibles para mostrar.</div>';return;}
+  const levels=lvlsOf(row),cols=colsOf(row);
+  let html=`<div class="rack-view"><div class="rack-view-head"><div><h2>Fila ${esc(row)} · elevación frontal</h2><p>${cols.length} columnas · ${levels} niveles registrados</p></div></div><div class="rack-grid-shell"><div class="rack-levels">`;
+  for(let l=1;l<=levels;l++)html+=`<div>N${l}</div>`;
+  html+='</div><div class="rack-columns">';
+  cols.forEach(col=>{
+    const bc=row+col;
+    html+=`<div class="rack-column"><div class="rack-slots">`;
+    for(let l=1;l<=levels;l++){
+      const code=bc+l,bin=_binMap[code];
+      if(!bin){html+='<div class="rack-slot-missing" aria-hidden="true"></div>';continue;}
+      const u=calcUtil(code),status=binStatus(code),cc=uCss({...u,status}),isSel=_selectedBin===code,enabled=matchesActiveFilters(code),first=bin.items[0]&&_prodMap[bin.items[0].prodId];
+      const label=u.cnt===0?'Disponible':(!u.ok?'Medidas incompletas':Math.round(u.pct)+'%');
+      html+=`<button class="rack-slot status-${status}${isSel?' selected':''}${enabled?'':' filtered'}" type="button" data-bin="${code}" ${enabled?'':'disabled'} aria-label="${code}, ${label}" style="--slot-bg:${cc.bg};--slot-border:${cc.bd}">
+        <span class="rack-slot-top"><b>${code}</b><strong>${label}</strong></span>
+        <span class="rack-slot-ref">${first?esc(first.ref)+(u.cnt>1?' +'+(u.cnt-1):''):(u.cnt?u.cnt+' referencias':'Sin stock')}</span>
+        <span class="rack-slot-bar"><i style="width:${u.ok?Math.min(100,Math.max(0,u.pct)):u.partial?Math.min(100,Math.max(8,u.pct)):u.cnt?22:0}%"></i></span>
+      </button>`;
     }
-    html+=`</div><div style="text-align:center;font-size:9px;color:var(--text-3);margin-top:3px;font-weight:700">${bc}</div></div>`;
+    html+=`</div><div class="rack-column-label">${bc}</div></div>`;
   });
-  html+='</div></div>';
+  html+='</div></div></div></div>';
   wrap.innerHTML=html;
 }
 
@@ -1455,24 +1603,34 @@ function render2DRack(){
 // ═══════════════════════════════════════════════════════════════════
 function setView(v){
   _currentView=v;
-  ['plant','rack','3d'].forEach(n=>document.getElementById('btn-view-'+n).className='view-btn'+(v===n?' active':''));
+  ['plant','rack','3d'].forEach(n=>{const b=document.getElementById('btn-view-'+n);b.className='view-btn'+(v===n?' active':'');b.setAttribute('aria-pressed',String(v===n));});
   const c3=document.getElementById('canvas-3d');
   const c2=document.getElementById('canvas-2d-wrap');
   const rw=document.getElementById('rot-widget');
+  const fallbackNote=document.getElementById('gl-fallback-note');
+  const fit=document.getElementById('btn-fit');if(fit)fit.disabled=v!=='3d';
   if(v==='3d'){
     c3.style.display='block';c2.style.display='none';rw.style.display='flex';
-    if(GL.on){ glResize(); glStartLoop(); }   // reactiva el motor Three.js
+    if(fallbackNote)fallbackNote.style.display=GL.on?'none':'block';
+    if(GL.on){ glResize(); glApplyFilter(); glHighlight(_selectedBin); glStartLoop(); }
     else resizeCanvas();
   } else {
     // Planta y Rack (2D) — motor SVG existente intacto. El canvas WebGL queda oculto.
     c3.style.display='none';c2.style.display='block';rw.style.display='none';
+    if(fallbackNote)fallbackNote.style.display='none';
     renderMap();
   }
 }
 function onFilterChange(){
-  // En 3D+GL el filtro de fila/nivel se refleja atenuando bins fuera del filtro.
-  if(_currentView==='3d' && GL.on){ glApplyFilter(); return; }
-  renderMap();
+  updateFilterUi();
+  if(_selectedBin&&/^[A-Z]{2}$/.test(_selectedBin)){
+    const visible=rackBinCodes().filter(code=>code.startsWith(_selectedBin)&&matchesActiveFilters(code));
+    if(!visible.length){clearSelection(false);showMapToast('El rack seleccionado no tiene bins dentro de los filtros.');}
+    else selectRack(_selectedBin);
+  }else if(_selectedBin&&!matchesActiveFilters(_selectedBin)){
+    clearSelection(false);showMapToast('La selección quedó fuera de los filtros activos.');
+  }
+  if(_currentView==='3d'&&GL.on)glApplyFilter();else renderMap();
 }
 function renderMap(){
   if(_currentView==='3d'){ if(GL.on) glRenderOnce(); else schedRender(); }
@@ -1482,18 +1640,15 @@ function renderMap(){
 // Atenúa (baja opacidad de color) los bins fuera del filtro fila/nivel activo.
 function glApplyFilter(){
   if(!GL.ready || !GL.binsMesh) return;
-  const fRow=document.getElementById('filter-row').value;
-  const fLv=+document.getElementById('filter-level').value||0;
-  const mesh=GL.binsMesh, col=GL._tmpColor, dim=new THREE.Color();
+  const mesh=GL.binsMesh, col=GL._tmpColor, dim=new THREE.Color(),floor=_tok('--scene-floor','#dfe3e6');
   GL.instMap.forEach((code,i)=>{
     _glBinColor(code,col);
-    const m=BIN_PAT.exec(code);
-    const inFilter=(!fRow || (m&&m[1]===fRow)) && (!fLv || (m&&+m[3]===fLv));
+    const inFilter=matchesActiveFilters(code);
     if(inFilter){ mesh.setColorAt(i,col); }
-    else { dim.copy(col).lerp(_tok('--scene-floor','#dfe3e6'),0.82); mesh.setColorAt(i,dim); }
+    else { dim.copy(col).lerp(floor,0.88); mesh.setColorAt(i,dim); }
   });
   if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
-  // Muestra/oculta la estructura de racks fuera de la fila filtrada
+  if(GL.frontMesh)GL.frontMesh.visible=matchesActiveFilters(FRONTAL_LOC);
   glRenderOnce();
 }
 
@@ -1501,127 +1656,200 @@ function glApplyFilter(){
 // DETAIL PANEL
 // ═══════════════════════════════════════════════════════════════════
 function selectRack(rc){
-  _selectedBin=rc; renderMap();
-  const row=rc[0],lvls=lvlsOf(row);
-  let tot=0,vU=0,bV=0,hd=false,all=[];
-  for(let l=1;l<=lvls;l++){
-    const bin=_binMap[rc+l];if(!bin)continue;
-    tot+=bin.items.length;
-    bin.items.forEach(it=>{all.push({...it,slot:rc+l});const p=_prodMap[it.prodId];
-      if(p&&p.dims){vU+=p.dims.w*p.dims.d*p.dims.h*it.qty;hd=true;}});
-    const d=getDim(rc+l);bV+=d.w*d.d*d.h;
-  }
-  showDetail({code:rc,path:'Rack '+rc+' ('+lvls+' niveles)',tot,pct:!hd?-1:Math.min(100,vU/bV*100),ok:hd,vU,bV,items:all});
+  rc=String(rc||'').toUpperCase();
+  const all=rackBinCodes().filter(code=>code.startsWith(rc)),shown=all.filter(matchesActiveFilters),codes=shown.length?shown:all;
+  if(!codes.length){showMapToast('No encontramos ubicaciones en el rack '+rc+'.','error');return;}
+  const a=aggregateSlots(codes);
+  _selectedBin=rc;if(GL.on)glHighlight(null);renderMap();
+  showDetail({code:rc,path:'Rack '+rc+' · '+codes.length+' ubicaciones visibles',refs:a.refs,units:a.units,pct:a.pct,ok:a.ok,partial:a.partial,measured:a.measured,total:a.total,vU:a.vU,bV:a.bV,items:a.items});
 }
 function selectBin(code){
+  if(!_binMap[code]){showMapToast('Esta ubicación no existe en Odoo.','error');return;}
+  if(!matchesActiveFilters(code)){showMapToast('La ubicación está fuera de los filtros activos.','error');return;}
   _selectedBin=code;
   if(_currentView==='3d' && GL.on) glHighlight(code); else renderMap();
-  const bin=_binMap[code];if(!bin)return;
+  const bin=_binMap[code];
   const u=calcUtil(code);
-  showDetail({code,path:bin.completeName,tot:bin.items.length,pct:u.pct,ok:u.ok,vU:u.volUsed,bV:u.vol,items:bin.items.map(it=>({...it,slot:code}))});
+  showDetail({code,path:bin.completeNames?.join(' · ')||bin.completeName,refs:bin.items.length,units:sumUnits(bin.items),pct:u.pct,ok:u.ok,partial:u.partial,measured:u.measured,total:u.total,vU:u.volUsed,bV:u.vol,items:bin.items.map(it=>({...it,slot:code})),isZone:u.isZone,duplicate:!!bin.duplicateLocation});
 }
-function showDetail({code,path,tot,pct,ok,vU,bV,items}){
-  // Si el panel de detalle está retraído, abrirlo automáticamente al consultar un bin
-  const _L=document.querySelector('.layout');
-  if(_L.classList.contains('no-right')){ _L.classList.remove('no-right'); const _b=document.getElementById('tgl-right'); if(_b)_b.classList.remove('off'); setTimeout(()=>{ if(_currentView==='3d') resizeCanvas(); },40); }
+function clearSelection(closePanel){
+  _selectedBin=null;if(GL.on)glHighlight(null);
+  const ph=document.getElementById('detail-placeholder'),detail=document.getElementById('bin-detail');if(ph)ph.style.display='flex';if(detail){detail.style.display='none';detail.innerHTML='';}
+  renderMap();if(closePanel)togglePanel('right',false);
+}
+function showDetail({code,path,refs,units,pct,ok,partial,measured,total,vU,bV,items,isZone=false,duplicate=false}){
+  togglePanel('right',true);
   document.getElementById('detail-placeholder').style.display='none';
-  const ps=tot===0?'0%':(!ok?'N/D':Math.round(pct)+'%');
-  const fc=tot===0?'#4caf50':(!ok?'#1976d2':(pct<50?'#f9a825':(pct<80?'#ef6c00':'#c62828')));
-  const fp=tot===0?0:(!ok?25:pct);
+  const status=isZone?'special':refs===0?'empty':!ok?'nodata':pct<50?'low':pct<80?'mid':'high',sm=statusMeta(status),barColor='var(--map-'+(status==='special'?'special':status)+')';
+  const capacity=isZone?'No aplica':refs===0?'0%':ok?Math.round(pct)+'%':partial?'Parcial':'Sin datos';
+  const fp=isZone?0:ok?Math.min(100,Math.max(0,pct)):partial?Math.min(100,Math.max(8,(measured/Math.max(1,total))*100)):0;
+  const volText=isZone?'Las zonas especiales no usan capacidad por slot.':ok?((vU/1e6).toFixed(3)+' de '+(bV/1e6).toFixed(3)+' m³ estimados'):partial?(measured+' de '+total+' referencias tienen medidas; no se publica un porcentaje como confiable.'):'Faltan medidas de producto para calcular la capacidad.';
   let ih='';
   items.slice(0,25).forEach(it=>{
     const p=_prodMap[it.prodId];if(!p)return;
     const hd=!!p.dims;
-    const imgSrc = p.image ? 'data:image/png;base64,'+p.image : '';
+    const imgSrc = p.image&&/^[A-Za-z0-9+/=]+$/.test(p.image) ? 'data:image/png;base64,'+p.image : '';
     const imgHtml = imgSrc
-      ? `<img src="${imgSrc}" style="width:48px;height:48px;object-fit:contain;border-radius:4px;border:1px solid var(--border);background:var(--surface-2);flex-shrink:0">`
-      : `<div style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:4px;border:1px solid var(--border);flex-shrink:0;color:var(--text-3);font-size:8px">Sin foto</div>`;
-    ih+=`<div class="item-card" style="display:flex;gap:8px;align-items:flex-start">
+      ? `<img class="item-thumb" src="${imgSrc}" alt="" loading="lazy">`
+      : `<div class="item-thumb item-thumb-empty" data-image-prod="${it.prodId}" aria-hidden="true"><i data-lucide="image-off" class="icon"></i></div>`;
+    ih+=`<div class="item-card">
       ${imgHtml}
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;justify-content:space-between;gap:3px;align-items:flex-start">
-          <span class="ref">${p.ref}</span>
-          <span style="font-size:11px;font-weight:800;color:var(--accent);white-space:nowrap;flex-shrink:0">×${it.qty}</span>
+      <div class="item-card-body">
+        <div class="item-card-top">
+          <span class="ref">${esc(p.ref)}</span>
+          <span class="item-qty">×${fmtQty(it.qty)}</span>
         </div>
-        <div class="name">${p.name.length>45?p.name.slice(0,43)+'…':p.name}</div>
-        ${p.barcode?`<div style="font-size:9px;color:var(--text-2);font-family:monospace;margin-top:2px">🏷 ${p.barcode}</div>`:''}
-        ${hd?`<div class="dims">📐 ${p.dims.w}×${p.dims.d}×${p.dims.h} cm</div>`:''}
-        ${it.slot&&it.slot!==code?`<div style="font-size:9px;color:var(--text-3)">📍 ${it.slot}</div>`:''}
+        <div class="name">${esc(p.name)}</div>
+        <div class="item-meta">
+          ${p.barcode?`<span><i data-lucide="barcode" class="icon-sm"></i> ${esc(p.barcode)}</span>`:''}
+          ${hd?`<span><i data-lucide="ruler" class="icon-sm"></i> ${fmtQty(p.dims.w)}×${fmtQty(p.dims.d)}×${fmtQty(p.dims.h)} cm</span>`:''}
+          ${it.slot&&it.slot!==code?`<span><i data-lucide="map-pin" class="icon-sm"></i> ${esc(it.slot)}</span>`:''}
+        </div>
       </div>
     </div>`;
   });
-  if(!items.length) ih=`<div style="text-align:center;color:var(--text-3);padding:16px;font-size:12px">✅ Bin vacío — sin artículos</div>`;
-  else if(items.length>25) ih+=`<div style="text-align:center;font-size:10px;color:var(--text-3);padding:6px;border-top:1px solid var(--border);margin-top:4px">+${items.length-25} artículos más…</div>`;
+  if(!items.length) ih=`<div class="empty-bin"><i data-lucide="package-open" class="icon-lg"></i><b>Ubicación disponible</b><span>No hay existencias registradas en este bin.</span></div>`;
+  else if(items.length>25) ih+=`<div class="more-items">+${items.length-25} referencias adicionales</div>`;
   document.getElementById('bin-detail').style.display='block';
   document.getElementById('bin-detail').innerHTML=`
-    <div class="bin-code">${code}</div>
-    <div class="bin-path">${path}</div>
+    <div class="detail-head"><div><div class="bin-code">${esc(code)}</div><div class="bin-path">${esc(path)}</div></div><span class="state-chip ${sm[1]}">${esc(sm[0])}</span></div>
+    ${duplicate?'<div class="estimated-note"><i data-lucide="triangle-alert" class="icon"></i><span>Hay más de una ubicación Odoo con este código final; el contenido se muestra consolidado.</span></div>':''}
     <div class="bin-kpis">
-      <div class="bin-kpi"><div class="num">${tot}</div><div class="lbl">Artículos</div></div>
-      <div class="bin-kpi"><div class="num" style="color:${fc}">${ps}</div><div class="lbl">Utilización</div></div>
+      <div class="bin-kpi"><div class="num">${refs}</div><div class="lbl">Referencias</div></div>
+      <div class="bin-kpi"><div class="num">${fmtQty(units)}</div><div class="lbl">Unidades</div></div>
+      <div class="bin-kpi"><div class="num">${capacity}</div><div class="lbl">Capacidad est.</div></div>
     </div>
-    <div style="font-size:9px;color:var(--text-3);margin-bottom:2px">Vol: ${ok&&vU?(vU/1e6).toFixed(3)+' / ':' '}${(bV/1e6).toFixed(3)} m³ <span class="mock-badge">MOCK</span></div>
-    <div class="util-bar"><div class="util-fill" style="width:${fp}%;background:${fc}"></div></div>
-    <div class="panel-title" style="margin-top:6px;margin-bottom:4px">Contenido del bin</div>
+    <div class="capacity-block"><div class="capacity-head"><span class="capacity-title">Uso volumétrico estimado</span><span class="capacity-value">${capacity}</span></div><div class="util-bar"><div class="util-fill" style="width:${fp}%;background:${barColor}"></div></div><div class="capacity-meta">${esc(volText)}</div></div>
+    <div class="detail-section-head"><h3>Contenido</h3><span>${refs} referencias</span></div>
     <div class="item-list">${ih}</div>`;
+  const scroll=document.getElementById('detail-scroll');if(scroll)scroll.scrollTop=0;
+  hydrateIcons();
+  hydrateDetailImages(items.slice(0,25));
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // DATA LOADING
 // ═══════════════════════════════════════════════════════════════════
 function _mapaAuthHeader(){
-  try{var a=JSON.parse(localStorage.getItem('wwp_auth')||sessionStorage.getItem('wwp_auth')||'{}');if(a.accessToken)return{'Authorization':'Bearer '+a.accessToken};}catch(e){}
+  try{var a=JSON.parse(sessionStorage.getItem('wwp_auth')||localStorage.getItem('wwp_auth')||'{}');if(a.accessToken)return{'Authorization':'Bearer '+a.accessToken};}catch(e){}
   return {};
 }
 async function odoo(m,me,a,k={}) {
-  const r=await fetch('/api/odoo',{method:'POST',headers:{'Content-Type':'application/json',..._mapaAuthHeader()},body:JSON.stringify({model:m,method:me,args:a,kwargs:k})});
-  const d=await r.json();if(!d.ok)throw new Error(d.error);return d.result;
+  const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),30000);
+  try{
+    const r=await fetch('/api/odoo',{method:'POST',headers:{'Content-Type':'application/json',..._mapaAuthHeader()},body:JSON.stringify({model:m,method:me,args:a,kwargs:k}),signal:ctl.signal});
+    const raw=await r.text();let d;
+    try{d=JSON.parse(raw);}catch(e){throw new Error('Odoo devolvió una respuesta inválida ('+r.status+').');}
+    if(!r.ok||!d.ok)throw new Error(d.error||('No se pudo consultar Odoo ('+r.status+').'));
+    return d.result;
+  }catch(e){if(e&&e.name==='AbortError')throw new Error('Odoo tardó más de 30 segundos en responder.');throw e;}
+  finally{clearTimeout(timer);}
 }
-function setLoading(msg,sub){
+function loadProductImages(prodIds){
+  const ids=[...new Set((prodIds||[]).map(Number).filter(id=>_prodMap[id]))],fresh=ids.filter(id=>_prodMap[id].image==null&&!_imageRequests.has(id));
+  if(fresh.length){
+    const batch=odoo('product.product','search_read',[[['id','in',fresh]]],{fields:['id','image_128'],limit:fresh.length}).then(rows=>{
+      const byId=new Map((Array.isArray(rows)?rows:[]).map(row=>[row.id,row.image_128||'']));
+      fresh.forEach(id=>{if(_prodMap[id])_prodMap[id].image=byId.get(id)||'';});return true;
+    }).catch(()=>{fresh.forEach(id=>_imageRequests.delete(id));return false;});
+    fresh.forEach(id=>_imageRequests.set(id,batch.then(ok=>ok&&_prodMap[id]?_prodMap[id].image:null)));
+  }
+  return Promise.all(ids.map(id=>Promise.resolve(_prodMap[id].image!=null?_prodMap[id].image:_imageRequests.get(id)).then(image=>({id,image}))));
+}
+function hydrateDetailImages(items){
+  loadProductImages((items||[]).map(it=>it.prodId)).then(images=>images.forEach(({id:prodId,image})=>{
+      if(!image||!/^[A-Za-z0-9+/=]+$/.test(image))return;
+      document.querySelectorAll('[data-image-prod="'+Number(prodId)+'"]').forEach(marker=>{
+        if(!marker.isConnected)return;const img=document.createElement('img');img.className='item-thumb';img.alt='';img.loading='lazy';img.src='data:image/png;base64,'+image;marker.replaceWith(img);
+      });
+    }));
+}
+async function odooAll(model,domain,fields,pageSize,maxRows,progress){
+  const out=[];
+  while(out.length<maxRows){
+    const limit=Math.min(pageSize,maxRows-out.length);
+    const page=await odoo(model,'search_read',[domain],{fields,limit,offset:out.length});
+    if(!Array.isArray(page))throw new Error('Respuesta inesperada al consultar '+model+'.');
+    out.push(...page);if(progress)progress(out.length);
+    if(page.length<limit)return out;
+  }
+  throw new Error('La consulta de '+model+' superó '+maxRows+' registros. Se detuvo para no mostrar datos truncados.');
+}
+function setLoading(msg,sub,state='loading'){
   const el=document.getElementById('loading-overlay');
-  if(msg===false){el.style.display='none';return;}
+  if(msg===false){el.style.display='none';el.classList.remove('error');el.setAttribute('aria-busy','false');return;}
   el.style.display='flex';
+  el.classList.toggle('error',state==='error');el.setAttribute('aria-busy',String(state!=='error'));
   document.getElementById('loading-msg').textContent=msg;
   document.getElementById('loading-sub').textContent=sub||'';
+  hydrateIcons();
+}
+function setSync(state,label){
+  const el=document.getElementById('sync-status'),txt=document.getElementById('sync-label');if(!el||!txt)return;
+  el.classList.remove('ok','error');if(state==='ok')el.classList.add('ok');if(state==='error')el.classList.add('error');txt.textContent=label;
+}
+function updateWarehouseStats(){
+  const bins=rackBinCodes(),occ=bins.filter(code=>_binMap[code].items.length>0).length,critical=bins.filter(code=>binStatus(code)==='high').length;
+  document.getElementById('st-total').textContent=bins.length;
+  document.getElementById('st-occupied').textContent=occ;
+  document.getElementById('st-empty').textContent=Math.max(0,bins.length-occ);
+  document.getElementById('st-pct').textContent=bins.length?Math.round(occ/bins.length*100)+'%':'0%';
+  document.getElementById('st-critical').textContent=critical;
+  const products=Object.values(_prodMap),wd=products.filter(p=>p.measureState==='complete').length,nd=products.filter(p=>p.measureState==='incomplete').length,ne=products.filter(p=>p.measureState==='missing').length,pct=products.length?Math.round(wd/products.length*100):0;
+  document.getElementById('cov-yes').textContent=wd;document.getElementById('cov-no').textContent=nd;document.getElementById('cov-none').textContent=ne;document.getElementById('cov-total').textContent=products.length;
+  document.getElementById('cov-pct').textContent=pct+'%';document.getElementById('cov-fill').style.width=pct+'%';document.getElementById('cov-note').textContent=wd+' de '+products.length+' productos con medidas completas';
+  const empty=document.getElementById('map-empty-state');if(empty)empty.hidden=bins.length>0;
+  updateFilterUi();
 }
 async function initMap(){
-  setLoading('Cargando ubicaciones CDP…','stock.location');
+  if(_mapLoading)return;
+  _mapLoading=true;const seq=++_loadSeq,refresh=document.getElementById('btn-refresh');
+  refresh.disabled=true;refresh.classList.add('is-loading');setSync('loading','Sincronizando…');
+  const progress=(msg,sub)=>{if(!_hasLoaded)setLoading(msg,sub);else setSync('loading',msg);};
+  progress('Cargando ubicaciones CDP…','stock.location');
   try{
-    _locs=await odoo('stock.location','search_read',
-      [[['complete_name','ilike','A-CDP'],['usage','=','internal'],
-        ['complete_name','not ilike','devoluci'],['active','=',true]]],
-      {fields:['id','name','complete_name'],limit:2000});
-    setLoading('Cargando stock…','stock.quant');
-    _quants=await odoo('stock.quant','search_read',
-      [[['location_id.complete_name','ilike','A-CDP'],
-        ['location_id.complete_name','not ilike','devoluci'],['quantity','>',0]]],
-      {fields:['product_id','location_id','quantity'],limit:12000});
-    const ids=[...new Set(_quants.map(q=>q.product_id[0]))];
-    setLoading('Cargando productos…',ids.length+' referencias');
-    const prods=await odoo('product.product','search_read',[[['id','in',ids]]],
-      {fields:['id','default_code','name','barcode','description_purchase','image_128'],limit:6000});
-    let wd=0,nd=0,ne=0;
+    const locDomain=[['complete_name','ilike','A-CDP'],['usage','=','internal'],['complete_name','not ilike','devoluci'],['active','=',true]];
+    const locs=await odooAll('stock.location',locDomain,['id','name','complete_name'],1000,10000);
+    progress('Cargando existencias…','stock.quant');
+    const quantDomain=[['location_id.complete_name','ilike','A-CDP'],['location_id.complete_name','not ilike','devoluci'],['quantity','>',0]];
+    const quants=await odooAll('stock.quant',quantDomain,['product_id','location_id','quantity'],2000,50000,n=>progress('Cargando existencias…',n+' líneas'));
+    const ids=[...new Set(quants.map(q=>Array.isArray(q.product_id)?q.product_id[0]:null).filter(Boolean))],prods=[];
+    for(let i=0;i<ids.length;i+=800){
+      const chunk=ids.slice(i,i+800);progress('Cargando productos…',Math.min(i+chunk.length,ids.length)+' de '+ids.length+' referencias');
+      const page=await odoo('product.product','search_read',[[['id','in',chunk]]],{fields:['id','default_code','name','barcode','description_purchase'],limit:chunk.length});
+      if(!Array.isArray(page))throw new Error('Respuesta inesperada al cargar productos.');prods.push(...page);
+    }
+    const prodMap={};
     prods.forEach(p=>{
       const desc=(p.description_purchase||'').trim();
       let dims=null;
       if(desc){const m=DIM_RX.exec(desc);
         if(m){const w=parseFloat(m[1].replace(',','.')),d=parseFloat(m[2].replace(',','.')),h=m[3]?parseFloat(m[3].replace(',','.')):-1;
-          if(w>0&&d>0){dims={w,d,h:h>0?h:d};wd++;} else nd++;
-        } else nd++;
-      } else ne++;
-      _prodMap[p.id]={ref:p.default_code||'—',name:p.name||'—',barcode:p.barcode||'',image:p.image_128||'',desc,dims};
+          if(w>0&&d>0&&h>0)dims={w,d,h};
+        }
+      }
+      prodMap[p.id]={ref:p.default_code||'—',name:p.name||'—',barcode:p.barcode||'',image:null,desc,dims,measureState:dims?'complete':desc?'incomplete':'missing'};
     });
-    document.getElementById('cov-yes').textContent=wd;
-    document.getElementById('cov-no').textContent=nd;
-    document.getElementById('cov-none').textContent=ne;
-    // Build bin map
-    _binMap={};
-    _locs.forEach(l=>_binMap[l.name]={locId:l.id,name:l.name,completeName:l.complete_name,items:[]});
-    _quants.forEach(q=>{
-      const seg=q.location_id[1].split('/').pop();
-      if(_binMap[seg]) _binMap[seg].items.push({prodId:q.product_id[0],prodName:q.product_id[1],qty:q.quantity});
+    const quantNames=new Map();quants.forEach(q=>{if(Array.isArray(q.product_id))quantNames.set(q.product_id[0],q.product_id[1]);});
+    ids.forEach(id=>{if(!prodMap[id])prodMap[id]={ref:'—',name:quantNames.get(id)||'Producto '+id,barcode:'',image:null,desc:'',dims:null,measureState:'missing'};});
+    const binMap={},binByLocId={};
+    locs.forEach(l=>{
+      const code=String(l.name||'').trim();if(!code)return;
+      let bin=binMap[code];
+      if(!bin)bin=binMap[code]={locId:l.id,locIds:[l.id],name:code,completeName:l.complete_name,completeNames:[l.complete_name],items:[],_itemsByProd:{}};
+      else{bin.locIds.push(l.id);bin.completeNames.push(l.complete_name);bin.duplicateLocation=true;}
+      binByLocId[l.id]=bin;
     });
-    // ── Derivar layout REAL desde las ubicaciones (todas las filas/cols/niveles) ──
+    quants.forEach(q=>{
+      const locId=Array.isArray(q.location_id)?q.location_id[0]:null,prodId=Array.isArray(q.product_id)?q.product_id[0]:null,bin=binByLocId[locId];if(!bin||!prodId)return;
+      let item=bin._itemsByProd[prodId];
+      if(!item)item=bin._itemsByProd[prodId]={prodId,prodName:q.product_id[1],qty:0};
+      item.qty+=(Number(q.quantity)||0);
+    });
+    Object.values(binMap).forEach(bin=>{bin.items=Object.values(bin._itemsByProd).sort((a,b)=>(prodMap[a.prodId]?.ref||'').localeCompare(prodMap[b.prodId]?.ref||''));delete bin._itemsByProd;});
+
+    if(seq!==_loadSeq)return;
+    _locs=locs;_quants=quants;_prodMap=prodMap;_binMap=binMap;_binByLocId=binByLocId;_imageRequests.clear();
     const rowSet=new Set(); COLS_BY_ROW={}; LVLS_BY_ROW={};
     Object.keys(_binMap).forEach(code=>{
       const m=BIN_PAT.exec(code); if(!m) return;
@@ -1634,44 +1862,63 @@ async function initMap(){
     Object.keys(COLS_BY_ROW).forEach(r=>{COLS_BY_ROW[r]=[...COLS_BY_ROW[r]].sort();COLS_BY_ROW[r].forEach(c=>allCols.add(c));});
     COLS=[...allCols].sort();
     buildLayout([...rowSet]);
-    // Stats (excluye la raíz y las zonas no-rack)
-    const _zoneCodes=new Set(FRONT_ZONES.map(z=>z.code));
-    const bins=Object.keys(_binMap).filter(k=>k!=='A-CDP'&&!_zoneCodes.has(k)&&BIN_PAT.test(k));
-    const occ=bins.filter(k=>_binMap[k].items.length>0).length;
-    document.getElementById('st-total').textContent=bins.length;
-    document.getElementById('st-occupied').textContent=occ;
-    document.getElementById('st-empty').textContent=bins.length-occ;
-    document.getElementById('st-pct').textContent=Math.round(occ/bins.length*100)+'%';
-    // Filters
-    const sel=document.getElementById('filter-row');
+    const sel=document.getElementById('filter-row'),previousRow=sel.value;
     sel.innerHTML='<option value="">Todas las filas</option>';
-    ROWS.forEach(r=>sel.innerHTML+=`<option value="${r}">Fila ${r}</option>`);
-    // ── Motor Three.js: (re)construir la escena con el layout recién cargado ──
-    if(GL.on){ glBuildScene(); }
-    // Dim volumes (recolorea bins ya construidos si GL está activo)
-    applyDims();
-    document.getElementById('last-update').textContent='Actualizado: '+new Date().toLocaleTimeString('es-DO');
+    ROWS.forEach(r=>sel.insertAdjacentHTML('beforeend',`<option value="${r}">Fila ${r}</option>`));
+    if(ROWS.includes(previousRow))sel.value=previousRow;
+    const levelSel=document.getElementById('filter-level'),previousLevel=levelSel.value,maxLevel=Math.max(0,...Object.values(LVLS_BY_ROW));
+    levelSel.innerHTML='<option value="">Todos los niveles</option>';
+    for(let level=1;level<=maxLevel;level++)levelSel.insertAdjacentHTML('beforeend',`<option value="${level}">Nivel ${level}</option>`);
+    if(+previousLevel<=maxLevel)levelSel.value=previousLevel;
+    if(GL.on)glBuildScene();
+    applyDims(true);
+    updateWarehouseStats();
+    document.getElementById('last-update').textContent='· '+new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'});
+    setSync('ok','Odoo sincronizado');_hasLoaded=true;
     setLoading(false);
-    if(_currentView==='3d'){ if(GL.on){ glResize(); glFrameAll(); } else fitView(); }
-  }catch(e){ setLoading(false); alert('Error: '+e.message); }
+    if(_selectedBin&&_binMap[_selectedBin]&&matchesActiveFilters(_selectedBin))selectBin(_selectedBin);
+    else if(_selectedBin&&/^[A-Z]{2}$/.test(_selectedBin)&&rackBinCodes().some(code=>code.startsWith(_selectedBin)&&matchesActiveFilters(code)))selectRack(_selectedBin);
+    else if(_selectedBin)clearSelection(false);
+    if(_currentView==='3d'){if(GL.on){glResize();glApplyFilter();glFrameAll();}else fitView();}else renderMap();
+    const q=document.getElementById('warehouse-search').value;if(q)renderSearchResults(q);
+  }catch(e){
+    console.error(e);setSync('error','Sin conexión con Odoo');
+    if(_hasLoaded){setLoading(false);showMapToast('No se pudo actualizar. Se conservan los últimos datos: '+e.message,'error');}
+    else setLoading('No pudimos cargar el mapa',e.message,'error');
+  }finally{
+    _mapLoading=false;refresh.disabled=false;refresh.classList.remove('is-loading');
+  }
 }
-function applyDims(){
-  _dimA={w:+document.getElementById('dA-w').value||120,d:+document.getElementById('dA-d').value||90,h:+document.getElementById('dA-h').value||65};
-  _dimB={w:+document.getElementById('dB-w').value||120,d:+document.getElementById('dB-d').value||90,h:+document.getElementById('dB-h').value||55};
+function applyDims(silent=false){
+  const values=['dA-w','dA-d','dA-h','dB-w','dB-d','dB-h'].map(id=>Number(document.getElementById(id).value));
+  if(values.some(v=>!Number.isFinite(v)||v<=0)){showMapToast('Todas las dimensiones deben ser números mayores que cero.','error');return false;}
+  _dimA={w:values[0],d:values[1],h:values[2]};
+  _dimB={w:values[3],d:values[4],h:values[5]};
   document.getElementById('volA').textContent=(_dimA.w*_dimA.d*_dimA.h/1e6).toFixed(3)+' m³';
   document.getElementById('volB').textContent=(_dimB.w*_dimB.d*_dimB.h/1e6).toFixed(3)+' m³';
   // La ocupación depende de dims mock → recolorear bins sin reconstruir la escena.
-  if(GL.on){ glRecolor(); if(document.getElementById('filter-row').value||document.getElementById('filter-level').value) glApplyFilter(); }
+  if(GL.on){glRecolor();const f=activeFilters();if(f.row||f.level||f.status)glApplyFilter();}
+  updateWarehouseStats();
   renderMap();
+  const layout=document.getElementById('warehouse-layout');
+  if(_selectedBin&&layout&&!layout.classList.contains('no-right')){if(_binMap[_selectedBin])selectBin(_selectedBin);else if(/^[A-Z]{2}$/.test(_selectedBin))selectRack(_selectedBin);}
+  if(!silent)showMapToast('Capacidad estimada recalculada.');
+  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // TEMA (dark mode) — estándar del proyecto: data-theme + localStorage wwp_theme
 // ═══════════════════════════════════════════════════════════════════
 function applyTheme(t){
-  document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');
-  try{ localStorage.setItem('wwp_theme', t); }catch(e){}
-  if(GL.on){ glApplyTheme(); glRenderOnce(); }
+  const theme=t==='dark'?'dark':'light';
+  document.documentElement.setAttribute('data-theme',theme);
+  try{localStorage.setItem('wwp_theme',theme);}catch(e){}
+  syncPalette();
+  const btn=document.getElementById('btn-theme');
+  if(btn){btn.innerHTML=`<i data-lucide="${theme==='dark'?'sun':'moon'}" class="icon"></i>`;btn.setAttribute('aria-label',theme==='dark'?'Usar tema claro':'Usar tema oscuro');}
+  if(GL.on){glApplyTheme();glRecolor();glApplyFilter();}
+  if(_currentView!=='3d')renderMap();else if(!GL.on)schedRender();
+  hydrateIcons();
 }
 function toggleTheme(){
   const cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';
@@ -1685,6 +1932,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Tema guardado (comparte clave con historial.html)
   let _th='light'; try{ _th=localStorage.getItem('wwp_theme')||'light'; }catch(e){}
   document.documentElement.setAttribute('data-theme', _th==='dark'?'dark':'light');
+  syncPalette();wireUiEvents();hydrateIcons();
 
   document.getElementById('volA').textContent=(120*90*65/1e6).toFixed(3)+' m³';
   document.getElementById('volB').textContent=(120*90*55/1e6).toFixed(3)+' m³';
@@ -1702,6 +1950,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(note) note.style.display='block';
   }
   setView('3d');
+  applyTheme(_th);
   initMap();
 });
 window.addEventListener('resize',()=>{
