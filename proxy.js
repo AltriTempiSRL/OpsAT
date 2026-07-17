@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v199';
+const APP_BUILD = 'v200';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1995,6 +1995,13 @@ function wwpId(prefix) {
 // Día local como {y,m,d} y como número serial (días desde epoch a medianoche
 // local) para restar días a nivel de DÍA, no de milisegundos.
 function eoLocalDaySerial(input) {
+  // Date-only 'YYYY-MM-DD': tomar los componentes del STRING, sin pasar por new Date().
+  // new Date('YYYY-MM-DD') parsea a medianoche UTC (spec ES) y en RD (UTC-4) el día LOCAL
+  // retrocede uno → una promesa date-only (las escribe /reprogramar v192 y el sellado
+  // fechaSolicitudDeseadaOriginal de Fase B) mediría +1 día de tardanza FALSA. Los strings
+  // con hora ('...THH:MM:SS' sin zona) siguen parseando como hora local — sin cambio.
+  const m = (typeof input === 'string') && input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5);
   const d = (input instanceof Date) ? input : new Date(input);
   if (isNaN(d.getTime())) return null;
   // Date.UTC con los componentes LOCALES → serial de días estable, sin arrastrar
@@ -2386,10 +2393,14 @@ function eoBuildMetrics(ventanaDias, minN) {
   // REAL de despacho): comparar día real vs prometido. Semana = ISO de la real.
   const cumplimientoSemanal = weeks8.map(w => ({ semana: w, antes: 0, alDia: 0, tarde1a2: 0, tarde3mas: 0 }));
   sdvs.forEach(s => {
-    if (!s || !s.fechaSolicitudDeseada) return;
+    // Fase B (Decisión 26): el cumplimiento se mide contra la promesa ORIGINAL (inmutable,
+    // sellada al primer cambio de fecha). Sin reprogramación no hay original → cae a la fecha
+    // viva y mide EXACTAMENTE igual que antes. Mover la fecha ya no "arregla" el OTIF.
+    const promesa = s && (s.fechaSolicitudDeseadaOriginal || s.fechaSolicitudDeseada);
+    if (!promesa) return;
     const real = eoSdvDispatchDate(s);
     if (!real || !inWindow(real)) return;
-    const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+    const diff = eoDayDiff(real, promesa);
     if (diff === null) return;
     const wk = eoISOWeek(real);
     const idx = idxByWeek.get(wk);
@@ -2408,10 +2419,12 @@ function eoBuildMetrics(ventanaDias, minN) {
   // que pinta el gráfico de columnas verticales. 7 entradas en orden Lun..Dom.
   const cumplimientoPorDia = EO_WEEKDAY_LABELS.map(dia => ({ dia, antes: 0, alDia: 0, tarde1a2: 0, tarde3mas: 0 }));
   sdvs.forEach(s => {
-    if (!s || !s.fechaSolicitudDeseada) return;
+    // Fase B: misma promesa ORIGINAL que cumplimientoSemanal (consistencia cross-vista).
+    const promesa = s && (s.fechaSolicitudDeseadaOriginal || s.fechaSolicitudDeseada);
+    if (!promesa) return;
     const real = eoSdvDispatchDate(s);
     if (!real || !inWindow(real)) return;
-    const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+    const diff = eoDayDiff(real, promesa);
     if (diff === null) return;
     const wd = eoWeekdayIndex(real);
     if (wd === null) return;
@@ -2534,17 +2547,56 @@ function eoBuildMetrics(ventanaDias, minN) {
     else if (inPrevWindow(real)) slot = resumenAcc.anterior;
     if (!slot) return;
     slot.desp++;
-    if (s.fechaSolicitudDeseada) {
-      const diff = eoDayDiff(real, s.fechaSolicitudDeseada);
+    // Fase B: aTiempoPct contra la promesa ORIGINAL (una despachada después de la promesa
+    // original pero antes de la fecha movida ya NO cuenta como a-tiempo).
+    const promesa = s.fechaSolicitudDeseadaOriginal || s.fechaSolicitudDeseada;
+    if (promesa) {
+      const diff = eoDayDiff(real, promesa);
       if (diff !== null) { slot.promesa++; if (diff <= 0) slot.aTiempo++; }
     }
   });
   const pct = (num, den) => den > 0 ? Math.round((num / den) * 1000) / 10 : null; // 1 decimal
+
+  // ── 5b) Slippage de reprogramación (Fase B, Decisión 26 — campos ADITIVOS) ──
+  // reprogramadas        = SDVs con reprogramaciones[] cuya ÚLTIMA reprogramación (at) cae en el
+  //                        período (actual/anterior) — actividad de reprogramación, incluye SDVs
+  //                        aún no despachadas. Cada SDV cuenta UNA vez, en la ventana de su última.
+  // slippagePromedioDias = promedio (1 decimal) de eoDayDiff(fecha vigente, promesa original)
+  //                        sobre esas; positivo = la promesa se corrió hacia adelante. null sin datos.
+  //                        Original: fechaSolicitudDeseadaOriginal, con fallback retro-derivado a
+  //                        reprogramaciones[0].fechaAnterior (SDVs reprogramadas en v192, pre-sellado).
+  // reprogPorMotivo      = { motivoCode: count } del ÚLTIMO motivo de cada reprogramada de la
+  //                        ventana ACTUAL (los 8 codes de Pit; reprogramaciones sin motivo → 'otro').
+  const reprogAcc = { actual: { n: 0, slips: [] }, anterior: { n: 0, slips: [] } };
+  const reprogPorMotivo = {};
+  sdvs.forEach(s => {
+    if (!s || !Array.isArray(s.reprogramaciones) || !s.reprogramaciones.length) return;
+    const ultima = s.reprogramaciones[s.reprogramaciones.length - 1];
+    const at = ultima && ultima.at;
+    let slot = null;
+    if (inWindow(at)) slot = reprogAcc.actual;
+    else if (inPrevWindow(at)) slot = reprogAcc.anterior;
+    if (!slot) return;
+    slot.n++;
+    const original = s.fechaSolicitudDeseadaOriginal
+      || (s.reprogramaciones[0] && s.reprogramaciones[0].fechaAnterior) || null;
+    const slip = (original && s.fechaSolicitudDeseada) ? eoDayDiff(s.fechaSolicitudDeseada, original) : null;
+    if (slip !== null) slot.slips.push(slip);
+    if (slot === reprogAcc.actual) {
+      const mot = (ultima && ultima.motivo) || 'otro';
+      reprogPorMotivo[mot] = (reprogPorMotivo[mot] || 0) + 1;
+    }
+  });
+  const avg1 = arr => arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : null;
+
   const resumen = {
     despachadas:       { actual: resumenAcc.actual.desp,   anterior: resumenAcc.anterior.desp },
     aTiempoPct:        { actual: pct(resumenAcc.actual.aTiempo, resumenAcc.actual.promesa),
                          anterior: pct(resumenAcc.anterior.aTiempo, resumenAcc.anterior.promesa) },
     despachosPorOrden: { actual: null, anterior: null },
+    reprogramadas:        { actual: reprogAcc.actual.n, anterior: reprogAcc.anterior.n },
+    slippagePromedioDias: { actual: avg1(reprogAcc.actual.slips), anterior: avg1(reprogAcc.anterior.slips) },
+    reprogPorMotivo,
   };
 
   return {
@@ -5697,9 +5749,11 @@ function checkDueTodayAlert() {
   _dueTodayAlertFiredDate = today;
 
   const tasks = loadWwpTasks();
+  // Fase C (Decisión 26): comparar por DÍA — dueDate puede venir con hora (tareas SDV pre-fix
+  // guardaron `YYYY-MM-DDTHH:MM:SS` y el match exacto nunca disparaba la alerta de las 20:00).
   const dueToday = tasks.filter(t =>
     !t.parentId &&
-    t.dueDate === today &&
+    String(t.dueDate || '').slice(0, 10) === today &&
     !['completed', 'validated', 'cancelled'].includes(t.status)
   );
   if (!dueToday.length) return;
@@ -16316,6 +16370,20 @@ const server = http.createServer(async (req, res) => {
       const EDITABLE = ['clienteNombre','direccionEntrega','ciudadEntrega','ubicacionOrigen','ubicacionDestino',
         'receptorNombre','receptorContacto','transporteIncluido','observaciones','gpsCoords','fechaSolicitudDeseada',
         'asunto','descripcion','ordenOrigenOdoo']; // solicitud_especial (sdvAsociadaId queda inmutable tras creación)
+      // ── Fase B (Decisión 26): sellar la promesa ORIGINAL antes de pisar la fecha ──
+      // Cambio REAL = difiere por DÍA (tolera echoes del form que reenvían la misma fecha, con o
+      // sin hora). La primera vez que la fecha cambia, `fechaSolicitudDeseadaOriginal` sella el
+      // valor previo (date-only) y no se re-sella jamás: OTIF/slippage miden contra esa promesa
+      // inmutable; la operación (vencidas/aging/plan-del-día) sigue midiendo la fecha viva.
+      // null→valor = siembra (v188), no sella. Mismo sellado que POST /reprogramar.
+      // En pendiente_revision/rechazada NO se sella: son estados de borrador/corrección de la
+      // vendedora — la promesa se vuelve operativa al aprobar; ajustar la fecha antes de eso no
+      // es reprogramar (sellar ahí mediría OTIF contra una fecha que Ops nunca aceptó).
+      const _fPrevDia = String(sol.fechaSolicitudDeseada || '').slice(0,10);
+      const _fechaCambia = d.fechaSolicitudDeseada !== undefined &&
+        String(d.fechaSolicitudDeseada || '').slice(0,10) !== _fPrevDia;
+      const _fechaSellable = !['pendiente_revision','rechazada'].includes(sol.estado);
+      if (_fechaCambia && _fechaSellable && _fPrevDia && !sol.fechaSolicitudDeseadaOriginal) sol.fechaSolicitudDeseadaOriginal = _fPrevDia;
       EDITABLE.forEach(k=>{ if(d[k]!==undefined) sol[k]=d[k]; });
       if(d.articulosOdoo!==undefined) sol.articulosOdoo=d.articulosOdoo;
 
@@ -16444,7 +16512,16 @@ const server = http.createServer(async (req, res) => {
           let _tocadas = 0;
           _tasks.forEach(t => {
             if (t.sdvId === sol.id && !_finales.includes(t.status)) {
-              _cambiados.forEach(k => { t[_campoMap[k]] = sol[k]; });
+              // Fase C (Decisión 26): dueDate baja DATE-ONLY (antes bajaba crudo con hora
+              // `YYYY-MM-DDTHH:MM:SS`, violando el contrato del validador del POST y matando
+              // el match exacto de "vence hoy"); null/'' se conservan tal cual. El guard de
+              // echoes H2-1 ya compara por .slice(0,10) → sigue tolerando. Y si la fecha
+              // CAMBIÓ de verdad, la prioridad se recalcula (misma regla que /reprogramar).
+              _cambiados.forEach(k => {
+                const _v = sol[k];
+                t[_campoMap[k]] = (k === 'fechaSolicitudDeseada' && _v) ? String(_v).slice(0,10) : _v;
+              });
+              if (_fechaCambia) t.priority = sdvDerivePriority(sol.fechaSolicitudDeseada);
               t.updatedAt = now;
               _tocadas++;
               try { notifyMany([t.managerId, t.assignedTo, ...(t.assignees||[])], { type:'task_updated', title:'✏️ Datos actualizados desde la solicitud', message:`La solicitud ${sol.folio||sol.id} se actualizó (${_cambiados.join(', ')}). Revisa la tarea "${t.title}".`, relatedTaskId:t.id, target:{ kind:'task', id:t.id } }); } catch(e){ silentCatch(e,'notifyPropagacion'); }
@@ -17720,6 +17797,11 @@ const server = http.createServer(async (req, res) => {
       if (nuevaFecha === fechaAnterior) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La fecha no cambió'})); return; }
       const now = new Date().toISOString();
       // 4) Escribir en la SDV (date-only) + historial `reprogramaciones` EN el objeto sdv (lo lee el frontend).
+      // Fase B (Decisión 26): sellar la promesa ORIGINAL la PRIMERA vez que la fecha se mueve —
+      // OTIF/slippage se miden contra `fechaSolicitudDeseadaOriginal` (inmutable); vencidas/aging/
+      // plan-del-día siguen midiendo la fecha viva (dueDate). Solo se sella si había fecha previa
+      // (null→valor es SIEMBRA v188, no reprogramación de una promesa); nunca se re-sella.
+      if (!sdv.fechaSolicitudDeseadaOriginal && fechaAnterior) sdv.fechaSolicitudDeseadaOriginal = fechaAnterior;
       sdv.fechaSolicitudDeseada = nuevaFecha;
       sdv.reprogramaciones = [ ...(sdv.reprogramaciones || []), {
         fechaAnterior, fechaNueva: nuevaFecha, motivo, motivoLabel,
@@ -17734,6 +17816,10 @@ const server = http.createServer(async (req, res) => {
       tasks.forEach(t => {
         if (t.sdvId === sdv.id && !_finales.includes(t.status)) {
           t.dueDate = nuevaFecha;
+          // Fase C (Decisión 26): la prioridad se recalcula de la fecha NUEVA — una fecha movida
+          // a futuro no debe conservar 'urgent' (ni una adelantada quedarse 'medium'). Solo tareas
+          // del vínculo SDV (este loop ya filtra por sdvId); las manuales no se tocan.
+          t.priority = sdvDerivePriority(nuevaFecha);
           (t.statusHistory = t.statusHistory || []).push({ status: t.status, date: now, by: 'system', note: _nota });
           t.updatedAt = now;
           _tocadas++;

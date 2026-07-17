@@ -8977,7 +8977,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v199';
+var APP_BUILD = 'v200';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9100,6 +9100,13 @@ function isDespachosUser(u) {
   if (u.role === 'admin') return true;
   var sp = u.sectionPerms || {};
   return _DESPACHOS_SECTIONS.some(function(s){ return !!sp[s]; });
+}
+
+/** True si el usuario opera en Workforce Labor (WWP). Mismo criterio que
+ *  applyNavPerms/goToWWP: el módulo es por rol y ventas no opera ahí. */
+function hasWwpAccess(u) {
+  u = u || _user;
+  return !!u && u.role !== 'ventas';
 }
 
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
@@ -9495,8 +9502,7 @@ function checkStoredSession() {
       if (payload.exp * 1000 > Date.now()) {
         // Token válido: mostrar con permisos cacheados y refrescar en segundo plano
         // para que cambios de rol (ej. nuevas secciones) se apliquen sin re-login
-        if (isHistorialUser(_user)) { setHistorialUser(); }
-        enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+        landAfterAuth();
         doRefresh().then(function(ok) {
           if (ok) {
             // Re-aplicar con permisos frescos del servidor
@@ -9511,8 +9517,7 @@ function checkStoredSession() {
       }
       doRefresh().then(function(ok) {
         if (ok) {
-          if (isHistorialUser(_user)) { setHistorialUser(); }
-          enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+          landAfterAuth();
           _routeStartupNotifParams(_pendingNotif);
         } else { showScreen('screen-login'); }
       });
@@ -9543,8 +9548,7 @@ async function doLogin() {
     if (!d.ok) { showErr(errEl, d.error||'Error al iniciar sesión'); btn.disabled=false; btn.textContent='Entrar'; return; }
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
-    if (isHistorialUser(_user)) { setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+    landAfterAuth();
   } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
 }
 
@@ -21115,8 +21119,7 @@ async function impersonateUser(id){
     toast('Ahora actúas como '+d.user.name);
     setHeaderAvatar(_user);
     _wwpEntered=false;
-    if(isHistorialUser(_user)){ setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+    landAfterAuth();
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
@@ -21131,8 +21134,7 @@ async function stopImpersonate(){
     toast('Volviste a tu cuenta: '+d.user.name);
     setHeaderAvatar(_user);
     _wwpEntered=false;
-    if(isHistorialUser(_user)){ setHistorialUser(); }
-    enterApp(); showScreen('screen-app'); _wwpEntered = true; setNavActive('wwp');
+    landAfterAuth();
     renderImpersonateBanner();
   }catch(e){ toast('Error: '+e.message); }
 }
@@ -28340,8 +28342,28 @@ function setHistorialUser() {
   if (_user.role !== 'admin') {
     var ORDER = ['sdv-portal','buscar','contenedores','reposicion','solicitudes','pendientes',
       'sin-adjuntos','pendientes-out','dev-cdp','inventario','averias'];
+    // Usuarios sin acceso a WWP (ventas): su primera vista es Estado de Órdenes,
+    // no el portal SDV — el tablero orienta mejor al entrar.
+    if (!hasWwpAccess(_user)) ORDER.unshift('estado-ordenes');
     var first = ORDER.find(function(s){ return canSection(s); });
     if (first) { navTo(first); }
+  }
+}
+
+/** Aterrizaje post-auth (login, sesión guardada, impersonate).
+ *  Usuarios sin acceso a WWP (ventas) NO deben ver la pantalla de Workforce
+ *  Labor al entrar — los confunde porque su nav ni siquiera la lista; aterrizan
+ *  en el historial (Estado de Órdenes vía setHistorialUser). Los demás roles
+ *  conservan el comportamiento de siempre: WWP al frente.
+ *  enterApp() corre SIEMPRE: monta notificaciones (SSE/push/realtime) y header. */
+function landAfterAuth() {
+  var esHistorial = isHistorialUser(_user);
+  if (esHistorial) { setHistorialUser(); }
+  enterApp(); _wwpEntered = true;
+  if (esHistorial && !hasWwpAccess(_user)) {
+    showScreen('screen-historial');
+  } else {
+    showScreen('screen-app'); setNavActive('wwp');
   }
 }
 
@@ -36623,6 +36645,47 @@ function eoReprogExterna(s, tasks){
   if(!rp || EO_REPROG_MOT_EXT.indexOf(rp.motivo)===-1) return false;
   return eoEstaVencida(s, tasks);
 }
+// ── Fase B: promesa ORIGINAL sellada + deslizamiento ────────────────────────
+// El backend sella fechaSolicitudDeseadaOriginal en la SDV al PRIMER cambio de fecha.
+// Devuelve {orig, dias} SOLO si el campo existe y difiere de la fecha vigente; null en
+// cualquier otro caso (backend viejo sin el campo, sin fecha, o sin deslizamiento real)
+// → los consumidores no pintan nada (degradación silenciosa).
+function eoSlippage(s){
+  if(!s || !s.fechaSolicitudDeseadaOriginal || !s.fechaSolicitudDeseada) return null;
+  var o = eoToD(s.fechaSolicitudDeseadaOriginal), n = eoToD(s.fechaSolicitudDeseada);
+  if(!o || !n || o.getTime()===n.getTime()) return null;
+  return { orig: s.fechaSolicitudDeseadaOriginal, dias: eoDaysBetween(o, n) };
+}
+// "+7 días" / "-2 días" / "+1 día" — signo explícito solo en positivo.
+function eoSlipLabel(dias){ return (dias>0?'+':'')+dias+' día'+(Math.abs(dias)===1?'':'s'); }
+// Label humano de un código de motivo de reprogramación: reusa las <option> del modal
+// Reprogramar (fuente única del catálogo en el front); fallback al mapa corto / código crudo.
+function eoReprogMotivoLbl(code){
+  if(!code) return '';
+  try{
+    var o = document.querySelector('#reprog-motivo option[value="'+String(code).replace(/"/g,'')+'"]');
+    if(o && o.textContent) return o.textContent.trim();
+  }catch(e){}
+  return EO_REPROG_MOT_CORTO[code] || String(code);
+}
+// Tooltip "desglose por motivo" del agregado reprogPorMotivo del resumen de eo-metrics.
+// Shape defensivo (el backend puede mandar array de objetos o mapa {motivo:n}); devuelve ''
+// si el campo no vino o está vacío → la tarjeta se pinta sin tooltip, sin romper nada.
+function eoReprogMotivoTip(pm){
+  var parts = [];
+  if(Array.isArray(pm)){
+    pm.forEach(function(x){
+      if(!x) return;
+      var c = (x.n!=null) ? x.n : ((x.count!=null) ? x.count : x.total);
+      if(c==null) return;
+      parts.push((x.motivoLabel || x.label || eoReprogMotivoLbl(x.motivo) || '—')+': '+c);
+    });
+  } else if(pm && typeof pm==='object'){
+    Object.keys(pm).sort(function(a,b){ return (Number(pm[b])||0)-(Number(pm[a])||0); })
+      .forEach(function(k){ if(pm[k]!=null) parts.push(eoReprogMotivoLbl(k)+': '+pm[k]); });
+  }
+  return parts.length ? 'Por motivo — '+parts.join(' · ') : '';
+}
 // Flags ortogonales (excepciones) de la SDV — para alertas y filtro de alerta.
 function eoFlagsOf(s, tasks){
   var flags = [];
@@ -36714,8 +36777,12 @@ function eoReprogChipHtml(v, p){
   var nue = rp.fechaNueva ? eoFmtD(rp.fechaNueva) : eoFmtD(v.fdes);
   var suf = n>1 ? ' (×'+n+')' : '';
   var full = 'Reprogramada'+(lbl?' · '+lbl:'')+' · '+ant+' → '+nue+suf;
+  // Fase B: deslizamiento vs promesa ORIGINAL sellada — SOLO en el tooltip (el chip visible
+  // no se alarga). Si el backend aún no manda el campo, eoSlippage=null y el title queda igual.
+  var sl = eoSlippage(v.s);
+  var tip = full + (sl ? ' · '+eoSlipLabel(sl.dias)+' vs promesa original ('+eoFmtD(sl.orig)+')' : '');
   var txt = (p && p.reprogramada) ? (ant+' → '+nue+suf) : full;
-  return '<span class="eo2-repro" title="'+esc(full)+'"><i data-lucide="calendar-clock"></i>'+esc(txt)+'</span>';
+  return '<span class="eo2-repro" title="'+esc(tip)+'"><i data-lucide="calendar-clock"></i>'+esc(txt)+'</span>';
 }
 
 // Promesa dinámica: texto/color/tinte de fila desde la vista.
@@ -37077,6 +37144,23 @@ function eoMetricCards(m){
     cards += eoMetricCard({label:'Entregas a tiempo', none:true, subNote:'Sin despachos con promesa aún'});
   } else {
     cards += eoMetricCard({label:'Entregas a tiempo', value:pct.actual, unit:'%', prev:(pct.anterior!=null?pct.anterior:null), deltaMode:'pp', subNote:'Prometida vs. real · '+(m.ventanaDias||60)+' días'});
+  }
+  // Fase B: reprogramadas + deslizamiento medio — SOLO si el backend nuevo manda los campos
+  // aditivos del resumen (deploy viejo → undefined → esta tarjeta no se pinta). Acepta número
+  // plano o {actual,anterior} (misma forma que despachadas/aTiempoPct), defensivo ante Carl.
+  var rpv = r.reprogramadas;
+  if(rpv && typeof rpv === 'object') rpv = rpv.actual;
+  if(rpv !== null && rpv !== undefined && isFinite(rpv)){
+    var slp = r.slippagePromedioDias;
+    if(slp && typeof slp === 'object') slp = slp.actual;
+    var slpOk = (slp !== null && slp !== undefined && isFinite(slp) && Number(rpv) > 0);
+    var rpSub = slpOk ? ('Deslizamiento medio '+eoSlipLabel(Math.round(Number(slp)*10)/10)+' · últimos '+(m.ventanaDias||60)+' días')
+                      : ('Últimos '+(m.ventanaDias||60)+' días');
+    var rpTip = eoReprogMotivoTip(r.reprogPorMotivo);
+    cards += '<div class="eo2-mc"'+(rpTip?' title="'+esc(rpTip)+'"':'')+'>'+
+      '<div class="eo2-mc-lbl">Reprogramadas</div>'+
+      '<div class="eo2-mc-row"><span class="eo2-mc-n">'+esc(String(rpv))+'</span></div>'+
+      '<div class="eo2-mc-sub">'+esc(rpSub)+'</div></div>';
   }
   return '<div class="eo2-mc-grid">'+cards+'</div>';
 }
@@ -37649,9 +37733,18 @@ async function eoAbrirDetalle(sdvId) {
       var _rp = evw.repro;
       var _rl = _rp.motivoLabel || EO_REPROG_MOT_CORTO[_rp.motivo] || _rp.motivo || '';
       var _rn = Array.isArray(s.reprogramaciones) ? s.reprogramaciones.length : 1;
+      // Fase B: deslizamiento vs promesa ORIGINAL sellada (null si el backend no manda el campo
+      // o no difiere → no se agrega nada). La fecha original solo se repite entre paréntesis
+      // cuando NO es la misma fechaAnterior ya visible en la transición (no duplicar).
+      var _sl = eoSlippage(s), _slHtml = '';
+      if (_sl) {
+        var _slO = eoToD(_sl.orig), _slA = eoToD(_rp.fechaAnterior);
+        var _slShowO = !(_slO && _slA && _slO.getTime()===_slA.getTime());
+        _slHtml = ' <span style="color:var(--text-3);font-size:11px">· '+esc(eoSlipLabel(_sl.dias)+' vs promesa original'+(_slShowO?' ('+eoFmtD(_sl.orig)+')':''))+'</span>';
+      }
       datosRows += '<div class="eo-det-row"><dt>Reprogramada</dt><dd>'+esc(_rl)+(_rn>1?' (×'+_rn+')':'')+' · '+
         (_rp.fechaAnterior?sdvFmtDate(_rp.fechaAnterior):'—')+' → '+(_rp.fechaNueva?sdvFmtDate(_rp.fechaNueva):'—')+
-        (_rp.porNombre?' · '+esc(_rp.porNombre):'')+'</dd></div>';
+        (_rp.porNombre?' · '+esc(_rp.porNombre):'')+_slHtml+'</dd></div>';
     }
     var _entReal = eoDispatchDate(s);
     if (_entReal)                 datosRows += '<div class="eo-det-row"><dt>Fecha entrega</dt><dd>'+sdvFmtDate(_entReal)+'</dd></div>';
@@ -38089,6 +38182,9 @@ async function sdvVerDetalle(id, ctx) {
         '<button class="btn btn-secondary" onclick="sdvOpenReactivateModal(\''+s.id+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px"></i> Solicitar Reactivación</button>'+
       '</div>';
     }
+    // Fase B: promesa ORIGINAL sellada + deslizamiento — null si el backend aún no manda
+    // fechaSolicitudDeseadaOriginal (deploy viejo) o si no difiere de la fecha vigente.
+    var _slip = eoSlippage(s);
     detailEl.innerHTML =
         '<div class="eo-det-hdr">'+
           '<div style="min-width:0">'+
@@ -38117,7 +38213,7 @@ async function sdvVerDetalle(id, ctx) {
           (s.ubicacionOrigen?'<div class="sdv-detail-row"><dt>Desde</dt><dd>'+esc(s.ubicacionOrigen)+'</dd></div>':'')+
           (s.ubicacionDestino?'<div class="sdv-detail-row"><dt>Hasta</dt><dd>'+esc(s.ubicacionDestino)+'</dd></div>':'')+
           '<div class="sdv-detail-row"><dt>Transporte incluido</dt><dd>'+(s.transporteIncluido?'Sí':'No')+'</dd></div>'+
-          (s.fechaSolicitudDeseada?'<div class="sdv-detail-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+'</dd></div>':'')+
+          (s.fechaSolicitudDeseada?'<div class="sdv-detail-row"><dt>Fecha deseada</dt><dd>'+sdvFmtDate(s.fechaSolicitudDeseada)+(_slip?' <span style="color:var(--text-3);font-size:11px">· '+esc('prometida originalmente: '+eoFmtD(_slip.orig)+' ('+eoSlipLabel(_slip.dias)+')')+'</span>':'')+'</dd></div>':'')+
           (s.gpsCoords?'<div class="sdv-detail-row"><dt>GPS</dt><dd><a href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.gpsCoords)+'" target="_blank" style="color:var(--brand-primary)">'+esc(s.gpsCoords)+' 🗺</a></dd></div>':'')+
           (s.observaciones?'<div class="sdv-detail-row"><dt>Observaciones</dt><dd>'+esc(s.observaciones)+'</dd></div>':'')+
           (s.fechaEntrega?'<div class="sdv-detail-row"><dt>Fecha entrega (ops)</dt><dd>'+sdvFmtDate(s.fechaEntrega)+'</dd></div>':'')+
