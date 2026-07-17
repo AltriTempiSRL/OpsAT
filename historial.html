@@ -6628,10 +6628,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       @keyframes invdFlash{0%,100%{box-shadow:none}30%{box-shadow:0 0 0 3px var(--accent)}}
       .invd-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface-2)}
       .invd-manos-n{font-size:34px;font-weight:800;line-height:1;color:var(--text)}
-      .invd-meter-rail{position:relative;height:12px;border-radius:7px;overflow:hidden;display:flex;margin:9px 0 7px}
-      .invd-meter-rail>span{display:block;height:100%}
-      .invd-meter-mark{position:absolute;top:-3px;width:3px;height:18px;background:var(--text);border-radius:2px;transform:translateX(-1.5px)}
-      .invd-meter-n{font-size:26px;font-weight:800;line-height:1}
       .invd-kpi{flex:1 1 140px;min-width:128px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface-2);cursor:pointer;transition:transform .12s,background .12s;border-left-width:4px}
       .invd-kpi:hover{background:var(--surface);transform:translateY(-1px)}
       .invd-kpi.active{box-shadow:0 0 0 2px var(--accent) inset}
@@ -8981,7 +8977,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v198';
+var APP_BUILD = 'v199';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -27027,7 +27023,15 @@ function invFmtDt(iso) {
 }
 function invFmtDShort(iso) {
   if (!iso) return '—';
-  try { return new Date(iso.replace(' ','T')).toLocaleDateString('es-DO', {day:'2-digit',month:'short'}); }
+  try {
+    // Fechas de Odoo llegan UTC-naive ("YYYY-MM-DD HH:MM:SS"): anclar a Z y convertir
+    // a día local, igual que invdFmtD y el cálculo de antigüedad (si no, muestra el día UTC).
+    var str = String(iso); var s = str.indexOf('T') < 0 ? (str.replace(' ','T') + 'Z') : str;
+    var d = new Date(s); if (isNaN(d)) return String(iso).slice(0, 10);
+    var opts = {day:'2-digit',month:'short'};
+    if (d.getFullYear() !== new Date().getFullYear()) opts.year = '2-digit';
+    return d.toLocaleDateString('es-DO', opts);
+  }
   catch(e) { return String(iso).slice(0, 10); }
 }
 // Celda "Transacción que generó el negativo": fecha + origen → destino (compacto),
@@ -27064,7 +27068,7 @@ async function invSaludCargar(force) {
     invRenderAll();
   } catch(e) {
     if (!_invData) kpis.innerHTML = '';
-    banner.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;margin-bottom:16px">No se pudo cargar Salud de Inventario: ' + esc(e.message) + '</div>';
+    banner.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar Salud de Inventario: ' + esc(e.message) + '</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invSaludCargar(true)">Reintentar</button></div>';
   }
 }
 
@@ -27093,6 +27097,7 @@ function invRenderAll() {
 //  Fiabilidad y las anomalías estructurales. Solo lectura.
 // ════════════════════════════════════════════════════════════════════════════
 var _invdData = null;        // panorama
+var _invdPanoError = false;  // true si el último intento de /panorama falló (evita spinners eternos)
 var _invdTransit = null;     // /transit/monitor
 var _invdTab = 'fiabilidad';
 var _invdFreshTimer = null;
@@ -27105,8 +27110,14 @@ function invdFmtD(s){
   if(!s) return '—';
   var str = String(s); var iso = str.indexOf('T')<0 ? (str.replace(' ','T')+'Z') : str;
   var d = new Date(iso); if(isNaN(d)) return esc(str);
-  return d.toLocaleDateString('es-DO',{day:'2-digit',month:'short'});
+  var opts = {day:'2-digit',month:'short'};
+  // El kardex abarca varios años: sin el año, "12 abr" de 2025 se lee como de 2026.
+  if(d.getFullYear() !== new Date().getFullYear()) opts.year = '2-digit';
+  return d.toLocaleDateString('es-DO',opts);
 }
+// Estados de Odoo en lenguaje operativo (los usuarios no técnicos leían "done"/"cancel").
+var _INVD_STATE_LBL = { done:'hecha', cancel:'cancelada', assigned:'reservada', confirmed:'confirmada', waiting:'en espera', draft:'borrador', partially_available:'parcial' };
+function invdStateLbl(st){ return _INVD_STATE_LBL[st] || st || ''; }
 function invdDeltaHtml(delta, higherIsWorse){
   if(delta==null||isNaN(delta)) return '<span style="color:var(--text-3)">sin base vs ayer</span>';
   if(delta===0) return '<span style="color:var(--text-3)">igual que ayer</span>';
@@ -27117,15 +27128,21 @@ function invdDeltaHtml(delta, higherIsWorse){
 async function invdCargar(force){
   var sec = document.getElementById('section-inventario'); if(!sec) return;
   var bn = document.getElementById('invd-banner');
+  var hero = document.getElementById('invd-hero');
+  // Primera carga: placeholder en el hero (antes quedaba un hueco en blanco mientras Odoo respondía)
+  if(!_invdData && hero) hero.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:14px 2px 18px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Cargando panorama de inventario…</div>';
   try{
     var r = await authFetch('/api/inventario/panorama'+(force?'?refresh=1':''));
     var d = await r.json();
     if(!r.ok||!d.ok) throw new Error(d.error||'Error');
     _invdData = d;
+    _invdPanoError = false;
     if(bn) bn.innerHTML='';
     invdRenderHero(); invdRenderPulso(); invdRenderBanda(); invdRenderFresh();
   }catch(e){
-    if(bn) bn.innerHTML = '<div style="padding:10px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12px;margin-bottom:12px">No se pudo cargar el panorama: '+esc(e.message)+'</div>';
+    _invdPanoError = true;
+    if(!_invdData && hero) hero.innerHTML='';
+    if(bn) bn.innerHTML = '<div style="padding:10px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar el panorama: '+esc(e.message)+'</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdCargar(true)">Reintentar</button></div>';
   }
   invdLoadTab(_invdTab, force);
   invdTendCargar();
@@ -27165,7 +27182,7 @@ function invdManosCard(m){
     + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">Manos que cerrar hoy</div>'
     + '<div class="invd-manos-n" style="margin:8px 0 5px">'+(m.total==null?'—':m.total)+'</div>'
     + '<div style="font-size:11px">'+invdDeltaHtml(m.delta, true)+'</div>'
-    + '<div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.5">huérfanos '+(bd.huerfanosSinCaso||0)+' · negativos '+(bd.negativosAccionables||0)+' · staging '+(bd.stagingViejo||0)+'</div>'
+    + '<div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.5" title="Líneas accionables: huérfanos en tránsito sin caso abierto · negativos en A-CDP/staging · staging con más de 30 días">huérfanos '+(bd.huerfanosSinCaso||0)+' · negativos '+(bd.negativosAccionables||0)+' · staging '+(bd.stagingViejo||0)+'</div>'
     + '</div>';
 }
 // 4b: Fiabilidad (primary) grande con gauge de 3 bandas + marcador; Higiene
@@ -27205,13 +27222,13 @@ function invdRenderPulso(){
   var d = _invdData; if(!d){ el.innerHTML=''; return; }
   var s = d.senales||{}, s1=s.s1||{}, s2=s.s2||{}, s3=s.s3||{}, bd=(d.manos||{}).breakdown||{};
   var cards = [
-    {v:(s2.count||0), l:'Negativos accionables', c:'var(--red-text)', act:"invdTab('fiabilidad')"},
-    {v:(s1.unidades||0), l:'Unidades huérfanas en tránsito', c:'var(--amber-text)', act:"invdTab('transitos');invdTransitSetFilter('estado','huerfano')"},
-    {v:(s3.count||0), l:'Riesgo de doble-venta', c:'var(--red-text)', act:"invdTab('cuadre')"},
-    {v:(bd.stagingViejo||0), l:'Staging &gt;30 días', c:'var(--amber-text)', act:"invdTab('estructural')"}
+    {v:(s2.count||0), l:'Negativos accionables', c:'var(--red-text)', act:"invdTab('fiabilidad')", t:'Líneas con stock negativo en nodos padre (putaway al padre). Clic: ver qué corregir hoy.'},
+    {v:(s1.unidades||0), l:'Unidades huérfanas en tránsito', c:'var(--amber-text)', act:"invdTab('transitos');invdTransitSetFilter('estado','huerfano')", t:'Unidades varadas en tránsito cuya transferencia ya se cerró o canceló. Clic: ver la lista.'},
+    {v:(s3.count||0), l:'Riesgo de doble-venta', c:'var(--red-text)', act:"invdTab('cuadre')", t:'Artículos con unidades huérfanas en tránsito Y stock vendible del mismo SKU en bin: se pueden comprometer dos veces. Clic: ver el detalle.'},
+    {v:(bd.stagingViejo||0), l:'Staging &gt;30 días', c:'var(--amber-text)', act:"invdTab('estructural')", t:'Líneas en staging (DESPACHO PTN) con más de 30 días sin moverse. Clic: ver anomalías.'}
   ];
   el.innerHTML = cards.map(function(c){
-    return '<div class="invd-kpi" style="border-left-color:'+c.c+'" onclick="'+c.act+'"><div class="invd-kpi-v" style="color:'+c.c+'">'+c.v+'</div><div class="invd-kpi-l">'+c.l+'</div></div>';
+    return '<div class="invd-kpi" style="border-left-color:'+c.c+'" onclick="'+c.act+'" title="'+c.t+'"><div class="invd-kpi-v" style="color:'+c.c+'">'+c.v+'</div><div class="invd-kpi-l">'+c.l+'</div></div>';
   }).join('');
 }
 
@@ -27236,7 +27253,7 @@ async function invdTransitCargar(force){
     _invdTransit = d;
     invdTransitRender();
   }catch(e){
-    body.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px">No se pudieron cargar los tránsitos: '+esc(e.message)+'</div>';
+    body.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudieron cargar los tránsitos: '+esc(e.message)+'</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdTransitCargar(true)">Reintentar</button></div>';
   }
 }
 function invdTransitFlat(){
@@ -27259,15 +27276,23 @@ function invdTransitRender(){
     + '<div style="flex:1"></div>'
     + '<button class="invd-chip" onclick="invdTransitCsv()"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>CSV</button>';
   var rows = all.filter(function(it){ return !fe || it.clase===fe; });
-  if(!rows.length){ body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px">Sin artículos en tránsito con este filtro.</div>'; if(window.lucide) lucide.createIcons(); return; }
-  var h = '<div class="invd-tblwrap"><table class="invd-tbl"><thead><tr>'
-    + '<th>Foto</th><th>Ref</th><th>Artículo</th><th>Barcode</th><th style="text-align:center">Cant</th><th>Origen → Destino</th><th>Responsable</th><th>Fecha</th><th style="text-align:center">Antig.</th><th>Estado</th>'
+  if(!rows.length){
+    body.innerHTML = fe
+      ? '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px">Sin artículos en tránsito con este filtro.</div>'
+      : '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i><div style="margin-top:6px">Sin mercancía en tránsito — nada varado ni en camino.</div></div>';
+    if(window.lucide) lucide.createIcons(); return;
+  }
+  var h = '<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;line-height:1.55"><b style="color:var(--red-text)">Huérfano</b>: la transferencia que lo movía se cerró o canceló y la mercancía quedó varada — valida la recepción pendiente en Odoo para devolverla al stock. <b style="color:var(--text-2)">En vuelo</b>: transferencia abierta, mercancía en camino normal.</div>'
+    + '<div class="invd-tblwrap"><table class="invd-tbl"><thead><tr>'
+    + '<th>Foto</th><th>Ref</th><th>Artículo</th><th>Barcode</th><th style="text-align:center">Cant</th><th>Origen → Destino</th><th>Responsable</th><th>Fecha</th><th style="text-align:center" title="Días desde que la mercancía entró a la ubicación de tránsito">Antig.</th><th>Estado</th>'
     + '</tr></thead><tbody>';
   rows.forEach(function(it){
     var age = it.ageDays==null ? '—' : (it.ageDays+'d');
     var ageCol = (it.ageDays!=null && it.ageDays>7) ? 'color:var(--amber-text);font-weight:700' : '';
     var resp = it.responsable ? esc(it.responsable.name||'—') : '—';
-    var badge = it.clase==='huerfano' ? '<span class="invd-badge huer">Huérfano</span>' : '<span class="invd-badge pend">En vuelo</span>';
+    var badge = it.clase==='huerfano'
+      ? '<span class="invd-badge huer" title="La transferencia se cerró o canceló: mercancía varada. Validar la recepción pendiente en Odoo.">Huérfano</span>'
+      : '<span class="invd-badge pend" title="Transferencia abierta: mercancía en camino normal.">En vuelo</span>';
     var thumb = '<span class="invd-thumb"'+(it.hasImage?(' data-pid="'+it.prodId+'"'):'')+'><i data-lucide="package" style="width:15px;height:15px"></i></span>';
     h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')">'
       + '<td>'+thumb+'</td>'
@@ -27359,14 +27384,14 @@ function invdKardexHtml(d){
     + '<div style="flex:1;min-width:0">'
       + '<div style="font-family:monospace;font-size:12px;color:var(--text-3)">'+esc(p.ref||'')+(p.barcode?(' · '+esc(p.barcode)):'')+'</div>'
       + '<div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">'+esc(p.name||'')+'</div>'
-      + '<div style="font-size:11px;color:var(--text-3);margin-top:4px">Neto interno hoy: <strong style="color:var(--text)">'+(d.netInterno!=null?d.netInterno:'—')+'</strong></div>'
+      + '<div style="font-size:11px;color:var(--text-3);margin-top:4px" title="Suma del stock en ubicaciones internas (no cuenta tránsitos, clientes ni virtuales)">Neto interno hoy: <strong style="color:var(--text)">'+(d.netInterno!=null?d.netInterno:'—')+'</strong>'+(d.netInterno!=null?' <span style="color:var(--text-3)">und</span>':'')+'</div>'
     + '</div>'
     + '<button class="invd-chip" style="flex:none" onclick="document.getElementById(\'invKxOverlay\').remove()">Cerrar</button>'
     + '</div>';
   if(d.culprit){
     h += '<div style="margin:14px 16px 0;padding:10px 12px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;font-size:12px;color:var(--red-text)">'
       + '<strong><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px"></i> Transacción que rompió el cuadre:</strong> '
-      + esc(d.culprit.ref||'')+' · '+esc(invdShort(d.culprit.from))+' → '+esc(invdShort(d.culprit.to))+' · '+invdFmtD(d.culprit.date)+' · estado '+esc(d.culprit.state||'')+'</div>';
+      + esc(d.culprit.ref||'')+' · '+esc(invdShort(d.culprit.from))+' → '+esc(invdShort(d.culprit.to))+' · '+invdFmtD(d.culprit.date)+' · estado '+esc(invdStateLbl(d.culprit.state))+'</div>';
   }
   h += '<div style="padding:14px 16px 4px"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Foto de hoy por ubicación</div>';
   if((d.quants||[]).length){
@@ -27384,9 +27409,9 @@ function invdKardexHtml(d){
     h += '<div class="invd-kx-row'+(m.culprit?' culprit':'')+'"'+(_esCancel?' style="opacity:.55"':'')+'>'
       + '<div style="font-size:10px;color:var(--text-3);white-space:nowrap;min-width:52px">'+invdFmtD(m.date)+'</div>'
       + '<div style="flex:1;min-width:0">'
-        + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong'+(_esCancel?' style="text-decoration:line-through;color:var(--text-3);font-weight:600"':'')+'>'+m.qty+'</strong>'
+        + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong'+(_esCancel?' style="text-decoration:line-through;color:var(--text-3);font-weight:600"':'')+' title="'+(_esCancel?'Cantidad prevista — la transacción se canceló y nunca movió stock':'Unidades de este artículo movidas en la transacción')+'">'+m.qty+' und</strong>'
         + (_esCancel?' <span style="display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:5px;background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot);vertical-align:1px">cancelada · no cuenta</span>':'')+'</div>'
-        + '<div style="font-size:10px;color:var(--text-3)">'+esc(m.ref||'')+' · '+esc(m.state||'')+(m.responsable?(' · '+esc(m.responsable)):'')+'</div>'
+        + '<div style="font-size:10px;color:var(--text-3)">'+esc(m.ref||'')+' · '+esc(invdStateLbl(m.state))+(m.responsable?(' · '+esc(m.responsable)):'')+'</div>'
       + '</div>'+(m.culprit?'<span class="invd-badge huer" style="flex:none">culpable</span>':'')+'</div>';
   });
   if(!(d.moves||[]).length) h += '<div style="font-size:12px;color:var(--text-3)">Sin movimientos registrados.</div>';
@@ -27404,14 +27429,19 @@ function invdCuadreRender(){
     + '<span id="invd-kx-msg" style="font-size:11px;color:var(--red-text)"></span></div>'
     + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Abre la línea de tiempo de cualquier artículo desde su carga inicial y resalta la transacción que rompió el cuadre.</div>';
   var d = _invdData;
-  if(!d){ box.innerHTML = '<div style="padding:16px;color:var(--text-3);font-size:13px"><div class="spinner" style="display:inline-block;vertical-align:-3px;margin-right:6px"></div>Cargando panorama…</div>'; return; }
+  if(!d){
+    box.innerHTML = _invdPanoError
+      ? '<div style="padding:14px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar el panorama de inventario.</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdCargar(true)">Reintentar</button></div>'
+      : '<div style="padding:16px;color:var(--text-3);font-size:13px"><div class="spinner" style="display:inline-block;vertical-align:-3px;margin-right:6px"></div>Cargando panorama…</div>';
+    return;
+  }
   var s3 = (d.senales && d.senales.s3) || {items:[]};
   var items = s3.items||[];
   var h = '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">'
     + '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)"><i data-lucide="alert-octagon" style="width:14px;height:14px;stroke:var(--red-text);vertical-align:-2px;margin-right:5px"></i>Riesgo de doble-venta ('+items.length+') — huérfano en tránsito y stock vendible del mismo SKU</div>';
   if(!items.length){ h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún artículo con riesgo de doble-venta hoy.</div></div>'; }
   else{
-    h += '<div class="invd-tblwrap" style="border:none;border-radius:0"><table class="invd-tbl"><thead><tr><th>Ref</th><th>Artículo</th><th style="text-align:center">En tránsito</th><th style="text-align:center">Vendible en bin</th><th></th></tr></thead><tbody>';
+    h += '<div class="invd-tblwrap" style="border:none;border-radius:0"><table class="invd-tbl" style="min-width:0"><thead><tr><th>Ref</th><th>Artículo</th><th style="text-align:center" title="Unidades huérfanas varadas en tránsito">En tránsito</th><th style="text-align:center" title="Unidades del mismo SKU disponibles en bin vendible">Vendible en bin</th><th></th></tr></thead><tbody>';
     items.forEach(function(it){
       h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')"><td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td><td>'+esc(it.name||'')+'</td><td style="text-align:center;color:var(--amber-text);font-weight:700">'+it.unidadesTransito+'</td><td style="text-align:center;color:var(--red-text);font-weight:700">'+it.unidadesBinVendible+'</td><td style="text-align:right"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td></tr>';
     });
@@ -27767,7 +27797,7 @@ function invRenderSinCaso() {
 function invWlTriageFooter(casosAbiertos) {
   var opts = casosAbiertos.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.titulo.slice(0, 45)) + '</option>'; }).join('');
   return '<div style="padding:11px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface-2)">' +
-    '<span style="font-size:11px;color:var(--text-3);width:100%">Marca SKU(s) de "sin clasificar" arriba y fílalos a un caso de seguimiento:</span>' +
+    '<span style="font-size:11px;color:var(--text-3);width:100%">Marca SKU(s) de "sin clasificar" arriba y agrégalos a un caso de seguimiento:</span>' +
     (casosAbiertos.length
       ? '<select id="inv-caso-dest" class="form-select" style="font-size:12px;padding:6px 10px;max-width:280px">' + opts + '</select>' +
         '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAgregarACaso()">Agregar al caso</button>'
@@ -27827,8 +27857,8 @@ function invWlSideColumn() {
   var huerfanas = '<div class="invd-side-card">' +
     '<div style="display:flex;align-items:center;gap:8px">' +
       '<span style="width:8px;height:8px;border-radius:50%;background:var(--inv-amberdot);flex-shrink:0"></span>' +
-      '<span style="font-size:12.5px;font-weight:800;color:var(--text)">Huérfanas en tránsito</span>' +
-      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-amber)">' + (s1.count || 0) + '</span>' +
+      '<span style="font-size:12.5px;font-weight:800;color:var(--text)" title="Líneas (artículo × ubicación) varadas en tránsito; las unidades totales están en el KPI de arriba">Huérfanos en tránsito</span>' +
+      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-amber)" title="Líneas (artículo × ubicación)">' + (s1.count || 0) + '</span>' +
     '</div>' +
     '<div style="font-size:11.5px;color:var(--text-3);margin-top:7px">' + (s1First.sourcePicking ? ('Recepción sin validar · <span style="font-family:monospace">' + esc(s1First.sourcePicking) + '</span>') : 'Sin huérfanos en tránsito.') + '</div>' +
     ((s1.count || 0) > 0 ? '<button style="margin-top:11px;width:100%;border:none;background:var(--text);color:var(--surface);font-family:inherit;font-size:12px;font-weight:700;padding:9px;border-radius:6px;cursor:pointer" onclick="invdTab(\'transitos\');invdTransitSetFilter(\'estado\',\'huerfano\')">Validar recepción</button>' : '') +
@@ -27926,7 +27956,7 @@ function invRenderRecepciones() {
     return '<tr style="border-bottom:1px solid var(--border)">' +
       '<td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--accent);white-space:nowrap">' + esc(p.name) + '</td>' +
       '<td style="padding:8px 12px;font-size:12px;color:var(--text-2);white-space:nowrap">' + esc(STATE_LBL[p.state] || p.state) + '</td>' +
-      '<td style="padding:8px 12px;font-size:12px;color:var(--text-3);white-space:nowrap">' + esc((p.createDate || '').slice(0, 10)) + '</td>' +
+      '<td style="padding:8px 12px;font-size:12px;color:var(--text-3);white-space:nowrap">' + invdFmtD(p.createDate) + '</td>' +
       '<td style="padding:8px 12px;font-size:12px;color:var(--text-2)">' + esc(p.destino) + '</td>' +
       '<td style="padding:8px 12px;white-space:nowrap"><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;' + ageStyle + '">' + age + '</span></td>' +
     '</tr>';
@@ -28009,7 +28039,7 @@ function invRenderCasos() {
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Causa</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Transacción que generó el negativo</th>' +
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Ubicación</th>' +
-          '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-2)">Qty</th>' +
+          '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-2)">Cant.</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Seguimiento</th>' +
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Responsable</th>' +
           '<th style="padding:8px 10px"></th>' +
@@ -28147,7 +28177,7 @@ function invRenderDrawer(casoId, itemId, mov) {
         : '<div style="font-size:12px;color:var(--text-3);margin-bottom:14px">Sin movimientos disponibles.</div>') +
       '<div class="eo-det-sec-title">Acciones</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">' +
-        '<input type="number" min="0" id="inv-qty-fisico" placeholder="Qty física" class="form-input" style="width:100px;font-size:12px;padding:6px 10px" value="' + (it.qtyContada !== null ? it.qtyContada : '') + '">' +
+        '<input type="number" min="0" id="inv-qty-fisico" placeholder="Cant. física" class="form-input" style="width:100px;font-size:12px;padding:6px 10px" value="' + (it.qtyContada !== null ? it.qtyContada : '') + '">' +
         '<button class="btn-primary" style="font-size:12px;padding:7px 12px" onclick="invAccionVerificar(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\')">Marcar verificado físico</button>' +
         (it.seguimiento === 'corregido'
           ? '<button style="font-size:12px;padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;background:transparent;color:var(--text-2);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'reabrir\',{})">Reabrir</button>'
