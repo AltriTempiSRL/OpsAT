@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v201';
+const APP_BUILD = 'v202';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1650,7 +1650,12 @@ function getOrderClaims(orderRef, excludeRootId) {
     const root = rootOf(t);
     if (excludeRootId && root === excludeRootId) return; // misma cadena → no bloquea
     const rt = byId[root] || t;
-    (t.items||[]).filter(i=>i.selected && i.odoo_product_id && !i.isKit
+    // v202: los componentes OCULTOS de un kit armado (selected:false por kit-toggle)
+    // también reclaman su unidad — son trabajo vivo de esta tarea; sin esto otra cadena
+    // de la misma orden podía reclamarlos y el merge se los "comía" (caso #0177 S07286).
+    const _armK = new Set((t.items||[]).filter(i=>i.isKit && i.selected).map(k=>(k.kitId||'')+'#'+(k.kitInstance||1)));
+    (t.items||[]).filter(i=>i.odoo_product_id && !i.isKit
+      && (i.selected || (i.kitId && _armK.has((i.kitId||'')+'#'+(i.unit_index||1))))
       && (!i.orderRef || normRef(i.orderRef) === key)).forEach(i => {
       const pid = i.odoo_product_id;
       if (!claims[pid]) claims[pid] = { idxs:{}, productName:i.product_name||'' };
@@ -1744,8 +1749,13 @@ async function buildPickMergeForTask(t, opts = {}) {
   // Kits ARMADOS actuales: se preservan tal cual.
   const armadoKitItems = (t.items||[]).filter(i => i.isKit && i.selected);
   const armadoSet = new Set(armadoKitItems.map(k => (k.kitId||'')+'#'+(k.kitInstance||1)));
-  // Unidades actuales (selected) por producto (excluye tarjetas-kit sintéticas)
-  const current = (t.items||[]).filter(i => i.selected && !i.isKit);
+  // Unidades actuales por producto (excluye tarjetas-kit sintéticas). v202: incluye los
+  // COMPONENTES OCULTOS de un kit armado (kit-toggle los deja selected:false) — son parte
+  // del trabajo de la tarea. Si no entran al pool, cualquier sync donde el pick no los
+  // re-aporte (presupuesto SDV, claims de otra cadena, selección de pick) los pierde y
+  // deja la tarjeta-kit huérfana en "0 unidades", imposible de confirmar (caso #0177 S07286).
+  const _esCompArmado = i => !i.isKit && i.kitId && armadoSet.has((i.kitId||'')+'#'+(i.unit_index||1));
+  const current = (t.items||[]).filter(i => !i.isKit && (i.selected || _esCompArmado(i)));
   const curByPid = {};
   current.forEach(i => { (curByPid[i.odoo_product_id] = curByPid[i.odoo_product_id] || []).push(i); });
   // Unidades reclamadas por OTRAS tareas activas de la misma orden (split entre encargados).
@@ -1787,6 +1797,9 @@ async function buildPickMergeForTask(t, opts = {}) {
         row.evidence_images=reuse.evidence_images||[]; row.confirmado=reuse.confirmado||false;
         row.status=reuse.status||'pending'; row.condition=reuse.condition||''; row.damageType=reuse.damageType||'';
         row.deliveryStatus=reuse.deliveryStatus||''; row.deliveryDamageType=reuse.deliveryDamageType||'';
+        // v202: si Odoo no resolvió el kit en ESTE sync (mrp caído/timeout), conservar la
+        // identidad de kit que el item ya tenía — sin esto el componente "sale" del kit.
+        if (!row.kitId && reuse.kitId) { row.kitId=reuse.kitId; row.kitRef=reuse.kitRef||''; row.kitName=reuse.kitName||''; row.kitImage=reuse.kitImage||''; }
         usedIds.add(reuse.item_id);
         // Clasificar según el estado del pick donde está ahora
         if (u.pickStateNow === 'done') { row.pickGroup='executed'; g_executed++; }
@@ -16636,7 +16649,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const existMap={}; (tasks[idx].items||[]).forEach(e=>{ existMap[e.item_id]=e; });
-      tasks[idx].items=(d.items||[]).map(item=>{
+      const _newItems=(d.items||[]).map(item=>{
         const prev=existMap[item.item_id]||{};
         const selLocIdx = typeof item.selected_location==='number' ? item.selected_location : null;
         const selLocObj = (selLocIdx!==null && Array.isArray(item.locations)) ? (item.locations[selLocIdx]||null) : null;
@@ -16666,6 +16679,20 @@ const server = http.createServer(async (req, res) => {
           evidence_images:prev.evidence_images||[], comments:item.comments||prev.comments||'',
           confirmado:prev.confirmado||false, status:prev.status||'pending' };
       });
+      // v202: el carrito del front precarga SOLO items selected → los componentes ocultos
+      // de un kit armado (kit-toggle los deja selected:false) nunca viajan en el payload.
+      // Si la nueva lista trae la tarjeta-kit armada pero no sus componentes, se re-adjuntan
+      // de la lista previa. Sin esto, CUALQUIER edición de la tarea (título, encargado...)
+      // dejaba el kit huérfano: "0 unidades", imposible de confirmar (caso #0177 S07286).
+      // Quitar el kit a propósito (payload sin la tarjeta) sigue funcionando: sin tarjeta
+      // armada no se re-adjunta nada.
+      const _newIds = new Set(_newItems.map(i=>i.item_id));
+      const _armKPut = new Set(_newItems.filter(i=>i.isKit && i.selected).map(k=>(k.kitId||'')+'#'+(k.kitInstance||1)));
+      (tasks[idx].items||[]).forEach(p => {
+        if (!p.isKit && p.kitId && !p.selected && !_newIds.has(p.item_id)
+            && _armKPut.has((p.kitId||'')+'#'+(p.unit_index||1))) _newItems.push(p);
+      });
+      tasks[idx].items=_newItems;
       tasks[idx].updatedAt=new Date().toISOString();
       // Marca de modificación de la lista por el encargado → reactiva la tarea para auxiliares que ya terminaron
       tasks[idx].itemsUpdatedAt=tasks[idx].updatedAt;
@@ -17209,6 +17236,9 @@ const server = http.createServer(async (req, res) => {
         comps.forEach(c => { c.selected = false; });
         if (!kitItem) {
           kitItem = { item_id:kitItemId, isKit:true, kitId, kitInstance:Number(instance),
+            // v202: la tarjeta lleva su propia identidad de kit — si los componentes se
+            // pierden, el recuadro del drawer aún puede mostrar nombre/imagen correctos.
+            kitRef:kf.kitRef||'', kitName:kf.kitName||'', kitImage:kf.kitImage||'',
             product_name:(kf.kitName||kf.kitRef||'Kit')+' (armado)', sku:kf.kitRef||'', barcode:'',
             image:kf.kitImage||'', quantity:1, units:1, unit_index:Number(instance), unit_total:1, group_ref:kitItemId,
             selected:true, armado:true, evidence_images:[], condition:'good', damageType:'', confirmado:false, status:'pending', locations:[] };

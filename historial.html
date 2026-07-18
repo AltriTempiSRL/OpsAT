@@ -8983,7 +8983,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v201';
+var APP_BUILD = 'v202';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15572,20 +15572,30 @@ function renderDrawer(t) {
         const kImg = kf.kitImage
           ? `<img src="${kf.kitImage}" style="width:42px;height:42px;object-fit:contain;border-radius:6px;border:1px solid var(--border);background:#fff;flex-shrink:0" onerror="this.style.display='none'">`
           : `<div style="width:42px;height:42px;border-radius:6px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="package" style="width:20px;height:20px;stroke:var(--purple-dot)"></i></div>`;
-        const instances = [...new Set(allKit.filter(i=>!i.isKit).map(i=>i.unit_index||1))].sort((a,b)=>a-b);
+        // v202: si un sync perdió los componentes del kit, la tarjeta-kit armada DEBE seguir
+        // visible y confirmable — antes el recuadro quedaba vacío ("0 unidades") y la tarea
+        // era imposible de completar (caso #0177 S07286). Fallback: instancias desde las
+        // tarjetas-kit + aviso para re-sincronizar el pick.
+        let instances = [...new Set(allKit.filter(i=>!i.isKit).map(i=>i.unit_index||1))].sort((a,b)=>a-b);
+        const _kitSinComps = !instances.length;
+        if (_kitSinComps) instances = [...new Set(allKit.filter(i=>i.isKit).map(i=>i.kitInstance||1))].sort((a,b)=>a-b);
         let _inner = '';
         instances.forEach(inst => {
           const kitCard = (t.items||[]).find(i=>i.isKit && i.kitId===kitId && i.kitInstance===inst && i.selected);
           const armado = !!kitCard;
-          const toggle = _canKit ? `<div style="display:flex;align-items:center;gap:6px;margin:8px 0 6px">
+          // Sin componentes no hay entre qué alternar: setKitArmado daría 400 ("sin componentes")
+          const toggle = (_canKit && !_kitSinComps) ? `<div style="display:flex;align-items:center;gap:6px;margin:8px 0 6px">
               <span style="font-size:10px;color:var(--text-3);font-weight:600">Kit ${instances.length>1?('#'+inst):''}:</span>
               <div style="display:inline-flex;border:1.5px solid var(--border);border-radius:6px;overflow:hidden">
                 <button onclick="setKitArmado('${t.id}','${kitId}',${inst},false)" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:${armado?'transparent':'var(--accent)'};color:${armado?'var(--text-2)':'#fff'}">📦 Desarmado</button>
                 <button onclick="setKitArmado('${t.id}','${kitId}',${inst},true)" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:${armado?'var(--accent)':'transparent'};color:${armado?'#fff':'var(--text-2)'}">🛠 Armado</button>
               </div>
             </div>` : `<div style="font-size:10px;color:var(--text-3);margin:6px 0">${armado?'🛠 Kit armado':'📦 Kit desarmado'}${instances.length>1?(' · #'+inst):''}</div>`;
+          const aviso = _kitSinComps ? `<div class="items-alert" style="margin:6px 0"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:5px"></i>Los componentes de este kit no están cargados en la tarea. Un admin puede recuperarlos con "Re-sincronizar del pick"; mientras, la foto del kit armado cubre la confirmación.</div>` : '';
           if (armado) {
-            _inner += toggle + renderGroups({ [kitCard.item_id]:[kitCard] });
+            _inner += toggle + aviso + renderGroups({ [kitCard.item_id]:[kitCard] });
+          } else if (_kitSinComps) {
+            _inner += toggle + aviso;
           } else {
             const compUnits = kitItems.filter(i=>!i.isKit && (i.unit_index||1)===inst);
             const sub={}; compUnits.forEach(it=>{ const k=it.group_ref||it.item_id; (sub[k]=sub[k]||[]).push(it); });
@@ -15597,7 +15607,7 @@ function renderDrawer(t) {
             ${kImg}
             <div style="flex:1;min-width:0">
               <div style="font-size:9px;color:var(--purple-text);font-weight:700;text-transform:uppercase;letter-spacing:.5px">🧩 Kit / Set · ${instances.length} ${instances.length>1?'unidades':'unidad'}</div>
-              <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${esc(kf.kitName||kf.kitRef||'Kit')}</div>
+              <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3">${esc(kf.kitName||kf.kitRef||String(kf.product_name||'').replace(/\s*\(armado\)\s*$/,'')||'Kit')}</div>
             </div>
             ${_canRemoveItem?`<button class="item-del" title="Quitar el kit «${esc(kf.kitName||kf.kitRef||'Kit')}» completo" aria-label="Quitar kit completo" onclick="event.stopPropagation();removeTaskKit('${t.id}','${kitId}')"><i data-lucide="trash-2" style="width:15px;height:15px;stroke:currentColor"></i></button>`:''}
           </div>

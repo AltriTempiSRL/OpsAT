@@ -18,6 +18,7 @@
 - Participantes: `managerId` (encargado/responsable), `assignees`/`auxiliaryAssignees` (auxiliares), `executors`.
   - El PATCH de tarea sincroniza `assignees` y `auxiliaryAssignees` juntos (para liberar/reemplazar sin residuos).
 - Kits: componentes con `kitId/kitRef/kitName/kitImage`; tarjeta-kit sintética `isKit:true` (item_id `kit_<kitId>_<inst>`) cuando está armado.
+  - ⚠️ Los componentes de un kit ARMADO quedan `selected:false` (kit-toggle). v202 los protege en TODAS las rutas que reescriben items: merge v113 (pool+huérfanos), `getOrderClaims` (reclaman su unidad), `PUT /items` (re-adjunta los ocultos si el payload trae la tarjeta armada sin ellos — el carrito del modal Editar solo precarga `selected`). El drawer además renderiza la tarjeta-kit aunque no queden componentes (aviso + confirmable), para que la tarea nunca sea imposible de completar. Harness: `tests/_test_v202.mjs` (caso #0177 S07286).
 
 ## El WIZARD de creación de tareas (reemplaza el modal plano)
 Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada uno pantalla independiente.
