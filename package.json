@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node proxy.js",
     "dev": "node proxy.js",
-    "test": "node tests/test-smoke.js"
+    "test": "node tests/test-smoke.js",
+    "test:inventario": "node tests/test-inventario-contract.mjs",
+    "test:smoke": "node tests/test-smoke.js",
+    "test:all": "npm run test:inventario && npm run test:smoke"
   },
   "engines": {
     "node": ">=18.0.0"

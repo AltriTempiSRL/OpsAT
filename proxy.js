@@ -182,7 +182,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v202';
+const APP_BUILD = 'v203';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -2983,7 +2983,20 @@ function saveSessions(s) { saveJson(WWP_SESSIONS_FILE, s); }
 function requireJwt(req, res) {
   const h = req.headers['authorization'] || '';
   if (!h.startsWith('Bearer ')) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No autenticado'})); return null; }
-  try { return jwtVerify(h.slice(7)); }
+  try {
+    const claimed = jwtVerify(h.slice(7));
+    // El JWT prueba la sesión, no congela la autorización por 8 horas. Releer el
+    // usuario cierra acceso inmediatamente si fue desactivado y aplica el rol
+    // actual aunque el token se emitiera antes de un cambio de permisos.
+    const current = loadAuthUsers().find(u => u.id === claimed.userId);
+    if (!current || current.active === false || !current.role) {
+      res.writeHead(401, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ ok:false, error:'Usuario inactivo o no disponible' }));
+      return null;
+    }
+    return { ...claimed, role: current.role, name: current.name || claimed.name,
+      odooId: current.odooId != null ? current.odooId : claimed.odooId };
+  }
   catch(e) { res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return null; }
 }
 
@@ -2993,6 +3006,24 @@ function requireRole(jp, res, roles) {
   if (!roles.includes(jp.role)) {
     res.writeHead(403, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:false, error:`Acceso denegado. Requiere rol: ${roles.join(' o ')}`}));
+    return false;
+  }
+  return true;
+}
+
+// Permiso granular de sección. El frontend ya oculta módulos mediante
+// sectionPerms, pero la API debe repetir la validación: ocultar navegación no es
+// una barrera de seguridad. Admin conserva bypass global, igual que canSection().
+function requireSectionPerm(jp, res, section) {
+  if (jp && jp.role === 'admin') return true;
+  const perms = getRoleDefPerms(jp && jp.role);
+  // Mismo contrato de canSection(): Inventario es auto-grant histórico para
+  // manager, salvo que el rol lo tenga explícitamente en false.
+  const managerInventoryDefault = jp && jp.role === 'manager' && section === 'inventario' &&
+    !Object.prototype.hasOwnProperty.call(perms || {}, section);
+  if ((!perms || !perms[section]) && !managerInventoryDefault) {
+    res.writeHead(403, { 'Content-Type':'application/json' });
+    res.end(JSON.stringify({ ok:false, error:'Acceso denegado a la sección ' + section }));
     return false;
   }
   return true;
@@ -5860,6 +5891,12 @@ setInterval(() => { reconcileOutPendiente(); }, 10 * 60 * 1000);
 const INV_CASOS_FILE = path.join(DATA_DIR, 'wwp-inventario-casos.json');
 function loadInvCasos()     { return loadJson(INV_CASOS_FILE, []); }
 function saveInvCasos(list) { return saveCriticalArray(INV_CASOS_FILE, list); }
+// Optimistic concurrency token for long-running inventory operations. Routes
+// that await Odoo must verify this token immediately before saving so a note,
+// assignment or correction made meanwhile is never overwritten by an old copy.
+function invCasosFingerprint(list) {
+  return crypto.createHash('sha256').update(JSON.stringify(list || [])).digest('hex');
+}
 
 // Seed de los casos iniciales (idempotente por seedKey, se dispara desde la UI).
 // Refs tomados de Odoo en vivo el 7-jul (el espacio en "MOTA-02C .P" es literal).
@@ -5954,15 +5991,21 @@ async function invFetchOdooNegativos(force) {
   if (_invNegBusy) return _invNegBusy;
   _invNegBusy = (async () => {
     try {
-      const quants = await odooCall('stock.quant', 'search_read',
-        [[['quantity', '<', 0], ['location_id.usage', '=', 'internal']]],
-        { fields: ['id', 'product_id', 'location_id', 'quantity'], limit: 1000 });
+      const quantPage = await invSearchReadPaged('stock.quant',
+        [['quantity', '<', 0], ['location_id.usage', '=', 'internal']],
+        { fields: ['id', 'product_id', 'location_id', 'quantity'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 10000 });
+      if (quantPage.truncated) throw new Error('Consulta de negativos truncada (' + quantPage.rows.length + ' de ' + quantPage.total + ')');
+      const quants = quantPage.rows;
       // Excluir el residuo de la migración ("Devoluciones y despachos sistema
       // anterior"): son ~115 negativos virtuales, no ubicaciones físicas reales.
       const rows = (quants || []).filter(q => !/sistema anterior/i.test(q.location_id[1] || ''));
       const prodIds = [...new Set(rows.map(q => q.product_id[0]))];
-      const prods = prodIds.length ? await odooCall('product.product', 'search_read',
-        [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name', 'barcode'], limit: 1000 }) : [];
+      const prodPage = prodIds.length ? await invSearchReadPaged('product.product',
+        [['id', 'in', prodIds]], { fields: ['id', 'default_code', 'name', 'barcode'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 10000 }) : { rows: [], truncated: false, total: 0 };
+      if (prodPage.truncated) throw new Error('Catálogo de negativos truncado (' + prodPage.rows.length + ' de ' + prodPage.total + ')');
+      const prods = prodPage.rows;
       const pMap = new Map((prods || []).map(p => [p.id, p]));
       const negativos = rows.map(q => {
         const p = pMap.get(q.product_id[0]) || {};
@@ -6016,6 +6059,10 @@ function invConciliar(casos, negativos) {
   casos.forEach(c => {
     if (c.estado !== 'abierto') return;
     (c.items || []).forEach(it => {
+      // Los ítems de tránsito tienen su propia reconciliación por
+      // (productId,locId). Mezclarlos con negativos hacía que /salud los marcara
+      // corregidos y /panorama los reabriera en cada carga.
+      if (it.tipo === 'transito') return;
       const vivos = negByRef.get(it.ref) || [];
       if (vivos.length) {
         const qty  = vivos.reduce((s, n) => s + n.qty, 0);
@@ -6047,7 +6094,9 @@ function invConciliar(casos, negativos) {
 // Negativos vivos que no pertenecen a ningún caso abierto (agrupados por ref).
 function invComputeSinCaso(casos, negativos) {
   const enCaso = new Set();
-  casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+  casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => {
+    if (it.tipo !== 'transito') enCaso.add(it.ref);
+  }); });
   const byRef = new Map();
   negativos.forEach(n => {
     if (enCaso.has(n.ref)) return;
@@ -6225,44 +6274,105 @@ function invScoreFrom(penalties) {
 function invZona(score) { return score < 60 ? 'rojo' : (score < 85 ? 'ambar' : 'verde'); }
 const invClamp = (v, max) => Math.min(max, Math.max(0, v || 0));
 
+// search_read paginado con orden estable y techo explícito. El caller decide si
+// un resultado truncado puede mostrarse o debe degradar la métrica. Antes varios
+// límites silenciosos se publicaban como fotos "completas".
+async function invSearchReadPaged(model, domain, options, cfg) {
+  options = options || {}; cfg = cfg || {};
+  const pageSize = Math.max(100, Math.min(2000, parseInt(cfg.pageSize, 10) || 1000));
+  const maxRows = Math.max(pageSize, parseInt(cfg.maxRows, 10) || 20000);
+  let order = options.order || 'id asc';
+  if (!/(^|,)\s*id\s+(asc|desc)\b/i.test(order)) order += /\bdesc\b/i.test(order) ? ', id desc' : ', id asc';
+  const rows = [];
+  while (rows.length < maxRows) {
+    const limit = Math.min(pageSize, maxRows - rows.length);
+    const page = await odooCall(model, 'search_read', [domain], { ...options, order, offset: rows.length, limit });
+    if (!Array.isArray(page)) throw new Error(model + '.search_read devolvió un formato inválido');
+    rows.push(...page);
+    if (page.length < limit) return { rows, total: rows.length, truncated: false };
+  }
+  const total = await odooCall(model, 'search_count', [domain]);
+  return { rows, total, truncated: Number(total || 0) > rows.length };
+}
+
+async function invReadChunked(model, ids, fields, size) {
+  const out = []; const chunkSize = Math.max(100, Math.min(1000, size || 500));
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const part = await odooCall(model, 'read', [ids.slice(i, i + chunkSize)], { fields });
+    if (Array.isArray(part)) out.push(...part);
+  }
+  return out;
+}
+
 // ── Monitor de tránsito (extraído del endpoint /api/transit/monitor) ──────────
 // Stock varado en ubicaciones usage=transit, clasificado y ENRIQUECIDO (v187:
 // barcode, locationDest, responsable, pickingDate, hasImage). Se extrae a función
 // top-level para que el panorama (señal s1) lo reutilice sin duplicar la lógica.
 // NO aplica timeout aquí — cada caller lo envuelve en Promise.race(15s).
 async function computeTransitMonitor() {
-  const emptyTotals = { locations: 0, countHuerfanos: 0, countPendientes: 0, unidadesHuerfanas: 0, unidadesPendientes: 0 };
+  const emptyTotals = { locations: 0, countHuerfanos: 0, countPendientes: 0, countMixtos: 0, unidadesHuerfanas: 0, unidadesPendientes: 0 };
   // 1. Ubicaciones de tránsito
-  const locs = await odooCall('stock.location', 'search_read',
-    [[['usage', '=', 'transit']]],
-    { fields: ['id', 'complete_name', 'name'], limit: 200 });
+  const locPage = await invSearchReadPaged('stock.location',
+    [['usage', '=', 'transit']],
+    { fields: ['id', 'complete_name', 'name'], order: 'id asc' },
+    { pageSize: 500, maxRows: 5000 });
+  if (locPage.truncated) throw new Error('Ubicaciones de tránsito truncadas (' + locPage.rows.length + ' de ' + locPage.total + ')');
+  const locs = locPage.rows;
   const locIds = locs.map(l => l.id);
   const locName = {}; locs.forEach(l => { locName[l.id] = l.complete_name || l.name; });
   if (!locIds.length) return { locations: [], totals: emptyTotals };
 
   // 2. Stock actual varado en esos tránsitos
-  const quants = await odooCall('stock.quant', 'search_read',
-    [[['location_id', 'in', locIds], ['quantity', '>', 0]]],
-    { fields: ['product_id', 'location_id', 'quantity', 'reserved_quantity', 'in_date'], limit: 3000 });
-  if (!quants.length) return { locations: [], totals: emptyTotals };
+  const quantPage = await invSearchReadPaged('stock.quant',
+    [['location_id', 'in', locIds], ['quantity', '>', 0]],
+    { fields: ['product_id', 'location_id', 'quantity', 'reserved_quantity', 'in_date'], order: 'id asc' },
+    { pageSize: 1000, maxRows: 30000 });
+  if (quantPage.truncated) throw new Error('Stock en tránsito truncado (' + quantPage.rows.length + ' de ' + quantPage.total + ')');
+  const quantRows = quantPage.rows;
+  if (!quantRows.length) return { locations: [], totals: emptyTotals };
+  // stock.quant puede tener varias filas por lote/paquete/propietario. El monitor
+  // opera por producto×ubicación, por lo que agrega antes de clasificar.
+  const quantByKey = new Map();
+  for (const q of quantRows) {
+    const key = q.location_id[0] + ':' + q.product_id[0];
+    let e = quantByKey.get(key);
+    if (!e) {
+      e = { product_id: q.product_id, location_id: q.location_id, quantity: 0, reserved_quantity: 0, in_date: q.in_date || null };
+      quantByKey.set(key, e);
+    }
+    e.quantity += Number(q.quantity || 0);
+    e.reserved_quantity += Number(q.reserved_quantity || 0);
+    if (q.in_date && (!e.in_date || String(q.in_date) < String(e.in_date))) e.in_date = q.in_date;
+  }
+  const quants = [...quantByKey.values()].filter(q => q.quantity > 0);
   const prodIds = [...new Set(quants.map(q => q.product_id[0]))];
 
   // 3. Moves ABIERTOS saliendo del tránsito (2ª pata / backorder vivo) + su destino
-  const openMoves = await odooCall('stock.move', 'search_read',
-    [[['location_id', 'in', locIds], ['product_id', 'in', prodIds],
-      ['state', 'in', ['draft', 'waiting', 'confirmed', 'partially_available', 'assigned']]]],
-    { fields: ['product_id', 'location_id', 'location_dest_id'], limit: 8000 });
-  const alive = new Set(openMoves.map(m => m.location_id[0] + ':' + m.product_id[0]));
-  const destByKey = {};
+  const openPage = await invSearchReadPaged('stock.move',
+    [['location_id', 'in', locIds], ['product_id', 'in', prodIds],
+      ['state', 'in', ['draft', 'waiting', 'confirmed', 'partially_available', 'assigned']]],
+    { fields: ['product_id', 'location_id', 'location_dest_id', 'product_uom_qty', 'quantity_done'], order: 'id asc' },
+    { pageSize: 1000, maxRows: 50000 });
+  if (openPage.truncated) throw new Error('Movimientos abiertos de tránsito truncados (' + openPage.rows.length + ' de ' + openPage.total + ')');
+  const openMoves = openPage.rows;
+  const openQtyByKey = {}, destsByKey = {};
   for (const m of openMoves) {
     const k = m.location_id[0] + ':' + m.product_id[0];
-    if (!destByKey[k] && m.location_dest_id) destByKey[k] = m.location_dest_id[1];
+    const remaining = Math.max(0, Number(m.product_uom_qty || 0) - Number(m.quantity_done || 0));
+    openQtyByKey[k] = (openQtyByKey[k] || 0) + remaining;
+    if (m.location_dest_id) {
+      if (!destsByKey[k]) destsByKey[k] = new Set();
+      destsByKey[k].add(invLastSegment(m.location_dest_id[1]));
+    }
   }
 
   // 4. Origen: último move HECHO que metió la mercancía al tránsito (trazabilidad).
-  const inMoves = await odooCall('stock.move', 'search_read',
-    [[['location_dest_id', 'in', locIds], ['product_id', 'in', prodIds], ['state', '=', 'done']]],
-    { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc', limit: 8000 });
+  const inPage = await invSearchReadPaged('stock.move',
+    [['location_dest_id', 'in', locIds], ['product_id', 'in', prodIds], ['state', '=', 'done']],
+    { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc, id desc' },
+    { pageSize: 1000, maxRows: 50000 });
+  if (inPage.truncated) throw new Error('Historial de entradas a tránsito truncado (' + inPage.rows.length + ' de ' + inPage.total + ')');
+  const inMoves = inPage.rows;
   const srcByKey = {}; const srcPickIds = new Set();
   for (const m of inMoves) {
     const k = m.location_dest_id[0] + ':' + m.product_id[0];
@@ -6276,14 +6386,14 @@ async function computeTransitMonitor() {
   //     previsto de respaldo (location_dest_id del picking de origen).
   const pickInfo = {};
   if (srcPickIds.size) {
-    const picks = await odooCall('stock.picking', 'read',
-      [[...srcPickIds]], { fields: ['id', 'user_id', 'write_uid', 'location_dest_id'] });
+    const picks = await invReadChunked('stock.picking', [...srcPickIds],
+      ['id', 'user_id', 'write_uid', 'location_dest_id'], 500);
     (picks || []).forEach(p => { pickInfo[p.id] = p; });
   }
 
   // 5. Producto (+ barcode + image_128 para hasImage; el binario NO viaja en la respuesta)
-  const prods = await odooCall('product.product', 'search_read',
-    [[['id', 'in', prodIds]]], { fields: ['id', 'default_code', 'name', 'barcode', 'image_128'], limit: 3000 });
+  const prods = await invReadChunked('product.product', prodIds,
+    ['id', 'default_code', 'name', 'barcode', 'image_128'], 500);
   const prodMap = {}; prods.forEach(p => { prodMap[p.id] = p; });
 
   // 6. Ensamblar por ubicación
@@ -6291,22 +6401,25 @@ async function computeTransitMonitor() {
   for (const q of quants) {
     const lid = q.location_id[0], pid = q.product_id[0], key = lid + ':' + pid;
     const p = prodMap[pid] || {}; const src = srcByKey[key] || {};
-    // Antigüedad = fecha del move 'done' que metió la mercancía (NO in_date FIFO).
-    const inDate = src.date || q.in_date || null;
+    // La fecha más antigua de los quants vigentes evita que una entrada nueva
+    // "rejuvenezca" remanentes viejos del mismo producto/ubicación.
+    const inDate = q.in_date || src.date || null;
     const ageDays = inDate
       ? Math.floor((now - new Date(String(inDate).replace(' ', 'T') + 'Z').getTime()) / 86400000)
       : null;
-    const reserved = q.reserved_quantity || 0;
-    // Discriminador de clase (regla de Ron, 11-jul): criterio PRIMARIO = reserved.
-    // reserved=0 → nada lo reserva = huérfano; reserved>0 → en vuelo legítimo =
-    // pendiente. Refinamiento DEFENSIVO: si reserved=0 pero SÍ existe un move
-    // abierto saliendo del tránsito (alive), no alarmar → 'pendiente' igual.
-    const clase = (reserved === 0 && !alive.has(key)) ? 'huerfano' : 'pendiente';
+    const qtyTotal = Math.max(0, Number(q.quantity || 0));
+    const reserved = Math.max(0, Math.min(qtyTotal, Number(q.reserved_quantity || 0)));
+    const openQty = Math.max(0, Number(openQtyByKey[key] || 0));
+    // La reserva normalmente pertenece al move abierto; usar max evita contarla
+    // dos veces. Un move de 1 unidad ya no legitima automáticamente un quant de 100.
+    const qtyPendiente = Math.min(qtyTotal, Math.max(reserved, openQty));
+    const qtyHuerfana = Math.max(0, qtyTotal - qtyPendiente);
+    const clase = qtyHuerfana > 0 ? 'huerfano' : 'pendiente';
     // Destino previsto: move abierto de salida > destino del picking de origen.
     const pk = src.pickingId != null ? pickInfo[src.pickingId] : null;
-    let locationDest = destByKey[key] || '';
-    if (!locationDest && pk && pk.location_dest_id) locationDest = pk.location_dest_id[1];
-    locationDest = invLastSegment(locationDest);
+    let locationDests = destsByKey[key] ? [...destsByKey[key]] : [];
+    if (!locationDests.length && pk && pk.location_dest_id) locationDests = [invLastSegment(pk.location_dest_id[1])];
+    const locationDest = locationDests.length > 1 ? ('Varios destinos (' + locationDests.length + ')') : (locationDests[0] || '');
     let responsable = null;
     if (pk) {
       const r = pk.user_id || pk.write_uid;
@@ -6314,51 +6427,95 @@ async function computeTransitMonitor() {
     }
     (byLoc[lid] = byLoc[lid] || { id: lid, name: locName[lid] || ('Ubicación ' + lid), items: [] }).items.push({
       prodId: pid, code: p.default_code || '', name: p.name || (q.product_id[1] || ''),
-      qty: q.quantity, reserved, inDate, ageDays, sourcePicking: src.picking || '', clase,
+      // `qty` conserva el contrato operativo: en huérfanos representa solo la
+      // parte sin cobertura; `qtyTotal` expone la foto física completa.
+      qty: clase === 'huerfano' ? qtyHuerfana : qtyTotal,
+      qtyTotal, qtyHuerfana, qtyPendiente, reserved, openQty,
+      cobertura: qtyTotal > 0 ? Math.round(qtyPendiente / qtyTotal * 1000) / 10 : 0,
+      inDate, ageDays, sourcePicking: src.picking || '', clase,
       // Enriquecimiento v187:
-      barcode: p.barcode || '', locationDest, responsable,
-      pickingDate: src.date || null, hasImage: !!p.image_128
+      barcode: p.barcode || '', locationDest, locationDests, responsable,
+      // `inDate`/ageDays describen el remanente más antiguo; estos campos son
+      // el último ingreso y no deben interpretarse como la base de antigüedad.
+      pickingDate: src.date || null, lastInboundDate: src.date || null,
+      ageBasis: 'oldest-current-quant', hasImage: !!p.image_128
     });
   }
   const locations = Object.values(byLoc).map(l => {
-    const huer = l.items.filter(i => i.clase === 'huerfano');
+    const huer = l.items.filter(i => i.qtyHuerfana > 0);
     const pend = l.items.filter(i => i.clase === 'pendiente');
+    const conCobertura = l.items.filter(i => i.qtyPendiente > 0);
+    const mixtos = l.items.filter(i => i.qtyHuerfana > 0 && i.qtyPendiente > 0);
     l.items.sort((a, b) => (a.clase === b.clase
       ? (b.ageDays || 0) - (a.ageDays || 0)
       : (a.clase === 'huerfano' ? -1 : 1)));
     return {
       id: l.id, name: l.name, items: l.items,
-      countHuerfanos: huer.length, countPendientes: pend.length,
-      unidadesHuerfanas: Math.round(huer.reduce((s, i) => s + i.qty, 0) * 100) / 100,
-      unidadesPendientes: Math.round(pend.reduce((s, i) => s + i.qty, 0) * 100) / 100
+      countHuerfanos: huer.length, countPendientes: pend.length, countMixtos: mixtos.length,
+      unidadesHuerfanas: Math.round(huer.reduce((s, i) => s + i.qtyHuerfana, 0) * 100) / 100,
+      unidadesPendientes: Math.round(conCobertura.reduce((s, i) => s + i.qtyPendiente, 0) * 100) / 100
     };
   }).sort((a, b) => b.unidadesHuerfanas - a.unidadesHuerfanas || b.unidadesPendientes - a.unidadesPendientes);
   const totals = {
     locations: locations.length,
     countHuerfanos: locations.reduce((s, l) => s + l.countHuerfanos, 0),
     countPendientes: locations.reduce((s, l) => s + l.countPendientes, 0),
+    countMixtos: locations.reduce((s, l) => s + l.countMixtos, 0),
     unidadesHuerfanas: Math.round(locations.reduce((s, l) => s + l.unidadesHuerfanas, 0) * 100) / 100,
     unidadesPendientes: Math.round(locations.reduce((s, l) => s + l.unidadesPendientes, 0) * 100) / 100
   };
   return { locations, totals };
 }
 
+// Tránsito es consumido a la vez por Panorama y por su pestaña. Un cache corto
+// con coalescing evita duplicar la misma ráfaga de consultas cuando el usuario
+// pulsa Actualizar; `force` salta el cache, pero comparte una corrida ya en vuelo.
+let _invTransitCache = { ts: 0, data: null };
+let _invTransitBusy = null;
+const INV_TRANSIT_TTL = 30 * 1000;
+const INV_TRANSIT_FORCE_MIN = 2 * 1000;
+async function invGetTransitMonitor(force) {
+  const age = Date.now() - _invTransitCache.ts;
+  if (_invTransitCache.data && age < (force ? INV_TRANSIT_FORCE_MIN : INV_TRANSIT_TTL)) return _invTransitCache.data;
+  if (_invTransitBusy) return _invTransitBusy;
+  _invTransitBusy = (async () => {
+    try {
+      const data = await computeTransitMonitor();
+      _invTransitCache = { ts: Date.now(), data };
+      return data;
+    } finally {
+      _invTransitBusy = null;
+    }
+  })();
+  return _invTransitBusy;
+}
+
 // ── Kardex + detección de culpable de un producto ────────────────────────────
 // Historial de stock.move (asc) + foto de quants de hoy + culpable. Culpable:
-//   patrón A (prioritario): move de salida cancel/draft DESDE una ubicación
-//     usage=transit mientras el producto AÚN tiene qty>0 reserved=0 en esa transit
+//   patrón A (prioritario): move de salida cancelado DESDE una ubicación
+//     usage=transit mientras el producto AÚN tiene cantidad libre en esa transit
 //     ("No crear backorder" — deja el huérfano varado). Caso LISH 51662 →
 //     CDP/INT/04773 (cancel).
 //   patrón B (respaldo): move que debita un nodo de agregación que HOY está negativo.
 async function invBuildKardex(pid) {
   pid = parseInt(pid, 10);
-  const [prodRows, movesRaw, quantsRaw] = await Promise.all([
-    odooCall('product.product', 'read', [[pid]], { fields: ['default_code', 'name', 'barcode', 'image_128'] }).catch(() => []),
+  const [prodRows, movesDesc, totalMoves, quantPage] = await Promise.all([
+    odooCall('product.product', 'read', [[pid]], { fields: ['default_code', 'name', 'barcode', 'image_128'] }),
     odooCall('stock.move', 'search_read', [[['product_id', '=', pid]]],
-      { fields: ['date', 'reference', 'location_id', 'location_dest_id', 'product_uom_qty', 'quantity_done', 'state', 'picking_id'], order: 'date asc', limit: 500 }).catch(() => []),
-    odooCall('stock.quant', 'search_read', [[['product_id', '=', pid]]],
-      { fields: ['location_id', 'quantity', 'reserved_quantity'], limit: 300 }).catch(() => [])
+      { fields: ['date', 'reference', 'location_id', 'location_dest_id', 'product_uom_qty', 'quantity_done', 'state', 'picking_id'], order: 'date desc', limit: 1000 }),
+    odooCall('stock.move', 'search_count', [[['product_id', '=', pid]]]),
+    invSearchReadPaged('stock.quant', [['product_id', '=', pid]],
+      { fields: ['location_id', 'quantity', 'reserved_quantity', 'in_date'], order: 'id asc' },
+      { pageSize: 1000, maxRows: 20000 })
   ]);
+  if (!prodRows.length) throw new Error('Artículo no encontrado en Odoo');
+  if (quantPage.truncated) {
+    throw new Error('Quants del artículo truncados (' + quantPage.rows.length + ' de ' + quantPage.total + ')');
+  }
+  const quantsRaw = quantPage.rows;
+  // Odoo entrega los más recientes para que el culpable actual nunca quede fuera;
+  // la UI los recibe en orden cronológico ascendente.
+  const movesRaw = movesDesc.slice().reverse();
   const prow = prodRows[0] || {};
   const product = { ref: prow.default_code || '', name: prow.name || '', barcode: prow.barcode || '', hasImage: !!prow.image_128 };
 
@@ -6368,8 +6525,8 @@ async function invBuildKardex(pid) {
   quantsRaw.forEach(q => { if (q.location_id) locIdSet.add(q.location_id[0]); });
   const locIds = [...locIdSet];
   const [locRows, childRows] = await Promise.all([
-    locIds.length ? odooCall('stock.location', 'search_read', [[['id', 'in', locIds]]], { fields: ['id', 'usage', 'complete_name'] }).catch(() => []) : Promise.resolve([]),
-    locIds.length ? odooCall('stock.location', 'search_read', [[['location_id', 'in', locIds]]], { fields: ['location_id'] }).catch(() => []) : Promise.resolve([])
+    locIds.length ? odooCall('stock.location', 'search_read', [[['id', 'in', locIds]]], { fields: ['id', 'usage', 'complete_name'] }) : Promise.resolve([]),
+    locIds.length ? odooCall('stock.location', 'search_read', [[['location_id', 'in', locIds]]], { fields: ['location_id'] }) : Promise.resolve([])
   ]);
   const usageOf = {}, nameOf = {};
   locRows.forEach(l => { usageOf[l.id] = l.usage; nameOf[l.id] = l.complete_name; });
@@ -6379,14 +6536,21 @@ async function invBuildKardex(pid) {
   const pickIds = [...new Set(movesRaw.map(m => m.picking_id && m.picking_id[0]).filter(Boolean))];
   const pickInfo = {};
   if (pickIds.length) {
-    (await odooCall('stock.picking', 'read', [pickIds], { fields: ['id', 'user_id', 'write_uid'] }).catch(() => []))
+    (await odooCall('stock.picking', 'read', [pickIds], { fields: ['id', 'user_id', 'write_uid'] }))
       .forEach(p => { pickInfo[p.id] = p; });
   }
 
   // Orfandad viva por tránsito + nodos de agregación negativos (base del culpable).
-  const orphanTransitLocIds = new Set(quantsRaw
-    .filter(q => (q.quantity > 0) && (q.reserved_quantity || 0) === 0 && usageOf[q.location_id[0]] === 'transit')
+  const orphanTransitQuants = quantsRaw
+    .filter(q => (Number(q.quantity || 0) - Number(q.reserved_quantity || 0)) > 0 && usageOf[q.location_id[0]] === 'transit');
+  const orphanTransitLocIds = new Set(orphanTransitQuants
     .map(q => q.location_id[0]));
+  const orphanSinceByLoc = {};
+  orphanTransitQuants.forEach(q => {
+    if (q.in_date && (!orphanSinceByLoc[q.location_id[0]] || String(q.in_date) < String(orphanSinceByLoc[q.location_id[0]]))) {
+      orphanSinceByLoc[q.location_id[0]] = q.in_date;
+    }
+  });
   const negAggLocIds = new Set(quantsRaw
     .filter(q => q.quantity < 0 && aggSet.has(q.location_id[0]))
     .map(q => q.location_id[0]));
@@ -6394,10 +6558,16 @@ async function invBuildKardex(pid) {
   let culpritA = null, culpritB = null;
   for (const m of movesRaw) {
     const srcId = m.location_id ? m.location_id[0] : null;
-    const isCancelDraft = m.state === 'cancel' || m.state === 'draft';
-    if (isCancelDraft && srcId && orphanTransitLocIds.has(srcId)) {
+    const since = srcId ? orphanSinceByLoc[srcId] : null;
+    const moveMs = m.date ? Date.parse(String(m.date).replace(' ', 'T') + 'Z') : NaN;
+    const sinceMs = since ? Date.parse(String(since).replace(' ', 'T') + 'Z') : NaN;
+    // Un draft vivo no demuestra una fuga. Un cancelado solo encaja si pertenece
+    // a la ventana del quant huérfano vigente (24 h de tolerancia por fechas Odoo).
+    const cancelFitsCurrentOrphan = m.state === 'cancel' && srcId && orphanTransitLocIds.has(srcId) &&
+      Number.isFinite(moveMs) && Number.isFinite(sinceMs) && moveMs >= sinceMs - 86400000;
+    if (cancelFitsCurrentOrphan) {
       if (!culpritA || m.date > culpritA.date) culpritA = m;
-    } else if (srcId && negAggLocIds.has(srcId) && ((m.quantity_done || 0) > 0 || (m.product_uom_qty || 0) > 0)) {
+    } else if (m.state === 'done' && srcId && negAggLocIds.has(srcId) && (m.quantity_done || 0) > 0) {
       if (!culpritB || m.date > culpritB.date) culpritB = m;
     }
   }
@@ -6419,16 +6589,24 @@ async function invBuildKardex(pid) {
   }));
   const quants = quantsRaw.map(q => ({
     locId: q.location_id[0], loc: nameOf[q.location_id[0]] || q.location_id[1],
-    qty: q.quantity, reserved: q.reserved_quantity || 0
+    qty: q.quantity, reserved: q.reserved_quantity || 0, inDate: q.in_date || null
   }));
   const netInterno = Math.round(quantsRaw.reduce((s, q) => usageOf[q.location_id[0]] === 'internal' ? s + q.quantity : s, 0) * 100) / 100;
   const culprit = culpritMove ? {
     date: culpritMove.date, ref: refOf(culpritMove),
     from: invLastSegment(culpritMove.location_id ? culpritMove.location_id[1] : ''),
     to: invLastSegment(culpritMove.location_dest_id ? culpritMove.location_dest_id[1] : ''),
-    state: culpritMove.state
+    state: culpritMove.state,
+    kind: culpritA ? 'salida-transito-cancelada' : 'debito-nodo-agregacion',
+    confidence: 'probable',
+    evidence: culpritA
+      ? 'Cancelación desde el tránsito dentro de la ventana del saldo huérfano vigente; requiere confirmación operativa.'
+      : 'Movimiento hecho que debitó un nodo de agregación hoy negativo; correlación temporal, no causalidad demostrada.'
   } : null;
-  return { ok: true, pid, product, moves, quants, netInterno, culprit };
+  return { ok: true, pid, product, moves, totalMoves, truncated: totalMoves > movesRaw.length,
+    windowLabel: totalMoves > movesRaw.length ? ('Últimos ' + movesRaw.length + ' de ' + totalMoves + ' movimientos') : (totalMoves + ' movimientos'),
+    quants, netInterno, culprit, dataQuality: { status: 'fresh', complete: true,
+      culpritAssessment: culprit ? 'probable' : 'sin-evidencia-suficiente' } };
 }
 
 // ── Panorama consolidado ──────────────────────────────────────────────────────
@@ -6437,23 +6615,42 @@ async function invBuildKardex(pid) {
 // (reservadas en tránsito, negativos de A-CDP, items de señal). NO aplica timeout:
 // el endpoint y el job lo envuelven en Promise.race(15s). Los coeficientes de
 // penalización son la CALIBRACIÓN INICIAL (ajustable): con 37/9/204 hoy da ~76.
-async function computeInvPanorama() {
+async function computeInvPanorama(force) {
   const nowMs = Date.now();
+  const sourceFailures = [];
+  const safeSource = async (name, promise, fallback) => {
+    try { return await promise; }
+    catch (e) {
+      sourceFailures.push({ source: name, error: e.message || String(e) });
+      return fallback;
+    }
+  };
+  const failedSource = (...names) => sourceFailures.some(f => names.includes(f.source));
   // ── Fase 1: fuentes base independientes en paralelo ──
   // computeTransitMonitor y las ubicaciones son CORE (si Odoo cae, 502 honesto);
-  // invFetchOdooNegativos tiene su propio stale-cache; las de higiene degradan a 0
-  // si una consulta puntual falla (permiso), sin tumbar todo el panorama.
-  const [tm, foto, acdpSubtree, stagingLocs, rootInternalLocs, internoGrp, virtualGrp, copiaCount, tmplTotal] = await Promise.all([
-    computeTransitMonitor(),
-    invFetchOdooNegativos(false).catch(e => ({ negativos: [], recepciones: [], stale: true, error: e.message })),
-    odooCall('stock.location', 'search_read', [[['id', 'child_of', 24]]], { fields: ['id'] }).catch(() => []),
-    odooCall('stock.location', 'search_read', [[['complete_name', 'ilike', 'DESPACHO PTN']]], { fields: ['id', 'complete_name', 'name'] }).catch(() => []),
-    odooCall('stock.location', 'search_read', [[['usage', '=', 'internal'], ['location_id', '=', false]]], { fields: ['id', 'complete_name', 'name'] }).catch(() => []),
-    odooCall('stock.quant', 'read_group', [[['location_id.usage', '=', 'internal'], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }).catch(() => []),
-    odooCall('stock.quant', 'read_group', [[['location_id.usage', '=', 'inventory'], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }).catch(() => []),
-    odooCall('product.template', 'search_count', [[['name', 'ilike', '(Copia)'], ['active', '=', true], ['sale_ok', '=', true]]]).catch(() => 0),
-    odooCall('product.template', 'search_count', [[['active', '=', true], ['sale_ok', '=', true]]]).catch(() => 0)
+  // invFetchOdooNegativos tiene su propio stale-cache; si una fuente de higiene
+  // falla, su score se anula (null) en vez de publicarse como 0, sin tumbar el panorama.
+  const [tm, foto, acdpSubtree, stagingLocs, allInternalLocs, internoGrp, virtualGrp, copiaCount, tmplTotal] = await Promise.all([
+    invGetTransitMonitor(!!force),
+    safeSource('negativos', invFetchOdooNegativos(!!force), { negativos: [], recepciones: [], stale: true, unavailable: true, ts: 0 }),
+    safeSource('arbol-acdp', odooCall('stock.location', 'search_read', [[['id', 'child_of', 24]]], { fields: ['id'] }), []),
+    safeSource('staging-ubicaciones', odooCall('stock.location', 'search_read', [[['complete_name', 'ilike', 'DESPACHO PTN']]], { fields: ['id', 'complete_name', 'name'] }), []),
+    safeSource('mapa-interno', (async () => {
+      const page = await invSearchReadPaged('stock.location', [['usage', '=', 'internal']],
+        { fields: ['id', 'complete_name', 'name', 'location_id'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 20000 });
+      if (page.truncated) throw new Error('Mapa interno truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []),
+    safeSource('total-interno', odooCall('stock.quant', 'read_group', [[['location_id.usage', '=', 'internal'], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }), []),
+    safeSource('virtuales', odooCall('stock.quant', 'read_group', [[['location_id.usage', '=', 'inventory'], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }), []),
+    safeSource('duplicados', odooCall('product.template', 'search_count', [[['name', 'ilike', '(Copia)'], ['active', '=', true], ['sale_ok', '=', true]]]), 0),
+    safeSource('catalogo-total', odooCall('product.template', 'search_count', [[['active', '=', true], ['sale_ok', '=', true]]]), 0)
   ]);
+
+  if (foto && foto.stale && !foto.unavailable) {
+    sourceFailures.push({ source: 'negativos', error: foto.error || 'Se usó la última foto disponible' });
+  }
 
   const negativos = (foto && foto.negativos) || [];
   const negLocIds = [...new Set(negativos.map(n => n.locId))];
@@ -6463,26 +6660,64 @@ async function computeInvPanorama() {
   const acdpSet = new Set((acdpSubtree || []).map(l => l.id));
   const stagingLocIds = (stagingLocs || []).map(l => l.id);
   const stagingSet = new Set(stagingLocIds);
-  // Raíces de stock muerto = raíces internas cuyo nombre es DIF.* u OBSOLETO*.
-  const deadRoots = (rootInternalLocs || []).filter(l => /(^|\/)\s*DIF\.|obsoleto/i.test(l.complete_name || l.name || ''));
-  const deadRootIds = deadRoots.map(l => l.id);
+  const rootInternalLocs = (allInternalLocs || []).filter(l => !l.location_id);
+  const parentInternalIds = new Set((allInternalLocs || []).filter(l => l.location_id).map(l => l.location_id[0]));
+  // Stock muerto: incluye la raíz DIF./OBSOLETO y todos sus descendientes; antes
+  // solo se consultaba la raíz exacta y se subestimaban las unidades en bins hijos.
+  const deadLocs = (allInternalLocs || []).filter(l => /(^|\/)\s*DIF\.|obsoleto/i.test(l.complete_name || l.name || ''));
+  const deadRootIds = deadLocs.map(l => l.id);
   const rootInternalIds = (rootInternalLocs || []).map(l => l.id);
 
   // ── Fase 2: derivados que dependen de la Fase 1 ──
   const [negChildRows, vendibleQuants, stagingQuants, deadQuants, rootQuantGrp] = await Promise.all([
-    negLocIds.length ? odooCall('stock.location', 'search_read', [[['location_id', 'in', negLocIds]]], { fields: ['location_id'] }).catch(() => []) : Promise.resolve([]),
-    s1Pids.length ? odooCall('stock.quant', 'search_read', [[['product_id', 'in', s1Pids], ['location_id.usage', '=', 'internal'], ['quantity', '>', 0], ['reserved_quantity', '=', 0]]], { fields: ['product_id', 'location_id', 'quantity'], limit: 2000 }).catch(() => []) : Promise.resolve([]),
-    stagingLocIds.length ? odooCall('stock.quant', 'search_read', [[['location_id', 'in', stagingLocIds], ['quantity', '>', 0]]], { fields: ['product_id', 'location_id', 'quantity', 'in_date'], limit: 2000 }).catch(() => []) : Promise.resolve([]),
-    deadRootIds.length ? odooCall('stock.quant', 'search_read', [[['location_id', 'in', deadRootIds], ['quantity', '>', 0]]], { fields: ['product_id', 'location_id', 'quantity', 'in_date'], limit: 3000 }).catch(() => []) : Promise.resolve([]),
-    rootInternalIds.length ? odooCall('stock.quant', 'read_group', [[['location_id', 'in', rootInternalIds], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }).catch(() => []) : Promise.resolve([])
+    negLocIds.length ? safeSource('jerarquia-negativos', odooCall('stock.location', 'search_read', [[['location_id', 'in', negLocIds]]], { fields: ['location_id'] }), []) : Promise.resolve([]),
+    s1Pids.length ? safeSource('stock-vendible', (async () => {
+      const page = await invSearchReadPaged('stock.quant',
+        [['product_id', 'in', s1Pids], ['location_id.usage', '=', 'internal'], ['quantity', '>', 0]],
+        { fields: ['product_id', 'location_id', 'quantity', 'reserved_quantity'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 30000 });
+      if (page.truncated) throw new Error('Stock vendible truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []) : Promise.resolve([]),
+    stagingLocIds.length ? safeSource('staging-stock', (async () => {
+      const page = await invSearchReadPaged('stock.quant',
+        [['location_id', 'in', stagingLocIds], ['quantity', '>', 0]],
+        { fields: ['product_id', 'location_id', 'quantity', 'in_date'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 50000 });
+      if (page.truncated) throw new Error('Stock de staging truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []) : Promise.resolve([]),
+    deadRootIds.length ? safeSource('stock-muerto', (async () => {
+      const page = await invSearchReadPaged('stock.quant',
+        [['location_id', 'in', deadRootIds], ['quantity', '>', 0]],
+        { fields: ['product_id', 'location_id', 'quantity', 'in_date'], order: 'id asc' },
+        { pageSize: 1000, maxRows: 50000 });
+      if (page.truncated) throw new Error('Stock muerto truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []) : Promise.resolve([]),
+    rootInternalIds.length ? safeSource('stock-fuera-arbol', odooCall('stock.quant', 'read_group', [[['location_id', 'in', rootInternalIds], ['quantity', '>', 0]], ['quantity:sum'], []], { lazy: false }), []) : Promise.resolve([])
   ]);
 
   // ── Fase 3: fechas de movimiento para antigüedad de staging (>30d) y muerto (>365d) ──
   const stagingPids = [...new Set(stagingQuants.map(q => q.product_id[0]))];
   const deadPids = [...new Set(deadQuants.map(q => q.product_id[0]))];
   const [stagingMoves, deadMoves] = await Promise.all([
-    (stagingLocIds.length && stagingPids.length) ? odooCall('stock.move', 'search_read', [[['location_dest_id', 'in', stagingLocIds], ['product_id', 'in', stagingPids], ['state', '=', 'done']]], { fields: ['product_id', 'location_dest_id', 'date'], order: 'date desc', limit: 4000 }).catch(() => []) : Promise.resolve([]),
-    (deadRootIds.length && deadPids.length) ? odooCall('stock.move', 'search_read', [[['location_dest_id', 'in', deadRootIds], ['product_id', 'in', deadPids], ['state', '=', 'done']]], { fields: ['product_id', 'location_dest_id', 'date'], order: 'date desc', limit: 4000 }).catch(() => []) : Promise.resolve([])
+    (stagingLocIds.length && stagingPids.length) ? safeSource('staging-antiguedad', (async () => {
+      const page = await invSearchReadPaged('stock.move',
+        [['location_dest_id', 'in', stagingLocIds], ['product_id', 'in', stagingPids], ['state', '=', 'done']],
+        { fields: ['product_id', 'location_dest_id', 'date'], order: 'date desc, id desc' },
+        { pageSize: 1000, maxRows: 50000 });
+      if (page.truncated) throw new Error('Historial de staging truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []) : Promise.resolve([]),
+    (deadRootIds.length && deadPids.length) ? safeSource('muerto-antiguedad', (async () => {
+      const page = await invSearchReadPaged('stock.move',
+        [['location_dest_id', 'in', deadRootIds], ['product_id', 'in', deadPids], ['state', '=', 'done']],
+        { fields: ['product_id', 'location_dest_id', 'date'], order: 'date desc, id desc' },
+        { pageSize: 1000, maxRows: 50000 });
+      if (page.truncated) throw new Error('Historial de stock muerto truncado (' + page.rows.length + ' de ' + page.total + ')');
+      return page.rows;
+    })(), []) : Promise.resolve([])
   ]);
   const mkAgeMap = (moves) => { const m = {}; for (const mv of moves) { const k = mv.location_dest_id[0] + ':' + mv.product_id[0]; if (!(k in m)) m[k] = mv.date; } return m; };
   const stagingAge = mkAgeMap(stagingMoves), deadAge = mkAgeMap(deadMoves);
@@ -6495,7 +6730,8 @@ async function computeInvPanorama() {
   const pNeg = invClamp(negativosU * 0.3, 40);
   const pHuer = invClamp(huerfanosU * 1.0, 30);
   const pStaging = invClamp(stagingU * 0.02, 20);
-  const fiabScore = invScoreFrom([pNeg, pHuer, pStaging]);
+  const fiabIncomplete = sourceFailures.some(f => ['negativos','staging-ubicaciones','staging-stock','staging-antiguedad'].includes(f.source)) || !!foto.unavailable;
+  const fiabScore = fiabIncomplete ? null : invScoreFrom([pNeg, pHuer, pStaging]);
 
   // ── Higiene ──
   const inventarioInternoTotal = (internoGrp[0] && internoGrp[0].quantity) || 0;
@@ -6511,7 +6747,9 @@ async function computeInvPanorama() {
   const pMuerto = invClamp(muertoU * 0.05, 20);
   const pDup = invClamp(duplicadosPct * 2, 25);
   const pVirt = invClamp(virtualesU * 0.02, 10);
-  const higScore = invScoreFrom([pFueraArbol, pMuerto, pDup, pVirt]);
+  const hygieneSources = new Set(['mapa-interno','total-interno','virtuales','duplicados','catalogo-total','stock-muerto','muerto-antiguedad','stock-fuera-arbol']);
+  const higIncomplete = sourceFailures.some(f => hygieneSources.has(f.source));
+  const higScore = higIncomplete ? null : invScoreFrom([pFueraArbol, pMuerto, pDup, pVirt]);
 
   // ── Señal s1: huérfanos de tránsito (subconjunto del monitor) ──
   const s1Items = orphanItems.map(i => ({
@@ -6528,30 +6766,58 @@ async function computeInvPanorama() {
   s2Neg.forEach(n => { const e = s2NodosMap[n.locId] = s2NodosMap[n.locId] || { locId: n.locId, locName: n.loc, count: 0, unidades: 0 }; e.count++; e.unidades += Math.abs(n.qty); });
   const s2Nodos = Object.values(s2NodosMap).map(e => ({ ...e, unidades: Math.round(e.unidades * 100) / 100 })).sort((a, b) => b.count - a.count);
   const s2Items = s2Neg.map(n => ({ prodId: n.productId, code: n.ref, name: n.name, barcode: n.barcode || '', locId: n.locId, locName: n.loc, qty: n.qty }));
-  const acdpNegativos = negativos.filter(n => n.locId === 24).length;
+  const s2Unavailable = !!(foto && foto.unavailable) || failedSource('jerarquia-negativos');
+  const s2Status = s2Unavailable ? 'unavailable' : ((foto && foto.stale) ? 'stale' : 'fresh');
+  const acdpNegativos = foto && foto.unavailable ? null : negativos.filter(n => n.locId === 24).length;
 
   // ── Señal s3: riesgo de doble venta (huérfano en tránsito + bin vendible libre) ──
-  const vend = (vendibleQuants || []).filter(q => !/obsoleto/i.test((q.location_id[1]) || ''));
+  const nonSellableName = /obsoleto|despacho\s*ptn|staging|diferencia|(^|\/)\s*dif\.|ajuste|inventory|inventario|aver[ií]a|dañ|merma|cuarentena|consign|showroom|michell|montibello|stam\s*house/i;
+  // Config opcional conservadora: IDs separados por coma. Si existe, además de
+  // las exclusiones duras solo se aceptan esos bins; sin config se conserva el
+  // comportamiento histórico por jerarquía/nombre.
+  const sellableAllowIds = new Set(String(process.env.INV_SELLABLE_LOCATION_IDS || '')
+    .split(',').map(v => parseInt(v.trim(), 10)).filter(Number.isFinite));
+  const hasSellableAllowlist = sellableAllowIds.size > 0;
+  const vend = (vendibleQuants || []).filter(q => {
+    const locId = q.location_id[0], locName = q.location_id[1] || '';
+    const libre = Number(q.quantity || 0) - Number(q.reserved_quantity || 0);
+    return libre > 0 && (!hasSellableAllowlist || sellableAllowIds.has(locId)) &&
+      !stagingSet.has(locId) && !parentInternalIds.has(locId) && !rootInternalIds.includes(locId) && !nonSellableName.test(locName);
+  });
   const orphanQtyByPid = {}, prodMetaByPid = {};
   orphanItems.forEach(i => { orphanQtyByPid[i.prodId] = (orphanQtyByPid[i.prodId] || 0) + i.qty; if (!prodMetaByPid[i.prodId]) prodMetaByPid[i.prodId] = { code: i.code, name: i.name, barcode: i.barcode || '' }; });
   const s3Map = {};
   vend.forEach(q => {
     const pid = q.product_id[0]; const meta0 = prodMetaByPid[pid] || {};
     const e = s3Map[pid] = s3Map[pid] || { prodId: pid, code: meta0.code || '', name: meta0.name || (q.product_id[1] || ''), barcode: meta0.barcode || '', unidadesTransito: Math.round((orphanQtyByPid[pid] || 0) * 100) / 100, unidadesBinVendible: 0, bins: [] };
-    e.unidadesBinVendible += q.quantity;
-    e.bins.push({ locId: q.location_id[0], locName: invLastSegment(q.location_id[1]), qty: q.quantity });
+    const libre = Math.max(0, Number(q.quantity || 0) - Number(q.reserved_quantity || 0));
+    e.unidadesBinVendible += libre;
+    e.bins.push({ locId: q.location_id[0], locName: invLastSegment(q.location_id[1]), qty: libre,
+      quantity: Number(q.quantity || 0), reserved: Number(q.reserved_quantity || 0) });
   });
   const s3Items = Object.values(s3Map).map(e => ({ ...e, unidadesBinVendible: Math.round(e.unidadesBinVendible * 100) / 100 }));
-  const s3 = { count: s3Items.length, items: s3Items };
+  const s3Unavailable = failedSource('stock-vendible', 'mapa-interno', 'staging-ubicaciones');
+  const s3 = { status: s3Unavailable ? 'unavailable' : 'fresh',
+    count: s3Unavailable ? null : s3Items.length, items: s3Unavailable ? [] : s3Items,
+    definition: 'Huérfano en tránsito + stock libre en bin interno final (cantidad física menos reservada); excluye staging, nodos padre, raíces, obsoleto, diferencias, daños, consignación y showroom.',
+    confiabilidad: hasSellableAllowlist ? 'alta' : 'media',
+    metodo: hasSellableAllowlist ? 'allowlist explícita INV_SELLABLE_LOCATION_IDS + exclusiones duras' : 'heurística por jerarquía y exclusión de nombres; no usar como gate automático sin allowlist',
+    allowlistConfigured: hasSellableAllowlist };
 
   // ── Manos: líneas accionables (SKU×ubicación distintas) ──
-  let casos = []; try { casos = loadInvCasos(); } catch (_e) {}
+  let casos = [];
+  try { casos = loadInvCasos(); }
+  catch (e) { sourceFailures.push({ source: 'casos-locales', error: e.message || String(e) }); }
   const enCasoTransito = new Set();
   casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => { if (it.tipo === 'transito' && it.productId != null) enCasoTransito.add(it.productId + ':' + (it.locId != null ? it.locId : '')); }); });
-  const huerfanosSinCaso = orphanItems.filter(i => !enCasoTransito.has(i.prodId + ':' + i.locId)).length;
-  const negativosAccionables = negativos.filter(n => acdpSet.has(n.locId) || stagingSet.has(n.locId)).length;
-  const stagingViejo = stagingQuants.filter(q => { const age = ageDaysOf(stagingAge[q.location_id[0] + ':' + q.product_id[0]], q.in_date); return age != null && age > 30; }).length;
-  const manosTotal = huerfanosSinCaso + negativosAccionables + stagingViejo;
+  const huerfanosSinCaso = failedSource('casos-locales') ? null : orphanItems.filter(i => !enCasoTransito.has(i.prodId + ':' + i.locId)).length;
+  const negAccUnavailable = !!(foto && foto.unavailable) || failedSource('arbol-acdp', 'staging-ubicaciones');
+  const negativosAccionables = negAccUnavailable ? null : negativos.filter(n => acdpSet.has(n.locId) || stagingSet.has(n.locId)).length;
+  const stagingViejoUnavailable = failedSource('staging-ubicaciones', 'staging-stock', 'staging-antiguedad');
+  const stagingViejo = stagingViejoUnavailable ? null : stagingQuants.filter(q => { const age = ageDaysOf(stagingAge[q.location_id[0] + ':' + q.product_id[0]], q.in_date); return age != null && age > 30; }).length;
+  const manosParts = [huerfanosSinCaso, negativosAccionables, stagingViejo];
+  const manosTotal = manosParts.every(Number.isFinite) ? manosParts.reduce((a, b) => a + b, 0) : null;
+  const manosStatus = manosTotal == null ? 'unavailable' : ((foto && foto.stale) ? 'stale' : 'fresh');
 
   // ── driver = componente con mayor penalización, en texto humano ──
   const fiabComps = [
@@ -6570,27 +6836,106 @@ async function computeInvPanorama() {
   let snaps = []; try { snaps = loadInvSnapshots(); } catch (_e) {}
   const todayStr = nowRD().toISOString().slice(0, 10);
   const prevSnap = snaps.filter(s => s.fecha < todayStr).slice(-1)[0] || null;
-  const deltaFiab = (prevSnap && prevSnap.scores) ? (fiabScore - prevSnap.scores.fiabilidad.score) : null;
-  const deltaHig = (prevSnap && prevSnap.scores) ? (higScore - prevSnap.scores.higiene.score) : null;
-  const deltaManos = (prevSnap && prevSnap.manos) ? (manosTotal - prevSnap.manos.total) : null;
+  const deltaFiab = (fiabScore != null && prevSnap && prevSnap.scores) ? (fiabScore - prevSnap.scores.fiabilidad.score) : null;
+  const deltaHig = (higScore != null && prevSnap && prevSnap.scores) ? (higScore - prevSnap.scores.higiene.score) : null;
+  const deltaManos = (manosTotal != null && prevSnap && prevSnap.manos && prevSnap.manos.total != null) ? (manosTotal - prevSnap.manos.total) : null;
 
   const pano = {
     ok: true, generatedAt: new Date().toISOString(), ts: nowMs,
+    dataAsOf: foto && foto.ts ? new Date(foto.ts).toISOString() : null,
+    dataQuality: {
+      status: sourceFailures.length ? ((sourceFailures.length === 1 && sourceFailures[0].source === 'negativos' && foto && foto.stale && !foto.unavailable) ? 'stale' : 'degraded') : 'fresh',
+      complete: sourceFailures.length === 0,
+      warnings: sourceFailures,
+      sources: {
+        negativos: { status: foto && foto.unavailable ? 'unavailable' : (foto && foto.stale ? 'stale' : 'fresh'), asOf: foto && foto.ts ? new Date(foto.ts).toISOString() : null },
+        transitos: { status: 'fresh', asOf: new Date(nowMs).toISOString() },
+        higiene: { status: higIncomplete ? 'degraded' : 'fresh', asOf: new Date(nowMs).toISOString() },
+        s2: { status: s2Status, asOf: foto && foto.ts ? new Date(foto.ts).toISOString() : null },
+        s3: { status: s3.status, asOf: new Date(nowMs).toISOString() },
+        manos: { status: manosStatus, asOf: new Date(nowMs).toISOString() }
+      }
+    },
     scores: {
-      fiabilidad: { score: fiabScore, zona: invZona(fiabScore), delta: deltaFiab, driver: fiabComps[0].txt,
+      fiabilidad: { score: fiabScore, zona: fiabScore == null ? 'sin-datos' : invZona(fiabScore), delta: deltaFiab, driver: fiabComps[0].txt,
         comp: { negativosU, huerfanosU, stagingU } },
-      higiene: { score: higScore, zona: invZona(higScore), delta: deltaHig, driver: higComps[0].txt,
+      higiene: { score: higScore, zona: higScore == null ? 'sin-datos' : invZona(higScore), delta: deltaHig, driver: higComps[0].txt,
         comp: { fueraArbolU, muertoU, duplicadosPct, virtualesU } }
     },
-    manos: { total: manosTotal, delta: deltaManos, breakdown: { huerfanosSinCaso, negativosAccionables, stagingViejo } },
+    manos: { status: manosStatus, total: manosTotal, delta: deltaManos,
+      breakdown: { huerfanosSinCaso, negativosAccionables, stagingViejo },
+      breakdownStatus: {
+        huerfanosSinCaso: { status: huerfanosSinCaso == null ? 'unavailable' : 'fresh', value: huerfanosSinCaso },
+        negativosAccionables: { status: negativosAccionables == null ? 'unavailable' : ((foto && foto.stale) ? 'stale' : 'fresh'), value: negativosAccionables },
+        stagingViejo: { status: stagingViejo == null ? 'unavailable' : 'fresh', value: stagingViejo }
+      } },
     senales: {
-      s1,
-      s2: { count: s2Items.length, unidades: Math.round(s2Neg.reduce((s, n) => s + Math.abs(n.qty), 0) * 100) / 100, nodos: s2Nodos, items: s2Items },
+      s1: { ...s1, status: 'fresh' },
+      s2: { status: s2Status,
+        count: s2Unavailable ? null : s2Items.length,
+        unidades: s2Unavailable ? null : Math.round(s2Neg.reduce((s, n) => s + Math.abs(n.qty), 0) * 100) / 100,
+        nodos: s2Unavailable ? [] : s2Nodos, items: s2Unavailable ? [] : s2Items },
       s3
     }
   };
-  const meta = { reservadasTransito: tm.totals.unidadesPendientes, acdpNegativos, duplicadosPct, orphanItems, odooStale: !!(foto && foto.stale) };
+  const meta = { reservadasTransito: tm.totals.unidadesPendientes, acdpNegativos, duplicadosPct, orphanItems,
+    odooStale: !!(foto && foto.stale), dataComplete: sourceFailures.length === 0, sourceFailures };
   return { pano, meta };
+}
+
+// Cache corto + coalescing del panorama. Una carga normal nunca duplica la misma
+// ráfaga de consultas Odoo; un refresh forzado que llega durante una carga normal
+// se encola una sola vez y vuelve a calcular al terminar (sujeto al throttle de
+// 30 s de la foto de negativos). Los resultados degradados viven menos tiempo.
+let _invPanoCache = { ts: 0, result: null };
+let _invPanoBusy = null;       // { force, promise }
+let _invPanoForceQueued = null;
+const INV_PANO_TTL = 45 * 1000;
+const INV_PANO_DEGRADED_TTL = 10 * 1000;
+const INV_PANO_FORCE_MIN = 5 * 1000;
+const INV_PANO_RUN_TIMEOUT = Math.max(1000, Math.min(120000,
+  parseInt(process.env.INV_PANO_RUN_TIMEOUT_MS, 10) || 18000));
+
+function invPanoDelivery(result, mode, ageMs) {
+  return { pano: { ...result.pano, delivery: { mode, cacheAgeMs: Math.max(0, ageMs || 0) } }, meta: result.meta };
+}
+
+async function invGetPanorama(force, bypassCache) {
+  const age = Date.now() - _invPanoCache.ts;
+  if (!bypassCache && _invPanoCache.result) {
+    const healthy = _invPanoCache.result.meta.dataComplete && !_invPanoCache.result.meta.odooStale;
+    const ttl = force ? INV_PANO_FORCE_MIN : (healthy ? INV_PANO_TTL : INV_PANO_DEGRADED_TTL);
+    if (age < ttl) return invPanoDelivery(_invPanoCache.result, 'cache', age);
+  }
+  if (_invPanoBusy) {
+    if (!force || _invPanoBusy.force) return _invPanoBusy.promise;
+    if (!_invPanoForceQueued) {
+      const preceding = _invPanoBusy;
+      _invPanoForceQueued = preceding.promise.catch(() => null)
+        .then(() => {
+          // El trabajo precedente ya terminó aunque su caller aún no haya
+          // ejecutado el finally que limpia el marcador.
+          if (_invPanoBusy === preceding) _invPanoBusy = null;
+          return invGetPanorama(true, true);
+        })
+        .finally(() => { _invPanoForceQueued = null; });
+    }
+    return _invPanoForceQueued;
+  }
+  const run = (async () => {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Timeout interno del panorama de Inventario')), INV_PANO_RUN_TIMEOUT);
+    });
+    let result;
+    try { result = await Promise.race([computeInvPanorama(!!force), timeout]); }
+    finally { clearTimeout(timer); }
+    _invPanoCache = { ts: Date.now(), result };
+    return invPanoDelivery(result, 'live', 0);
+  })();
+  _invPanoBusy = { force: !!force, promise: run };
+  try { return await run; }
+  finally { if (_invPanoBusy && _invPanoBusy.promise === run) _invPanoBusy = null; }
 }
 
 // Objeto snapshot del día (dedupe por fecha; 90 días de historia). Carga todo lo
@@ -6644,6 +6989,34 @@ function invReconcileTransito(orphanItems) {
   return changed;
 }
 
+// Reconciliación dedicada: reemplaza la antigua escritura incidental desde GET.
+// Corre con una cadencia moderada, es idempotente y se puede desactivar con
+// INV_TRANSIT_RECON_MINUTES=0. Si Odoo o una consulta paginada falla, no escribe.
+const _invTransitReconConfigured = parseInt(process.env.INV_TRANSIT_RECON_MINUTES, 10);
+const INV_TRANSIT_RECON_MINUTES = Number.isFinite(_invTransitReconConfigured)
+  ? Math.max(0, Math.min(1440, _invTransitReconConfigured)) : 30;
+let _invTransitReconBusy = false;
+async function invTransitReconcileRun() {
+  if (!INV_TRANSIT_RECON_MINUTES || _invTransitReconBusy) return null;
+  _invTransitReconBusy = true;
+  try {
+    const tm = await invGetTransitMonitor(false);
+    const orphanItems = [];
+    for (const loc of (tm.locations || [])) for (const it of (loc.items || [])) {
+      if (Number(it.qtyHuerfana || 0) > 0) orphanItems.push({ ...it, locId: loc.id, locName: loc.name });
+    }
+    return invReconcileTransito(orphanItems);
+  } catch (e) {
+    console.warn('[inv-transito-recon]', e.message);
+    return null;
+  } finally {
+    _invTransitReconBusy = false;
+  }
+}
+if (INV_TRANSIT_RECON_MINUTES > 0) {
+  setInterval(invTransitReconcileRun, INV_TRANSIT_RECON_MINUTES * 60 * 1000);
+}
+
 // Notificación por DELTAS: compara el snapshot nuevo vs el anterior y notifica SOLO
 // lo nuevo (nuevo negativo en ubicación viva, nuevo huérfano, A-CDP rompe línea
 // base, manos subieron). Nunca alarma por el stock completo. Canal existente.
@@ -6685,9 +7058,12 @@ async function invSnapshotRun(forceRun) {
   if (_invSnapBusy) return null;
   _invSnapBusy = true;
   try {
-    const { pano, meta } = await Promise.race([computeInvPanorama(),
+    const { pano, meta } = await Promise.race([invGetPanorama(!!forceRun),
       new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), 25000))]);
-    if (meta.odooStale) { console.warn('[inv-snapshot] Odoo stale — no se guarda una foto con datos viejos'); return null; }
+    // La reconciliación de tránsito depende solo del monitor, no de higiene ni
+    // de la foto de negativos; ejecutarla aunque una fuente secundaria degrade.
+    try { invReconcileTransito(meta.orphanItems); } catch (e) { console.warn('[inv-transito-recon]', e.message); }
+    if (meta.odooStale || !meta.dataComplete) { console.warn('[inv-snapshot] fuentes stale/incompletas — no se guarda una foto no comparable'); return null; }
     // Kardex PROFUNDO solo de los que disparan señal (pocas decenas). Se prioriza
     // s1 (huérfanos con culpable claro tipo "No crear backorder") y s2 (negativos
     // de nodo); s3 se registra sin re-kardex (culprit:null). Chunked para no
@@ -6712,7 +7088,6 @@ async function invSnapshotRun(forceRun) {
     while (list.length > 90) list.shift();
     saveInvSnapshots(list);
     if (!forceRun) _invSnapFiredDate = nowRD().toISOString().slice(0, 10);
-    try { invReconcileTransito(meta.orphanItems); } catch (e) { console.warn('[inv-transito-recon]', e.message); }
     try { invNotifyDeltas(prev, snap); } catch (e) { console.warn('[inv-snapshot deltas]', e.message); }
     console.log('[inv-snapshot] foto ' + snap.fecha + ' guardada (fiab ' + snap.scores.fiabilidad.score + ', hig ' + snap.scores.higiene.score + ', manos ' + snap.manos.total + ', flagged ' + flagged.length + ')');
     return { fecha: snap.fecha, scores: snap.scores, manos: snap.manos, flagged: flagged.length };
@@ -6729,10 +7104,18 @@ setInterval(() => { invSnapshotRun(false); }, 60_000);
 let odooUid  = null;
 let authBusy = false;
 const authQueue = [];
+const ODOO_RPC_TIMEOUT_MS = Math.max(500, Math.min(120000,
+  parseInt(process.env.ODOO_RPC_TIMEOUT_MS, 10) || 20000));
 
 // ── JSON-RPC helper ──────────────────────────────────────────────────────────
 function odooRpc(endpoint, params) {
   return new Promise((resolve, reject) => {
+    let timeoutHandle = null;
+    const finish = (fn, value) => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+      fn(value);
+    };
     const body = JSON.stringify({
       jsonrpc: '2.0', id: Date.now(), method: 'call', params
     });
@@ -6753,12 +7136,16 @@ function odooRpc(endpoint, params) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          if (json.error) reject(new Error(json.error.data?.message || JSON.stringify(json.error)));
-          else resolve(json.result);
-        } catch (e) { reject(e); }
+          if (json.error) finish(reject, new Error(json.error.data?.message || JSON.stringify(json.error)));
+          else finish(resolve, json.result);
+        } catch (e) { finish(reject, e); }
       });
+      res.on('error', e => finish(reject, e));
     });
-    req.on('error', reject);
+    req.on('error', e => finish(reject, e));
+    timeoutHandle = setTimeout(() => {
+      req.destroy(new Error('Timeout Odoo RPC (' + ODOO_RPC_TIMEOUT_MS + ' ms)'));
+    }, ODOO_RPC_TIMEOUT_MS);
     req.write(body);
     req.end();
   });
@@ -8899,10 +9286,12 @@ const server = http.createServer(async (req, res) => {
   //     la mercancía quedó sin ruta de salida (fuga real que hay que recuperar).
   if (reqPath === '/api/transit/monitor' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
-      // La lógica vive en computeTransitMonitor() (top-level) para que el panorama
-      // (señal s1) la reutilice sin duplicar. Aquí solo el timeout + la envoltura.
-      const out = await Promise.race([computeTransitMonitor(),
+      // Panorama y esta pestaña comparten una corrida en vuelo para no duplicar
+      // consultas pesadas durante un refresh total.
+      const force = parsed.query.refresh === '1';
+      const out = await Promise.race([invGetTransitMonitor(force),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), 15000))]);
       sendJson(res, 200, { ok: true, generatedAt: new Date().toISOString(), ...out });
     } catch (e) {
@@ -9134,7 +9523,7 @@ const server = http.createServer(async (req, res) => {
   // de casos (solo con datos frescos) + negativos sin caso + KPIs.
   if (reqPath === '/api/inventario/salud' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const force = parsed.query.refresh === '1';
       let foto, odooOk = true, odooError = null;
@@ -9143,11 +9532,15 @@ const server = http.createServer(async (req, res) => {
         if (foto.stale) { odooOk = false; odooError = foto.error || 'Odoo no disponible'; }
       } catch (e) {
         odooOk = false; odooError = e.message;
-        foto = { negativos: [], recepciones: [], ts: 0, stale: true };
+        foto = { negativos: [], recepciones: [], ts: 0, stale: true, unavailable: true };
       }
-      const casos = loadInvCasos();
-      if (odooOk && invConciliar(casos, foto.negativos)) saveInvCasos(casos);
-      const sinCaso = invComputeSinCaso(casos, foto.negativos);
+      const hasFoto = !foto.unavailable && !!foto.ts && Array.isArray(foto.negativos) && Array.isArray(foto.recepciones);
+      // Conciliar una copia mantiene la respuesta al día (incluida una
+      // reaparición) sin convertir el GET en una escritura ni arriesgar una
+      // edición concurrente. La persistencia sigue a cargo de los jobs/acciones.
+      const casos = JSON.parse(JSON.stringify(loadInvCasos()));
+      if (hasFoto) invConciliar(casos, foto.negativos);
+      const sinCaso = hasFoto ? invComputeSinCaso(casos, foto.negativos) : null;
       const abiertos = casos.filter(c => c.estado === 'abierto');
       const casoRef = abiertos[0] || null; // el abierto más antiguo (orden de creación)
       const avance = (casoRef && (casoRef.items || []).length)
@@ -9157,14 +9550,15 @@ const server = http.createServer(async (req, res) => {
         .map(u => ({ id: u.id, name: u.name, role: u.role }));
       sendGzipJson(req, res, 200, {
         ok: true, ts: foto.ts || null, stale: !!foto.stale, odooOk, odooError,
-        negativos: foto.negativos, recepciones: foto.recepciones,
+        dataQuality: { status: !hasFoto ? 'unavailable' : (foto.stale ? 'stale' : 'fresh'), complete: hasFoto && !foto.stale },
+        negativos: hasFoto ? foto.negativos : null, recepciones: hasFoto ? foto.recepciones : null,
         casos, sinCaso, usuarios,
         kpis: {
-          activos: foto.negativos.length,
-          skus: new Set(foto.negativos.map(n => n.ref)).size,
-          sinCaso: sinCaso.length,
-          recepPend: foto.recepciones.length,
-          recepPend24h: foto.recepciones.filter(r => (r.ageHours || 0) >= 24).length,
+          activos: hasFoto ? foto.negativos.length : null,
+          skus: hasFoto ? new Set(foto.negativos.map(n => n.ref)).size : null,
+          sinCaso: hasFoto ? sinCaso.length : null,
+          recepPend: hasFoto ? foto.recepciones.length : null,
+          recepPend24h: hasFoto ? foto.recepciones.filter(r => (r.ageHours || 0) >= 24).length : null,
           avanceCasoPct: avance,
           avanceCasoTitulo: casoRef ? casoRef.titulo : null
         },
@@ -9187,14 +9581,17 @@ const server = http.createServer(async (req, res) => {
   //     (ej. DIF.PTN, ~855 días) — invisibles al reporte por almacén.
   if (reqPath === '/api/inventario/anomalias' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const timeoutMs = 15000;
       const work = (async () => {
         // 1. Todas las ubicaciones internas
-        const locs = await odooCall('stock.location', 'search_read',
-          [[['usage', '=', 'internal']]],
-          { fields: ['id', 'complete_name', 'name', 'location_id'], limit: 3000 });
+        const locPage = await invSearchReadPaged('stock.location',
+          [['usage', '=', 'internal']],
+          { fields: ['id', 'complete_name', 'name', 'location_id'], order: 'id asc' },
+          { pageSize: 1000, maxRows: 10000 });
+        if (locPage.truncated) throw new Error('Mapa de ubicaciones internas truncado (' + locPage.rows.length + ' de ' + locPage.total + ')');
+        const locs = locPage.rows;
         const byId = {}; locs.forEach(l => { byId[l.id] = l; });
         // Padres internos = ids referenciados como location_id de otra interna
         const parentIds = new Set();
@@ -9207,16 +9604,28 @@ const server = http.createServer(async (req, res) => {
         const rootSet = new Set(rootIds);
 
         // 2. Quants con stock en esos nodos
-        const quants = watchIds.length ? await odooCall('stock.quant', 'search_read',
-          [[['location_id', 'in', watchIds], ['quantity', '!=', 0]]],
-          { fields: ['product_id', 'location_id', 'quantity', 'in_date'], limit: 6000 }) : [];
+        let quants = [];
+        if (watchIds.length) {
+          const quantPage = await invSearchReadPaged('stock.quant',
+            [['location_id', 'in', watchIds], ['quantity', '!=', 0]],
+            { fields: ['product_id', 'location_id', 'quantity', 'in_date'], order: 'id asc' },
+            { pageSize: 1000, maxRows: 30000 });
+          if (quantPage.truncated) throw new Error('Quants estructurales truncados (' + quantPage.rows.length + ' de ' + quantPage.total + ')');
+          quants = quantPage.rows;
+        }
         const prodIds = [...new Set(quants.map(q => q.product_id[0]))];
 
         // 3. Antigüedad = move 'done' más reciente hacia la ubicación (fecha de
         //    transferencia; NO in_date FIFO que da falsos de cientos de días)
-        const inMoves = prodIds.length ? await odooCall('stock.move', 'search_read',
-          [[['location_dest_id', 'in', watchIds], ['product_id', 'in', prodIds], ['state', '=', 'done']]],
-          { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc', limit: 9000 }) : [];
+        let inMoves = [];
+        if (prodIds.length) {
+          const inPage = await invSearchReadPaged('stock.move',
+            [['location_dest_id', 'in', watchIds], ['product_id', 'in', prodIds], ['state', '=', 'done']],
+            { fields: ['product_id', 'location_dest_id', 'picking_id', 'date'], order: 'date desc, id desc' },
+            { pageSize: 1000, maxRows: 50000 });
+          if (inPage.truncated) throw new Error('Historial estructural truncado (' + inPage.rows.length + ' de ' + inPage.total + ')');
+          inMoves = inPage.rows;
+        }
         const srcByKey = {};
         for (const m of inMoves) {
           const k = m.location_dest_id[0] + ':' + m.product_id[0];
@@ -9229,30 +9638,41 @@ const server = http.createServer(async (req, res) => {
         //     reubicación real (interno→interno) NO aparece aquí. Se vigilan los
         //     nodos padre + las ubicaciones que HOY tienen negativos.
         const ADJ_WINDOW_DAYS = 90;
-        const negLocQuants = await odooCall('stock.quant', 'search_read',
-          [[['quantity', '<', 0], ['location_id.usage', '=', 'internal']]],
-          { fields: ['location_id'], limit: 2000 });
+        const negLocPage = await invSearchReadPaged('stock.quant',
+          [['quantity', '<', 0], ['location_id.usage', '=', 'internal']],
+          { fields: ['location_id'], order: 'id asc' },
+          { pageSize: 1000, maxRows: 10000 });
+        if (negLocPage.truncated) throw new Error('Ubicaciones negativas truncadas (' + negLocPage.rows.length + ' de ' + negLocPage.total + ')');
+        const negLocQuants = negLocPage.rows;
         const negLocIds = [...new Set(negLocQuants
           .filter(q => !/sistema anterior/i.test((q.location_id && q.location_id[1]) || ''))
           .map(q => q.location_id[0]))];
         const adjWatch = [...new Set([...internalParentIds, ...negLocIds])];
         // Ubicación virtual de AJUSTE DE CONTEO puro (no mermas/regalos/roturas)
-        const invAdjLocs = await odooCall('stock.location', 'search_read',
-          [[['usage', '=', 'inventory'], ['complete_name', 'ilike', 'Inventory adjustment']]],
-          { fields: ['id'], limit: 10 });
+        const invAdjPage = await invSearchReadPaged('stock.location',
+          [['usage', '=', 'inventory'], ['complete_name', 'ilike', 'Inventory adjustment']],
+          { fields: ['id'], order: 'id asc' }, { pageSize: 100, maxRows: 1000 });
+        if (invAdjPage.truncated) throw new Error('Ubicaciones de ajuste truncadas (' + invAdjPage.rows.length + ' de ' + invAdjPage.total + ')');
+        const invAdjLocs = invAdjPage.rows;
         const invAdjIds = invAdjLocs.map(l => l.id);
         const sinceAdj = new Date(Date.now() - ADJ_WINDOW_DAYS * 86400000).toISOString().slice(0, 19).replace('T', ' ');
-        const adjMoves = (adjWatch.length && invAdjIds.length) ? await odooCall('stock.move', 'search_read',
-          [['&', '&', ['state', '=', 'done'], ['date', '>=', sinceAdj],
+        let adjMoves = [];
+        if (adjWatch.length && invAdjIds.length) {
+          const adjDomain = ['&', '&', ['state', '=', 'done'], ['date', '>=', sinceAdj],
             '|', '&', ['location_id', 'in', invAdjIds], ['location_dest_id', 'in', adjWatch],
-            '&', ['location_dest_id', 'in', invAdjIds], ['location_id', 'in', adjWatch]]],
-          { fields: ['product_id', 'location_id', 'location_dest_id', 'quantity_done', 'date', 'reference'], order: 'date desc', limit: 300 }) : [];
+            '&', ['location_dest_id', 'in', invAdjIds], ['location_id', 'in', adjWatch]];
+          const adjPage = await invSearchReadPaged('stock.move', adjDomain,
+            { fields: ['product_id', 'location_id', 'location_dest_id', 'quantity_done', 'date', 'reference'], order: 'date desc, id desc' },
+            { pageSize: 1000, maxRows: 20000 });
+          if (adjPage.truncated) throw new Error('Ajustes de conteo truncados (' + adjPage.rows.length + ' de ' + adjPage.total + ')');
+          adjMoves = adjPage.rows;
+        }
         const adjWatchSet = new Set(adjWatch);
 
         // 4. Producto (incluye los de ajustes)
         const allProdIds = [...new Set([...prodIds, ...adjMoves.map(m => m.product_id[0])])];
-        const prods = allProdIds.length ? await odooCall('product.product', 'search_read',
-          [[['id', 'in', allProdIds]]], { fields: ['id', 'default_code', 'name'], limit: 6000 }) : [];
+        const prods = allProdIds.length
+          ? await invReadChunked('product.product', allProdIds, ['id', 'default_code', 'name'], 500) : [];
         const prodMap = {}; prods.forEach(p => { prodMap[p.id] = p; });
 
         const now = Date.now();
@@ -9318,6 +9738,7 @@ const server = http.createServer(async (req, res) => {
 
         return {
           parentNodes, frozenRoots, adjustments, adjWindowDays: ADJ_WINDOW_DAYS,
+          dataQuality: { status: 'fresh', complete: true, truncated: false },
           totals: {
             parentNodesCount: parentNodes.length,
             parentNegativos: parentNodes.reduce((s, l) => s + l.negativos, 0),
@@ -9347,6 +9768,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/inventario/watchdog-run' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const out = await invWatchdog(true);
       sendGzipJson(req, res, 200, { ok: true, resultado: out, gateOff: String(process.env.INV_WATCHDOG || '1') === '0' });
@@ -9361,8 +9783,11 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/inventario/seed-caso-inicial' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
-      const casos = loadInvCasos();
+      const casosBase = loadInvCasos();
+      const casosVersion = invCasosFingerprint(casosBase);
+      const casos = JSON.parse(JSON.stringify(casosBase));
       const created = [], already = [];
       // Hidratar productId/nombre por ref en una sola llamada (fail-soft: si Odoo
       // no responde, la primera conciliación hidrata después).
@@ -9390,7 +9815,13 @@ const server = http.createServer(async (req, res) => {
         });
         created.push(seed.seedKey);
       });
-      if (created.length) saveInvCasos(casos);
+      if (created.length) {
+        if (invCasosFingerprint(loadInvCasos()) !== casosVersion) {
+          sendJson(res, 409, { ok: false, error: 'Los casos cambiaron mientras se consultaba Odoo. Vuelve a ejecutar la siembra para no sobrescribir cambios recientes.' });
+          return;
+        }
+        saveInvCasos(casos);
+      }
       try { appendAuditLog('inv_seed', { created, already, by: jp.userId }); } catch (e) {}
       sendGzipJson(req, res, 200, { ok: true, created, already, casos });
     } catch (e) {
@@ -9403,14 +9834,16 @@ const server = http.createServer(async (req, res) => {
   // ── POST /api/inventario/casos — crear caso ────────────────────────────────
   if (reqPath === '/api/inventario/casos' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const d = await readBody(req);
       const titulo = String(d.titulo || '').trim();
       if (!titulo) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'titulo requerido' })); return; }
       const casos = loadInvCasos();
       const enOtroCaso = new Set();
-      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enOtroCaso.add(it.ref)); });
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => {
+        if (it.tipo !== 'transito') enOtroCaso.add(it.ref);
+      }); });
       const now = new Date().toISOString();
       const omitidos = [], items = [], vistos = new Set();
       (Array.isArray(d.items) ? d.items : []).forEach(raw => {
@@ -9440,7 +9873,7 @@ const server = http.createServer(async (req, res) => {
   // ── POST /api/inventario/casos/:id/items — agregar refs a un caso ──────────
   if (reqPath.startsWith('/api/inventario/casos/') && reqPath.endsWith('/items') && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const parts = reqPath.split('/'); // ['','api','inventario','casos',id,'items']
       if (parts.length !== 6) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return; }
@@ -9450,7 +9883,9 @@ const server = http.createServer(async (req, res) => {
       if (!caso) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Caso no encontrado' })); return; }
       if (caso.estado !== 'abierto') { res.writeHead(409, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'El caso está cerrado' })); return; }
       const enCaso = new Set();
-      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => {
+        if (it.tipo !== 'transito') enCaso.add(it.ref);
+      }); });
       const now = new Date().toISOString();
       const added = [], omitidos = [];
       (Array.isArray(d.items) ? d.items : []).forEach(raw => {
@@ -9475,7 +9910,7 @@ const server = http.createServer(async (req, res) => {
   // ── POST /api/inventario/casos/:id/cerrar — cerrar (o body accion:reabrir) ─
   if (reqPath.startsWith('/api/inventario/casos/') && reqPath.endsWith('/cerrar') && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const parts = reqPath.split('/');
       if (parts.length !== 6) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return; }
@@ -9509,7 +9944,7 @@ const server = http.createServer(async (req, res) => {
   // ── PATCH /api/inventario/casos/:id/items/:itemId — acciones de seguimiento ─
   if (reqPath.startsWith('/api/inventario/casos/') && req.method === 'PATCH') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     const parts = reqPath.split('/'); // ['','api','inventario','casos',id,'items',itemId]
     if (parts.length !== 7 || parts[5] !== 'items') {
       res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Ruta inválida' })); return;
@@ -9520,6 +9955,10 @@ const server = http.createServer(async (req, res) => {
       const casos = loadInvCasos();
       const caso = casos.find(c => c.id === parts[4]);
       if (!caso) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Caso no encontrado' })); return; }
+      if (caso.estado !== 'abierto') {
+        sendJson(res, 409, { ok: false, error: 'El caso está cerrado. Reábrelo antes de modificar sus artículos.' });
+        return;
+      }
       const it = (caso.items || []).find(i => i.itemId === parts[6]);
       if (!it) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Artículo no encontrado' })); return; }
       const now = new Date().toISOString();
@@ -9586,7 +10025,7 @@ const server = http.createServer(async (req, res) => {
   // ── GET /api/inventario/sku/:pid/movimientos — drawer: historial + causa ───
   if (reqPath.startsWith('/api/inventario/sku/') && reqPath.endsWith('/movimientos') && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const parts = reqPath.split('/'); // ['','api','inventario','sku',pid,'movimientos']
       const pid = parseInt(parts[4], 10);
@@ -9594,18 +10033,6 @@ const server = http.createServer(async (req, res) => {
       const locId = parseInt(parsed.query.loc || '', 10) || null;
 
       const result = await invClasificarItem(pid, locId);
-
-      // Hidratación informativa en el item (si se indica): causaAuto/kitPadre/
-      // causaFecha/Origen/Destino/Ref. Nunca toca causa ni seguimiento.
-      const casoId = String(parsed.query.caso || ''), itemId = String(parsed.query.item || '');
-      if (casoId && itemId) {
-        try {
-          const casos = loadInvCasos();
-          const caso = casos.find(c => c.id === casoId);
-          const it = caso && (caso.items || []).find(i => i.itemId === itemId);
-          if (it) { invAplicarClasificacion(it, result); saveInvCasos(casos); }
-        } catch (e) { /* informativo — no bloquea el drawer */ }
-      }
 
       sendGzipJson(req, res, 200, {
         ok: true, moves: invMapMoves(result.movesRaw), totalMoves: result.totalMoves,
@@ -9629,11 +10056,14 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/inventario/auditoria-global' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const foto = await invFetchOdooNegativos(true);
       if (foto.stale) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'Odoo no disponible: ' + (foto.error || 'sin datos frescos') })); return; }
 
-      const casos = loadInvCasos();
+      const casosBase = loadInvCasos();
+      const casosVersion = invCasosFingerprint(casosBase);
+      const casos = JSON.parse(JSON.stringify(casosBase));
       invConciliar(casos, foto.negativos);
 
       const negByRef = new Map();
@@ -9652,7 +10082,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       const enCaso = new Set();
-      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => enCaso.add(it.ref)); });
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => {
+        if (it.tipo !== 'transito') enCaso.add(it.ref);
+      }); });
       let agregados = 0;
       foto.negativos.forEach(n => {
         if (enCaso.has(n.ref)) return;
@@ -9665,7 +10097,9 @@ const server = http.createServer(async (req, res) => {
       // de cada caso abierto que siga negativo hoy — en bloques para no
       // martillar Odoo con decenas de llamadas simultáneas.
       const targets = [];
-      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => { if (negByRef.has(it.ref) && it.productId) targets.push(it); }); });
+      casos.forEach(c => { if (c.estado === 'abierto') (c.items || []).forEach(it => {
+        if (it.tipo !== 'transito' && negByRef.has(it.ref) && it.productId) targets.push(it);
+      }); });
       let clasificados = 0;
       for (const grupo of invChunk(targets, 6)) {
         await Promise.all(grupo.map(async (it) => {
@@ -9679,6 +10113,10 @@ const server = http.createServer(async (req, res) => {
         }));
       }
 
+      if (invCasosFingerprint(loadInvCasos()) !== casosVersion) {
+        sendJson(res, 409, { ok: false, error: 'Los casos cambiaron durante la auditoría. No se sobrescribió ninguna edición; vuelve a ejecutarla.' });
+        return;
+      }
       saveInvCasos(casos);
       try { appendAuditLog('inv_auditoria_global', { totalNegativos: foto.negativos.length, refsUnicos: negByRef.size, agregados, clasificados, by: jp.userId }); } catch (e) {}
       sendGzipJson(req, res, 200, {
@@ -9696,13 +10134,11 @@ const server = http.createServer(async (req, res) => {
   // ── GET /api/inventario/panorama — puntajes + manos + 3 señales ────────────
   if (reqPath === '/api/inventario/panorama' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
-      const { pano, meta } = await Promise.race([computeInvPanorama(),
+      const force = parsed.query.refresh === '1';
+      const { pano, meta } = await Promise.race([invGetPanorama(force),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout Odoo')), 15000))]);
-      // Auto-cierre de ítems de caso tipo tránsito con los huérfanos ya calculados
-      // (costo Odoo cero; precedente: /salud concilia en el GET).
-      try { invReconcileTransito(meta.orphanItems); } catch (_e) {}
       sendGzipJson(req, res, 200, pano);
     } catch (e) {
       const to = /Timeout/.test(e.message);
@@ -9714,7 +10150,7 @@ const server = http.createServer(async (req, res) => {
   // ── GET /api/inventario/kardex/:pid — historial + culpable (bajo demanda) ──
   if (reqPath.match(/^\/api\/inventario\/kardex\/\d+$/) && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const pid = parseInt(reqPath.split('/').pop(), 10);
       const out = await Promise.race([invBuildKardex(pid),
@@ -9732,7 +10168,7 @@ const server = http.createServer(async (req, res) => {
   // fallback a template). Cache-Control private/1 día por contrato.
   if (reqPath.match(/^\/api\/inventario\/img\/\d+$/) && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const buf = await getProductPhotoBuf(reqPath.split('/').pop());
       if (!buf) { res.writeHead(404); res.end(); return; }
@@ -9745,7 +10181,7 @@ const server = http.createServer(async (req, res) => {
   // ── GET /api/inventario/tendencia?dias=30 — serie desde los snapshots ──────
   if (reqPath === '/api/inventario/tendencia' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const dias = Math.max(1, Math.min(90, parseInt(parsed.query.dias, 10) || 30));
       const all = loadInvSnapshots();
@@ -9784,6 +10220,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/inventario/snapshot-run' && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     if (!requireRole(jp, res, ['admin'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const out = await invSnapshotRun(true);
       sendGzipJson(req, res, 200, { ok: true, resultado: out });
@@ -9796,7 +10233,7 @@ const server = http.createServer(async (req, res) => {
   // con trazabilidad origen/destino/picking. Bumpea updatedAt del caso.
   if (reqPath.startsWith('/api/inventario/casos/') && reqPath.endsWith('/transito') && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+    if (!requireSectionPerm(jp, res, 'inventario')) return;
     try {
       const parts = reqPath.split('/'); // ['','api','inventario','casos',id,'transito']
       if (parts.length !== 6) { sendJson(res, 404, { ok: false, error: 'Ruta inválida' }); return; }

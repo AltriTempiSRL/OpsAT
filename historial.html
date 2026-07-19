@@ -6603,6 +6603,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
          Reemplaza "Monitor de Tránsitos" + "Salud de Inventario".
          ══════════════════════════════════════════════════ -->
     <style id="invd-styles">
+      #section-inventario,.invd-modal-scope{--text-3:#556579}
+      [data-theme='dark'] #section-inventario,[data-theme='dark'] .invd-modal-scope{--text-3:#aeb9c7}
       .invd-panel[hidden]{display:none!important}
       .invd-hero-grid{display:grid;grid-template-columns:minmax(150px,.8fr) 1.55fr 1fr;gap:12px;align-items:stretch;margin-bottom:12px}
       @media(max-width:860px){.invd-hero-grid{grid-template-columns:1fr}}
@@ -6635,7 +6637,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       .invd-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface-2)}
       .invd-manos-n{font-size:34px;font-weight:800;line-height:1;color:var(--text)}
       .invd-kpi{flex:1 1 140px;min-width:128px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface-2);cursor:pointer;transition:transform .12s,background .12s;border-left-width:4px}
+      button.invd-kpi{font-family:inherit;text-align:left;color:inherit}
       .invd-kpi:hover{background:var(--surface);transform:translateY(-1px)}
+      .invd-kpi:focus-visible,.invd-action-band:focus-visible,.invd-wl-group:focus-visible,.invd-chip:focus-visible,.invd-search-result:focus-visible,.invd-wl-more:focus-visible,.invd-inline-kpi:focus-visible{outline:3px solid var(--border-focus);outline-offset:2px}
       .invd-kpi.active{box-shadow:0 0 0 2px var(--accent) inset}
       .invd-kpi-v{font-size:22px;font-weight:800;line-height:1;color:var(--text)}
       .invd-kpi-l{font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.3}
@@ -6651,10 +6655,49 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       .invd-badge.huer{background:var(--red-bg);color:var(--red-text)}
       .invd-badge.pend{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border)}
       .invd-chip{font-size:11px;padding:4px 11px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface-2);color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+      button.invd-chip{font-family:inherit;line-height:1.35}
       .invd-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
       .invd-kx-row{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-left:3px solid var(--border);margin-bottom:2px}
       .invd-kx-row.culprit{border-left-color:var(--red-text);background:var(--red-bg);border-radius:0 8px 8px 0}
       .invd-src{color:var(--text-secondary)}
+      .invd-quality{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:12px;font-size:12px;line-height:1.45}
+      .invd-quality.stale{background:var(--amber-bg);border:1px solid var(--amber-dot);color:var(--amber-text)}
+      .invd-quality.degraded{background:var(--red-bg);border:1px solid var(--red-dot);color:var(--red-text)}
+      .invd-source-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2);color:var(--text-2);font-size:10.5px;font-weight:650}
+      .invd-source-dot{width:7px;height:7px;border-radius:50%;background:var(--green-dot)}
+      .invd-source-chip.stale .invd-source-dot{background:var(--amber-dot)}
+      .invd-source-chip.degraded .invd-source-dot,.invd-source-chip.unavailable .invd-source-dot{background:var(--red-dot)}
+      .invd-action-band{width:100%;border:1px solid var(--red-dot);background:var(--red-bg);color:var(--red-text);border-radius:10px;padding:10px 14px;font:600 12.5px/1.4 inherit;cursor:pointer;display:flex;align-items:center;gap:8px;text-align:left}
+      button.invd-wl-group{width:100%;font-family:inherit;text-align:left;border:0;color:inherit}
+      .invd-kpi-meta{font-size:10px;color:var(--text-3);margin-top:3px}
+      .invd-search-results{display:grid;gap:6px;margin-top:8px;max-width:760px}
+      .invd-search-result{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:inherit;text-align:left;cursor:pointer}
+      .invd-search-result:hover{background:var(--surface-2)}
+      .invd-search-result>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+      .invd-inline-kpi{appearance:none;border:0;background:transparent;color:inherit;font:inherit;text-align:left;padding:2px;border-radius:6px;cursor:pointer}
+      .invd-wl-more{display:block;width:100%;border:0;background:transparent;text-align:left;font-family:inherit}
+      .invd-row-action:focus-visible td{box-shadow:inset 0 2px 0 var(--border-focus),inset 0 -2px 0 var(--border-focus)}
+      .invd-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+      .invd-modal-open{overflow:hidden}
+      .invd-trend-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+      .invd-scope-note{font-size:11px;color:var(--text-3);line-height:1.5;margin:-3px 0 12px;padding:8px 10px;border-left:3px solid var(--border);background:var(--surface-2);border-radius:0 7px 7px 0}
+      #invd-tabs{overflow-x:auto;max-width:100%;scrollbar-width:thin}
+      #invd-tabs .wwp-tab{flex:none}
+      @media(max-width:720px){
+        #invd-tabs{flex-wrap:wrap;overflow-x:visible}
+        #invd-tabs .wwp-tab{flex:1 0 calc(50% - 4px);min-height:42px;padding:7px 9px}
+        .invd-wl-box{overflow-x:auto}
+        .invd-wl-hdr{position:sticky;left:0;z-index:1;background:var(--surface)}
+        .invd-fixed-tbl{min-width:620px}
+        .invd-fixed-tbl.invd-worklist-tbl{min-width:430px}
+        .invd-trend-grid{grid-template-columns:1fr}
+        .invd-search-result{flex-wrap:wrap}
+        .invd-search-result .invd-search-ref{min-width:105px!important}
+        .invd-chip{min-height:38px}
+        .eo-det-overlay.invd-modal-scope{align-items:flex-end;padding:0}
+        .eo-det-modal.invd-modal-dialog{max-width:none;max-height:94dvh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+      }
+      @media(prefers-reduced-motion:reduce){.invd-side-card.flash{animation:none}.invd-kpi{transition:none}}
     </style>
     <div id="section-inventario" class="page-section" style="display:none">
 
@@ -6666,7 +6709,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             Inventario
           </h2>
           <p style="margin:0;font-size:12px;color:var(--text-3);max-width:680px">
-            Salud del inventario en todas las localidades: fiabilidad operativa, tránsitos como transferencias incompletas, anomalías estructurales y cuadre por artículo. Foto de Odoo (solo lectura).
+            Prioriza lo que debe resolverse hoy y separa la fiabilidad para despachar de la higiene estructural de Odoo. La plataforma no modifica existencias en Odoo.
           </p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -6682,8 +6725,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
 
       <!-- Banner error / datos stale -->
-      <div id="invd-banner"></div>
-      <div id="inv-banner"></div>
+      <div id="invd-banner" aria-live="polite"></div>
+      <div id="inv-banner" aria-live="polite"></div>
 
       <!-- HERO: manos que cerrar + 2 medidores -->
       <div id="invd-hero"></div>
@@ -6691,19 +6734,23 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <!-- PULSO: KPI cards clicables -->
       <div id="invd-pulso" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
 
+      <div id="invd-scope-note" class="invd-scope-note">
+        <strong>Cómo leer los negativos:</strong> “activos” incluye todas las líneas negativas de Odoo; “operativos” limita la acción diaria a A-CDP y staging; “en nodos padre” es el subconjunto estructural causado por registrar stock directamente en ubicaciones con bins hijos.
+      </div>
+
       <!-- BANDA accionables -->
       <div id="invd-banda" style="margin-bottom:14px"></div>
 
       <!-- TABS -->
-      <div class="wwp-tabs" id="invd-tabs">
-        <button class="wwp-tab active" data-invtab="fiabilidad" onclick="invdTab('fiabilidad')">Fiabilidad</button>
-        <button class="wwp-tab" data-invtab="transitos" onclick="invdTab('transitos')">Tránsitos</button>
-        <button class="wwp-tab" data-invtab="estructural" onclick="invdTab('estructural')">Estructural</button>
-        <button class="wwp-tab" data-invtab="cuadre" onclick="invdTab('cuadre')">Cuadre por artículo</button>
+      <div class="wwp-tabs" id="invd-tabs" role="tablist" aria-label="Vistas de inventario" onkeydown="invdTabKey(event)">
+        <button id="invd-tab-fiabilidad" class="wwp-tab active" type="button" role="tab" tabindex="0" aria-selected="true" aria-controls="invd-panel-fiabilidad" data-invtab="fiabilidad" onclick="invdTab('fiabilidad')">Prioridades</button>
+        <button id="invd-tab-transitos" class="wwp-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="invd-panel-transitos" data-invtab="transitos" onclick="invdTab('transitos')">Tránsitos</button>
+        <button id="invd-tab-estructural" class="wwp-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="invd-panel-estructural" data-invtab="estructural" onclick="invdTab('estructural')">Estructura Odoo</button>
+        <button id="invd-tab-cuadre" class="wwp-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="invd-panel-cuadre" data-invtab="cuadre" onclick="invdTab('cuadre')">Cuadre por artículo</button>
       </div>
 
       <!-- PANEL: Fiabilidad (reusa el motor de Salud de Inventario) -->
-      <div id="invd-panel-fiabilidad" class="invd-panel">
+      <div id="invd-panel-fiabilidad" class="invd-panel" role="tabpanel" aria-labelledby="invd-tab-fiabilidad" tabindex="0">
         <div id="inv-kpis"></div>
         <div id="inv-sincaso" style="margin-bottom:16px"></div>
         <div id="inv-recepciones" style="margin-bottom:16px"></div>
@@ -6711,19 +6758,19 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
 
       <!-- PANEL: Tránsitos (transferencias incompletas, enriquecido) -->
-      <div id="invd-panel-transitos" class="invd-panel" hidden>
+      <div id="invd-panel-transitos" class="invd-panel" role="tabpanel" aria-labelledby="invd-tab-transitos" tabindex="0" hidden>
         <div id="invd-transit-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
         <div id="invd-transit-body"></div>
       </div>
 
       <!-- PANEL: Estructural (anomalías de ubicaciones + duplicados de catálogo) -->
-      <div id="invd-panel-estructural" class="invd-panel" hidden>
+      <div id="invd-panel-estructural" class="invd-panel" role="tabpanel" aria-labelledby="invd-tab-estructural" tabindex="0" hidden>
         <div id="inv-anomalias" style="margin-bottom:16px"></div>
         <div id="invd-duplicados"></div>
       </div>
 
       <!-- PANEL: Cuadre por artículo (kardex + transacción culpable) -->
-      <div id="invd-panel-cuadre" class="invd-panel" hidden>
+      <div id="invd-panel-cuadre" class="invd-panel" role="tabpanel" aria-labelledby="invd-tab-cuadre" tabindex="0" hidden>
         <div id="invd-cuadre-search" style="margin-bottom:12px"></div>
         <div id="invd-cuadre-body"></div>
       </div>
@@ -8983,7 +9030,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v202';
+var APP_BUILD = 'v203';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9063,13 +9110,17 @@ function can(perm) {
   return !!(PERMISSIONS[perm]||[]).includes(_user.role);
 }
 
+// Secciones operativas habilitadas por defecto para manager. Una clave `false`
+// explícita en sectionPerms siempre prevalece sobre este valor por defecto.
+var _MANAGER_AUTO_GRANT_SECTIONS = ['sdv-bandeja', 'sdv-portal', 'estado-ordenes', 'inventario'];
+
 /** Devuelve true si el usuario puede ver la sección del historial indicada */
 function canSection(key) {
   if (!_user) return false;
   if (_user.role === 'admin') return true;
   // Manager: auto-grant para ops, pero sectionPerms puede overridear (false explícito lo bloquea)
   var sp = _user.sectionPerms || {};
-  if (_user.role === 'manager' && (key === 'sdv-bandeja' || key === 'sdv-portal' || key === 'estado-ordenes' || key === 'inventario')) {
+  if (_user.role === 'manager' && _MANAGER_AUTO_GRANT_SECTIONS.includes(key)) {
     return Object.prototype.hasOwnProperty.call(sp, key) ? !!sp[key] : true;
   }
   // estado-ordenes: visible si tiene sdv-portal o sdv-bandeja
@@ -20851,7 +20902,11 @@ function openEditRoleModal(roleId) {
   document.getElementById('rf-admin-note').style.display = (roleId === 'admin') ? '' : 'none';
   document.getElementById('rf-perms-wrap').style.display = (roleId === 'admin') ? 'none' : '';
   document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
-    cb.checked = !!((r.sectionPerms||{})[cb.dataset.perm]);
+    var perms = r.sectionPerms || {};
+    var hasExplicit = Object.prototype.hasOwnProperty.call(perms, cb.dataset.perm);
+    cb.checked = hasExplicit
+      ? !!perms[cb.dataset.perm]
+      : (roleId === 'manager' && _MANAGER_AUTO_GRANT_SECTIONS.includes(cb.dataset.perm));
   });
   document.getElementById('role-modal-error').classList.remove('show');
   document.getElementById('btn-save-role').style.display = (roleId === 'admin') ? 'none' : '';
@@ -20869,11 +20924,10 @@ async function saveRole() {
   errEl.classList.remove('show');
   if (!_editingRole && !name) { showErr(errEl, 'El nombre del rol es requerido'); return; }
   const sectionPerms = {};
-  const _MANAGER_AUTO_GRANT = ['sdv-portal','sdv-bandeja'];
   document.querySelectorAll('#modal-role input[data-perm]').forEach(cb => {
     if (cb.checked) {
       sectionPerms[cb.dataset.perm] = true;
-    } else if (_MANAGER_AUTO_GRANT.includes(cb.dataset.perm)) {
+    } else if (_MANAGER_AUTO_GRANT_SECTIONS.includes(cb.dataset.perm)) {
       // Guardar false explícito para poder anular el auto-grant de manager
       sectionPerms[cb.dataset.perm] = false;
     }
@@ -27030,6 +27084,7 @@ var _invSel  = new Set();       // refs seleccionados en "sin caso"
 var _invWlExpanded = 'A';       // 4b: causa expandida en "Qué corregir hoy"
 var _invWlMoreOpen = {};        // 4b: letra -> bool ("Ver N más" abierto)
 var _invDrawerMov = {};         // itemId → {moves,causa,kit} (cache del drawer)
+var _invSaludSeq = 0;           // descarta respuestas antiguas al refrescar/cambiar de pestaña
 
 var _INV_CAUSAS = {
   'A': { lbl:'A · Kit phantom',        bg:'--purple-bg', tx:'--purple-text', hint:'Componente de kit despachado de más' },
@@ -27070,7 +27125,7 @@ function invFmtDShort(iso) {
   }
   catch(e) { return String(iso).slice(0, 10); }
 }
-// Celda "Transacción que generó el negativo": fecha + origen → destino (compacto),
+// Celda "Movimiento asociado a la racha negativa": fecha + origen → destino (compacto),
 // con la referencia del picking y las ubicaciones completas en el title.
 function invTxCell(it) {
   if (!it.causaFecha) return '<span style="color:var(--text-3)">' + (it.causaAuto === null ? 'sin clasificar' : '—') + '</span>';
@@ -27081,30 +27136,39 @@ function invTxCell(it) {
     (it.causaRef ? '<div style="font-size:10px;color:var(--text-3)">' + esc(it.causaRef) + '</div>' : '');
 }
 
-async function invSaludCargar(force) {
+function invSaludKnown() {
+  return !!(_invData && (_invData.odooOk || (_invData.stale && _invData.ts)));
+}
+
+async function invSaludCargar(force, skipAnom) {
+  var loadSeq = ++_invSaludSeq;
   var kpis = document.getElementById('inv-kpis');
-  if (!kpis) return;
+  if (!kpis) return false;
   var banner = document.getElementById('inv-banner');
   banner.innerHTML = '';
   if (!_invData) {
-    kpis.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Consultando Odoo…</div>';
+    kpis.innerHTML = '<div role="status" style="display:flex;align-items:center;gap:10px;padding:14px;color:var(--text-3);font-size:13px"><span class="spinner" aria-hidden="true"></span>Consultando Odoo…</div>';
     document.getElementById('inv-sincaso').innerHTML = '';
     document.getElementById('inv-recepciones').innerHTML = '';
     document.getElementById('inv-anomalias').innerHTML = '';
     document.getElementById('inv-casos').innerHTML = '';
   }
   // Anomalías estructurales de ubicaciones — fetch independiente, en paralelo
-  invAnomCargar(force);
+  if (!skipAnom) invAnomCargar(force);
   try {
     var r = await authFetch('/api/inventario/salud' + (force ? '?refresh=1' : ''));
     var d = await r.json();
     if (!r.ok || !d.ok) throw new Error(d.error || 'Error al cargar');
+    if (loadSeq !== _invSaludSeq) return false;
     _invData = d;
     _invSel.clear();
     invRenderAll();
+    return true;
   } catch(e) {
+    if (loadSeq !== _invSaludSeq) return false;
     if (!_invData) kpis.innerHTML = '';
-    banner.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar Salud de Inventario: ' + esc(e.message) + '</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invSaludCargar(true)">Reintentar</button></div>';
+    banner.innerHTML = '<div role="alert" style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar Salud de Inventario: ' + esc(e.message) + '</span><button type="button" style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdCargar(true)">Reintentar todas las fuentes</button></div>';
+    return false;
   }
 }
 
@@ -27116,7 +27180,7 @@ function invRenderAll() {
   if (btnAud) btnAud.style.display = (_user && _user.role === 'admin') ? '' : 'none';
   var banner = document.getElementById('inv-banner');
   banner.innerHTML = (!_invData.odooOk)
-    ? '<div style="padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px;margin-bottom:16px"><strong>Odoo no respondió</strong> — mostrando la última foto disponible. ' + esc(_invData.odooError || '') + '</div>'
+    ? '<div role="status" style="padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px;margin-bottom:16px"><strong>Odoo no respondió</strong> — ' + (_invData.ts ? 'mostrando la última foto disponible.' : 'no hay una foto disponible; los valores afectados se muestran como —.') + ' ' + esc(_invData.odooError || '') + '</div>'
     : '';
   invRenderKpis();
   invRenderSinCaso();
@@ -27140,6 +27204,15 @@ var _invdFreshTimer = null;
 var _invdImgObs = null;
 var _invdImgCache = {};      // pid -> dataURL | null
 var _invdTransitFilter = { estado: '' };
+var _invdLoadSeq = 0;
+var _invdTransitSeq = 0;
+var _invAnomSeq = 0;
+var _invdTendSeq = 0;
+var _invdSearchSeq = 0;
+var _invdKardexSeq = 0;
+var _invDetailSeq = 0;
+var _invdStructuralAnchor = '';
+var _invdModalReturnFocus = {};
 
 function invdShort(s){ s = String(s||''); var p = s.split('/'); return (p[p.length-1]||s).trim(); }
 function invdFmtD(s){
@@ -27161,38 +27234,127 @@ function invdDeltaHtml(delta, higherIsWorse){
   return '<span style="color:'+(bad?'var(--red-text)':'var(--green-text)')+'">'+(up?'▲ +':'▼ ')+(Math.round(delta*10)/10)+' vs ayer</span>';
 }
 
+function invdSourceStatus(key){
+  var sources = _invdData && _invdData.dataQuality && _invdData.dataQuality.sources;
+  return (sources && sources[key] && sources[key].status) || 'unavailable';
+}
+function invdHasHardFailure(names){
+  var q = (_invdData && _invdData.dataQuality) || {};
+  var warnings = q.warnings || [];
+  return warnings.some(function(w){
+    if(!w || names.indexOf(w.source) < 0) return false;
+    return !(w.source === 'negativos' && invdSourceStatus('negativos') === 'stale');
+  });
+}
+function invdSignalKnown(key){
+  if(!_invdData) return false;
+  if(key === 's1') return !['unavailable','degraded'].includes(invdSourceStatus('transitos'));
+  if(key === 's2') return !['unavailable','degraded'].includes(invdSourceStatus('negativos')) && !invdHasHardFailure(['jerarquia-negativos']);
+  if(key === 's3') return invdSignalKnown('s1') && !invdHasHardFailure(['stock-vendible','mapa-interno','staging-ubicaciones']);
+  if(key === 'staging') return !invdHasHardFailure(['staging-ubicaciones','staging-stock','staging-antiguedad']);
+  if(key === 'duplicados') return !invdHasHardFailure(['duplicados','catalogo-total']);
+  if(key === 'manos') {
+    var manos = _invdData.manos || {};
+    var manosStatus = manos.status || invdSourceStatus('manos');
+    return !['unavailable','degraded'].includes(manosStatus) && manos.total !== null && manos.total !== undefined;
+  }
+  return false;
+}
+function invdShown(value, known){ return known && value !== null && value !== undefined ? value : '—'; }
+function invdStatusText(st){
+  return ({fresh:'actual',stale:'en caché',degraded:'incompleta',unavailable:'no disponible'})[st] || 'no disponible';
+}
+function invdSetRefreshBusy(busy){
+  var btn = document.getElementById('invd-refresh'); if(!btn) return;
+  btn.disabled = !!busy;
+  btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+  btn.innerHTML = busy
+    ? '<span class="spinner" aria-hidden="true" style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px"></span>Actualizando…'
+    : '<i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar';
+  if(!busy && window.lucide) lucide.createIcons();
+}
+
 async function invdCargar(force){
+  var loadSeq = ++_invdLoadSeq;
   var sec = document.getElementById('section-inventario'); if(!sec) return;
   var bn = document.getElementById('invd-banner');
   var hero = document.getElementById('invd-hero');
+  invdSetRefreshBusy(true);
+  var refreshJobs = [];
+  if(force){
+    _invData = null; _invAnomData = null; _invdTransit = null; _invDrawerMov = {};
+    if(bn) bn.innerHTML = '<div class="invd-quality" role="status"><span class="spinner" aria-hidden="true"></span><div><strong>Actualizando todas las fuentes</strong><div style="margin-top:2px">Panorama, salud, ubicaciones y tránsitos se están consultando de nuevo.</div></div></div>';
+    refreshJobs = [invSaludCargar(true, true), invAnomCargar(true), invdTransitCargar(true)];
+  }
   // Primera carga: placeholder en el hero (antes quedaba un hueco en blanco mientras Odoo respondía)
-  if(!_invdData && hero) hero.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:14px 2px 18px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Cargando panorama de inventario…</div>';
+  if(!_invdData && hero) hero.innerHTML = '<div role="status" style="display:flex;align-items:center;gap:8px;padding:14px 2px 18px;color:var(--text-3);font-size:13px"><span class="spinner" aria-hidden="true"></span>Cargando panorama de inventario…</div>';
   try{
     var r = await authFetch('/api/inventario/panorama'+(force?'?refresh=1':''));
     var d = await r.json();
     if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    if(loadSeq !== _invdLoadSeq) return;
     _invdData = d;
     _invdPanoError = false;
-    if(bn) bn.innerHTML='';
+    invdRenderDataQuality();
     invdRenderHero(); invdRenderPulso(); invdRenderBanda(); invdRenderFresh();
+    invdRenderDuplicados(); invdRenderStagingDetail();
   }catch(e){
+    if(loadSeq !== _invdLoadSeq) return;
     _invdPanoError = true;
     if(!_invdData && hero) hero.innerHTML='';
-    if(bn) bn.innerHTML = '<div style="padding:10px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar el panorama: '+esc(e.message)+'</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdCargar(true)">Reintentar</button></div>';
+    if(bn) bn.innerHTML = '<div role="alert" style="padding:10px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudo cargar el panorama: '+esc(e.message)+'</span><button type="button" style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdCargar(true)">Reintentar</button></div>';
   }
-  invdLoadTab(_invdTab, force);
-  invdTendCargar();
+  if(force) {
+    await Promise.allSettled(refreshJobs);
+    // Salud puede terminar antes que Panorama. Re-renderizar al final garantiza
+    // que KPIs, worklist y columna lateral usen la misma foto consolidada.
+    if(_invData) invRenderAll();
+  }
+  if(loadSeq !== _invdLoadSeq) return;
+  invdLoadTab(_invdTab, false);
+  invdTendCargar(force);
   invdStartFreshTimer();
+  invdSetRefreshBusy(false);
   if(window.lucide) lucide.createIcons();
 }
 
 function invdTab(name){
   _invdTab = name;
-  document.querySelectorAll('#invd-tabs .wwp-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.invtab===name); });
+  document.querySelectorAll('#invd-tabs .wwp-tab').forEach(function(b){
+    var active = b.dataset.invtab===name;
+    b.classList.toggle('active', active); b.setAttribute('aria-selected', active ? 'true' : 'false'); b.tabIndex = active ? 0 : -1;
+  });
   ['fiabilidad','transitos','estructural','cuadre'].forEach(function(t){
     var p = document.getElementById('invd-panel-'+t); if(p) p.hidden = (t!==name);
   });
   invdLoadTab(name, false);
+  if(name === 'estructural'){ invdRenderDuplicados(); invdRenderStagingDetail(); invdScrollStructuralAnchor(); }
+}
+
+function invdTabKey(e){
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+  var tabs = Array.from(document.querySelectorAll('#invd-tabs [role="tab"]'));
+  var idx = tabs.indexOf(document.activeElement); if(idx < 0) return;
+  e.preventDefault();
+  if(e.key === 'Home') idx = 0;
+  else if(e.key === 'End') idx = tabs.length - 1;
+  else idx = (idx + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[idx].focus();
+  invdTab(tabs[idx].dataset.invtab);
+}
+
+function invdRenderDataQuality(){
+  var el = document.getElementById('invd-banner'); if(!el || !_invdData) return;
+  var q = _invdData.dataQuality || {status:'fresh',complete:true,warnings:[]};
+  if(q.status==='fresh'){ el.innerHTML=''; return; }
+  var stale = q.status==='stale';
+  var names = [];
+  (q.warnings||[]).forEach(function(w){ if(w&&w.source&&names.indexOf(w.source)<0) names.push(w.source); });
+  el.innerHTML = '<div class="invd-quality '+(stale?'stale':'degraded')+'" role="status">'
+    + '<i data-lucide="'+(stale?'clock-3':'shield-alert')+'" style="width:16px;height:16px;stroke:currentColor;flex:none;margin-top:1px"></i>'
+    + '<div><strong>'+(stale?'Foto parcialmente en caché':'Datos incompletos: los scores afectados se ocultaron')+'</strong>'
+    + '<div style="margin-top:2px">'+(stale?'Puedes revisar el detalle, pero confirma la hora antes de decidir un despacho.':'No interpretamos una consulta fallida como cero anomalías.')
+    + (names.length?' Fuentes: '+esc(names.join(', '))+'.':'')+'</div></div></div>';
 }
 function invdLoadTab(name, force){
   if(name==='fiabilidad' || name==='estructural'){ if(!_invData || force) invSaludCargar(force); }
@@ -27210,15 +27372,16 @@ function invdRenderHero(){
     + invdMeterCard('Fiabilidad operativa', sc.fiabilidad||{}, '¿Puedo confiar en el stock para despachar hoy?', true)
     + invdMeterCard('Higiene estructural', sc.higiene||{}, '¿Está ordenado el mapa de Odoo?', false)
     + '</div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin:0 0 4px;display:flex;align-items:center;gap:5px"><i data-lucide="info" style="width:12px;height:12px;stroke:currentColor"></i>No promediamos ambos números: la higiene la hunden datos intencionales (obsoleto, staging).</div>';
+    + '<div style="font-size:11.5px;color:var(--text-3);margin:0 0 4px;display:flex;align-items:center;gap:5px"><i data-lucide="info" style="width:12px;height:12px;stroke:currentColor"></i>Fiabilidad responde si se puede despachar; higiene describe orden estructural. Son indicadores independientes.</div>';
 }
 function invdManosCard(m){
   var bd = m.breakdown||{};
+  var known = invdSignalKnown('manos');
   return '<div class="invd-card">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">Manos que cerrar hoy</div>'
-    + '<div class="invd-manos-n" style="margin:8px 0 5px">'+(m.total==null?'—':m.total)+'</div>'
-    + '<div style="font-size:11px">'+invdDeltaHtml(m.delta, true)+'</div>'
-    + '<div style="font-size:10px;color:var(--text-3);margin-top:8px;line-height:1.5" title="Líneas accionables: huérfanos en tránsito sin caso abierto · negativos en A-CDP/staging · staging con más de 30 días">huérfanos '+(bd.huerfanosSinCaso||0)+' · negativos '+(bd.negativosAccionables||0)+' · staging '+(bd.stagingViejo||0)+'</div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.03em">Líneas a resolver hoy</div>'
+    + '<div class="invd-manos-n" style="margin:8px 0 5px">'+invdShown(m.total, known)+'</div>'
+    + '<div style="font-size:11px">'+(known?invdDeltaHtml(m.delta, true):'<span style="color:var(--red-text)">fuente incompleta</span>')+'</div>'
+    + '<div style="font-size:10.5px;color:var(--text-3);margin-top:8px;line-height:1.5">Cada cifra es una línea SKU × ubicación: sin caso '+invdShown(bd.huerfanosSinCaso,invdSignalKnown('s1'))+' · negativos operativos '+invdShown(bd.negativosAccionables,!['unavailable','degraded'].includes(invdSourceStatus('negativos')))+' · staging viejo '+invdShown(bd.stagingViejo,invdSignalKnown('staging'))+'</div>'
     + '</div>';
 }
 // 4b: Fiabilidad (primary) grande con gauge de 3 bandas + marcador; Higiene
@@ -27226,7 +27389,7 @@ function invdManosCard(m){
 function invdMeterCard(title, s, sub, primary){
   var score = (s && s.score!=null) ? s.score : null;
   var zona = (s && s.zona) ? s.zona : '';
-  var col = zona==='rojo' ? 'var(--inv-red)' : (zona==='ambar' ? 'var(--inv-amber)' : 'var(--inv-green)');
+  var col = score==null ? 'var(--text-3)' : (zona==='rojo' ? 'var(--inv-red)' : (zona==='ambar' ? 'var(--inv-amber)' : 'var(--inv-green)'));
   var mark = score==null ? 0 : Math.max(0,Math.min(100,score));
   if (primary) {
     return '<div class="invd-score-primary">'
@@ -27237,7 +27400,7 @@ function invdMeterCard(title, s, sub, primary){
       + '<div style="font-size:11.5px;color:var(--text-3);margin:3px 0 10px">'+esc(sub)+'</div>'
       + '<div class="invd-gauge">'+(score==null?'':'<span class="invd-gauge-mark" style="left:'+mark+'%"></span>')+'</div>'
       + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-3);font-weight:600"><span>crítico</span><span>atención</span><span>sano</span></div>'
-      + '<div style="font-size:12px;color:var(--text-2);margin-top:9px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · Lo mueve: <b style="color:var(--text)">'+esc(s.driver)+'</b>'):'')+'</div>'
+      + '<div style="font-size:12px;color:var(--text-2);margin-top:9px">'+(score==null?'<strong style="color:var(--red-text)">Sin score: falta una fuente de datos</strong>':(invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · Lo mueve: <b style="color:var(--text)">'+esc(s.driver)+'</b>'):'')))+'</div>'
       + '</div>';
   }
   return '<div class="invd-score-secondary">'
@@ -27247,7 +27410,7 @@ function invdMeterCard(title, s, sub, primary){
     + '</div>'
     + '<div style="font-size:11px;color:var(--text-3);margin:3px 0 8px">'+esc(sub)+'</div>'
     + '<div class="invd-gauge-flat">'+(score==null?'':'<span style="width:'+mark+'%"></span>')+'</div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin-top:8px">'+invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · '+esc(s.driver)):'')+'</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:8px">'+(score==null?'<strong style="color:var(--red-text)">Sin score: datos incompletos</strong>':(invdDeltaHtml(s?s.delta:null, false)+((s&&s.driver)?(' · '+esc(s.driver)):'')))+'</div>'
     + '<div style="font-size:10px;color:var(--text-3);margin-top:6px;font-style:italic;opacity:.8">Segundo plano — no se promedia con fiabilidad</div>'
     + '</div>';
 }
@@ -27258,13 +27421,14 @@ function invdRenderPulso(){
   var d = _invdData; if(!d){ el.innerHTML=''; return; }
   var s = d.senales||{}, s1=s.s1||{}, s2=s.s2||{}, s3=s.s3||{}, bd=(d.manos||{}).breakdown||{};
   var cards = [
-    {v:(s2.count||0), l:'Negativos accionables', c:'var(--red-text)', act:"invdTab('fiabilidad')", t:'Líneas con stock negativo en nodos padre (putaway al padre). Clic: ver qué corregir hoy.'},
-    {v:(s1.unidades||0), l:'Unidades huérfanas en tránsito', c:'var(--amber-text)', act:"invdTab('transitos');invdTransitSetFilter('estado','huerfano')", t:'Unidades varadas en tránsito cuya transferencia ya se cerró o canceló. Clic: ver la lista.'},
-    {v:(s3.count||0), l:'Riesgo de doble-venta', c:'var(--red-text)', act:"invdTab('cuadre')", t:'Artículos con unidades huérfanas en tránsito Y stock vendible del mismo SKU en bin: se pueden comprometer dos veces. Clic: ver el detalle.'},
-    {v:(bd.stagingViejo||0), l:'Staging &gt;30 días', c:'var(--amber-text)', act:"invdTab('estructural')", t:'Líneas en staging (DESPACHO PTN) con más de 30 días sin moverse. Clic: ver anomalías.'}
+    {known:invdSignalKnown('s2'), v:s2.count, l:'Negativos en nodos padre', meta:'líneas SKU × ubicación', c:'var(--red-text)', act:"invdOpenStructural('parent')", t:'Negativos registrados en una ubicación que también tiene bins hijos.'},
+    {known:invdSignalKnown('s1'), v:s1.unidades, l:'Unidades huérfanas en tránsito', meta:invdSignalKnown('s1')?((s1.count||0)+' líneas sin ruta de salida'):'fuente no disponible', c:'var(--amber-text)', act:"invdTab('transitos');invdTransitSetFilter('estado','huerfano')", t:'Mercancía en tránsito sin reserva ni movimiento abierto hacia destino.'},
+    {known:invdSignalKnown('s3'), v:s3.count, l:'SKU con doble compromiso posible', meta:invdSignalKnown('s3')?(s3.allowlistConfigured?'bins autorizados · confianza alta':'heurística · confirmar ubicación'):'fuente no disponible', c:'var(--red-text)', act:"invdTab('cuadre')", t:(s3.definition||'Huérfano en tránsito y stock libre del mismo SKU en un bin final.')+' '+(s3.metodo||'')},
+    {known:invdSignalKnown('staging'), v:bd.stagingViejo, l:'Líneas en staging &gt;30 días', meta:invdSignalKnown('staging')?'SKU × ubicación':'fuente no disponible', c:'var(--amber-text)', act:"invdOpenStructural('staging')", t:'Stock positivo en DESPACHO PTN sin movimiento reciente.'}
   ];
   el.innerHTML = cards.map(function(c){
-    return '<div class="invd-kpi" style="border-left-color:'+c.c+'" onclick="'+c.act+'" title="'+c.t+'"><div class="invd-kpi-v" style="color:'+c.c+'">'+c.v+'</div><div class="invd-kpi-l">'+c.l+'</div></div>';
+    var color = c.known ? c.c : 'var(--text-3)';
+    return '<button type="button" class="invd-kpi" style="border-left-color:'+color+'" onclick="'+c.act+'" title="'+esc(c.known?c.t:'Dato no disponible en la última consulta')+'" aria-label="'+esc(c.l+': '+invdShown(c.v,c.known)+'. '+c.meta)+'"><span class="invd-kpi-v" style="display:block;color:'+color+'">'+invdShown(c.v,c.known)+'</span><span class="invd-kpi-l" style="display:block">'+c.l+'</span><span class="invd-kpi-meta" style="display:block">'+c.meta+'</span></button>';
   }).join('');
 }
 
@@ -27273,23 +27437,41 @@ function invdRenderBanda(){
   var el = document.getElementById('invd-banda'); if(!el) return;
   var d = _invdData; var s2 = (d && d.senales && d.senales.s2) || {};
   var nodo = (s2.nodos||[]).slice().sort(function(a,b){ return (b.count||0)-(a.count||0); })[0];
-  if(!nodo || !nodo.count){ el.innerHTML=''; return; }
-  el.innerHTML = '<div style="padding:10px 14px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px" onclick="invdTab(\'estructural\')">'
-    + '<i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:currentColor"></i>Requiere acción hoy: '+esc(nodo.locName)+' · '+nodo.count+' negativos por putaway al nodo padre <span style="opacity:.7;margin-left:auto">→</span></div>';
+  if(!invdSignalKnown('s2') || !nodo || !nodo.count){ el.innerHTML=''; return; }
+  el.innerHTML = '<button type="button" class="invd-action-band" onclick="invdOpenStructural(\'parent\')">'
+    + '<i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:currentColor"></i><span><strong>Primera acción recomendada:</strong> revisar '+esc(nodo.locName)+' · '+nodo.count+' negativos registrados en el nodo padre</span><span style="opacity:.7;margin-left:auto">→</span></button>';
+}
+
+function invdOpenStructural(anchor){
+  _invdStructuralAnchor = anchor || '';
+  invdTab('estructural');
+  invdScrollStructuralAnchor();
+}
+function invdScrollStructuralAnchor(){
+  if(!_invdStructuralAnchor) return;
+  var id = _invdStructuralAnchor === 'staging' ? 'invd-struct-staging' : 'invd-struct-parent';
+  var el = document.getElementById(id); if(!el) return;
+  _invdStructuralAnchor = '';
+  setTimeout(function(){ el.scrollIntoView({behavior:uiMotionReduced()?'auto':'smooth',block:'start'}); el.setAttribute('tabindex','-1'); el.focus({preventScroll:true}); }, 30);
 }
 
 // ── TRÁNSITOS: transferencias incompletas con foto ───────────────────────────
 async function invdTransitCargar(force){
+  var loadSeq = ++_invdTransitSeq;
   var body = document.getElementById('invd-transit-body'); if(!body) return;
-  body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:14px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Consultando tránsitos en Odoo…</div>';
+  body.innerHTML = '<div role="status" style="display:flex;align-items:center;gap:8px;padding:14px;color:var(--text-3);font-size:13px"><span class="spinner" aria-hidden="true"></span>Consultando tránsitos en Odoo…</div>';
   try{
-    var r = await authFetch('/api/transit/monitor');
+    var r = await authFetch('/api/transit/monitor'+(force?'?refresh=1':''));
     var d = await r.json();
     if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    if(loadSeq !== _invdTransitSeq) return false;
     _invdTransit = d;
     invdTransitRender();
+    return true;
   }catch(e){
-    body.innerHTML = '<div style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudieron cargar los tránsitos: '+esc(e.message)+'</span><button style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdTransitCargar(true)">Reintentar</button></div>';
+    if(loadSeq !== _invdTransitSeq) return false;
+    body.innerHTML = '<div role="alert" style="padding:12px 16px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;color:var(--red-text);font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="flex:1;min-width:180px">No se pudieron cargar los tránsitos: '+esc(e.message)+'</span><button type="button" style="font-size:11px;font-weight:700;padding:5px 12px;border:1.5px solid var(--red-dot);border-radius:7px;background:transparent;color:var(--red-text);cursor:pointer" onclick="invdTransitCargar(true)">Reintentar</button></div>';
+    return false;
   }
 }
 function invdTransitFlat(){
@@ -27298,7 +27480,11 @@ function invdTransitFlat(){
   (d.locations||[]).forEach(function(l){ (l.items||[]).forEach(function(it){ out.push(Object.assign({locId:l.id, locName:l.name}, it)); }); });
   return out;
 }
-function invdTransitSetFilter(k,v){ _invdTransitFilter[k]=v; if(_invdTransit) invdTransitRender(); }
+function invdTransitSetFilter(k,v){
+  _invdTransitFilter[k]=v;
+  if(_invdTransit) invdTransitRender();
+  setTimeout(function(){ var b=document.querySelector('#invd-transit-toolbar [data-invfilter="'+v+'"]'); if(b) b.focus(); },0);
+}
 function invdTransitRender(){
   var body = document.getElementById('invd-transit-body'); var tb = document.getElementById('invd-transit-toolbar');
   if(!body) return;
@@ -27306,40 +27492,52 @@ function invdTransitRender(){
   var t = (_invdTransit && _invdTransit.totals) || {};
   var fe = _invdTransitFilter.estado;
   if(tb) tb.innerHTML = ''
-    + '<span class="invd-chip'+(fe===''?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'\')">Todos ('+all.length+')</span>'
-    + '<span class="invd-chip'+(fe==='huerfano'?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'huerfano\')">Huérfanos ('+(t.countHuerfanos||0)+')</span>'
-    + '<span class="invd-chip'+(fe==='pendiente'?' active':'')+'" onclick="invdTransitSetFilter(\'estado\',\'pendiente\')">En vuelo ('+(t.countPendientes||0)+')</span>'
+    + '<button type="button" data-invfilter="" class="invd-chip'+(fe===''?' active':'')+'" aria-pressed="'+(fe===''?'true':'false')+'" onclick="invdTransitSetFilter(\'estado\',\'\')">Todos ('+all.length+')</button>'
+    + '<button type="button" data-invfilter="huerfano" class="invd-chip'+(fe==='huerfano'?' active':'')+'" aria-pressed="'+(fe==='huerfano'?'true':'false')+'" onclick="invdTransitSetFilter(\'estado\',\'huerfano\')">Con cantidad huérfana ('+(t.countHuerfanos||0)+')</button>'
+    + '<button type="button" data-invfilter="mixto" class="invd-chip'+(fe==='mixto'?' active':'')+'" aria-pressed="'+(fe==='mixto'?'true':'false')+'" onclick="invdTransitSetFilter(\'estado\',\'mixto\')">Mixtos ('+(t.countMixtos||0)+')</button>'
+    + '<button type="button" data-invfilter="pendiente" class="invd-chip'+(fe==='pendiente'?' active':'')+'" aria-pressed="'+(fe==='pendiente'?'true':'false')+'" onclick="invdTransitSetFilter(\'estado\',\'pendiente\')">Solo en vuelo ('+(t.countPendientes||0)+')</button>'
     + '<div style="flex:1"></div>'
-    + '<button class="invd-chip" onclick="invdTransitCsv()"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>CSV</button>';
-  var rows = all.filter(function(it){ return !fe || it.clase===fe; });
+    + '<button type="button" class="invd-chip" onclick="invdTransitCsv()"><i data-lucide="download" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>CSV</button>';
+  var rows = all.filter(function(it){
+    if(!fe) return true;
+    if(fe==='mixto') return Number(it.qtyHuerfana||0)>0 && Number(it.qtyPendiente||0)>0;
+    return it.clase===fe;
+  });
   if(!rows.length){
     body.innerHTML = fe
       ? '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px">Sin artículos en tránsito con este filtro.</div>'
       : '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i><div style="margin-top:6px">Sin mercancía en tránsito — nada varado ni en camino.</div></div>';
     if(window.lucide) lucide.createIcons(); return;
   }
-  var h = '<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;line-height:1.55"><b style="color:var(--red-text)">Huérfano</b>: la transferencia que lo movía se cerró o canceló y la mercancía quedó varada — valida la recepción pendiente en Odoo para devolverla al stock. <b style="color:var(--text-2)">En vuelo</b>: transferencia abierta, mercancía en camino normal.</div>'
+  var h = '<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;line-height:1.55"><b style="color:var(--red-text)">Huérfano</b>: cantidad sin reserva ni movimiento abierto de salida. <b style="color:var(--amber-text)">Mixto</b>: una parte está cubierta por una transferencia y otra quedó sin ruta. <b style="color:var(--text-2)">En vuelo</b>: toda la cantidad tiene cobertura abierta. La antigüedad parte del remanente vigente más antiguo; “último ingreso” identifica la transferencia entrante más reciente y puede ser distinta.</div>'
     + '<div class="invd-tblwrap"><table class="invd-tbl"><thead><tr>'
-    + '<th>Foto</th><th>Ref</th><th>Artículo</th><th>Barcode</th><th style="text-align:center">Cant</th><th>Origen → Destino</th><th>Responsable</th><th>Fecha</th><th style="text-align:center" title="Días desde que la mercancía entró a la ubicación de tránsito">Antig.</th><th>Estado</th>'
+    + '<th>Foto</th><th>Ref</th><th>Artículo</th><th>Barcode</th><th style="text-align:center">Cant</th><th>Origen → Destino(s)</th><th>Responsable</th><th title="Fecha del movimiento de entrada más reciente; no es la base de antigüedad">Último ingreso</th><th style="text-align:center" title="Días desde el remanente vigente más antiguo del SKU en este tránsito">Antig.</th><th>Estado</th>'
     + '</tr></thead><tbody>';
   rows.forEach(function(it){
     var age = it.ageDays==null ? '—' : (it.ageDays+'d');
     var ageCol = (it.ageDays!=null && it.ageDays>7) ? 'color:var(--amber-text);font-weight:700' : '';
     var resp = it.responsable ? esc(it.responsable.name||'—') : '—';
-    var badge = it.clase==='huerfano'
-      ? '<span class="invd-badge huer" title="La transferencia se cerró o canceló: mercancía varada. Validar la recepción pendiente en Odoo.">Huérfano</span>'
-      : '<span class="invd-badge pend" title="Transferencia abierta: mercancía en camino normal.">En vuelo</span>';
+    var isMixed = Number(it.qtyHuerfana||0)>0 && Number(it.qtyPendiente||0)>0;
+    var badge = isMixed
+      ? '<span class="invd-badge" style="background:var(--amber-bg);color:var(--amber-text)" title="Parte sin ruta y parte cubierta por una transferencia abierta.">Mixto</span>'
+      : (it.clase==='huerfano'
+        ? '<span class="invd-badge huer" title="Cantidad sin reserva ni movimiento abierto de salida.">Huérfano</span>'
+        : '<span class="invd-badge pend" title="Toda la cantidad tiene cobertura abierta.">En vuelo</span>');
+    var qtyTotal = it.qtyTotal!=null ? it.qtyTotal : it.qty;
+    var qtyHtml = isMixed
+      ? '<strong>'+qtyTotal+'</strong><div style="font-size:9.5px;color:var(--text-3);white-space:nowrap">'+it.qtyHuerfana+' huérf. · '+it.qtyPendiente+' en vuelo</div>'
+      : '<strong>'+qtyTotal+'</strong>';
     var thumb = '<span class="invd-thumb"'+(it.hasImage?(' data-pid="'+it.prodId+'"'):'')+'><i data-lucide="package" style="width:15px;height:15px"></i></span>';
-    h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')">'
+    h += '<tr class="clickable invd-row-action" tabindex="0" aria-label="Abrir kardex de '+esc((it.code||'')+' '+(it.name||''))+'" onclick="invdKardex('+it.prodId+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();invdKardex('+it.prodId+')}">'
       + '<td>'+thumb+'</td>'
       + '<td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td>'
       + '<td>'+esc(it.name||'')+'</td>'
       + '<td style="font-family:monospace;font-size:11px;color:var(--text-3)">'+esc(it.barcode||'—')+'</td>'
-      + '<td style="text-align:center;font-weight:700">'+it.qty+'</td>'
-      + '<td class="invd-src">'+esc(invdShort(it.locName))+' <span style="opacity:.6">→</span> '+esc(it.locationDest||'—')+'</td>'
+      + '<td style="text-align:center">'+qtyHtml+'</td>'
+      + '<td class="invd-src" title="'+esc((it.locationDests||[]).length?('Destinos abiertos: '+it.locationDests.join(' · ')):'Sin destino abierto identificado')+'">'+esc(invdShort(it.locName))+' <span style="opacity:.6">→</span> '+esc(it.locationDest||'—')+'</td>'
       + '<td>'+resp+'</td>'
-      + '<td style="white-space:nowrap">'+invdFmtD(it.pickingDate)+'</td>'
-      + '<td style="text-align:center;'+ageCol+'">'+age+'</td>'
+      + '<td style="white-space:nowrap" title="Último ingreso identificado: '+esc(it.sourcePicking||'sin picking')+'">'+invdFmtD(it.lastInboundDate||it.pickingDate)+'</td>'
+      + '<td style="text-align:center;'+ageCol+'" title="Remanente vigente desde '+esc(it.inDate||'fecha no disponible')+'">'+age+'</td>'
       + '<td>'+badge+'</td>'
       + '</tr>';
   });
@@ -27350,9 +27548,16 @@ function invdTransitRender(){
 }
 function invdTransitCsv(){
   var fe = _invdTransitFilter.estado;
-  var all = invdTransitFlat().filter(function(it){ return !fe || it.clase===fe; });
-  var head = ['Estado','Ref','Articulo','Barcode','Cant','Origen','Destino','Responsable','Fecha','AntiguedadDias','Picking'];
-  var body = all.map(function(it){ return [it.clase, it.code||'', it.name||'', it.barcode||'', it.qty, invdShort(it.locName), it.locationDest||'', (it.responsable&&it.responsable.name)||'', it.pickingDate||'', it.ageDays==null?'':it.ageDays, it.sourcePicking||'']; });
+  var all = invdTransitFlat().filter(function(it){
+    if(!fe) return true;
+    if(fe==='mixto') return Number(it.qtyHuerfana||0)>0 && Number(it.qtyPendiente||0)>0;
+    return it.clase===fe;
+  });
+  var head = ['Estado','Ref','Articulo','Barcode','CantidadTotal','CantidadHuerfana','CantidadEnVuelo','CoberturaPct','Origen','DestinosAbiertos','Responsable','RemanenteMasAntiguo','UltimoIngreso','AntiguedadDias','PickingUltimoIngreso'];
+  var body = all.map(function(it){
+    var estado = Number(it.qtyHuerfana||0)>0 && Number(it.qtyPendiente||0)>0 ? 'mixto' : it.clase;
+    return [estado, it.code||'', it.name||'', it.barcode||'', it.qtyTotal!=null?it.qtyTotal:it.qty, it.qtyHuerfana||0, it.qtyPendiente||0, it.cobertura==null?'':it.cobertura, invdShort(it.locName), (it.locationDests||[]).join(' | ')||it.locationDest||'', (it.responsable&&it.responsable.name)||'', it.inDate||'', it.lastInboundDate||it.pickingDate||'', it.ageDays==null?'':it.ageDays, it.sourcePicking||''];
+  });
   var csv = [head].concat(body).map(function(r){ return r.map(function(c){ c=String(c==null?'':c); return /[",\n;]/.test(c)?('"'+c.replace(/"/g,'""')+'"'):c; }).join(','); }).join('\r\n');
   var blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'transitos-inventario.csv'; a.click();
@@ -27391,26 +27596,54 @@ async function invdHydrateImg(el){
 }
 
 // ── KARDEX / cuadre por artículo (drawer) ─────────────────────────────────────
+function invdBindModal(overlayId, modalId, returnFocus){
+  var ov = document.getElementById(overlayId), modal = document.getElementById(modalId);
+  if(!ov || !modal) return;
+  _invdModalReturnFocus[overlayId] = returnFocus && returnFocus.focus ? returnFocus : document.activeElement;
+  document.body.classList.add('invd-modal-open');
+  ov.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ e.preventDefault(); invdCloseModal(overlayId); return; }
+    if(e.key !== 'Tab') return;
+    var focusable = Array.from(ov.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')).filter(function(x){ return x.offsetParent !== null; });
+    if(!focusable.length){ e.preventDefault(); modal.focus(); return; }
+    var first=focusable[0], last=focusable[focusable.length-1];
+    if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  });
+  setTimeout(function(){ modal.focus(); },0);
+}
+function invdCloseModal(overlayId){
+  var ov=document.getElementById(overlayId); if(ov) ov.remove();
+  if(!document.querySelector('.invd-modal-scope')) document.body.classList.remove('invd-modal-open');
+  var back=_invdModalReturnFocus[overlayId]; delete _invdModalReturnFocus[overlayId];
+  if(back && back.isConnected) setTimeout(function(){ back.focus(); },0);
+}
+
 function invdKardex(pid){
+  var requestSeq = ++_invdKardexSeq;
+  var returnFocus = document.activeElement;
   var old = document.getElementById('invKxOverlay'); if(old) old.remove();
   document.body.insertAdjacentHTML('beforeend',
-    '<div class="eo-det-overlay" id="invKxOverlay" onclick="if(event.target===this)this.remove()">'
-    + '<div class="eo-det-modal" id="invKxModal"><div style="padding:18px"><div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:13px"><div class="spinner"></div>Reconstruyendo kardex…</div></div></div></div>');
+    '<div class="eo-det-overlay invd-modal-scope" id="invKxOverlay" onclick="if(event.target===this)invdCloseModal(\'invKxOverlay\')">'
+    + '<div class="eo-det-modal invd-modal-dialog" id="invKxModal" role="dialog" aria-modal="true" aria-labelledby="invKxTitle" tabindex="-1"><h2 id="invKxTitle" class="invd-sr-only">Kardex del artículo</h2><div role="status" style="padding:18px"><div style="display:flex;align-items:center;gap:8px;color:var(--text-3);font-size:13px"><span class="spinner" aria-hidden="true"></span>Reconstruyendo kardex…</div></div></div></div>');
+  invdBindModal('invKxOverlay','invKxModal',returnFocus);
   if(window.lucide) lucide.createIcons();
-  invdKardexFetch(pid);
+  invdKardexFetch(pid, requestSeq);
 }
-async function invdKardexFetch(pid){
+async function invdKardexFetch(pid, requestSeq){
   try{
     var r = await authFetch('/api/inventario/kardex/'+pid);
     var d = await r.json();
     if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    if(requestSeq !== _invdKardexSeq) return;
     var modal = document.getElementById('invKxModal'); if(!modal) return;
     modal.innerHTML = invdKardexHtml(d);
     if(window.lucide) lucide.createIcons();
     var th = modal.querySelector('.invd-thumb[data-pid]'); if(th) invdHydrateImg(th);
   }catch(e){
+    if(requestSeq !== _invdKardexSeq) return;
     var m = document.getElementById('invKxModal');
-    if(m) m.innerHTML = '<div style="padding:20px;color:var(--red-text);font-size:13px">No se pudo cargar el kardex: '+esc(e.message)+'<div style="margin-top:12px"><button class="invd-chip" onclick="document.getElementById(\'invKxOverlay\').remove()">Cerrar</button></div></div>';
+    if(m) m.innerHTML = '<h2 id="invKxTitle" style="font-size:15px;margin:0;padding:20px 20px 0;color:var(--red-text)">No se pudo cargar el kardex</h2><div role="alert" style="padding:10px 20px 20px;color:var(--red-text);font-size:13px">'+esc(e.message)+'<div style="margin-top:12px"><button type="button" class="invd-chip" onclick="invdCloseModal(\'invKxOverlay\')">Cerrar</button></div></div>';
   }
 }
 function invdKardexHtml(d){
@@ -27419,15 +27652,20 @@ function invdKardexHtml(d){
     + '<span class="invd-thumb"'+(p.hasImage?(' data-pid="'+d.pid+'"'):'')+' style="width:56px;height:56px"><i data-lucide="package"></i></span>'
     + '<div style="flex:1;min-width:0">'
       + '<div style="font-family:monospace;font-size:12px;color:var(--text-3)">'+esc(p.ref||'')+(p.barcode?(' · '+esc(p.barcode)):'')+'</div>'
-      + '<div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">'+esc(p.name||'')+'</div>'
+      + '<h2 id="invKxTitle" style="font-size:15px;font-weight:700;color:var(--text);margin:2px 0 0">'+esc(p.name||'Kardex del artículo')+'</h2>'
       + '<div style="font-size:11px;color:var(--text-3);margin-top:4px" title="Suma del stock en ubicaciones internas (no cuenta tránsitos, clientes ni virtuales)">Neto interno hoy: <strong style="color:var(--text)">'+(d.netInterno!=null?d.netInterno:'—')+'</strong>'+(d.netInterno!=null?' <span style="color:var(--text-3)">und</span>':'')+'</div>'
+      + '<div style="font-size:10.5px;color:var(--text-3);margin-top:3px">'+esc(d.windowLabel||'')+'</div>'
     + '</div>'
-    + '<button class="invd-chip" style="flex:none" onclick="document.getElementById(\'invKxOverlay\').remove()">Cerrar</button>'
+    + '<button type="button" class="invd-chip" style="flex:none" onclick="invdCloseModal(\'invKxOverlay\')">Cerrar</button>'
     + '</div>';
   if(d.culprit){
     h += '<div style="margin:14px 16px 0;padding:10px 12px;background:var(--red-bg);border:1px solid var(--red-dot);border-radius:10px;font-size:12px;color:var(--red-text)">'
-      + '<strong><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px"></i> Transacción que rompió el cuadre:</strong> '
-      + esc(d.culprit.ref||'')+' · '+esc(invdShort(d.culprit.from))+' → '+esc(invdShort(d.culprit.to))+' · '+invdFmtD(d.culprit.date)+' · estado '+esc(invdStateLbl(d.culprit.state))+'</div>';
+      + '<strong><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px"></i> Evento probable asociado al descuadre:</strong> '
+      + esc(d.culprit.ref||'')+' · '+esc(invdShort(d.culprit.from))+' → '+esc(invdShort(d.culprit.to))+' · '+invdFmtD(d.culprit.date)+' · estado '+esc(invdStateLbl(d.culprit.state))
+      + (d.culprit.evidence?'<div style="margin-top:5px;font-size:10.5px;line-height:1.45"><strong>Por qué aparece:</strong> '+esc(d.culprit.evidence)+'</div>':'')+'</div>';
+  }
+  if(d.truncated){
+    h += '<div style="margin:10px 16px 0;padding:8px 10px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:8px;font-size:11px;color:var(--amber-text)">El historial es extenso: se analizaron los movimientos más recientes para identificar el incidente actual.</div>';
   }
   h += '<div style="padding:14px 16px 4px"><div style="font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px">Foto de hoy por ubicación</div>';
   if((d.quants||[]).length){
@@ -27448,7 +27686,7 @@ function invdKardexHtml(d){
         + '<div style="font-size:12px;color:var(--text)"><span class="invd-src">'+esc(invdShort(m.from))+' → '+esc(invdShort(m.to))+'</span> · <strong'+(_esCancel?' style="text-decoration:line-through;color:var(--text-3);font-weight:600"':'')+' title="'+(_esCancel?'Cantidad prevista — la transacción se canceló y nunca movió stock':'Unidades de este artículo movidas en la transacción')+'">'+m.qty+' und</strong>'
         + (_esCancel?' <span style="display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:5px;background:var(--red-bg);color:var(--red-text);border:1px solid var(--red-dot);vertical-align:1px">cancelada · no cuenta</span>':'')+'</div>'
         + '<div style="font-size:10px;color:var(--text-3)">'+esc(m.ref||'')+' · '+esc(invdStateLbl(m.state))+(m.responsable?(' · '+esc(m.responsable)):'')+'</div>'
-      + '</div>'+(m.culprit?'<span class="invd-badge huer" style="flex:none">culpable</span>':'')+'</div>';
+      + '</div>'+(m.culprit?'<span class="invd-badge huer" style="flex:none">posible causa</span>':'')+'</div>';
   });
   if(!(d.moves||[]).length) h += '<div style="font-size:12px;color:var(--text-3)">Sin movimientos registrados.</div>';
   h += '</div>';
@@ -27460,10 +27698,12 @@ function invdCuadreRender(){
   var box = document.getElementById('invd-cuadre-body'); var sb = document.getElementById('invd-cuadre-search');
   if(!box) return;
   if(sb) sb.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    + '<input id="invd-kx-input" placeholder="Ref, barcode o id de artículo…" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px" onkeydown="if(event.key===\'Enter\')invdCuadreSearch()">'
-    + '<button class="invd-chip" onclick="invdCuadreSearch()"><i data-lucide="search" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>Ver kardex</button>'
-    + '<span id="invd-kx-msg" style="font-size:11px;color:var(--red-text)"></span></div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Abre la línea de tiempo de cualquier artículo desde su carga inicial y resalta la transacción que rompió el cuadre.</div>';
+    + '<label for="invd-kx-input" class="invd-sr-only">Referencia, código de barras, nombre o id del artículo</label>'
+    + '<input id="invd-kx-input" placeholder="Ref, barcode, nombre o id:123…" style="flex:1;min-width:200px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px" onkeydown="if(event.key===\'Enter\')invdCuadreSearch()">'
+    + '<button type="button" class="invd-chip" onclick="invdCuadreSearch()"><i data-lucide="search" style="width:12px;height:12px;stroke:currentColor;vertical-align:-1px;margin-right:3px"></i>Buscar</button>'
+    + '<span id="invd-kx-msg" role="status" aria-live="polite" style="font-size:11px;color:var(--red-text)"></span></div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:6px">Busca por referencia, código de barras o nombre. Para abrir un ID interno exacto usa <strong>id:</strong>, por ejemplo id:123.</div>'
+    + '<div id="invd-kx-results" class="invd-search-results" aria-live="polite" aria-label="Resultados de artículos"></div>';
   var d = _invdData;
   if(!d){
     box.innerHTML = _invdPanoError
@@ -27473,13 +27713,20 @@ function invdCuadreRender(){
   }
   var s3 = (d.senales && d.senales.s3) || {items:[]};
   var items = s3.items||[];
+  var s3Known = invdSignalKnown('s3');
   var h = '<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">'
-    + '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)"><i data-lucide="alert-octagon" style="width:14px;height:14px;stroke:var(--red-text);vertical-align:-2px;margin-right:5px"></i>Riesgo de doble-venta ('+items.length+') — huérfano en tránsito y stock vendible del mismo SKU</div>';
-  if(!items.length){ h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún artículo con riesgo de doble-venta hoy.</div></div>'; }
+    + '<div style="padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:13px;font-weight:700;color:var(--text)"><i data-lucide="alert-octagon" style="width:14px;height:14px;stroke:var(--red-text);vertical-align:-2px;margin-right:5px"></i>Doble compromiso posible ('+invdShown(items.length,s3Known)+' SKU)'
+    + '<span style="display:inline-block;margin-left:7px;padding:2px 7px;border-radius:999px;background:'+(s3.allowlistConfigured?'var(--green-bg)':'var(--amber-bg)')+';color:'+(s3.allowlistConfigured?'var(--green-text)':'var(--amber-text)')+';font-size:9.5px;vertical-align:1px">confianza '+esc(s3.confiabilidad||'media')+'</span>'
+    + '<div style="font-size:10.5px;font-weight:400;color:var(--text-3);margin-top:3px">'+esc(s3.definition||'Huérfano en tránsito y stock libre del mismo SKU en un bin final.')+'</div></div>';
+  if(s3Known && !s3.allowlistConfigured){
+    h += '<div role="note" style="padding:9px 14px;background:var(--amber-bg);border-bottom:1px solid var(--amber-dot);color:var(--amber-text);font-size:11px"><strong>Señal heurística:</strong> '+esc(s3.metodo||'las ubicaciones vendibles se infieren por jerarquía y nombre')+'. Confirma el bin en Odoo antes de bloquear un despacho.</div>';
+  }
+  if(!s3Known){ h += '<div role="status" style="padding:16px;text-align:center;color:var(--red-text);font-size:12px">No se pudo determinar el doble compromiso con la última consulta.</div>'; }
+  else if(!items.length){ h += '<div style="padding:16px;text-align:center;color:var(--text-3);font-size:12px"><i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--green-text);opacity:.7"></i><div style="margin-top:4px">Ningún artículo con doble compromiso posible hoy.</div></div>'; }
   else{
     h += '<div class="invd-tblwrap" style="border:none;border-radius:0"><table class="invd-tbl" style="min-width:0"><thead><tr><th>Ref</th><th>Artículo</th><th style="text-align:center" title="Unidades huérfanas varadas en tránsito">En tránsito</th><th style="text-align:center" title="Unidades del mismo SKU disponibles en bin vendible">Vendible en bin</th><th></th></tr></thead><tbody>';
     items.forEach(function(it){
-      h += '<tr class="clickable" onclick="invdKardex('+it.prodId+')"><td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td><td>'+esc(it.name||'')+'</td><td style="text-align:center;color:var(--amber-text);font-weight:700">'+it.unidadesTransito+'</td><td style="text-align:center;color:var(--red-text);font-weight:700">'+it.unidadesBinVendible+'</td><td style="text-align:right"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td></tr>';
+      h += '<tr class="clickable invd-row-action" tabindex="0" aria-label="Abrir kardex de '+esc((it.code||'')+' '+(it.name||''))+'" onclick="invdKardex('+it.prodId+')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();invdKardex('+it.prodId+')}"><td style="font-family:monospace;font-size:11px">'+esc(it.code||'')+'</td><td>'+esc(it.name||'')+'</td><td style="text-align:center;color:var(--amber-text);font-weight:700">'+it.unidadesTransito+'</td><td style="text-align:center;color:var(--red-text);font-weight:700">'+it.unidadesBinVendible+'</td><td style="text-align:right"><i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></td></tr>';
     });
     h += '</tbody></table></div>';
   }
@@ -27490,32 +27737,47 @@ function invdCuadreRender(){
 function invdCuadreSearch(){
   var inp = document.getElementById('invd-kx-input'); var v = inp ? (inp.value||'').trim() : '';
   var msg = document.getElementById('invd-kx-msg'); if(msg) msg.textContent='';
-  if(!v) return;
-  if(/^\d+$/.test(v)){ invdKardex(parseInt(v,10)); return; }
+  var box = document.getElementById('invd-kx-results');
+  if(!v){ ++_invdSearchSeq; if(box) box.innerHTML=''; if(msg) msg.textContent='Escribe una referencia, barcode, nombre o id:123.'; return; }
+  var idMatch = v.match(/^id:\s*(\d+)$/i);
+  if(idMatch){ ++_invdSearchSeq; if(box) box.innerHTML=''; invdKardex(parseInt(idMatch[1],10)); return; }
   invdCuadreLookup(v);
 }
 async function invdCuadreLookup(q){
+  var searchSeq = ++_invdSearchSeq;
   var msg = document.getElementById('invd-kx-msg');
+  var box = document.getElementById('invd-kx-results');
+  if(box) box.innerHTML = '<div style="font-size:11px;color:var(--text-3)">Buscando…</div>';
   try{
     var r = await authFetch('/api/averias/search?q='+encodeURIComponent(q));
     var d = await r.json();
-    var res = (d && d.results) || (Array.isArray(d)?d:[]);
-    var first = res[0];
-    var pid = first && (first.id || first.productId || first.prodId);
-    if(pid) invdKardex(pid);
-    else if(msg) msg.textContent = 'No se encontró un artículo con «'+q+'».';
-  }catch(e){ if(msg) msg.textContent = 'Error buscando: '+e.message; }
+    if(!r.ok) throw new Error(d.error||'No se pudo buscar');
+    if(searchSeq !== _invdSearchSeq) return;
+    var res = ((d && d.results) || (Array.isArray(d)?d:[])).filter(function(it){ var pid=Number(it.id||it.productId||it.prodId); return Number.isFinite(pid)&&pid>0; });
+    if(!res.length){ if(box) box.innerHTML=''; if(msg) msg.textContent = 'No se encontró un artículo con «'+q+'».'; return; }
+    if(box) box.innerHTML = res.slice(0,8).map(function(it){
+      var pid = it.id || it.productId || it.prodId;
+      var ref = it.default_code || it.ref || it.code || '';
+      var name = it.name || it.productName || '';
+      var barcode = it.barcode || '';
+      return '<button type="button" class="invd-search-result" aria-label="Abrir kardex de '+esc((ref||('ID '+pid))+' '+name)+'" onclick="invdKardex('+Number(pid)+')"><span class="invd-search-ref" style="font-family:monospace;font-size:11px;font-weight:700;min-width:130px">'+esc(ref||('ID '+pid))+'</span><span style="flex:1">'+esc(name)+'</span>'+(barcode?'<span style="font-size:10px;color:var(--text-3)">'+esc(barcode)+'</span>':'')+'<i data-lucide="chevron-right" style="width:14px;height:14px;stroke:var(--text-3)"></i></button>';
+    }).join('');
+    if(window.lucide) lucide.createIcons();
+  }catch(e){ if(searchSeq !== _invdSearchSeq) return; if(box) box.innerHTML=''; if(msg) msg.textContent = 'Error buscando: '+e.message; }
 }
 
 // ── TENDENCIA (snapshots) ─────────────────────────────────────────────────────
-async function invdTendCargar(){
+async function invdTendCargar(force){
+  var loadSeq = ++_invdTendSeq;
   var el = document.getElementById('invd-tendencia'); if(!el) return;
+  if(force || !el.innerHTML) el.innerHTML='<div role="status" style="font-size:11px;color:var(--text-3);padding:10px 0">Cargando tendencia…</div>';
   try{
-    var r = await authFetch('/api/inventario/tendencia?dias=30');
+    var r = await authFetch('/api/inventario/tendencia?dias=30'+(force?'&refresh=1':''));
     var d = await r.json();
     if(!r.ok||!d.ok) throw new Error(d.error||'Error');
+    if(loadSeq !== _invdTendSeq) return;
     invdTendRender(d);
-  }catch(e){ el.innerHTML=''; }
+  }catch(e){ if(loadSeq !== _invdTendSeq) return; el.innerHTML='<div role="status" style="font-size:11px;color:var(--amber-text);border-top:1px dashed var(--border);padding-top:12px">No se pudo cargar la tendencia. <button type="button" class="invd-chip" onclick="invdTendCargar(true)">Reintentar</button></div>'; }
 }
 function invdTendRender(d){
   var el = document.getElementById('invd-tendencia'); if(!el) return;
@@ -27524,7 +27786,7 @@ function invdTendRender(d){
   var rec = d.reincidencia||{};
   el.innerHTML = '<div style="border-top:1px solid var(--border);padding-top:14px">'
     + '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">Tendencia (30 días)</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'
+    + '<div class="invd-trend-grid">'
     + invdMiniBars('Fiabilidad operativa', dias, 'fiabilidad')
     + invdMiniBars('Higiene estructural', dias, 'higiene')
     + '</div>'
@@ -27535,13 +27797,14 @@ function invdTendRender(d){
 }
 function invdMiniBars(title, dias, key){
   var bars = dias.map(function(x){
-    var v = x[key]==null ? 0 : x[key];
-    var col = v<60 ? 'var(--red-bg)' : (v<85 ? 'var(--amber-bg)' : 'var(--green-bg)');
-    var hpx = Math.max(2, Math.round(v/100*54));
-    return '<span title="'+esc(x.fecha)+': '+v+'" style="flex:1;min-width:3px;height:'+hpx+'px;background:'+col+';border-radius:2px 2px 0 0"></span>';
+    var known = x[key]!=null && !isNaN(Number(x[key]));
+    var v = known ? Number(x[key]) : null;
+    var col = !known ? 'var(--border)' : (v<60 ? 'var(--red-bg)' : (v<85 ? 'var(--amber-bg)' : 'var(--green-bg)'));
+    var hpx = known ? Math.max(2, Math.round(v/100*54)) : 4;
+    return '<span title="'+esc(x.fecha)+': '+(known?v:'sin dato')+'" style="flex:1;min-width:3px;height:'+hpx+'px;background:'+col+';border-radius:2px 2px 0 0;'+(!known?'opacity:.55':'')+'"></span>';
   }).join('');
   var last = dias[dias.length-1]||{};
-  return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px">'
+  return '<div role="img" aria-label="'+esc(title)+'. Valor de hoy: '+(last[key]!=null?last[key]:'sin dato')+'" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px">'
     + '<div style="font-size:10px;color:var(--text-3);text-transform:uppercase;font-weight:700;margin-bottom:6px">'+esc(title)+'</div>'
     + '<div style="display:flex;align-items:flex-end;gap:2px;height:56px">'+bars+'</div>'
     + '<div style="font-size:10px;color:var(--text-3);margin-top:4px">hoy: <strong style="color:var(--text)">'+(last[key]!=null?last[key]:'—')+'</strong></div>'
@@ -27551,12 +27814,18 @@ function invdMiniBars(title, dias, key){
 // ── Indicador de frescura ("Foto de Odoo · hace X min") ───────────────────────
 function invdRenderFresh(){
   var el = document.getElementById('invd-fresh'); if(!el) return;
-  var ts = (_invdData && _invdData.ts) ? _invdData.ts : null;
+  var q = (_invdData && _invdData.dataQuality) || {};
+  var ts = (_invdData && (_invdData.dataAsOf || _invdData.ts)) ? new Date(_invdData.dataAsOf || _invdData.ts).getTime() : null;
   if(!ts){ el.innerHTML=''; return; }
   var mins = Math.floor((Date.now()-ts)/60000);
-  var col = mins<10 ? 'var(--green-text)' : (mins<30 ? 'var(--amber-text)' : 'var(--text-3)');
   var txt = mins<1 ? 'ahora' : ('hace '+(mins<60 ? (mins+' min') : (Math.floor(mins/60)+' h')));
-  el.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:'+col+';display:inline-block"></span>Foto de Odoo · '+txt;
+  var sources = q.sources || {};
+  var labels = [['negativos','Negativos'],['transitos','Tránsitos'],['higiene','Estructura']];
+  el.innerHTML = '<span style="font-size:10.5px;color:var(--text-3);margin-right:2px">Foto base '+txt+'</span>' + labels.map(function(x){
+    var st = (sources[x[0]] && sources[x[0]].status) || 'unavailable';
+    var stateText = invdStatusText(st);
+    return '<span class="invd-source-chip '+esc(st)+'" title="'+esc(x[1]+': '+stateText)+'"><span class="invd-source-dot" aria-hidden="true"></span>'+esc(x[1])+': '+esc(stateText)+'</span>';
+  }).join('');
 }
 function invdStartFreshTimer(){
   if(_invdFreshTimer) return;
@@ -27566,23 +27835,60 @@ function invdStartFreshTimer(){
   }, 45000);
 }
 
+function invdRenderDuplicados(){
+  var el=document.getElementById('invd-duplicados'); if(!el) return;
+  var d=_invdData||{}, comp=(d.scores&&d.scores.higiene&&d.scores.higiene.comp)||{};
+  var raw=d.duplicados||((d.senales||{}).duplicados)||{};
+  var items=Array.isArray(raw)?raw:(raw.items||[]);
+  var pct=comp.duplicadosPct;
+  var known=invdSignalKnown('duplicados') && pct!==null && pct!==undefined;
+  var h='<div class="invd-wl-box" style="margin-top:14px"><div class="invd-wl-hdr"><span style="font-size:13px;font-weight:700;color:var(--text)">Duplicados de catálogo “(Copia)”</span><span style="margin-left:auto;font-size:13px;font-weight:800;color:'+(known&&pct>0?'var(--inv-amber)':'var(--text-3)')+'">'+invdShown(known?pct+'%':null,known)+'</span></div>';
+  if(!known) h+='<div role="status" style="padding:14px 16px;color:var(--red-text);font-size:12px">La consulta de duplicados no estuvo disponible.</div>';
+  else if(items.length){
+    h+='<div class="invd-tblwrap" style="border:0;border-radius:0"><table class="invd-tbl"><thead><tr><th>Referencia</th><th>Artículo</th></tr></thead><tbody>';
+    items.forEach(function(it){ h+='<tr><td style="font-family:monospace">'+esc(it.code||it.ref||'—')+'</td><td>'+esc(it.name||'')+'</td></tr>'; });
+    h+='</tbody></table></div>';
+  } else if(pct===0) h+='<div style="padding:14px 16px;color:var(--text-3);font-size:12px">No se detectaron productos vendibles activos con “(Copia)” en el nombre.</div>';
+  else h+='<div style="padding:14px 16px;color:var(--text-3);font-size:12px">El panorama detectó '+pct+'% del catálogo con “(Copia)”. El contrato actual no incluye el listado por artículo.</div>';
+  el.innerHTML=h+'</div>';
+}
+
+function invdRenderStagingDetail(){
+  var el=document.getElementById('invd-struct-staging-body'); if(!el) return;
+  var d=_invdData||{}, bd=(d.manos&&d.manos.breakdown)||{};
+  var raw=d.stagingViejo||((d.senales||{}).stagingViejo)||((d.senales||{}).staging)||{};
+  var items=Array.isArray(raw)?raw:(raw.items||[]), known=invdSignalKnown('staging');
+  var count=bd.stagingViejo;
+  if(!known){ el.innerHTML='<div role="status" style="padding:14px 16px;color:var(--red-text);font-size:12px">No se pudo determinar el staging envejecido.</div>'; return; }
+  if(!count){ el.innerHTML='<div style="padding:14px 16px;color:var(--text-3);font-size:12px">Sin líneas en staging con más de 30 días.</div>'; return; }
+  if(!items.length){ el.innerHTML='<div style="padding:14px 16px;color:var(--text-3);font-size:12px"><strong style="color:var(--inv-amber)">'+count+' línea(s)</strong> detectadas. El contrato actual no incluye el detalle por SKU.</div>'; return; }
+  var h='<div class="invd-tblwrap" style="border:0;border-radius:0"><table class="invd-tbl"><thead><tr><th>Ref</th><th>Artículo</th><th>Ubicación</th><th style="text-align:center">Cant.</th><th style="text-align:center">Antigüedad</th></tr></thead><tbody>';
+  items.forEach(function(it){ h+='<tr><td style="font-family:monospace">'+esc(it.code||it.ref||'—')+'</td><td>'+esc(it.name||'')+'</td><td>'+esc(it.locName||it.location||'—')+'</td><td style="text-align:center">'+(it.qty==null?'—':it.qty)+'</td><td style="text-align:center">'+(it.ageDays==null?'—':tmAge(it.ageDays))+'</td></tr>'; });
+  el.innerHTML=h+'</tbody></table></div>';
+}
+
 // ── Anomalías estructurales de ubicaciones (auditoría 10-jul) ─────────────────
 // Monitorea, solo lectura, los patrones que Ron identificó y que no se pueden
 // corregir en Odoo desde aquí: stock en nodos padre (putaway mal aplicado, ej.
 // A-CDP) y ubicaciones congeladas fuera del árbol de almacén (ej. DIF.PTN).
 var _invAnomData = null;
 async function invAnomCargar(force) {
+  var loadSeq = ++_invAnomSeq;
   var box = document.getElementById('inv-anomalias');
-  if (!box) return;
-  if (!_invAnomData || force) box.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;color:var(--text-3);font-size:12px"><div class="spinner"></div>Analizando ubicaciones…</div>';
+  if (!box) return false;
+  if (!_invAnomData || force) box.innerHTML = '<div role="status" style="display:flex;align-items:center;gap:8px;padding:10px 0;color:var(--text-3);font-size:12px"><span class="spinner" aria-hidden="true"></span>Analizando ubicaciones…</div>';
   try {
-    var r = await authFetch('/api/inventario/anomalias');
+    var r = await authFetch('/api/inventario/anomalias' + (force ? '?refresh=1' : ''));
     var d = await r.json();
     if (!r.ok || !d.ok) throw new Error(d.error || 'Error');
+    if (loadSeq !== _invAnomSeq) return false;
     _invAnomData = d;
     invAnomRender(d);
+    return true;
   } catch(e) {
-    box.innerHTML = '<div style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px">No se pudieron cargar las anomalías de ubicaciones: ' + esc(e.message) + '</div>';
+    if (loadSeq !== _invAnomSeq) return false;
+    box.innerHTML = '<div role="alert" style="padding:10px 14px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;color:var(--amber-text);font-size:12px">No se pudieron cargar las anomalías de ubicaciones: ' + esc(e.message) + '</div>';
+    return false;
   }
 }
 
@@ -27600,7 +27906,7 @@ function invAnomRender(d) {
   var h = '';
 
   // ── Panel 1: nodos padre con negativos (putaway mal aplicado) ──
-  h += '<div class="invd-wl-box" style="margin-bottom:14px">';
+  h += '<div class="invd-wl-box" id="invd-struct-parent" style="margin-bottom:14px">';
   h += '<div class="invd-wl-hdr">';
   h += '<span style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px"><i data-lucide="git-fork" style="width:14px;height:14px;stroke:var(--inv-red)"></i>Stock en nodos padre (putaway mal aplicado)</span>';
   h += '<span style="margin-left:auto;font-size:10px;color:var(--text-3);max-width:320px;text-align:right">El físico está en una hija pero el sistema lo registra en el padre → negativos al despachar</span>';
@@ -27666,6 +27972,11 @@ function invAnomRender(d) {
   h += '<div style="padding:8px 14px;font-size:10px;color:var(--text-3);background:var(--surface-2)">Showrooms/consignación (MICHELL, MONTIBELLO, LOB, Stam House) confirmados como legítimos y atenuados; solo resalta lo que requiere revisión (ej. DIF.PTN).</div>';
   h += '</div>';
 
+  // ── Panel staging viejo: el detalle se hidrata desde Panorama cuando el contrato lo incluye ──
+  h += '<div class="invd-wl-box" id="invd-struct-staging" style="margin-top:14px">';
+  h += '<div class="invd-wl-hdr"><span style="font-size:13px;font-weight:700;color:var(--text)">Staging con más de 30 días</span><span style="margin-left:auto;font-size:10px;color:var(--text-3)">DESPACHO PTN · líneas SKU × ubicación</span></div>';
+  h += '<div id="invd-struct-staging-body"></div></div>';
+
   // ── Panel 3: correcciones por ajuste de conteo (posible enmascaramiento) ──
   var adj = d.adjustments || [];
   var win = d.adjWindowDays || 90;
@@ -27698,6 +28009,9 @@ function invAnomRender(d) {
   h += '</div>';
 
   box.innerHTML = h;
+  invdRenderStagingDetail();
+  invdRenderDuplicados();
+  invdScrollStructuralAnchor();
   if (window.lucide) lucide.createIcons();
 }
 
@@ -27707,24 +28021,32 @@ function invAnomRender(d) {
 function invRenderKpis() {
   var d = _invData, k = d.kpis || {};
   var s3 = (_invdData && _invdData.senales && _invdData.senales.s3) || {};
-  function num(val, lbl, colorVar, onclick) {
-    return '<div' + (onclick ? ' style="cursor:pointer" onclick="' + onclick + '"' : '') + '>' +
-      '<span style="font-size:22px;font-weight:800;color:var(' + colorVar + ')">' + val + '</span> ' +
-      '<span style="font-size:12px;color:var(--text-2)">' + lbl + '</span></div>';
+  var healthKnown = invSaludKnown(), s3Known = invdSignalKnown('s3');
+  function num(val, lbl, colorVar, onclick, known) {
+    var content = '<span style="font-size:22px;font-weight:800;color:' + (known?'var(' + colorVar + ')':'var(--text-3)') + '">' + invdShown(val,known) + '</span> ' +
+      '<span style="font-size:12px;color:var(--text-2)">' + lbl + '</span>';
+    return onclick
+      ? '<button type="button" class="invd-inline-kpi" onclick="' + onclick + '" aria-label="'+esc(lbl+': '+invdShown(val,known))+'">'+content+'</button>'
+      : '<span style="display:block">'+content+'</span>';
   }
   var items = [
-    num((k.activos || 0), 'negativos activos · ' + (k.skus || 0) + ' SKU', (k.activos ? '--inv-red' : '--inv-green'))
+    num(k.activos, 'negativos activos en todas las ubicaciones · ' + invdShown(k.skus,healthKnown) + ' SKU', (k.activos ? '--inv-red' : '--inv-green'), '', healthKnown)
   ];
-  items.push(num((s3.count || 0), 'riesgo doble-venta', (s3.count ? '--inv-red' : '--text-3'), "invdTab('cuadre')"));
+  items.push(num(s3.count, 'doble compromiso posible', (s3.count ? '--inv-red' : '--text-3'), "invdTab('cuadre')", s3Known));
   var zeroLabels = [];
-  if (k.recepPend) items.push(num(k.recepPend, 'recepciones tránsito', '--inv-amber')); else zeroLabels.push('Recepciones tránsito');
-  if (k.sinCaso) items.push(num(k.sinCaso, 'sin clasificar', '--inv-amber')); else zeroLabels.push('sin clasificar');
+  if (!healthKnown) {
+    items.push(num(null, 'recepciones tránsito', '--inv-amber', '', false));
+    items.push(num(null, 'sin clasificar', '--inv-amber', '', false));
+  } else {
+    if (k.recepPend) items.push(num(k.recepPend, 'recepciones tránsito', '--inv-amber', '', true)); else zeroLabels.push('Recepciones tránsito');
+    if (k.sinCaso) items.push(num(k.sinCaso, 'sin clasificar', '--inv-amber', '', true)); else zeroLabels.push('sin clasificar');
+  }
   if (k.avanceCasoPct !== null && k.avanceCasoPct !== undefined) {
     items.push('<div><span style="font-size:18px;font-weight:700;color:var(--inv-green)">' + k.avanceCasoPct + '%</span> ' +
       '<span style="font-size:12px;color:var(--text-2)">avance auditoría' + (k.avanceCasoTitulo ? ' · ' + esc(k.avanceCasoTitulo.slice(0, 24)) : '') + '</span></div>');
   }
   var html = items.map(function(it, i){ return (i ? '<div class="invd-kpi-sep"></div>' : '') + it; }).join('');
-  if (zeroLabels.length) {
+  if (healthKnown && zeroLabels.length) {
     html += '<span style="margin-left:auto;font-size:11.5px;color:var(--text-3)">' + zeroLabels.join(' y ') + ': <b style="color:var(--inv-green)">en orden</b></span>';
   }
   document.getElementById('inv-kpis').className = 'invd-kpi-strip';
@@ -27739,6 +28061,7 @@ function invRenderKpis() {
 function invRenderSinCaso() {
   var zone = document.getElementById('inv-sincaso');
   var d = _invData;
+  var healthKnown = invSaludKnown();
   var sin = d.sinCaso || [];
   var casosAbiertos = (d.casos || []).filter(function(c){ return c.estado === 'abierto'; });
 
@@ -27768,10 +28091,13 @@ function invRenderSinCaso() {
   var total = groups.A.length + groups.B.length + groups.C.length + groups['?'].length;
 
   if (!total) {
+    var emptyMessage = healthKnown
+      ? 'Nada por corregir hoy — todo está en orden o ya corregido.'
+      : 'No se pudo determinar la lista de corrección. Actualiza para reintentar.';
     zone.innerHTML = seedHtml + '<div class="invd-wl-grid">' +
       '<div class="invd-wl-box"><div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px">' +
-        '<i data-lucide="check-circle" style="width:20px;height:20px;stroke:var(--inv-green);opacity:.7"></i>' +
-        '<div style="margin-top:6px">Nada por corregir hoy — todo está en orden o ya corregido.</div></div></div>' +
+        '<i data-lucide="' + (healthKnown ? 'check-circle' : 'circle-alert') + '" style="width:20px;height:20px;stroke:var(' + (healthKnown ? '--inv-green' : '--inv-amber') + ');opacity:.8"></i>' +
+        '<div role="status" style="margin-top:6px">' + emptyMessage + '</div></div></div>' +
       invWlSideColumn() +
     '</div>';
     if (window.lucide) lucide.createIcons();
@@ -27790,30 +28116,30 @@ function invRenderSinCaso() {
     var expanded = (code === _invWlExpanded);
     var letterBg = code === 'A' ? '--inv-redbg' : code === '?' ? '--surface-2' : '--inv-amberbg';
     var letterTx = code === 'A' ? '--inv-red' : code === '?' ? '--text-3' : '--inv-amber';
-    var hdr = '<div class="invd-wl-group' + (expanded ? ' expanded' : '') + '" onclick="invWlExpand(\'' + code + '\')">' +
+    var hdr = '<button type="button" class="invd-wl-group' + (expanded ? ' expanded' : '') + '" aria-expanded="' + (expanded ? 'true' : 'false') + '" onclick="invWlExpand(\'' + code + '\')">' +
       '<span class="invd-wl-letter" style="background:var(' + letterBg + ');color:var(' + letterTx + ')">' + (code === '?' ? '?' : code) + '</span>' +
-      '<div style="min-width:0;flex:1"><div style="font-size:13.5px;font-weight:700;color:var(--text)">' + esc(nombre) + '</div><div style="font-size:11.5px;color:var(--text-3)">' + esc(meta.hint) + '</div></div>' +
+      '<span style="display:block;min-width:0;flex:1"><span style="display:block;font-size:13.5px;font-weight:700;color:var(--text)">' + esc(nombre) + '</span><span style="display:block;font-size:11.5px;color:var(--text-3)">' + esc(meta.hint) + '</span></span>' +
       '<span style="font-size:17px;font-weight:800;color:var(' + letterTx + ')">' + items.length + '</span>' +
       '<span style="font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0">' + (expanded ? 'Ocultar ↑' : 'Corregir →') + '</span>' +
-    '</div>';
+    '</button>';
     if (!expanded) return hdr;
     var showAll = !!_invWlMoreOpen[code];
     var visible = showAll ? items : items.slice(0, 4);
     var rowsHtml = visible.map(function(it) {
       var ageTxt = it.ageDays == null ? '—' : tmAge(it.ageDays);
-      var check = (it.kind === 'sincaso')
-        ? '<input type="checkbox" data-ref="' + esc(it.ref) + '" onchange="invToggleSel(this)"' + (_invSel.has(it.ref) ? ' checked' : '') + ' style="width:12px;height:12px;accent-color:var(--accent);cursor:pointer;vertical-align:-1px;margin-right:5px" onclick="event.stopPropagation()">'
-        : '';
-      var rowAttrs = (it.kind === 'caso') ? ' onclick="invAbrirDetalle(\'' + esc(it.casoId) + '\',\'' + esc(it.itemId) + '\')" style="cursor:pointer"' : '';
+      var refHtml = (it.kind === 'sincaso')
+        ? '<label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" data-ref="' + esc(it.ref) + '" onchange="invToggleSel(this)"' + (_invSel.has(it.ref) ? ' checked' : '') + ' style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer" onclick="event.stopPropagation()"><span>' + esc(it.ref) + '</span></label>'
+        : esc(it.ref);
+      var rowAttrs = (it.kind === 'caso') ? ' class="invd-row-action" data-inv-case="'+esc(it.casoId)+'" data-inv-item="'+esc(it.itemId)+'" tabindex="0" aria-label="Abrir detalle de '+esc(it.ref)+'" onclick="invAbrirDetalle(\'' + esc(it.casoId) + '\',\'' + esc(it.itemId) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();invAbrirDetalle(\'' + esc(it.casoId) + '\',\'' + esc(it.itemId) + '\')}" style="cursor:pointer"' : '';
       return '<tr' + rowAttrs + '>' +
-        '<td style="padding:7px 12px;font-family:monospace;font-size:10.5px;font-weight:700;color:var(--text)">' + check + esc(it.ref) + '</td>' +
+        '<td style="padding:7px 12px;font-family:monospace;font-size:10.5px;font-weight:700;color:var(--text)">' + refHtml + '</td>' +
         '<td style="padding:7px 6px;color:var(--text-2)" title="' + esc(it.name || '') + '">' + esc(it.name || '') + '</td>' +
         '<td style="padding:7px 6px;text-align:center;font-weight:700;color:var(--inv-red)">' + (it.qty == null ? '—' : it.qty) + '</td>' +
         '<td style="padding:7px 12px;text-align:right;color:var(--text-3)">' + ageTxt + '</td>' +
       '</tr>';
     }).join('');
-    var tbl = '<table class="invd-fixed-tbl"><colgroup><col style="width:30%"><col style="width:auto"><col style="width:56px"><col style="width:70px"></colgroup><tbody>' + rowsHtml + '</tbody></table>';
-    var more = (!showAll && items.length > 4) ? '<div class="invd-wl-more" onclick="invWlToggleMore(\'' + code + '\')">Ver ' + (items.length - 4) + ' más de ' + esc(nombre.toLowerCase()) + ' →</div>' : '';
+    var tbl = '<table class="invd-fixed-tbl invd-worklist-tbl"><colgroup><col style="width:30%"><col style="width:auto"><col style="width:56px"><col style="width:70px"></colgroup><thead><tr><th style="padding:6px 12px;text-align:left">Referencia</th><th style="padding:6px;text-align:left">Artículo</th><th style="padding:6px;text-align:center">Cant.</th><th style="padding:6px 12px;text-align:right">Antig.</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+    var more = (!showAll && items.length > 4) ? '<button type="button" class="invd-wl-more" onclick="invWlToggleMore(\'' + code + '\')">Ver ' + (items.length - 4) + ' más de ' + esc(nombre.toLowerCase()) + ' →</button>' : '';
     return hdr + tbl + more;
   }).join('');
 
@@ -27855,6 +28181,8 @@ function invWlSideColumn() {
   var casosAbiertos = (d.casos || []).filter(function(c){ return c.estado === 'abierto'; });
   var s3 = (_invdData && _invdData.senales && _invdData.senales.s3) || { items:[], count:0 };
   var s1 = (_invdData && _invdData.senales && _invdData.senales.s1) || { items:[], count:0 };
+  var s3Known = invdSignalKnown('s3') && s3.count !== null && s3.count !== undefined;
+  var s1Known = invdSignalKnown('s1') && s1.count !== null && s1.count !== undefined;
 
   var casoCards = casosAbiertos.map(function(c) {
     var items = c.items || [];
@@ -27873,31 +28201,31 @@ function invWlSideColumn() {
     '</div>';
   }).join('');
 
-  var s3Items = (s3.items || []).slice(0, 3);
+  var s3Items = s3Known ? (s3.items || []).slice(0, 3) : [];
   var dobleVenta = '<div class="invd-side-card" style="padding:0;overflow:hidden">' +
     '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">' +
       '<span style="width:8px;height:8px;border-radius:50%;background:var(--inv-reddot);flex-shrink:0"></span>' +
       '<span style="font-size:12.5px;font-weight:800;color:var(--text)">Riesgo de doble-venta</span>' +
-      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-red)">' + (s3.count || 0) + '</span>' +
+      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:' + (s3Known ? 'var(--inv-red)' : 'var(--text-3)') + '">' + invdShown(s3.count, s3Known) + '</span>' +
     '</div>' +
     (s3Items.length
       ? s3Items.map(function(it) {
           var bin = (it.bins && it.bins[0]) ? it.bins[0].locName : '—';
           return '<div style="padding:10px 16px;border-bottom:1px solid var(--border)"><div style="font-family:monospace;font-size:10.5px;font-weight:700;color:var(--text)">' + esc(it.code || '—') + '</div><div style="font-size:11.5px;color:var(--text-3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(it.name || '') + ' · ' + esc(bin) + '</div></div>';
         }).join('')
-      : '<div style="padding:14px 16px;font-size:12px;color:var(--text-3)">Sin riesgo detectado.</div>') +
-    ((s3.count || 0) > s3Items.length ? '<div class="invd-wl-more" style="border-bottom:none" onclick="invdTab(\'cuadre\')">Ver ' + ((s3.count || 0) - s3Items.length) + ' más →</div>' : '') +
+      : '<div role="status" style="padding:14px 16px;font-size:12px;color:var(--text-3)">' + (s3Known ? 'Sin riesgo detectado.' : 'Dato no disponible. Actualiza para reintentar.') + '</div>') +
+    (s3Known && Number(s3.count) > s3Items.length ? '<button type="button" class="invd-wl-more" style="border:0;border-bottom:none;width:100%;text-align:left" onclick="invdTab(\'cuadre\')">Ver ' + (Number(s3.count) - s3Items.length) + ' más →</button>' : '') +
   '</div>';
 
-  var s1First = (s1.items && s1.items[0]) || {};
+  var s1First = (s1Known && s1.items && s1.items[0]) || {};
   var huerfanas = '<div class="invd-side-card">' +
     '<div style="display:flex;align-items:center;gap:8px">' +
       '<span style="width:8px;height:8px;border-radius:50%;background:var(--inv-amberdot);flex-shrink:0"></span>' +
       '<span style="font-size:12.5px;font-weight:800;color:var(--text)" title="Líneas (artículo × ubicación) varadas en tránsito; las unidades totales están en el KPI de arriba">Huérfanos en tránsito</span>' +
-      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:var(--inv-amber)" title="Líneas (artículo × ubicación)">' + (s1.count || 0) + '</span>' +
+      '<span style="margin-left:auto;font-size:15px;font-weight:800;color:' + (s1Known ? 'var(--inv-amber)' : 'var(--text-3)') + '" title="Líneas (artículo × ubicación)">' + invdShown(s1.count, s1Known) + '</span>' +
     '</div>' +
-    '<div style="font-size:11.5px;color:var(--text-3);margin-top:7px">' + (s1First.sourcePicking ? ('Recepción sin validar · <span style="font-family:monospace">' + esc(s1First.sourcePicking) + '</span>') : 'Sin huérfanos en tránsito.') + '</div>' +
-    ((s1.count || 0) > 0 ? '<button style="margin-top:11px;width:100%;border:none;background:var(--text);color:var(--surface);font-family:inherit;font-size:12px;font-weight:700;padding:9px;border-radius:6px;cursor:pointer" onclick="invdTab(\'transitos\');invdTransitSetFilter(\'estado\',\'huerfano\')">Validar recepción</button>' : '') +
+    '<div role="status" style="font-size:11.5px;color:var(--text-3);margin-top:7px">' + (!s1Known ? 'Dato no disponible. Actualiza para reintentar.' : s1First.sourcePicking ? ('Recepción sin validar · <span style="font-family:monospace">' + esc(s1First.sourcePicking) + '</span>') : (Number(s1.count) > 0 ? 'Consulta el detalle en Tránsitos.' : 'Sin huérfanos en tránsito.')) + '</div>' +
+    (s1Known && Number(s1.count) > 0 ? '<button style="margin-top:11px;width:100%;border:none;background:var(--text);color:var(--surface);font-family:inherit;font-size:12px;font-weight:700;padding:9px;border-radius:6px;cursor:pointer" onclick="invdTab(\'transitos\');invdTransitSetFilter(\'estado\',\'huerfano\')">Validar recepción</button>' : '') +
   '</div>';
 
   return '<div style="display:flex;flex-direction:column;gap:14px">' + (casoCards || '') + dobleVenta + huerfanas + '</div>';
@@ -27967,7 +28295,7 @@ async function invSeed() {
 // item vigente. Puede tardar ~10-20s (recorre cada SKU contra Odoo) — solo admin.
 async function invAuditoriaGlobal() {
   var btn = document.getElementById('inv-btn-auditoria');
-  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.innerHTML = '<div class="spinner" style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px"></div>Auditando…'; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="spinner" aria-hidden="true" style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px"></span>Auditando…'; }
   try {
     var r = await authFetch('/api/inventario/auditoria-global', { method: 'POST', body: JSON.stringify({}) });
     var d = await r.json();
@@ -27975,7 +28303,7 @@ async function invAuditoriaGlobal() {
     toast('Auditoría global: ' + d.totalNegativos + ' negativos · ' + d.refsUnicos + ' SKUs · ' + d.agregados + ' agregado(s) al caso global · ' + d.clasificados + ' clasificado(s)');
     invSaludCargar();
   } catch(e) { toast('Error: ' + e.message); }
-  finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.innerHTML = '<i data-lucide="shield-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Auditoría global'; if (window.lucide) lucide.createIcons(); } }
+  finally { if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.removeAttribute('aria-busy'); btn.innerHTML = '<i data-lucide="shield-check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Auditoría global'; if (window.lucide) lucide.createIcons(); } }
 }
 
 function invRenderRecepciones() {
@@ -28037,7 +28365,7 @@ function invRenderCasos() {
     var cerrado = c.estado === 'cerrado';
     var rows = items.map(function(it) {
       var locsShort = (it.locs || []).map(function(l){ return l.split('/').slice(2).join('/'); }).join(' · ');
-      return '<tr style="border-bottom:1px solid var(--border);cursor:pointer" onclick="invAbrirDetalle(\'' + esc(c.id) + '\',\'' + esc(it.itemId) + '\')">' +
+      return '<tr class="invd-row-action" data-inv-case="' + esc(c.id) + '" data-inv-item="' + esc(it.itemId) + '" tabindex="0" aria-label="Abrir detalle de ' + esc(it.ref) + '" style="border-bottom:1px solid var(--border);cursor:pointer" onclick="invAbrirDetalle(\'' + esc(c.id) + '\',\'' + esc(it.itemId) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();invAbrirDetalle(\'' + esc(c.id) + '\',\'' + esc(it.itemId) + '\')}">' +
         '<td style="padding:8px 12px;max-width:230px"><div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap">' + esc(it.ref) + '</div>' +
           '<div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(it.productName || '') + '">' + esc(it.productName || '') + '</div></td>' +
         '<td style="padding:8px 10px;font-size:11px;color:var(--text-3);white-space:nowrap;font-family:monospace">' + esc(it.barcode || '—') + '</td>' +
@@ -28073,7 +28401,7 @@ function invRenderCasos() {
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Artículo</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Código</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Causa</th>' +
-          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Transacción que generó el negativo</th>' +
+          '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Movimiento asociado a la racha negativa</th>' +
           '<th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Ubicación</th>' +
           '<th style="padding:8px 8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-2)">Cant.</th>' +
           '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:var(--text-2)">Seguimiento</th>' +
@@ -28110,12 +28438,15 @@ function invFindItem(casoId, itemId) {
 async function invAbrirDetalle(casoId, itemId) {
   var f = invFindItem(casoId, itemId);
   if (!f.it) return;
+  var requestSeq = ++_invDetailSeq;
+  var returnFocus = document.activeElement;
   var old = document.getElementById('invDetOverlay');
-  if (old) old.remove();
+  if (old) { old.remove(); delete _invdModalReturnFocus.invDetOverlay; }
   document.body.insertAdjacentHTML('beforeend',
-    '<div class="eo-det-overlay" id="invDetOverlay" onclick="if(event.target===this)this.remove()">' +
-      '<div class="eo-det-modal" id="invDetModal" style="padding:0;max-width:640px"><div style="padding:30px;text-align:center;color:var(--text-2)">Cargando movimientos…</div></div>' +
+    '<div class="eo-det-overlay invd-modal-scope" id="invDetOverlay" onclick="if(event.target===this)invdCloseModal(\'invDetOverlay\')">' +
+      '<div class="eo-det-modal invd-modal-dialog" id="invDetModal" role="dialog" aria-modal="true" aria-labelledby="invDetTitle" tabindex="-1" style="padding:0;max-width:640px"><h2 id="invDetTitle" class="invd-sr-only">Detalle del artículo</h2><div role="status" style="padding:30px;text-align:center;color:var(--text-2)"><span class="spinner" aria-hidden="true" style="display:inline-block;margin-right:7px"></span>Cargando movimientos…</div></div>' +
     '</div>');
+  invdBindModal('invDetOverlay', 'invDetModal', returnFocus);
   var mov = _invDrawerMov[itemId];
   if (!mov) {
     try {
@@ -28135,6 +28466,7 @@ async function invAbrirDetalle(casoId, itemId) {
       mov = { moves: [], causa: null, kit: null, error: e.message };
     }
   }
+  if (requestSeq !== _invDetailSeq || !document.getElementById('invDetModal')) return;
   invRenderDrawer(casoId, itemId, mov);
 }
 
@@ -28142,8 +28474,9 @@ function invRenderDrawer(casoId, itemId, mov) {
   var modal = document.getElementById('invDetModal');
   if (!modal) return;
   var f = invFindItem(casoId, itemId);
-  if (!f.it) { modal.parentElement.remove(); return; }
+  if (!f.it) { invdCloseModal('invDetOverlay'); return; }
   var it = f.it;
+  var readOnly = !!(f.caso && f.caso.estado === 'cerrado');
 
   var movRows = (mov.moves || []).map(function(m) {
     return '<tr style="border-bottom:1px solid var(--border)">' +
@@ -28158,14 +28491,14 @@ function invRenderDrawer(casoId, itemId, mov) {
   if (mov.error) {
     causaHtml = '<div style="padding:10px 12px;background:var(--amber-bg);border-radius:8px;font-size:12px;color:var(--amber-text)">' + esc(mov.error) + '</div>';
   } else if (mov.causa) {
-    var sugerida = mov.causa.code !== it.causa && mov.causa.code !== '?';
+    var sugerida = !readOnly && mov.causa.code !== it.causa && mov.causa.code !== '?';
     causaHtml = '<div style="padding:10px 12px;background:var(--surface-2);border-radius:8px;font-size:12px;color:var(--text-2)">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">' +
         '<span style="font-size:11px;font-weight:700;color:var(--text-3)">CAUSA SUGERIDA:</span>' + invCausaBadge(mov.causa.code) +
         (sugerida ? '<button style="font-size:10px;padding:3px 8px;border:1px solid var(--accent);border-radius:5px;background:transparent;color:var(--accent);cursor:pointer;font-weight:600" onclick="invAccion(\'' + esc(casoId) + '\',\'' + esc(itemId) + '\',\'causa\',{causa:\'' + mov.causa.code + '\'})">Aplicar</button>' : '') +
       '</div>' + esc(mov.causa.razon || '') +
       (mov.kit && mov.kit.kitPadre ? '<div style="margin-top:4px;font-size:11px;color:var(--purple-text)"><strong>Kit padre:</strong> ' + esc(mov.kit.kitPadre) + '</div>' : '') +
-      (mov.causingMove ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:11px"><strong style="color:var(--text-3)">Transacción que generó el negativo:</strong> ' +
+      (mov.causingMove ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-size:11px"><strong style="color:var(--text-3)">Movimiento asociado al inicio de la racha negativa:</strong> ' +
         esc(invFmtDShort(mov.causingMove.date)) + ' · ' + esc(mov.causingMove.ref || '—') + ' · ' +
         esc((mov.causingMove.from || '').replace('ALVEN/Stock/', '')) + ' <span style="color:var(--text-3)">→</span> ' + esc((mov.causingMove.to || '').replace('ALVEN/Stock/', '')) + '</div>' : '') +
     '</div>';
@@ -28192,7 +28525,7 @@ function invRenderDrawer(casoId, itemId, mov) {
     '<div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
       '<div>' +
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">' +
-          '<strong style="font-size:15px;color:var(--text)">' + esc(it.ref) + '</strong>' + invCausaBadge(it.causa) + invSegBadge(it) +
+          '<strong id="invDetTitle" style="font-size:15px;color:var(--text)">Detalle de ' + esc(it.ref) + '</strong>' + invCausaBadge(it.causa) + invSegBadge(it) +
         '</div>' +
         '<div style="font-size:12px;color:var(--text-2)">' + esc(it.productName || '') + (it.barcode ? ' <span style="font-family:monospace;color:var(--text-3)">· ' + esc(it.barcode) + '</span>' : '') + '</div>' +
         '<div style="font-size:11px;color:var(--text-3);margin-top:2px">' +
@@ -28201,9 +28534,10 @@ function invRenderDrawer(casoId, itemId, mov) {
           (it.qtyContada !== null ? ' · Contado físico: <strong>' + it.qtyContada + '</strong>' : '') +
         '</div>' +
       '</div>' +
-      '<button onclick="document.getElementById(\'invDetOverlay\').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:4px"><i data-lucide="x" style="width:18px;height:18px"></i></button>' +
+      '<button type="button" data-inv-close aria-label="Cerrar detalle" onclick="invdCloseModal(\'invDetOverlay\')" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:4px"><i data-lucide="x" aria-hidden="true" style="width:18px;height:18px"></i></button>' +
     '</div>' +
     '<div style="padding:16px 20px">' +
+      (readOnly ? '<div role="status" style="padding:10px 12px;margin-bottom:12px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:8px;color:var(--amber-text);font-size:12px"><strong>Caso cerrado:</strong> el detalle está en modo solo lectura. Reabre el caso para aplicar cambios.</div>' : '') +
       causaHtml +
       '<div class="eo-det-sec-title" style="margin-top:14px">Causa raíz (fijar manualmente)</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:12px">' + causaSel + '</div>' +
@@ -28230,6 +28564,11 @@ function invRenderDrawer(casoId, itemId, mov) {
       '</div>' +
       '<div style="max-height:180px;overflow-y:auto">' + notasHtml + '</div>' +
     '</div>';
+  if(readOnly){
+    modal.querySelectorAll('button:not([data-inv-close]),input,select,textarea').forEach(function(control){
+      control.disabled = true; control.setAttribute('aria-disabled','true'); control.style.opacity = '.55';
+    });
+  }
   if (window.lucide) lucide.createIcons();
 }
 
@@ -28259,8 +28598,15 @@ async function invAccion(casoId, itemId, accion, extra) {
     }
     invRenderCasos();
     invRenderKpis();
+    var replacement = Array.from(document.querySelectorAll('[data-inv-case][data-inv-item]')).find(function(el){
+      return el.dataset.invCase === String(casoId) && el.dataset.invItem === String(itemId) && el.offsetParent !== null;
+    });
+    if(replacement) _invdModalReturnFocus.invDetOverlay = replacement;
     if (window.lucide) lucide.createIcons();
-    if (document.getElementById('invDetModal')) invRenderDrawer(casoId, itemId, _invDrawerMov[itemId] || { moves: [], causa: null, kit: null });
+    if (document.getElementById('invDetModal')) {
+      invRenderDrawer(casoId, itemId, _invDrawerMov[itemId] || { moves: [], causa: null, kit: null });
+      document.getElementById('invDetModal').focus();
+    }
   } catch(e) { toast('Error: ' + e.message); }
 }
 
