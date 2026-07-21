@@ -25,6 +25,14 @@
 - `migrateProductImagesInline()` corre en cada boot (idempotente): convierte cualquier base64 inline heredado. Resultado medido con datos reales: archivo de tareas 6.1 MB → 93 KB; payload GET tasks 4.2 MB gzip → 8 KB.
 - `<img src>` acepta URLs igual que data URIs → el cliente no cambió.
 
+## SDV devolución multi-RET (v206, jul-2026) — la vendedora elige las RET
+- `GET /api/sdv/lookup?tipo=devolucion` ya NO colapsa a la última RET: devuelve `rets:[{id,name,state,origin,retRef,itemCount}]` (todas las no canceladas) + `items` etiquetados con `retId/retRef`. Con 1 RET el shape top-level (`retRef/retState`) es idéntico al de antes; con N se agregan (`' + '` / `'/'`).
+- Resolución compartida en `sdvFindRetPickings(soId, soName)` (flujo nuevo sale_id+incoming, fallback viejo /RET/ por origin del OUT) — la usan lookup Y refresh (el refresh solo cubría el flujo viejo: estaba roto para sale.return.order).
+- Form (historial.html): con 2+ RETs se pinta el selector `#sdv-rets-selector` (checkboxes ámbar, default todas; toggle filtra artículos en vivo). Estado: `_sdvRets/_sdvRetSel/_sdvItemsFull`. Guard en `sdvRenderItems`: con todo desmarcado la sección NO se oculta (aviso "Marca al menos una RET"); `sdvEnviar` bloquea con mensaje específico.
+- La selección es FIJA al crear (decisión Gabriel 20-jul): se persiste `retRefs` saneado (whitelist, ids numéricos, corte a 20) en la SDV, viaja a la tarea (`task.retRefs` + `items[].retId/retRef` vía `sdvEspecialItems`), y el refresh (`/odoo/refresh`) se ANCLA a esos ids (solo excluye canceladas posteriores). Sin "cambiar RET" en el modal de edición.
+- Fix incluido: el diff del refresh agregaba por SKU solo el lado SDV → con el mismo SKU en varias RET daba falsos "modificados"; ahora ambos lados se agregan por SKU.
+- Harness: `tests/_test_sdv_multiret.mjs` (23 asserts) + regresión `tests/_test_sdv_devolucion_recogida.mjs` (38).
+
 ## Modelo de tareas (WWP) — conceptos clave
 - Tipos: `packaging`, `dispatch_order`, `warehouse_move`, `item_pickup`, `truck_loading`, `general`, `staffing`.
 - Estados: pending → assigned → in_progress → completed → validated (+ cancelled).

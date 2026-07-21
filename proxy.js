@@ -211,7 +211,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v205';
+const APP_BUILD = 'v206';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -2763,6 +2763,10 @@ function sdvEspecialItems(sdv) {
       group_ref: iid,
       fromPick: false,
       pickName: '',
+      // Devolución multi-RET: de cuál RET viene cada artículo (no confundir con pickName,
+      // que tiene semántica propia del wizard). '' / null para los demás tipos.
+      retId: a.retId || null,
+      retRef: a.retRef || '',
       selected: true,
       locations: [],
       selected_location: null,
@@ -2775,6 +2779,39 @@ function sdvEspecialItems(sdv) {
       status: 'pending'
     };
   });
+}
+
+// ── Helper: RETs (devoluciones) de una orden de venta en Odoo ────────────────
+// Flujo NUEVO (sale.return.order, Ron caso S09474 8-jul): picking de RECEPCIÓN (incoming)
+// con sale_id poblado y origin "RET/000NN - <orden>". Flujo VIEJO (wizard de retorno):
+// picking /RET/ cuyo origin apunta al OUT. Devuelve TODAS las RET no canceladas
+// [{id,name,state,origin}] — el consumidor decide (selector de la vendedora en el form
+// SDV; ancla del refresh). `error` solo en el flujo viejo sin OUT (404 del lookup).
+async function sdvFindRetPickings(soId, soName) {
+  let retList = [];
+  try {
+    const ins = await odooCall('stock.picking','search_read',
+      [[['sale_id','=',soId],['picking_type_id.code','=','incoming'],['state','not in',['cancel']]]],
+      {fields:['id','name','state','origin'],limit:20});
+    retList = ins || [];
+  } catch(e) { /* instancias sin sale_id en picking: cae al flujo viejo */ }
+  if (!retList.length) {
+    const outs = await odooCall('stock.picking','search_read',[[['origin','=',soName],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
+    const outNames = (outs||[]).filter(p=>/\/OUT\//.test(p.name)).map(p=>p.name);
+    if (!outNames.length) return { retList: [], error: 'Sin despacho (OUT) para esta orden' };
+    // Domain OR correcto para Odoo: N-1 operadores '|' seguidos de N condiciones
+    const retConds = outNames.map(n=>['origin','ilike',n]);
+    const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
+    const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name','state','origin'],limit:20});
+    retList = (rets||[]).filter(p=>/\/RET\//.test(p.name));
+  }
+  return { retList, error: null };
+}
+
+// Etiqueta de RET que ve la vendedora: flujo nuevo → "RET/00035 · ALVEN/IN/00123"
+// (el origin trae la referencia comercial); flujo viejo → el name del picking.
+function sdvRetLabel(ret) {
+  return (/^RET\//.test(ret.origin||'')) ? (ret.origin.split(' - ')[0]+' · '+ret.name) : ret.name;
 }
 
 // ── Helper: Crear tarea WWP desde solicitud SDV ──────────────────────────────
@@ -2859,10 +2896,11 @@ function createWwpTaskFromSdv(sdv, createdBy = 'sistema') {
       + (sdv.folio ? ' (' + sdv.folio + ')' : '');
     task.items = sdvEspecialItems(sdv);
     if (task.items.length) task.itemsUpdatedAt = now;
-    // Trazabilidad de la devolución en Odoo (RET). Hoy el form aún no las persiste en la SDV
-    // (Vera) → quedan '' y NO bloquean; cuando la SDV las traiga, viajan a la tarea.
+    // Trazabilidad de la devolución en Odoo: retRef/retState (labels agregados) + retRefs
+    // (las RET que la vendedora marcó en el selector del form; [] en SDVs pre-selector).
     task.retRef = sdv.retRef || '';
     task.retState = sdv.retState || '';
+    task.retRefs = Array.isArray(sdv.retRefs) ? sdv.retRefs : [];
   }
   return task;
 }
@@ -12566,6 +12604,34 @@ const server = http.createServer(async (req, res) => {
       });
       tasks = tasks.filter(t => ids.has(t.id));
     }
+    // ── Archivado (v206, decisión Gabriel 20-jul): las cadenas COMPLETAMENTE
+    // cerradas hace más de WWP_ARCHIVE_DAYS (30) no viajan en el listado por
+    // defecto — siguen accesibles con ?all=1 (toggle "Incluir archivo" de la UI).
+    // La regla es POR CADENA (madre + subtareas): si cualquier miembro sigue
+    // activo o cerró hace poco, la cadena completa sigue viajando — nunca se
+    // parte una cadena a la mitad (el drawer necesita el contexto).
+    const ARCHIVE_DAYS = Math.max(0, parseInt(process.env.WWP_ARCHIVE_DAYS, 10) || 30);
+    if (String(q.all || '') !== '1' && ARCHIVE_DAYS > 0) {
+      const CLOSED = new Set(['completed', 'validated', 'cancelled']);
+      const cutoff = Date.now() - ARCHIVE_DAYS * 864e5;
+      const closedAtMs = (t) => {
+        let d = null;
+        (t.statusHistory || []).forEach(h => { if (h && CLOSED.has(h.status) && h.date) d = h.date; });
+        const ms = Date.parse(d || t.updatedAt || t.createdAt || '');
+        return isFinite(ms) ? ms : Date.now(); // sin fecha legible → tratar como reciente (no archivar)
+      };
+      const byChain = new Map();
+      tasks.forEach(t => {
+        const k = t.parentId || t.id;
+        let arr = byChain.get(k);
+        if (!arr) { arr = []; byChain.set(k, arr); }
+        arr.push(t);
+      });
+      tasks = tasks.filter(t => {
+        const chain = byChain.get(t.parentId || t.id) || [t];
+        return !chain.every(x => CLOSED.has(x.status) && closedAtMs(x) < cutoff);
+      });
+    }
     // Ordenar por fecha límite asc (nulls al final), luego por creación desc
     tasks.sort((a, b) => {
       if (!a.dueDate && !b.dueDate) return new Date(b.createdAt) - new Date(a.createdAt);
@@ -16397,30 +16463,38 @@ const server = http.createServer(async (req, res) => {
         const tipo = sol.tipoSolicitud;
         
         if (tipo === 'devolucion') {
-          const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name'],limit:1});
-          if (sos && sos.length) {
-            const so = sos[0];
-            const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
-            const outNames = (outs||[]).filter(p=>/\/OUT\//i.test(p.name)).map(p=>p.name);
-            if (outNames.length > 0) {
-              const retConds = outNames.map(n=>['origin','ilike',n]);
-              const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
-              const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name'],limit:20});
-              const retList = (rets||[]).filter(p=>/\/RET\//i.test(p.name));
-              if (retList.length > 0) {
-                const ret = retList[retList.length-1];
-                const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done'],limit:500});
-                const pids = [...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
-                const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode']}) : [];
-                const prodMap = {}; prods.forEach(p=>{ prodMap[p.id]=p; });
-                mls.forEach(function(m){
-                  if (!m.product_id) return;
-                  const p = prodMap[m.product_id[0]]||{};
-                  const qty = Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
-                  odooItems.push({sku:p.default_code||p.barcode||'',quantity:qty});
-                });
-              }
+          // Anclado a las RET que la vendedora eligió al crear (sol.retRefs): la selección es
+          // FIJA — no se re-resuelve contra Odoo. Solo se excluyen RET canceladas después de
+          // crear. Fallback SDVs viejas sin retRefs: re-resolver con el helper compartido
+          // (flujo nuevo + viejo, antes solo cubría el viejo) y colapsar a la última (legacy).
+          let retIds = (Array.isArray(sol.retRefs) ? sol.retRefs : []).map(r=>r&&Number(r.id)).filter(Boolean);
+          if (retIds.length) {
+            const vivos = await odooCall('stock.picking','search_read',[[['id','in',retIds],['state','!=','cancel']]],{fields:['id'],limit:20});
+            retIds = (vivos||[]).map(p=>p.id);
+          } else {
+            const sos = await odooCall('sale.order','search_read',[[['name','ilike',ref]]],{fields:['id','name'],limit:1});
+            if (sos && sos.length) {
+              const { retList } = await sdvFindRetPickings(sos[0].id, sos[0].name);
+              if (retList.length) retIds = [retList[retList.length-1].id];
             }
+          }
+          if (retIds.length) {
+            const mls = await odooCall('stock.move.line','search_read',[[['picking_id','in',retIds]]],{fields:['product_id','product_uom_qty','qty_done'],limit:500});
+            const pids = [...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
+            const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode']}) : [];
+            const prodMap = {}; prods.forEach(p=>{ prodMap[p.id]=p; });
+            mls.forEach(function(m){
+              if (!m.product_id) return;
+              const p = prodMap[m.product_id[0]]||{};
+              const qty = Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
+              odooItems.push({sku:p.default_code||p.barcode||'',quantity:qty});
+            });
+            // El mismo SKU puede venir en VARIAS RET (o varias líneas del mismo picking):
+            // agregar por SKU, porque el diff de abajo agrega el lado SDV (qtyBySku) y
+            // compararlo contra filas sueltas produce falsos "modificados" duplicados.
+            const _agg = new Map();
+            odooItems.forEach(it => { const k=(it.sku||'').trim(); if(!k) return; _agg.set(k, (_agg.get(k)||0) + (it.quantity||0)); });
+            odooItems = Array.from(_agg.entries()).map(([sku,quantity]) => ({sku,quantity}));
           }
         } else {
           // Multi-orden (14-jul): el refresh compara TODO lo solicitado (articulosOdoo de las
@@ -16539,32 +16613,16 @@ const server = http.createServer(async (req, res) => {
             if(ps&&ps.length){const p=ps[0];deliveryAddress=(p.contact_address||[p.street,p.city].filter(Boolean).join(', ')||'').replace(/\n+/g,', ').trim();city=p.city||'';phone=p.phone||p.mobile||'';}
           }
         } catch {}
-        // 2a. Flujo NUEVO (Ron, caso S09474 8-jul): el módulo sale.return.order genera un
-        // picking de RECEPCIÓN (/IN/, picking_type incoming) con sale_id poblado y origin
-        // "RET/000NN - <orden>" — nunca /RET/ ni origin apuntando al OUT. Buscar primero
-        // por FK (sale_id + incoming), que cubre este flujo sin depender del nombre.
-        let retList = [];
-        try {
-          const ins = await odooCall('stock.picking','search_read',
-            [[['sale_id','=',so.id],['picking_type_id.code','=','incoming'],['state','not in',['cancel']]]],
-            {fields:['id','name','state','origin'],limit:20});
-          retList = ins || [];
-        } catch(e) { /* instancias sin sale_id en picking: cae al flujo viejo */ }
-        // 2b. Flujo VIEJO (wizard de retorno): picking /RET/ cuyo origin apunta al OUT.
-        if (!retList.length) {
-          const outs = await odooCall('stock.picking','search_read',[[['origin','=',so.name],['state','not in',['cancel']]]],{fields:['id','name'],limit:20});
-          const outNames = (outs||[]).filter(p=>/\/OUT\//.test(p.name)).map(p=>p.name);
-          if (!outNames.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin despacho (OUT) para esta orden'})); return; }
-          // Domain OR correcto para Odoo: N-1 operadores '|' seguidos de N condiciones
-          const retConds = outNames.map(n=>['origin','ilike',n]);
-          const retDomain = retConds.length===1 ? retConds : Array(retConds.length-1).fill('|').concat(retConds);
-          const rets = await odooCall('stock.picking','search_read',[retDomain],{fields:['id','name','state','origin'],limit:20});
-          retList = (rets||[]).filter(p=>/\/RET\//.test(p.name));
-        }
+        // 2. TODAS las RET de la orden (flujo nuevo + fallback viejo, helper compartido con
+        // el refresh). Multi-RET: ya NO se colapsa a una — la vendedora elige en el form.
+        const { retList, error: retError } = await sdvFindRetPickings(so.id, so.name);
+        if (retError) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:retError})); return; }
         if (!retList.length) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin devolución (RET) para esta orden'})); return; }
-        // 4. Obtener líneas del primer RET (o el más reciente)
-        const ret = retList[retList.length-1];
-        const mls = await odooCall('stock.move.line','search_read',[[['picking_id','=',ret.id]]],{fields:['product_id','product_uom_qty','qty_done','move_id'],limit:500});
+        // 3. Líneas de TODAS las RET en un solo batch, cada item etiquetado con su RET
+        // (retId/retRef) para que el selector del form filtre por RET marcada.
+        const retIds = retList.map(r=>r.id);
+        const retById = {}; retList.forEach(r=>{ retById[r.id]=r; });
+        const mls = await odooCall('stock.move.line','search_read',[[['picking_id','in',retIds]]],{fields:['product_id','product_uom_qty','qty_done','move_id','picking_id'],limit:500});
         const pids=[...new Set(mls.filter(m=>m.product_id).map(m=>m.product_id[0]))];
         const prods = pids.length ? await odooCall('product.product','read',[pids],{fields:['id','default_code','barcode','image_128']}) : [];
         const prodMap={}; prods.forEach(p=>{ prodMap[p.id]=p; });
@@ -16581,14 +16639,21 @@ const server = http.createServer(async (req, res) => {
           const p=prodMap[m.product_id[0]]||{};
           const qty=Math.max(1,Math.round(m.product_uom_qty||m.qty_done||1));
           const desc = m.move_id ? retDescByMoveId[m.move_id[0]] : '';
+          const mRet = (m.picking_id && retById[m.picking_id[0]]) || null;
           return { item_id:'ret_'+m.product_id[0]+'_'+i, odoo_product_id:m.product_id[0],
             product_name:composeItemName(desc, m.product_id[1], p.default_code), sku:p.default_code||p.barcode||'',
             quantity:qty, image:p.image_128?saveProductImageB64(p.image_128):null,
+            retId: mRet ? mRet.id : (m.picking_id ? m.picking_id[0] : null),
+            retRef: mRet ? sdvRetLabel(mRet) : '',
             selected:true, status:'pending' };
         });
-        // Flujo nuevo: el origin trae la referencia que ve la vendedora ("RET/00035 - S09474").
-        const _retRef = (/^RET\//.test(ret.origin||'')) ? (ret.origin.split(' - ')[0]+' · '+ret.name) : ret.name;
-        const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:_retRef,retState:ret.state,
+        // `rets`: opciones del selector (la vendedora marca 1..N). Compat top-level: con 1
+        // RET, retRef/retState son idénticos a antes; con N, se agregan (' + ' / '/').
+        const rets = retList.map(r => ({ id:r.id, name:r.name, state:r.state, origin:r.origin||'',
+          retRef: sdvRetLabel(r), itemCount: items.filter(it=>it.retId===r.id).length }));
+        const _retRef = rets.map(r=>r.retRef).join(' + ');
+        const _retState = [...new Set(retList.map(r=>r.state))].join('/');
+        const _retPayload = {ok:true,tipo:'devolucion',orderRef:so.name,retRef:_retRef,retState:_retState,rets,
           client:so.partner_id?so.partner_id[1]:'',salesperson:so.user_id?so.user_id[1]:'',
           deliveryAddress,city,phone,items};
         global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_retPayload});
@@ -16797,10 +16862,14 @@ const server = http.createServer(async (req, res) => {
         esDecorador: d.esDecorador===true||d.esDecorador==='true',
         observaciones: d.observaciones||'',
         gpsCoords: d.gpsCoords||null,
-        // Devolución: trazabilidad Odoo (RET). Persistidos aquí para que cuando el form los
-        // envíe, viajen a la tarea de recogida (createWwpTaskFromSdv). Hoy suelen llegar '' .
+        // Devolución: trazabilidad Odoo (RET). Viajan a la tarea de recogida
+        // (createWwpTaskFromSdv). retRefs = las RET que la vendedora MARCÓ en el selector
+        // (1..N, saneado con whitelist); ancla el refresh — la selección es fija al crear.
         retRef: d.retRef||'',
         retState: d.retState||'',
+        retRefs: Array.isArray(d.retRefs) ? d.retRefs.slice(0,20).filter(r=>r&&typeof r==='object').map(r=>({
+          id: Number(r.id)||null, name: String(r.name||''), state: String(r.state||''),
+          origin: String(r.origin||''), retRef: String(r.retRef||'') })) : [],
         fechaSolicitudDeseada: d.fechaSolicitudDeseada||null,
         adjuntos: [],
         fechaSolicitud: now,
