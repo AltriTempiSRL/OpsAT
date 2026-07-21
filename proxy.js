@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v209';
+const APP_BUILD = 'v210';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -16723,9 +16723,23 @@ const server = http.createServer(async (req, res) => {
         }
         let out = rows;
         if (jp.role === 'ventas') {
-          const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
-          const me = norm(jp.name);
-          out = rows.filter(r => { const v = norm(r.salesperson); return v && me && (v===me || v.includes(me) || me.includes(v)); });
+          // Match por TOKENS, no por inclusión de cadena: el nombre en WWP y el vendedor
+          // en Odoo casi nunca son idénticos (WWP "Daniela Castillo" vs Odoo "DANIELA JOLY
+          // CASTILLO"; WWP "Heidy Josefina Nuñez Checo" vs Odoo "HEIDY NUÑEZ"). Se normaliza
+          // (minúsculas + sin acentos/ñ), se descartan partículas ("de", "la"…) y se exige
+          // compartir ≥2 tokens significativos (nombre + apellido) para evitar cruces por
+          // un apellido común. La comparación de subcadena anterior fallaba en ambos casos.
+          const STOP = new Set(['de','la','los','las','del','y','el','da','do','di']);
+          const toks = s => new Set(stripAccents(String(s||'').toLowerCase())
+            .replace(/[^a-z0-9\s]/g,' ').split(/\s+/)
+            .filter(t => t.length >= 2 && !STOP.has(t)));
+          const meT = toks(jp.name);
+          out = rows.filter(r => {
+            const vT = toks(r.salesperson);
+            if (!meT.size || !vT.size) return false;
+            let shared = 0; meT.forEach(t => { if (vT.has(t)) shared++; });
+            return shared >= 2;
+          });
         }
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ ok:true, total:rows.length, rets:out }));
