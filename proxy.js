@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v215';
+const APP_BUILD = 'v216';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -17291,6 +17291,14 @@ const server = http.createServer(async (req, res) => {
       const linkedTask = sol.wwpTaskId || null;
       list.splice(idx, 1);
       saveSdv(list);
+      // Limpiar solicitudes de reactivación pendientes de esta SDV: sin esto quedaban zombies
+      // en la bandeja de Ops ("Sin cliente", imposibles de procesar) tras borrar la SDV.
+      try {
+        const reacList = loadReactivationRequests();
+        let tocadas = 0;
+        reacList.forEach(r => { if (r.sdv_id === id && r.estado === 'pendiente') { r.estado = 'obsoleta'; r.procesado_at = new Date().toISOString(); r.notas_ops = 'Anulada: la solicitud fue eliminada'; tocadas++; } });
+        if (tocadas) saveReactivationRequests(reacList);
+      } catch(e) { silentCatch(e,'cleanReactOnDeleteSdv'); }
       try { appendAuditLog('sdv_deleted', { sdvId:id, folio:sol.folio, by:jp.userId, byName:jp.name, linkedTask }); } catch(e) { silentCatch(e,'auditSdvDeleted'); }
       console.log('[SDV] Eliminada', sol.folio||id, 'por', jp.name||jp.userId, linkedTask?('(tarea ligada sin tocar: '+linkedTask+')'):'');
       res.writeHead(200,{'Content-Type':'application/json'});
@@ -19523,6 +19531,17 @@ const server = http.createServer(async (req, res) => {
     const diaRD = (t) => Math.floor((t.getTime() - 4 * 3600e3) / 864e5);
     return diaRD(dt) < diaRD(new Date());
   }
+  // Guard de FORMATO: el fail-open de sdvFechaEsRetroactiva (isNaN→false) evita el 500
+  // pero dejaba nacer tareas con dueDate basura ("no-es-fecha"). Este devuelve true si el
+  // string existe pero no parsea — el handler lo rechaza con 422 (QA 21-jul).
+  function sdvFechaFormatoInvalido(s) {
+    if (typeof s !== 'string' || !s.trim()) return false;   // ausencia la deciden otros guards
+    let iso = s.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso += 'T00:00:00';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(iso)) iso += ':00';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(iso)) iso += '-04:00';
+    return isNaN(new Date(iso).getTime());
+  }
 
   if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/reactivation$/) && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
@@ -19536,6 +19555,17 @@ const server = http.createServer(async (req, res) => {
       const sdv = sdvList.find(s => s.id === sdvId);
       if (!sdv) { res.writeHead(404, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'SDV no encontrada'})); return; }
 
+      // RBAC (simetría con el cancel F0-1): Ops cualquiera, la vendedora dueña la suya, nadie
+      // más. Antes solo requireJwt → un assistant que ni puede LEER la SDV (403 en GET) podía
+      // solicitar su reactivación (auditoría 21-jul, Carl P1-3).
+      const isOps = ['admin','manager'].includes(jp.role);
+      const isOwner = sdv.creadoPor === jp.userId;
+      if (!isOps && !isOwner) {
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'No autorizado para reactivar esta solicitud'}));
+        return;
+      }
+
       // Solo se reactivan canceladas
       if (sdv.estado !== 'cancelada') {
         res.writeHead(400, {'Content-Type':'application/json'});
@@ -19543,10 +19573,27 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // Formato de fecha (el guard retroactivo hace fail-open ante basura; este la bloquea)
+      if (sdvFechaFormatoInvalido(d.new_delivery_date)) {
+        res.writeHead(422, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La fecha de entrega tiene un formato inválido'}));
+        return;
+      }
       // Validar fecha no retroactiva (por DÍA en hora RD — ver sdvFechaEsRetroactiva)
       if (sdvFechaEsRetroactiva(d.new_delivery_date)) {
         res.writeHead(400, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false, error:'Fecha de reactivación no puede ser retroactiva'}));
+        return;
+      }
+
+      // Dedup: UNA sola reactivación pendiente por SDV. Sin esto, N solicitudes pendientes
+      // se procesan a N tareas de despacho vivas para la misma orden = doble despacho físico
+      // (P0 auditoría 21-jul, probado por QA y Carl). Se carga la lista aquí y se reusa abajo.
+      const reacList = loadReactivationRequests();
+      const yaPendiente = reacList.find(r => r.sdv_id === sdvId && r.estado === 'pendiente');
+      if (yaPendiente) {
+        res.writeHead(409, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Ya hay una reactivación pendiente para esta solicitud (pedida el '+(yaPendiente.solicitado_at||'').slice(0,10)+' por '+(yaPendiente.solicitado_por_nombre||'—')+'). Ops debe procesarla o rechazarla primero.', reactivacion_id:yaPendiente.id}));
         return;
       }
 
@@ -19567,8 +19614,7 @@ const server = http.createServer(async (req, res) => {
         nueva_tarea_id: null
       };
 
-      // Guardar reactivación
-      const reacList = loadReactivationRequests();
+      // Guardar reactivación (reacList ya cargada arriba para el dedup)
       reacList.push(reac);
       saveReactivationRequests(reacList);
 
@@ -19601,7 +19647,7 @@ const server = http.createServer(async (req, res) => {
    */
   if (reqPath.match(/^\/api\/sdv\/reactivation\/[a-z0-9_]+$/) && req.method === 'PATCH' && parsed.query?.action === 'process') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
 
     const reacId = reqPath.split('/')[4];
     try {
@@ -19619,6 +19665,12 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // Formato de fecha (guard explícito ante basura; el retroactivo hace fail-open)
+      if (sdvFechaFormatoInvalido(d.cuando_procesar)) {
+        res.writeHead(422, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La fecha de procesamiento tiene un formato inválido'}));
+        return;
+      }
       // Validar fecha (por DÍA en hora RD — ver sdvFechaEsRetroactiva arriba)
       if (sdvFechaEsRetroactiva(d.cuando_procesar)) {
         res.writeHead(400, {'Content-Type':'application/json'});
@@ -19627,9 +19679,19 @@ const server = http.createServer(async (req, res) => {
       }
 
       // Buscar SDV original
-      const sdvList = loadSdv();
-      const sdv = sdvList.find(s => s.id === reac.sdv_id);
+      let sdvList = loadSdv();
+      let sdv = sdvList.find(s => s.id === reac.sdv_id);
       if (!sdv) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'SDV original no encontrada'})); return; }
+
+      // GUARD CENTRAL (P0 auditoría 21-jul): la reactivación solo procede si la SDV SIGUE
+      // cancelada. Sin esto, procesar una 2ª solicitud (o una pendiente vieja) sobre una SDV
+      // ya en_proceso creaba una 2ª tarea de despacho viva para la misma orden — la transición
+      // en_proceso→en_proceso era noop silencioso pero la tarea nacía igual (doble despacho).
+      if (sdv.estado !== 'cancelada') {
+        res.writeHead(409, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La solicitud ya no está cancelada (estado actual: '+sdv.estado+'). Es posible que ya haya sido reactivada. Refresca la bandeja.'}));
+        return;
+      }
 
       const ahora = new Date().toISOString();
 
@@ -19648,6 +19710,18 @@ const server = http.createServer(async (req, res) => {
       // validado en Odoo aunque el despacho físico se canceló — ese pick realizado es el
       // despacho de ESTA orden que se re-intenta, no historia ajena (v215).
       try { await populateChainItemsFromPick([nuevaTarea], 8000, { firstLoadStates: ['assigned', 'done'] }); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
+
+      // Re-verificar tras el await (populate hasta 8s): otra reactivación simultánea o una
+      // aprobación pudo mover la SDV mientras esperábamos. Sin esto, dos process en paralelo
+      // saltan el guard de arriba y crean 2 despachos. Se recarga el estado fresco y se aborta
+      // antes de persistir la tarea si dejó de estar cancelada.
+      sdvList = loadSdv();
+      sdv = sdvList.find(s => s.id === reac.sdv_id);
+      if (!sdv || sdv.estado !== 'cancelada') {
+        res.writeHead(409, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'La solicitud cambió de estado mientras se procesaba (probablemente otra reactivación en paralelo). No se creó una tarea duplicada. Refresca la bandeja.'}));
+        return;
+      }
 
       const tasks = loadWwpTasks();
       nuevaTarea.seq = nextTaskSeq();
@@ -19682,8 +19756,16 @@ const server = http.createServer(async (req, res) => {
       reac.cuando_procesar = d.cuando_procesar;
       reac.notas_ops = d.notas_ops || '';
       reac.nueva_tarea_id = nuevaTarea.id;
-
       reacList[reacIdx] = reac;
+      // Expirar cualquier OTRA pendiente de la misma SDV (defensa en profundidad: el dedup del
+      // POST ya lo previene, pero limpia pendientes zombie de datos previos al fix).
+      reacList.forEach((r, i) => {
+        if (i !== reacIdx && r.sdv_id === reac.sdv_id && r.estado === 'pendiente') {
+          r.estado = 'obsoleta';
+          r.procesado_at = ahora;
+          r.notas_ops = 'Anulada automáticamente: otra reactivación de la misma solicitud fue procesada el '+ahora.slice(0,10);
+        }
+      });
       saveReactivationRequests(reacList);
 
       // Auditar
@@ -19714,12 +19796,75 @@ const server = http.createServer(async (req, res) => {
   }
 
   /**
+   * PATCH /api/sdv/reactivation/:id?action=reject
+   * Ops rechaza una solicitud de reactivación CON motivo (antes el botón del front era un
+   * stub sin backend → las pendientes eran inmortales, alimentando el P0 de duplicados).
+   * No toca la SDV (sigue cancelada); avisa a quien la pidió y a la dueña.
+   */
+  if (reqPath.match(/^\/api\/sdv\/reactivation\/[a-z0-9_]+$/) && req.method === 'PATCH' && parsed.query?.action === 'reject') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
+
+    const reacId = reqPath.split('/')[4];
+    try {
+      const d = await readBody(req);
+      const motivo = (d.motivo_rechazo || '').trim();
+      if (!motivo) { res.writeHead(422, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'motivo_rechazo requerido'})); return; }
+
+      const reacList = loadReactivationRequests();
+      const reacIdx = reacList.findIndex(r => r.id === reacId);
+      if (reacIdx < 0) { res.writeHead(404, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false, error:'Reactivación no encontrada'})); return; }
+
+      const reac = reacList[reacIdx];
+      if (reac.estado !== 'pendiente') {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({ok:false, error:'Solo se pueden rechazar reactivaciones pendientes'}));
+        return;
+      }
+
+      const ahora = new Date().toISOString();
+      reac.estado = 'rechazada';
+      reac.procesado_por = jp.userId;
+      reac.procesado_por_nombre = jp.name;
+      reac.procesado_at = ahora;
+      reac.notas_ops = motivo;
+      reacList[reacIdx] = reac;
+      saveReactivationRequests(reacList);
+
+      auditLogSdvEvent('reactivacion_rechazada', reac.sdv_id, jp.userId, jp.name, { motivo });
+
+      // Avisar a la dueña y a quien pidió la reactivación (pueden diferir: cobertura entre
+      // vendedoras). Reusa el tipo seller registrado; la SDV NO cambia (sigue cancelada).
+      try {
+        const sdv = loadSdv().find(s => s.id === reac.sdv_id);
+        const destinatarios = [...new Set([sdv && sdv.creadoPor, reac.solicitado_por].filter(Boolean))];
+        if (destinatarios.length) {
+          notifyMany(destinatarios, {
+            type:'sdv_seller_rechazada',
+            title:'Reactivación no aprobada',
+            message:`La reactivación de ${(sdv && (sdv.folio||sdv.id)) || reac.sdv_id} no fue aprobada por Operaciones: ${motivo}`,
+            relatedTaskId: reac.sdv_id,
+            target:{ kind:'sdv', id:reac.sdv_id }
+          });
+        }
+      } catch(e){ silentCatch(e,'notifyRejectReact'); }
+
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:true, estado:'rechazada', mensaje:'Reactivación rechazada. Se avisó a la vendedora.'}));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false, error:e.message}));
+    }
+    return;
+  }
+
+  /**
    * GET /api/sdv/reactivation?estado=pendiente
    * Bandeja para Ops: reactivaciones filtradas por estado
    */
   if (reqPath === '/api/sdv/reactivation' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
 
     try {
       const q = parsed.query || {};
@@ -19740,6 +19885,8 @@ const server = http.createServer(async (req, res) => {
       const reacEnriquecidas = reacList.map(r => ({
         id: r.id,
         sdv_id: r.sdv_id,
+        folio: sdvMap[r.sdv_id]?.folio || r.sdv_id,           // folio legible (antes solo id crudo)
+        sdv_estado: sdvMap[r.sdv_id]?.estado || null,          // Ops detecta si ya dejó de estar cancelada
         cliente: sdvMap[r.sdv_id]?.clienteNombre || 'Sin cliente',
         solicitado_por: r.solicitado_por_nombre || r.solicitado_por,
         solicitado_at: r.solicitado_at,

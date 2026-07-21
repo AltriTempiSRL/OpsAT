@@ -9054,7 +9054,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v215';
+var APP_BUILD = 'v216';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -34750,7 +34750,9 @@ function openReprogramarModal(taskId) {
   if (cur) { actualEl.innerHTML = 'Fecha actual: <b>'+esc(cur)+'</b>'; actualEl.style.display=''; }
   else { actualEl.innerHTML=''; actualEl.style.display='none'; }
   // No permitir fechas pasadas (la promesa se mueve hacia adelante).
-  try { document.getElementById('reprog-fecha').min = new Date().toISOString().slice(0,10); } catch(e){}
+  // Día RD (UTC-4), no UTC: toISOString() da el día UTC → tras las ~20:00 RD el mínimo saltaba
+  // a MAÑANA y no dejaba reprogramar para hoy (gemelo client del bug TZ que v214 arregló en server).
+  try { document.getElementById('reprog-fecha').min = new Date(Date.now() - 4*3600e3).toISOString().slice(0,10); } catch(e){}
   reprogValidate();
   var m = document.getElementById('reprogramar-modal');
   m.style.display = 'flex';
@@ -39872,6 +39874,17 @@ function sdvOpenReactivateModal(id, opsDirect) {
     : 'ℹ️ Ops decidirá cuándo procesar tu solicitud. Recibirás notificación.';
   var btn = document.querySelector('#sdv-reactivate-modal-overlay .btn-primary');
   if (btn) { btn.disabled = false; btn.textContent = _sdvReactivateOps ? 'Reactivar' : 'Solicitar'; }
+  // Poblar "Cancelada previamente por" (antes quedaba fijo en "—"): fetch ligero, no bloquea.
+  var byEl = document.getElementById('sdv-reactivate-by');
+  if (byEl) {
+    byEl.textContent = '—';
+    authFetch('/api/sdv/'+id).then(function(rr){return rr.json();}).then(function(dd){
+      if (dd && dd.ok && dd.solicitud) {
+        var s = dd.solicitud;
+        byEl.textContent = (s.cancelado_por_nombre || s.creadoNombre || '—') + (s.cancelado_at ? (' · '+sdvFmtDate(s.cancelado_at)) : '');
+      }
+    }).catch(function(){});
+  }
   modal.classList.add('open');
 }
 
@@ -39961,24 +39974,30 @@ async function sdvLoadReactivations() {
     }
     var html = '<div class="sdv-reactivation-list">';
     reactivations.forEach(function(r) {
-      var fechaFormato = new Date(r.nueva_fecha_solicitada).toLocaleString('es-ES', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+      var _f = r.nueva_fecha_solicitada ? new Date(r.nueva_fecha_solicitada) : null;
+      var fechaFormato = (_f && !isNaN(_f.getTime())) ? _f.toLocaleString('es-ES', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '—';
+      // sdv_estado !== 'cancelada' → la SDV ya fue reactivada/cambió; procesar crearía un
+      // despacho duplicado (el backend ahora lo bloquea con 409, pero avisamos aquí).
+      var yaNoCancelada = r.sdv_estado && r.sdv_estado !== 'cancelada';
       html += '<div class="sdv-reactivation-item">' +
         '<div class="sdv-reactivation-item-header">' +
-          '<div><div class="sdv-reactivation-item-title">'+r.sdv_id+'</div><div class="sdv-reactivation-item-sub">Solicitado por: '+r.solicitado_por+'</div></div>' +
+          '<div><div class="sdv-reactivation-item-title">'+esc(r.folio||r.sdv_id)+'</div><div class="sdv-reactivation-item-sub">Solicitado por: '+esc(r.solicitado_por||'—')+'</div></div>' +
         '</div>' +
         '<div class="sdv-reactivation-item-info">' +
-          '<div><strong>Cliente:</strong> '+(r.cliente||'—')+'</div>' +
-          '<div><strong>Nueva fecha propuesta:</strong> '+fechaFormato+'</div>' +
-          '<div><strong>Motivo:</strong> '+(r.motivo||'—')+'</div>' +
+          '<div><strong>Cliente:</strong> '+esc(r.cliente||'—')+'</div>' +
+          '<div><strong>Nueva fecha propuesta:</strong> '+esc(fechaFormato)+'</div>' +
+          '<div><strong>Motivo:</strong> '+esc(r.motivo||'—')+'</div>' +
+          (yaNoCancelada ? '<div style="margin-top:6px;color:var(--amber-text);font-weight:600"><i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:-2px"></i> La solicitud ya está «'+esc(r.sdv_estado)+'» — probablemente ya fue reactivada. Rechaza esta pendiente.</div>' : '') +
         '</div>' +
         '<div class="sdv-reactivation-item-actions">' +
-          '<button class="sdv-reactivation-btn-process" data-id="'+r.id+'" data-folio="'+r.sdv_id+'">Procesar</button>' +
-          '<button class="sdv-reactivation-btn-reject" data-id="'+r.id+'">Rechazar</button>' +
+          (yaNoCancelada ? '' : '<button class="sdv-reactivation-btn-process" data-id="'+esc(r.id)+'" data-folio="'+esc(r.folio||r.sdv_id)+'">Procesar</button>') +
+          '<button class="sdv-reactivation-btn-reject" data-id="'+esc(r.id)+'">Rechazar</button>' +
         '</div>' +
       '</div>';
     });
     html += '</div>';
     container.innerHTML = html;
+    if (window.lucide) lucide.createIcons();
 
     // Attach event listeners después de inyectar HTML
     var processButtons = container.querySelectorAll('.sdv-reactivation-btn-process');
@@ -40062,10 +40081,18 @@ async function sdvSubmitProcessReactivation() {
 }
 
 // ── Rechazar reactivación ──────────────────────────────────────────────────
+// Ops decide NO reactivar: pide motivo (obligatorio, lo lee la vendedora) y lo envía al
+// backend (PATCH ?action=reject). La SDV sigue cancelada; se libera la pendiente.
 async function sdvRejectReactivation(id) {
-  if (!confirm('¿Rechazar esta solicitud de reactivación?')) return;
-  // TODO: Endpoint de rechazo aún no implementado en backend
-  toast('Función no disponible aún. Contacta a Ops Manager para rechazar.');
+  var motivo = (prompt('Motivo del rechazo (lo verá la vendedora):')||'').trim();
+  if (!motivo) { toast('Se necesita un motivo para rechazar'); return; }
+  try {
+    var r = await authFetch('/api/sdv/reactivation/'+id+'?action=reject', {method:'PATCH', body:JSON.stringify({motivo_rechazo:motivo})});
+    var d = await r.json();
+    if (!r.ok || !d.ok) { toast('Error: '+(d.error||'No se pudo rechazar')); return; }
+    toast('Reactivación rechazada · se avisó a la vendedora','success');
+    sdvLoadReactivations();
+  } catch(e) { toast('Error: '+e.message); }
 }
 
 // ── Cargar KPIs de Cancelaciones ───────────────────────────────────────────
@@ -40567,7 +40594,7 @@ async function loadCancelacionesKPIs() {
       </div>
 
       <div class="sdv-process-reactivation-modal-note">
-        El cliente será notificado automáticamente de la nueva fecha.
+        La vendedora será notificada automáticamente de la nueva fecha.
       </div>
     </div>
     <div class="sdv-process-reactivation-modal-footer">
