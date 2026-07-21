@@ -9042,7 +9042,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v207';
+var APP_BUILD = 'v208';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9618,7 +9618,52 @@ async function doLogin() {
     _token = d.accessToken; _refreshToken = d.refreshToken; _user = d.user;
     saveSession(remember);
     landAfterAuth();
+    // Nivel 1 (jul-21): entró con la contraseña semilla → pedir cambio.
+    // forcePwChange (env del server) = modal bloqueante; si no, aviso con acceso directo.
+    if (d.mustChangePassword) setTimeout(function(){ showSeedPwModal(!!d.forcePwChange, password); }, 600);
   } catch(e) { showErr(errEl,'Error de conexión con el servidor: '+(e && e.message ? e.message : e)); btn.disabled=false; btn.textContent='Entrar'; }
+}
+
+// ── Cambio de contraseña semilla (Nivel 1, jul-21) ────────────────────────────
+// Reutiliza el PATCH self-service existente (/api/wwp/auth/users/:id con
+// currentPassword+password: re-verifica en servidor, rate-limit, cierra
+// las demás sesiones y deja auditoría).
+function showSeedPwModal(blocking, currentPw) {
+  if (document.getElementById('seedpw-overlay')) return;
+  var ov = document.createElement('div');
+  ov.id = 'seedpw-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99990;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML =
+    '<div style="background:var(--bg-1,#fff);color:var(--text-1,#111);border-radius:14px;max-width:400px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)">' +
+      '<div style="font-size:16px;font-weight:800;margin-bottom:6px">🔐 Cambia tu contraseña</div>' +
+      '<div style="font-size:13px;color:var(--text-2,#555);margin-bottom:14px">Estás usando la contraseña inicial del sistema. Por seguridad, define una personal (mínimo 6 caracteres).</div>' +
+      '<input type="password" id="seedpw-new" placeholder="Nueva contraseña" autocomplete="new-password" style="width:100%;padding:10px;border:1px solid var(--border,#ccc);border-radius:8px;margin-bottom:8px;font-size:14px">' +
+      '<input type="password" id="seedpw-new2" placeholder="Repite la nueva contraseña" autocomplete="new-password" style="width:100%;padding:10px;border:1px solid var(--border,#ccc);border-radius:8px;margin-bottom:8px;font-size:14px">' +
+      '<div id="seedpw-err" style="color:var(--red-text,#b91c1c);font-size:12px;min-height:16px;margin-bottom:8px"></div>' +
+      '<button id="seedpw-save" style="width:100%;padding:11px;border:0;border-radius:8px;background:var(--accent,#2563eb);color:#fff;font-weight:700;font-size:14px;cursor:pointer">Guardar contraseña nueva</button>' +
+      (blocking ? '' : '<button id="seedpw-later" style="width:100%;padding:9px;border:0;border-radius:8px;background:transparent;color:var(--text-3,#777);font-size:12px;cursor:pointer;margin-top:6px">Más tarde</button>') +
+    '</div>';
+  document.body.appendChild(ov);
+  var err = document.getElementById('seedpw-err');
+  document.getElementById('seedpw-save').onclick = async function() {
+    var p1 = document.getElementById('seedpw-new').value;
+    var p2 = document.getElementById('seedpw-new2').value;
+    if (!p1 || p1.length < 6) { err.textContent = 'Mínimo 6 caracteres.'; return; }
+    if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+    if (p1 === currentPw) { err.textContent = 'Debe ser diferente a la actual.'; return; }
+    this.disabled = true; this.textContent = 'Guardando…';
+    try {
+      var r = await authFetch('/api/wwp/auth/users/' + _user.id, {
+        method: 'PATCH', body: JSON.stringify({ currentPassword: currentPw, password: p1 })
+      });
+      var d = await r.json();
+      if (!d.ok) { err.textContent = d.error || 'No se pudo cambiar.'; this.disabled = false; this.textContent = 'Guardar contraseña nueva'; return; }
+      ov.remove();
+      toast('🔐 Contraseña actualizada. Úsala en tu próximo ingreso.', 5000);
+    } catch (e) { err.textContent = 'Error de conexión.'; this.disabled = false; this.textContent = 'Guardar contraseña nueva'; }
+  };
+  var later = document.getElementById('seedpw-later');
+  if (later) later.onclick = function() { ov.remove(); toast('Recuerda cambiar tu contraseña en Mi Perfil.', 4000); };
 }
 
 async function doRefresh() {

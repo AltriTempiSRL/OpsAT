@@ -496,6 +496,14 @@ function exportAllToFiles() {
   return n;
 }
 
+// Vista de solo lectura de todas las colecciones vivas (para el endpoint de
+// respaldo externo). Devuelve las referencias reales — el llamador NO debe mutar.
+function snapshotAll() {
+  const out = {};
+  for (const [base, data] of state.mem) out[base] = data;
+  return out;
+}
+
 // ── Salud y apagado ──────────────────────────────────────────────────────────
 function health() {
   const collections = {};
@@ -523,6 +531,6 @@ async function shutdown() {
 module.exports = {
   init, isActive, isEnabled,
   loadCollection, saveCollection,
-  exportAllToFiles, flushAll, health, shutdown,
+  exportAllToFiles, flushAll, health, shutdown, snapshotAll,
   _internals: state, // solo para tests
 };

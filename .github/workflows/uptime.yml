@@ -1,0 +1,65 @@
+# Monitoreo externo de WWP (Nivel 1, jul-2026)
+# Cada ~5 min pinga el /api/health de producción desde la infraestructura de
+# GitHub (independiente de Railway). Si falla 3 intentos seguidos, abre un
+# issue "🔴 WWP caído" (GitHub notifica por correo). Al recuperarse, lo cierra
+# solo. Sin secretos: usa el GITHUB_TOKEN integrado.
+name: uptime-wwp
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime-wwp
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health (3 intentos)
+        id: ping
+        run: |
+          URL="https://dashboard-despachos-production.up.railway.app/api/health"
+          OK=0
+          for i in 1 2 3; do
+            CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" -m 20 "$URL" || echo 000)
+            if [ "$CODE" = "200" ] && grep -q '"ok":true' /tmp/health.json; then OK=1; break; fi
+            echo "intento $i falló (HTTP $CODE)"; sleep 25
+          done
+          echo "ok=$OK" >> "$GITHUB_OUTPUT"
+
+      - name: Abrir issue si está caído (dedupe) / cerrar si se recuperó
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          EXISTING=$(gh issue list --repo "$REPO" --label wwp-down --state open --json number --jq '.[0].number // empty')
+          if [ "${{ steps.ping.outputs.ok }}" = "0" ]; then
+            if [ -z "$EXISTING" ]; then
+              gh label create wwp-down --repo "$REPO" --color B60205 --description "Producción caída" 2>/dev/null || true
+              gh issue create --repo "$REPO" --label wwp-down \
+                --title "🔴 WWP producción no responde ($(date -u +'%Y-%m-%d %H:%M UTC'))" \
+                --body "El monitor externo no pudo obtener /api/health tras 3 intentos.
+
+**Qué revisar (runbook corto):**
+1. https://dashboard-despachos-production.up.railway.app/api/health en el navegador.
+2. Panel de Railway → servicio dashboard-despachos → Deployments/Logs.
+3. Si el deploy más reciente es el problema: redeploy del anterior.
+4. Si es la base de datos: quitar DATABASE_URL y redeployar vuelve a modo archivos (pérdida ≤1 h).
+
+_Este issue se cierra solo cuando el monitor vuelva a ver el servicio arriba._"
+            else
+              echo "Issue #$EXISTING ya abierto — sin duplicar."
+            fi
+          else
+            if [ -n "$EXISTING" ]; then
+              gh issue close "$EXISTING" --repo "$REPO" \
+                --comment "✅ Recuperado: /api/health responde ok ($(date -u +'%Y-%m-%d %H:%M UTC'))."
+            fi
+          fi

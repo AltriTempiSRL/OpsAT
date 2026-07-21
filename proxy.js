@@ -208,10 +208,36 @@ function snapshotAllCritical() {
 }
 try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritical, 60 * 60 * 1000); } catch (e) {}
 
+// ── R11 (auditoría 6-jul, cerrado Nivel 1 jul-21): alerta de disco casi lleno ──
+// Si el volumen se llena, la subida de evidencia y el cierre de tareas fallan
+// EN SILENCIO. Chequeo cada 6 h; si el espacio libre baja del umbral, notifica
+// a los admins en WWP (una vez al día, no spam). Umbral configurable por env.
+const DISK_ALERT_MIN_MB = Math.max(200, parseInt(process.env.DISK_ALERT_MIN_MB, 10) || 1500);
+let _lastDiskAlertDay = '';
+function checkDiskSpace() {
+  try {
+    if (typeof fs.statfsSync !== 'function') return;
+    const sf = fs.statfsSync(DATA_DIR);
+    const freeMb = Math.round(sf.bavail * sf.bsize / 1048576);
+    if (freeMb >= DISK_ALERT_MIN_MB) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (_lastDiskAlertDay === today) return;
+    _lastDiskAlertDay = today;
+    const msg = 'Quedan ' + freeMb + ' MB libres en el disco de datos (umbral: ' + DISK_ALERT_MIN_MB +
+      ' MB). Si se llena, la subida de fotos de evidencia fallará. Ampliar el volumen en Railway o depurar fotos viejas.';
+    console.error('[disk-alert] ' + msg);
+    try {
+      loadAuthUsers().filter(u => u.role === 'admin' && u.active !== false)
+        .forEach(u => createNotification(u.id, { type: 'system', title: '⚠️ Disco de datos casi lleno', message: msg, by: 'Sistema' }));
+    } catch (e) { console.warn('[disk-alert] notif falló:', e.message); }
+  } catch (e) { /* statfs no disponible en esta plataforma */ }
+}
+try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 * 60 * 60 * 1000); } catch (e) {}
+
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v207';
+const APP_BUILD = 'v208';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1522,6 +1548,9 @@ const anthropicClient = (Anthropic && ANTHROPIC_KEY) ? new Anthropic({ apiKey: A
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const CODEX_AUDITOR_MODEL = process.env.CODEX_AUDITOR_MODEL || process.env.OPENAI_MODEL || 'gpt-5.5';
 const CODEX_BRIDGE_TOKEN = process.env.CODEX_BRIDGE_TOKEN || '';
+// Token del job de respaldo externo (Nivel 1, jul-2026). Mismo patrón que el
+// Codex Bridge: sin la env, los endpoints /api/backup/* responden 503.
+const BACKUP_TOKEN = process.env.BACKUP_TOKEN || '';
 
 // ── Cerebro de IA unificado ───────────────────────────────────────────────────
 // Hoy TODO corre con OpenAI (una sola clave). Más adelante se puede volver a Anthropic.
@@ -3202,6 +3231,30 @@ function requireCodexBridge(req, res) {
     }
   } catch (_) {
     sendJson(res, 401, { ok:false, error:'Token Codex Bridge invalido.' });
+    return false;
+  }
+  return true;
+}
+
+// Gate del job de respaldo externo (mismo esquema que el Codex Bridge:
+// comparación timing-safe, header propio o Bearer).
+function requireBackupToken(req, res) {
+  if (!BACKUP_TOKEN) {
+    sendJson(res, 503, { ok:false, error:'Respaldo no configurado: falta BACKUP_TOKEN.' });
+    return false;
+  }
+  const auth = String(req.headers['authorization'] || '');
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '';
+  const supplied = String(req.headers['x-backup-token'] || bearer || '').trim();
+  try {
+    const a = Buffer.from(supplied);
+    const b = Buffer.from(String(BACKUP_TOKEN).trim());
+    if (!supplied || a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      sendJson(res, 401, { ok:false, error:'Token de respaldo invalido.' });
+      return false;
+    }
+  } catch (_) {
+    sendJson(res, 401, { ok:false, error:'Token de respaldo invalido.' });
     return false;
   }
   return true;
@@ -11525,6 +11578,15 @@ const server = http.createServer(async (req, res) => {
       // Recargar lista de supervisores (por si gsanchez logueó por primera vez)
       loadSupervisorUserIds();
 
+      // Nivel 1 (jul-21): detectar login con contraseña SEMILLA (las que vivían
+      // en el código). mustChangePassword → el cliente muestra el cambio de
+      // contraseña; con WWP_FORCE_PW_CHANGE=1 el modal es BLOQUEANTE (activar
+      // cuando Gabriel avise al equipo — no sorprender a la operación un lunes).
+      const _seedPws = ['WWP2026!', 'Admin2026!'];
+      const mustChangePassword = _seedPws.includes(String(password || ''));
+      const forcePwChange = mustChangePassword && process.env.WWP_FORCE_PW_CHANGE === '1';
+      if (mustChangePassword) appendAuditLog('login_seed_password', { userId: user.id, email, forced: forcePwChange });
+
       const accessToken  = jwtSign({userId:user.id,role:user.role,name:user.name,odooId:user.odooId}, 8*3600);
       const refreshToken = crypto.randomBytes(32).toString('hex');
       const sessionId    = wwpId('sess');
@@ -11540,7 +11602,7 @@ const server = http.createServer(async (req, res) => {
       user.presenceAt = new Date().toISOString();
       saveAuthUsers(users);
       res.writeHead(200,{'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:true, accessToken, refreshToken, sessionId,
+      res.end(JSON.stringify({ok:true, accessToken, refreshToken, sessionId, mustChangePassword, forcePwChange,
         user:{id:user.id,name:user.name,email:user.email,role:user.role,odooId:user.odooId,presenceStatus:user.presenceStatus||'active',sectionPerms:getRoleDefPerms(user.role)}}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
@@ -12193,6 +12255,64 @@ const server = http.createServer(async (req, res) => {
       saveSolicitudes(list);
       res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitud: sol}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
+    return;
+  }
+
+  // ── Respaldo externo (Nivel 1, jul-2026) — consumido por scripts/backup-wwp.mjs ──
+  // Token BACKUP_TOKEN (no JWT: corre desatendido en la máquina de Gabriel).
+  // GET /api/backup/manifest — colecciones (conteos) + inventario de fotos con size/mtime
+  if (reqPath === '/api/backup/manifest' && req.method === 'GET') {
+    if (!requireBackupToken(req, res)) return;
+    try {
+      const dirs = { 'wwp-fotos': WWP_FOTOS_DIR, 'av-fotos': AV_FOTOS_DIR, 'desp-fotos': DESP_FOTOS_DIR,
+                     'emp-fotos': EMP_FOTOS_DIR, 'sdv-adjuntos': SDV_ADJ_DIR, 'prod-img': PROD_IMG_DIR };
+      const fotos = [];
+      for (const [dname, dpath] of Object.entries(dirs)) {
+        let files = []; try { files = fs.readdirSync(dpath); } catch { continue; }
+        for (const f of files) {
+          try {
+            const st = fs.statSync(path.join(dpath, f));
+            if (st.isFile()) fotos.push({ dir: dname, name: f, size: st.size, mtimeMs: Math.round(st.mtimeMs) });
+          } catch (e) { /* archivo desapareció entre readdir y stat */ }
+        }
+      }
+      const collections = {};
+      if (pgStorage.isActive()) {
+        const snap = pgStorage.snapshotAll();
+        for (const b of Object.keys(snap)) collections[b] = Array.isArray(snap[b]) ? snap[b].length : 'kv';
+      } else {
+        for (const f of fs.readdirSync(DATA_DIR)) {
+          if (!f.endsWith('.json')) continue;
+          try { const d0 = loadJson(path.join(DATA_DIR, f), null); if (d0 !== null) collections[f.slice(0, -5)] = Array.isArray(d0) ? d0.length : 'kv'; } catch (e) {}
+        }
+      }
+      sendGzipJson(req, res, 200, { ok: true, generatedAt: new Date().toISOString(), build: APP_BUILD, collections, fotos });
+    } catch (e) { sendJson(res, 500, { ok: false, error: e.message }); }
+    return;
+  }
+
+  // GET /api/backup/collections.json.gz — snapshot completo de datos (gzip).
+  // Junto con las fotos, esto ES el respaldo total: la DB se puede reconstruir
+  // desde este archivo (mismo formato que los .json del DATA_DIR).
+  if (reqPath === '/api/backup/collections.json.gz' && req.method === 'GET') {
+    if (!requireBackupToken(req, res)) return;
+    try {
+      const out = { exportedAt: new Date().toISOString(), build: APP_BUILD, storage: pgStorage.isActive() ? 'pg' : 'json', collections: {} };
+      if (pgStorage.isActive()) {
+        out.collections = pgStorage.snapshotAll();
+      } else {
+        for (const f of fs.readdirSync(DATA_DIR)) {
+          if (!f.endsWith('.json')) continue;
+          try { const d0 = loadJson(path.join(DATA_DIR, f), null); if (d0 !== null) out.collections[f.slice(0, -5)] = d0; } catch (e) {}
+        }
+      }
+      zlib.gzip(Buffer.from(JSON.stringify(out), 'utf-8'), (err, gz) => {
+        if (err) { sendJson(res, 500, { ok: false, error: err.message }); return; }
+        res.writeHead(200, { 'Content-Type': 'application/gzip',
+          'Content-Disposition': 'attachment; filename="wwp-collections.json.gz"', 'Content-Length': gz.length });
+        res.end(gz);
+      });
+    } catch (e) { sendJson(res, 500, { ok: false, error: e.message }); }
     return;
   }
 
