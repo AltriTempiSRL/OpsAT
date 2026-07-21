@@ -9052,7 +9052,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v210';
+var APP_BUILD = 'v211';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -21610,6 +21610,60 @@ function closePasswordModal() { document.getElementById('modal-password').classL
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Autofill de buscadores (historial por dispositivo) ─────────────────────
+// El navegador solo autocompleta campos de un <form> que se ENVÍA; nuestros buscadores
+// filtran por JS sin enviar nada, así que autocomplete="on" no recordaría nada. En su
+// lugar: cada buscador conocido guarda lo que escribes (en localStorage) y lo ofrece como
+// sugerencias vía un <datalist> propio. Delegación por id → cubre también los buscadores
+// que nacen dentro de modales/tarjetas (se enganchan al primer focus). Se guarda al dar
+// Enter o al salir del campo (change/blur). Máx 10 por buscador, mín 2 caracteres.
+var _AUTOFILL_IDS = new Set(['order-input','rs-search-input','do-list-search','do-lines-search',
+  'sdv-ref-input','sdv-art-input','sdv-esp-sdv-input','sdv-esp-orden-input','sdv-espedit-orden-input',
+  'sdv-mis-search','sdv-bandeja-search','eo-search','eo-f-ord','users-map-search','us-search',
+  'task-search','emp-tree-search','arch-search','emp-picker-search']);
+var _AUTOFILL_KEY = 'wwp_search_history_v1';
+function _afLoad(){ try { return JSON.parse(localStorage.getItem(_AUTOFILL_KEY)) || {}; } catch(e) { return {}; } }
+function _afSave(h){ try { localStorage.setItem(_AUTOFILL_KEY, JSON.stringify(h)); } catch(e) {} }
+function _afRenderList(inp){
+  var dl = document.getElementById('af-dl-'+inp.id);
+  if (!dl) return;
+  var arr = (_afLoad()[inp.id]) || [];
+  dl.innerHTML = arr.map(function(v){ return '<option value="'+esc(v)+'"></option>'; }).join('');
+}
+function _afEnsure(inp){
+  if (!inp || inp.tagName !== 'INPUT' || inp.dataset.afReady) return;
+  var dlId = 'af-dl-'+inp.id;
+  if (!document.getElementById(dlId)) {
+    var dl = document.createElement('datalist'); dl.id = dlId; document.body.appendChild(dl);
+  }
+  inp.setAttribute('list', dlId);
+  // autocomplete="off" suprime el dropdown del datalist en algunos navegadores → permitirlo
+  if (String(inp.getAttribute('autocomplete')||'').toLowerCase() === 'off') inp.setAttribute('autocomplete','on');
+  inp.dataset.afReady = '1';
+  _afRenderList(inp);
+}
+function _afRemember(inp){
+  var v = (inp.value||'').trim();
+  if (v.length < 2) return;
+  var h = _afLoad(); var arr = (h[inp.id]) || [];
+  arr = [v].concat(arr.filter(function(x){ return x !== v; })).slice(0, 10);
+  h[inp.id] = arr; _afSave(h);
+  _afRenderList(inp);
+}
+document.addEventListener('focusin', function(e){
+  var t = e.target;
+  if (t && t.id && _AUTOFILL_IDS.has(t.id)) _afEnsure(t);
+});
+document.addEventListener('keydown', function(e){
+  var t = e.target;
+  if (e.key === 'Enter' && t && t.id && _AUTOFILL_IDS.has(t.id)) _afRemember(t);
+});
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (t && t.id && _AUTOFILL_IDS.has(t.id)) _afRemember(t);
+}, true);
+
 function showErr(el, msg){ el.textContent=msg; el.classList.add('show'); }
 function togglePw(id, btn){ const el=document.getElementById(id); const isHidden=el.type==='password'; el.type=isHidden?'text':'password'; btn.innerHTML='<i data-lucide="'+(isHidden?'eye-off':'eye')+'"></i>'; if(window.lucide) lucide.createIcons(); }
 function fmtDate(iso){ try{ return new Date(iso).toLocaleString('es-DO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch{return iso||'';} }
