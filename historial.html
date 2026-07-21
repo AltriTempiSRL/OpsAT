@@ -7898,6 +7898,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             <option value="week">📆 Esta semana</option>
             <option value="nodate">— Sin fecha</option>
           </select>
+          <label class="filter-sel" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none" title="Incluir tareas cuya cadena completa cerró hace más de 30 días">
+            <input type="checkbox" id="filter-archive" onchange="toggleArchive(this.checked)" style="accent-color:var(--accent);margin:0">
+            🗄️ Incluir archivo
+          </label>
           </div>
         </div>
         <div class="tasks-view-bar" role="group" aria-label="Vista de tareas">
@@ -9038,7 +9042,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v206';
+var APP_BUILD = 'v207';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -10709,7 +10713,7 @@ function connectWwpRealtime() {
           if (_currentTab === 'dashboard' && can('dashboard')) loadDashboard();
         } else {
           // Nuevo protocolo: re-fetchear via REST (RBAC correcto por usuario)
-          authFetch('/api/wwp/tasks').then(r => r.json()).then(function(fresh) {
+          authFetch(wwpTasksUrl()).then(r => r.json()).then(function(fresh) {
             if (!Array.isArray(fresh)) return;
             _tasks = fresh;
             if (!_drawerTask) renderTasks();
@@ -10763,7 +10767,7 @@ function connectWwpRealtime() {
   function _doFetch() {
     if (!_token || document.hidden) return;
     _checkVersion();
-    authFetch('/api/wwp/tasks').then(function(r) { return r.json(); })
+    authFetch(wwpTasksUrl()).then(function(r) { return r.json(); })
       .then(_applyFreshTasks).catch(function(){});
   }
 
@@ -12486,7 +12490,7 @@ async function loadTasks() {
   wwpInitCalEvents();   // delegación del calendario/gráficos (una sola vez, #tab-tasks persiste)
   listEl.innerHTML='<div class="loading"><div class="spinner"></div><br>Cargando tareas…</div>';
   try {
-    const data = await authGetJson('/api/wwp/tasks', 15000);
+    const data = await authGetJson(wwpTasksUrl(), 15000);
     _tasks = Array.isArray(data) ? data : (data.tasks || []);
     populateTaskUserFilter();
     renderTasks();
@@ -12506,6 +12510,17 @@ function toggleFilters() {
   if (!panel) return;
   const open = panel.classList.toggle('open');
   if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// ── Archivo (v207): cadenas completamente cerradas hace +30 días ──────────────
+// El servidor las excluye del listado por defecto (WWP_ARCHIVE_DAYS); este
+// toggle pide la lista completa con ?all=1. Estado de sesión (no persiste:
+// el default liviano es el correcto para el arranque en móviles).
+var _showArchive = false;
+function wwpTasksUrl() { return '/api/wwp/tasks' + (_showArchive ? '?all=1' : ''); }
+function toggleArchive(on) {
+  _showArchive = !!on;
+  loadTasks();
 }
 var _FILTER_DEFS = [
   {id:'filter-status',   label:'Estado'},
@@ -14724,9 +14739,10 @@ async function openDrawer(taskId) {
   const mySeq = ++_drawerOpenSeq;
   // Guardar referencia previa (puede venir del WebSocket sin filtro RBAC)
   const preTask = (_tasks||[]).find(x=>x.id===taskId);
-  // Re-fetch fresh data
+  // Re-fetch fresh data (respeta el toggle de archivo: si el drawer se abrió
+  // desde la vista de archivo, el refetch default perdería la tarea archivada)
   try {
-    const r = await authFetch('/api/wwp/tasks');
+    const r = await authFetch(wwpTasksUrl());
     const fresh = await r.json();
     if (Array.isArray(fresh)) _tasks = fresh;
   } catch {}
@@ -36849,7 +36865,9 @@ async function estadoOrdenesCargar() {
       // respecto a lo que ve admin. Se cargan una vez, aquí mismo.
       if (!_tasks || !_tasks.length) {
         try {
-          var td = await authGetJson('/api/wwp/tasks', 15000);
+          // ?all=1: EO mira 60 días de SDVs — el archivo de 30 días del listado
+          // dejaría sin enriquecer (estado real/evidencias) las órdenes viejas.
+          var td = await authGetJson('/api/wwp/tasks?all=1', 15000);
           _tasks = Array.isArray(td) ? td : (td.tasks || []);
         } catch(e) { /* sin tareas: la vista degrada como antes */ }
       }
