@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v216';
+const APP_BUILD = 'v217';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -19695,26 +19695,57 @@ const server = http.createServer(async (req, res) => {
 
       const ahora = new Date().toISOString();
 
-      // Crear nueva tarea WWP (derivada de la SDV original)
-      const nuevaTarea = createWwpTaskFromSdv(sdv, jp.userId);
-      nuevaTarea.title = `${sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente'} (REV)`;
-      nuevaTarea.dueDate = d.cuando_procesar;
-      // Folio legible + fecha real de cancelación (antes: id crudo + solicitado_at, que es
-      // cuándo se pidió la reactivación, no cuándo se canceló).
-      nuevaTarea.description = `Reactivación de ${sdv.folio || reac.sdv_id}. Original cancelada el ${(sdv.cancelado_at || reac.solicitado_at || '').slice(0, 10)}`;
-      nuevaTarea.relacionada_a_sdv = reac.sdv_id;
-      nuevaTarea.sdvOriginalCancelada = reac.sdv_id;
-      // La tarea reactivada nace con los artículos del pick — mismo motor que la aprobación
-      // normal (fail-open 8s; sin esto nacía vacía y el drawer mostraba "Sin artículos
-      // seleccionados"). firstLoadStates incluye 'done': el OUT de la orden pudo quedar
-      // validado en Odoo aunque el despacho físico se canceló — ese pick realizado es el
-      // despacho de ESTA orden que se re-intenta, no historia ajena (v215).
-      try { await populateChainItemsFromPick([nuevaTarea], 8000, { firstLoadStates: ['assigned', 'done'] }); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
+      // Rutear por el MOTOR de aprobación (createSdvTasks), no la factory cruda: sin esto una
+      // solicitud_especial nacía dispatch_order, una multi-orden nacía mono-tarea sin pick, y
+      // una multi-sede sin split (auditoría 21-jul, Carl/Vera P1). Hereda empaque si la SDV lo
+      // tuvo (Bloque A). devolucion/especial = tarea única (misma coerción que la aprobación).
+      const _esTareaUnica = ['devolucion','solicitud_especial'].includes(sdv.tipoSolicitud);
+      const _huboEmpaque = (sdv.wwpTareas||[]).some(w => /empaque/i.test(w.titulo||''))
+        || loadWwpTasks().some(t => t.sdvId === sdv.id && t.type === 'packaging');
+      let nuevas, mainId;
+      if (_esTareaUnica) {
+        const t = createWwpTaskFromSdv(sdv, jp.userId);
+        if (sdv.tipoSolicitud === 'solicitud_especial') t.type = 'general';
+        nuevas = [t]; mainId = t.id;
+      } else {
+        const r = createSdvTasks(sdv, jp.userId, _huboEmpaque ? 'empaque_despacho' : 'solo_despacho');
+        nuevas = r.tasks; mainId = r.mainId;
+      }
+      // Marcas de reactivación + fecha/prioridad recalculada en TODA la cadena (antes la
+      // prioridad derivaba de la fecha vieja — Carl P1-4 colateral).
+      nuevas.forEach(t => {
+        t.dueDate = d.cuando_procesar;
+        t.priority = sdvDerivePriority(d.cuando_procesar);
+        t.relacionada_a_sdv = reac.sdv_id;
+        t.sdvOriginalCancelada = reac.sdv_id;
+      });
+      const _raiz = nuevas.find(t => t.id === mainId) || nuevas[0];
+      _raiz.title = _raiz.title + ' (REV)';
+      _raiz.description = `Reactivación de ${sdv.folio || reac.sdv_id}. Original cancelada el ${(sdv.cancelado_at || reac.solicitado_at || '').slice(0, 10)}.` + (_raiz.description ? ' — ' + _raiz.description : '');
+      // Encargado opcional (Bloque C): asignar la raíz para que no muera en pending, invisible
+      // al Resumen del día. Si no se envía, queda pending (visible por vencimiento hoy).
+      if (d.encargadoId) {
+        try {
+          const _u = loadAuthUsers().find(x => x.id === d.encargadoId);
+          if (_u) {
+            _raiz.managerId = _u.id; _raiz.managerName = _u.name || '';
+            if (_u.odooId) _raiz.assignedTo = 'oe_' + _u.odooId;
+            _raiz.status = 'assigned';
+            _raiz.statusHistory = _raiz.statusHistory || [];
+            _raiz.statusHistory.push({ status:'assigned', date:ahora, by:jp.userId, note:'Asignada al reactivar' });
+          }
+        } catch(e) { silentCatch(e,'reactAsignar'); }
+      }
+      // Poblar items del pick (no para tarea única: sus items ya vienen sembrados). El pick
+      // 'done' cuenta porque el OUT validado de la orden ES el despacho que se re-intenta (v215).
+      if (!_esTareaUnica) {
+        try { await populateChainItemsFromPick(nuevas, 8000, { firstLoadStates: ['assigned', 'done'] }); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
+      }
 
       // Re-verificar tras el await (populate hasta 8s): otra reactivación simultánea o una
       // aprobación pudo mover la SDV mientras esperábamos. Sin esto, dos process en paralelo
       // saltan el guard de arriba y crean 2 despachos. Se recarga el estado fresco y se aborta
-      // antes de persistir la tarea si dejó de estar cancelada.
+      // antes de persistir las tareas si dejó de estar cancelada.
       sdvList = loadSdv();
       sdv = sdvList.find(s => s.id === reac.sdv_id);
       if (!sdv || sdv.estado !== 'cancelada') {
@@ -19724,23 +19755,27 @@ const server = http.createServer(async (req, res) => {
       }
 
       const tasks = loadWwpTasks();
-      nuevaTarea.seq = nextTaskSeq();
-      tasks.push(nuevaTarea);
+      nuevas.forEach(t => { if (!t.parentId) t.seq = nextTaskSeq(); tasks.push(t); });
       saveWwpTasks(tasks);
 
-      // Homologación H0-6 (2026-07-02): la reactivación ahora es canónica —
-      // reverse-link completo (antes la SDV no listaba la tarea nueva y seguía
-      // 'cancelada' con una tarea viva apuntándole), transición EXPLÍCITA
-      // cancelada→en_proceso vía sdvTransition (no bypass), y el notifySeller
-      // que el docstring siempre prometió.
+      // Reverse-link canónico + transición + FECHA canónica. P0-B (auditoría 21-jul): antes la
+      // SDV quedaba con la fecha VIEJA (solo la tarea recibía la nueva) → EO la pintaba vencida
+      // en rojo, "Para el cliente" pedía confirmar la fecha ya acordada, y OTIF/slippage medían
+      // contra la promesa cancelada. Ahora se escribe por el camino canónico de /reprogramar.
       try {
-        sdv.wwpTaskId = nuevaTarea.id;
+        sdv.wwpTaskId = mainId;
         sdv.wwpTareas = sdv.wwpTareas || [];
-        if (!sdv.wwpTareas.some(w => w.taskId === nuevaTarea.id)) {
-          sdv.wwpTareas.push({ taskId:nuevaTarea.id, titulo:nuevaTarea.title, creadoAt:ahora });
-        }
+        nuevas.forEach(t => { if (!sdv.wwpTareas.some(w => w.taskId === t.id)) sdv.wwpTareas.push({ taskId:t.id, titulo:t.title, creadoAt:ahora }); });
+        // Sella la promesa original la 1ª vez, actualiza la vigente y registra la reprogramación
+        // con motivo EXTERNO 'reactivacion' → exenta de atraso de Ops en EO, igual que una de
+        // cliente (la promesa se rompió por una cancelación, no por almacén).
+        const _fechaAnterior = sdv.fechaSolicitudDeseada || null;
+        if (!sdv.fechaSolicitudDeseadaOriginal && sdv.fechaSolicitudDeseada) sdv.fechaSolicitudDeseadaOriginal = sdv.fechaSolicitudDeseada;
+        sdv.fechaSolicitudDeseada = d.cuando_procesar;
+        sdv.reprogramaciones = sdv.reprogramaciones || [];
+        sdv.reprogramaciones.push({ fechaAnterior:_fechaAnterior, fechaNueva:d.cuando_procesar, motivo:'reactivacion', motivoLabel:'Reactivación', motivoTexto:(reac.motivo_reactivacion||''), porNombre:jp.name, at:ahora });
         const _trR = sdvTransition(sdv, 'en_proceso', jp.userId, jp.name,
-          'Reactivación procesada — nueva tarea '+nuevaTarea.id+' para el '+d.cuando_procesar,
+          'Reactivación procesada — nueva tarea '+mainId+' para el '+d.cuando_procesar,
           { extra:['en_proceso'] });
         if (!_trR.ok) console.warn('[SDV] Reactivación: transición no aplicada —', _trR.error);
         const _siR = sdvList.findIndex(s => s.id === sdv.id);
@@ -19755,7 +19790,7 @@ const server = http.createServer(async (req, res) => {
       reac.procesado_at = ahora;
       reac.cuando_procesar = d.cuando_procesar;
       reac.notas_ops = d.notas_ops || '';
-      reac.nueva_tarea_id = nuevaTarea.id;
+      reac.nueva_tarea_id = mainId;
       reacList[reacIdx] = reac;
       // Expirar cualquier OTRA pendiente de la misma SDV (defensa en profundidad: el dedup del
       // POST ya lo previene, pero limpia pendientes zombie de datos previos al fix).
@@ -19771,20 +19806,20 @@ const server = http.createServer(async (req, res) => {
       // Auditar
       auditLogSdvEvent('reactivacion_procesada', reac.sdv_id, jp.userId, jp.name, {
         cuando_procesar: d.cuando_procesar,
-        nueva_tarea_id: nuevaTarea.id,
+        nueva_tarea_id: mainId,
         notas_ops: d.notas_ops
       });
 
       // Notificar a Ops (actualizar bandeja de reactivaciones)
       await notifySdvToOps(reac.sdv_id, 'reactivacion_procesada', sdv.clienteNombre, {
-        nueva_tarea_id: nuevaTarea.id,
+        nueva_tarea_id: mainId,
         cuando: d.cuando_procesar
       });
 
       res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify({
         ok:true,
-        nueva_tarea_id:nuevaTarea.id,
+        nueva_tarea_id:mainId,
         nueva_fecha:d.cuando_procesar,
         mensaje:'Reactivación procesada. Nueva tarea creada.'
       }));

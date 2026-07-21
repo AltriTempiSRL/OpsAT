@@ -9054,7 +9054,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v216';
+var APP_BUILD = 'v217';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -37435,9 +37435,9 @@ function eoEnumEstado(s, tasks){
 // ── Reprogramación (v192) → tratamiento en EO ───────────────────────────────
 // Motivos de reprogramación AJENOS a Operaciones: NO cuentan como atraso de Ops
 // (decisión Gabriel 2026-07-16). Los demás sí son atraso operativo → rojo normal.
-var EO_REPROG_MOT_EXT = ['cliente','fuerza_mayor'];
+var EO_REPROG_MOT_EXT = ['cliente','fuerza_mayor','reactivacion'];
 // Etiqueta corta para la línea de promesa (el detalle/chip usa repro.motivoLabel del backend).
-var EO_REPROG_MOT_CORTO = { cliente:'cliente', fuerza_mayor:'fuerza mayor' };
+var EO_REPROG_MOT_CORTO = { cliente:'cliente', fuerza_mayor:'fuerza mayor', reactivacion:'reactivación' };
 // Última reprogramación registrada (la vigente) de una SDV, o null. (_mock no aplica.)
 function eoUltimaReprog(s){
   if(!s || s._mock) return null;
@@ -38517,6 +38517,13 @@ async function eoAbrirDetalle(sdvId) {
     var evw = eoView(s, _tasks||[]);
     var sayMsg = eoClientMessage(evw);
     var sayHtml = '<div class="eo2-say"><i data-lucide="message-circle"></i><div><strong>Para el cliente</strong>'+esc(sayMsg)+'</div></div>';
+    // Reactivar desde EO (la pantalla principal de ventas): antes no había ruta y la vendedora
+    // quedaba varada (auditoría Vera). Ops reactiva directo (1 paso); ventas solicita (2 pasos).
+    var reactHtmlEO = '';
+    if (s.estado === 'cancelada') {
+      var _opsEO = _user && (_user.role==='admin' || _user.role==='manager');
+      reactHtmlEO = '<div style="margin:10px 0"><button class="btn btn-primary" onclick="document.getElementById(\'eoDetOverlay\').remove(); sdvOpenReactivateModal(\''+s.id+'\''+(_opsEO?',true':'')+')"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px"></i> '+(_opsEO?'Reactivar solicitud':'Solicitar reactivación')+'</button></div>';
+    }
     var loc = eoLocOf(s, _tasks||[]);
 
     // Artículos — 3 niveles: image en payload (SDV viejas/lookup) → directa; sin image pero
@@ -38638,6 +38645,7 @@ async function eoAbrirDetalle(sdvId) {
         '</div>' +
         '<div class="eo-det-body">' +
           sayHtml +
+          reactHtmlEO +
           '<div><div class="eo-det-sec-title">Artículos ('+(s.articulosOdoo||[]).length+')</div>'+artsHtml+'</div>' +
           '<div><div class="eo-det-sec-title">Datos</div>'+datosRows+'</div>' +
           opsHtml +
@@ -38662,6 +38670,9 @@ async function eoAbrirDetalle(sdvId) {
 function eoClientMessage(v){
   var p = eoProm(v);
   if(v.flags.indexOf('bloq')!==-1) return 'La salida (OUT) en Odoo aún no está validada. Confirma con Operaciones que se valide el despacho antes de prometer fecha al cliente.';
+  // Cancelada y rechazada caen en el mismo enum 'rech' pero NO son lo mismo: una cancelada
+  // no se "corrige y reenvía" — se REACTIVA si el cliente retoma (auditoría Vera P1-3).
+  if(v.s && v.s.estado==='cancelada') return 'Solicitud cancelada. Si el cliente retoma el pedido, solicita la reactivación desde el detalle (con la nueva fecha) — no hace falta crear una solicitud nueva.';
   if(v.e==='rech') return 'Operaciones devolvió la solicitud (revisa el motivo del rechazo). Corrígela y reenvía — el cliente no pierde su turno.';
   if(v.flags.indexOf('dev')!==-1) return 'Entregado, pero hay una devolución en ruta abierta. Coordina con Operaciones el retiro del artículo.';
   if(v.flags.indexOf('sinevid')!==-1) return 'Marcada como despachada, pero falta la foto de los documentos de entrega firmados. Pídela a Operaciones antes de cerrar con el cliente.';
@@ -40030,6 +40041,13 @@ function sdvOpenProcessReactivationModal(id, folio) {
   document.getElementById('sdv-process-reactivation-fecha').value = '';
   document.getElementById('sdv-process-reactivation-hora').value = '10:00';
   document.getElementById('sdv-process-reactivation-notas').value = '';
+  // Poblar el selector de encargado (managers/admins) desde el roster ya cargado.
+  var sel = document.getElementById('sdv-process-reactivation-encargado');
+  if (sel) {
+    var encargables = (_authUsers||[]).filter(function(u){ return u && u.active!==false && (u.role==='manager'||u.role==='admin'); });
+    sel.innerHTML = '<option value="">— Sin asignar (queda pendiente) —</option>' +
+      encargables.map(function(u){ return '<option value="'+esc(u.id)+'">'+esc(u.name||u.email||u.id)+'</option>'; }).join('');
+  }
   modal.classList.add('open');
 }
 
@@ -40057,9 +40075,11 @@ async function sdvSubmitProcessReactivation() {
     // Combinar fecha + hora en formato ISO (cuando_procesar)
     var cuandoProcesar = fecha + 'T' + (hora || '10:00') + ':00';
 
+    var encargadoId = (document.getElementById('sdv-process-reactivation-encargado')||{}).value || null;
     var payload = {
       cuando_procesar: cuandoProcesar,
-      notas_ops: notas || null
+      notas_ops: notas || null,
+      encargadoId: encargadoId
     };
     var r = await authFetch('/api/sdv/reactivation/'+id+'?action=process', {method:'PATCH', body:JSON.stringify(payload)});
     var d = await r.json();
@@ -40586,6 +40606,11 @@ async function loadCancelacionesKPIs() {
       <div class="sdv-process-reactivation-modal-section">
         <label for="sdv-process-reactivation-hora">Hora aproximada</label>
         <input type="time" id="sdv-process-reactivation-hora" class="sdv-process-reactivation-modal-input" value="10:00">
+      </div>
+
+      <div class="sdv-process-reactivation-modal-section">
+        <label for="sdv-process-reactivation-encargado">Encargado (opcional — asigna la tarea de una vez)</label>
+        <select id="sdv-process-reactivation-encargado" class="sdv-process-reactivation-modal-select"><option value="">— Sin asignar (queda pendiente) —</option></select>
       </div>
 
       <div class="sdv-process-reactivation-modal-section">
