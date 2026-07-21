@@ -9054,7 +9054,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v212';
+var APP_BUILD = 'v213';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9136,7 +9136,7 @@ function can(perm) {
 
 // Secciones operativas habilitadas por defecto para manager. Una clave `false`
 // explícita en sectionPerms siempre prevalece sobre este valor por defecto.
-var _MANAGER_AUTO_GRANT_SECTIONS = ['sdv-bandeja', 'sdv-portal', 'estado-ordenes', 'inventario'];
+var _MANAGER_AUTO_GRANT_SECTIONS = ['sdv-bandeja', 'sdv-portal', 'estado-ordenes', 'inventario', 'sdv-reactivations'];
 
 /** Devuelve true si el usuario puede ver la sección del historial indicada */
 function canSection(key) {
@@ -9196,7 +9196,7 @@ function applyNavPerms() {
     'dashboard-ventas','estado-ordenes','buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'inventario','averias','wwp',
-    'sdv-portal','sdv-bandeja'
+    'sdv-portal','sdv-bandeja','sdv-reactivations'
   ];
   sections.forEach(function(s) {
     // "Workforce Labor" (wwp) es el módulo base donde aterrizan los usuarios operativos
@@ -9215,7 +9215,7 @@ function applyNavPerms() {
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
-    'navg-ventas':      ['sdv-portal','sdv-bandeja','estado-ordenes']
+    'navg-ventas':      ['sdv-portal','sdv-bandeja','sdv-reactivations','estado-ordenes']
   };
   Object.keys(GROUPS).forEach(function(gid) {
     // Mismo criterio que arriba: 'wwp' (Workforce Labor) no aplica a ventas.
@@ -28876,6 +28876,7 @@ function navTo(section){
   if(target==='despacho-obsoleto') initDespachoObsoleto();
   if(target==='sdv-portal') sdvInitPortal();
   if(target==='sdv-bandeja') sdvBandejaCargar();
+  if(target==='sdv-reactivations') sdvLoadReactivations();
   if(target==='almacen-mapa') {
     var iframe = document.getElementById('almacen-mapa-iframe');
     if (iframe && !iframe.src) iframe.src = '/almacen-mapa.html';
@@ -38957,6 +38958,23 @@ async function sdvVerDetalle(id, ctx) {
           '<button class="btn btn-secondary" onclick="sdvMarcarDespachadaManual(\''+s.id+'\')"><i data-lucide="check" style="width:14px;height:14px;vertical-align:-2px"></i> Marcar despachada (sin tarea)</button>'+
         '</div>';
       }
+    } else if (ctx==='bandeja' && s.estado==='cancelada') {
+      // Reactivación desde la Bandeja (antes una cancelada aquí era solo-lectura y el botón
+      // solo existía en "Mis Solicitudes" del creador): Ops reactiva DIRECTO en un paso
+      // (solicitar + procesar encadenados sobre los endpoints existentes); cualquier otro
+      // rol con acceso a la bandeja entra al flujo de dos pasos (Ops procesa después).
+      var _cancInfo = '<div style="font-size:var(--fs-sm);color:var(--text-muted);flex-basis:100%">Cancelada'+(s.cancelado_por_nombre?' por '+esc(s.cancelado_por_nombre):'')+(s.cancelado_at?' el '+sdvFmtDate(s.cancelado_at):'')+'</div>';
+      if (isOps) {
+        acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">'+
+          _cancInfo+
+          '<button class="btn btn-primary" onclick="sdvOpenReactivateModal(\''+s.id+'\',true)"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px"></i> Reactivar solicitud</button>'+
+        '</div>';
+      } else {
+        acciones = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center">'+
+          _cancInfo+
+          '<button class="btn btn-secondary" onclick="sdvOpenReactivateModal(\''+s.id+'\')"><i data-lucide="refresh-cw" style="width:14px;height:14px;vertical-align:-2px"></i> Solicitar Reactivación</button>'+
+        '</div>';
+      }
     }
     // Contexto Mis Solicitudes (Vendedora)
     // Solicitud especial (v1): el modal de edición es 100% Odoo-céntrico — para corregirla,
@@ -39834,14 +39852,26 @@ function sdvContactarOps() {
 }
 
 // ── Reactivar solicitud (desde detalle cancelada) ──────────────────────────
-function sdvOpenReactivateModal(id) {
+// Dos modos sobre el mismo modal: vendedora SOLICITA (Ops procesa después) y
+// Ops REACTIVA directo (opsDirect=true — solicita y procesa en un solo paso).
+var _sdvReactivateOps = false;
+function sdvOpenReactivateModal(id, opsDirect) {
   var modal = document.getElementById('sdv-reactivate-modal-overlay');
   if (!modal) return;
+  _sdvReactivateOps = !!opsDirect;
   // El detalle (z-index 19000) tapa este modal (1000): cerrarlo antes de abrir.
   sdvCloseDrawer();
   document.getElementById('sdv-reactivate-current-id').value = id;
   document.getElementById('sdv-reactivate-fecha').value = '';
   document.getElementById('sdv-reactivate-razon').value = '';
+  var hdr = document.querySelector('#sdv-reactivate-modal-overlay .sdv-cancel-modal-header span');
+  if (hdr) hdr.textContent = _sdvReactivateOps ? 'Reactivar solicitud' : 'Solicitar Reactivación';
+  var info = document.getElementById('sdv-reactivate-info');
+  if (info) info.textContent = _sdvReactivateOps
+    ? 'ℹ️ La solicitud vuelve a «En proceso» y se crea la tarea de despacho nueva de inmediato.'
+    : 'ℹ️ Ops decidirá cuándo procesar tu solicitud. Recibirás notificación.';
+  var btn = document.querySelector('#sdv-reactivate-modal-overlay .btn-primary');
+  if (btn) { btn.disabled = false; btn.textContent = _sdvReactivateOps ? 'Reactivar' : 'Solicitar'; }
   modal.classList.add('open');
 }
 
@@ -39854,37 +39884,60 @@ function sdvCloseReactivateModal() {
 async function sdvSubmitReactivate() {
   var id = document.getElementById('sdv-reactivate-current-id').value;
   var fecha = document.getElementById('sdv-reactivate-fecha').value;
-  var razon = document.getElementById('sdv-reactivate-razon').value;
+  var razon = (document.getElementById('sdv-reactivate-razon').value||'').trim();
 
   if (!fecha) {
     toast('Especifica la nueva fecha de entrega');
     return;
   }
+  // El backend exige el motivo (422) — el modal lo decía "opcional" y el envío moría en error.
+  if (!razon) {
+    toast('Escribe un breve motivo de la reactivación');
+    return;
+  }
 
+  var _lbl = _sdvReactivateOps ? 'Reactivar' : 'Solicitar';
   var btnEl = document.querySelector('#sdv-reactivate-modal-overlay .btn-primary');
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando…'; }
 
   try {
     var payload = {
       new_delivery_date: fecha,
-      motivo_reactivacion: razon || null
+      motivo_reactivacion: razon
     };
     var r = await authFetch('/api/sdv/'+id+'/reactivation', {method:'POST', body:JSON.stringify(payload)});
     var d = await r.json();
 
     if (!r.ok || !d.ok) {
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = _lbl; }
       toast('Error: '+(d.error||'No se pudo reactivar'));
+      return;
+    }
+
+    if (_sdvReactivateOps) {
+      // Modo Ops: procesar de inmediato la solicitud recién creada (mismo flujo de dos
+      // pasos del backend, encadenado). cuando_procesar = la fecha de entrega elegida.
+      var r2 = await authFetch('/api/sdv/reactivation/'+d.reactivacion_id+'?action=process', {method:'PATCH', body:JSON.stringify({ cuando_procesar: fecha, notas_ops: 'Reactivación directa desde la Bandeja' })});
+      var d2 = await r2.json();
+      sdvCloseReactivateModal();
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = _lbl; }
+      if (!r2.ok || !d2.ok) {
+        // El POST ya quedó registrado: la solicitud está pendiente en la bandeja Reactivaciones.
+        toast('Quedó como reactivación PENDIENTE (no se pudo procesar: '+(d2.error||'error')+'). Procésala desde «Reactivaciones».');
+      } else {
+        toast('✓ Solicitud reactivada · tarea de despacho nueva creada','success');
+      }
+      if (typeof sdvBandejaCargar==='function') sdvBandejaCargar();
       return;
     }
 
     toast('✓ Reactivación solicitada. Ops la procesará pronto.');
     sdvCloseReactivateModal();
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = _lbl; }
 
     if (document.getElementById('sdv-mis-list')) sdvCargarMis();
   } catch(e) {
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Solicitar'; }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = _lbl; }
     toast('Error: '+e.message);
   }
 }
@@ -40476,11 +40529,11 @@ async function loadCancelacionesKPIs() {
       </div>
 
       <div class="sdv-cancel-modal-section">
-        <label for="sdv-reactivate-razon">Breve motivo de reactivación (opcional)</label>
+        <label for="sdv-reactivate-razon">Breve motivo de reactivación<span style="color:var(--red-text)">*</span></label>
         <textarea id="sdv-reactivate-razon" class="sdv-cancel-modal-textarea" placeholder="Ej: Cliente confirmó; puede ser el 25 jun…"></textarea>
       </div>
 
-      <div style="font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface-2);padding:10px;border-radius:var(--radius);margin-top:12px">
+      <div id="sdv-reactivate-info" style="font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface-2);padding:10px;border-radius:var(--radius);margin-top:12px">
         ℹ️ Ops decidirá cuándo procesar tu solicitud. Recibirás notificación.
       </div>
     </div>

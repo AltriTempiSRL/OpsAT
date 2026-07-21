@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v212';
+const APP_BUILD = 'v213';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -17225,7 +17225,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   // GET /api/sdv/:id — obtener una solicitud
-  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && req.method === 'GET') {
+  // 'reactivation' matchea [a-z0-9_]+ — sin la exclusión, este handler devolvía 404 a
+  // GET /api/sdv/reactivation (la bandeja de reactivaciones de Ops) antes de que su
+  // handler propio (más abajo) llegara a ejecutarse.
+  if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+$/) && reqPath !== '/api/sdv/reactivation' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
     const id = reqPath.split('/')[3];
     try {
