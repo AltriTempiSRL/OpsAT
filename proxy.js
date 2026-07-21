@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v214';
+const APP_BUILD = 'v215';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -1815,18 +1815,24 @@ async function buildPickMergeForTask(t, opts = {}) {
   // Con items ya cargados se mantiene el default ['assigned','done'] para poder
   // clasificar como 'executed' las unidades propias cuando el pick se ejecuta.
   const _firstLoad = !(t.items||[]).some(i => i.selected);
+  // Reactivación (v215): opts.firstLoadStates permite que la primera carga acepte también
+  // picks 'done'. Para una tarea (REV) el pick realizado ES el despacho de ESTA misma
+  // orden que se está re-intentando (el OUT quedó validado aunque el despacho físico se
+  // canceló) — sin esto la tarea nacía vacía y "Actualizar desde pick" respondía "Sin pick
+  // preparado (ASSIGNED)". El presupuesto por sdvArticulos y los claims siguen acotando.
+  const _firstStates = (Array.isArray(opts.firstLoadStates) && opts.firstLoadStates.length) ? opts.firstLoadStates : ['assigned'];
   // Capa 1: con selección explícita (opts.selectedPickIds) el stateFilter es indiferente
   // (buildItemsFromPicks lo ignora ante selección), pero se mantiene la ruta de primera carga.
   let pr;
   if (_mergeRefs.length === 1) {
-    pr = await buildItemsFromPicks(_mergeRefs[0], _firstLoad ? ['assigned'] : undefined, opts);
+    pr = await buildItemsFromPicks(_mergeRefs[0], _firstLoad ? _firstStates : undefined, opts);
   } else {
     // Concatenar por orden. item_id ya es único entre órdenes ('oi_<pid>_<pickSuffix>':
     // el nombre del pick es único en Odoo). Si UNA orden no tiene pick, se sigue con las
     // demás; noPick solo si NINGUNA aportó fuente. Un fallo de Odoo lanza (el caller decide).
     pr = { noPick:true, items:[], picks:[], pickNames:[] };
     for (const _ref of _mergeRefs) {
-      const part = await buildItemsFromPicks(_ref, _firstLoad ? ['assigned'] : undefined, opts);
+      const part = await buildItemsFromPicks(_ref, _firstLoad ? _firstStates : undefined, opts);
       if (part.noPick) continue;
       pr.noPick = false;
       (part.items||[]).forEach(it => { it.orderRef = _ref; pr.items.push(it); });
@@ -1957,13 +1963,13 @@ async function buildPickMergeForTask(t, opts = {}) {
 // Fail-open con timeout: si Odoo no responde a tiempo, las tareas nacen sin items y el
 // banner "El pick cambió → Sincronizar" del drawer queda como respaldo manual. El cálculo
 // es puro (no toca las tareas); la asignación solo ocurre si terminó dentro del plazo.
-async function populateChainItemsFromPick(nuevas, timeoutMs = 8000) {
+async function populateChainItemsFromPick(nuevas, timeoutMs = 8000, mergeOpts = {}) {
   const trabajo = (async () => {
     const out = new Map();
     for (const t of nuevas) {
       if (!['packaging','dispatch_order','warehouse_move'].includes(t.type)) continue;
       try {
-        const d = await buildPickMergeForTask(t);
+        const d = await buildPickMergeForTask(t, mergeOpts);
         if (d && d.ok && Array.isArray(d.merged) && d.merged.length) out.set(t.id, d.merged);
       } catch (e) { console.warn('[SDV→WWP] items del pick no disponibles para', t.id, '—', e.message); }
     }
@@ -18138,7 +18144,9 @@ const server = http.createServer(async (req, res) => {
     try {
       const t = loadWwpTasks().find(x => x.id === id);
       if (!t) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
-      const out = await buildPickMergeForTask(t);
+      // Tarea reactivada (REV): su primera carga acepta el pick 'done' de la orden — es el
+      // despacho que se re-intenta (v215). El resto de tareas conserva la regla v113.
+      const out = await buildPickMergeForTask(t, t.sdvOriginalCancelada ? { firstLoadStates: ['assigned', 'done'] } : {});
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify(out));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
@@ -19636,9 +19644,10 @@ const server = http.createServer(async (req, res) => {
       nuevaTarea.sdvOriginalCancelada = reac.sdv_id;
       // La tarea reactivada nace con los artículos del pick — mismo motor que la aprobación
       // normal (fail-open 8s; sin esto nacía vacía y el drawer mostraba "Sin artículos
-      // seleccionados"). Nota: la primera carga solo toma picks 'assigned' (regla v113);
-      // si el pick de la orden ya está 'done', queda el selector "Actualizar desde pick".
-      try { await populateChainItemsFromPick([nuevaTarea]); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
+      // seleccionados"). firstLoadStates incluye 'done': el OUT de la orden pudo quedar
+      // validado en Odoo aunque el despacho físico se canceló — ese pick realizado es el
+      // despacho de ESTA orden que se re-intenta, no historia ajena (v215).
+      try { await populateChainItemsFromPick([nuevaTarea], 8000, { firstLoadStates: ['assigned', 'done'] }); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
 
       const tasks = loadWwpTasks();
       nuevaTarea.seq = nextTaskSeq();
