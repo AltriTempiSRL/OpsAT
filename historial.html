@@ -6999,6 +6999,16 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             </div>
           </div>
 
+          <!-- 2a. Devolución: RETs pendientes en Odoo (browse-first; la búsqueda por orden queda abajo como fallback) -->
+          <div class="sdv-detail-section" id="sdv-rets-pend-section" style="display:none">
+            <h4 style="display:flex;align-items:center;gap:8px">Devoluciones pendientes en Odoo
+              <button type="button" class="btn btn-secondary" style="font-size:11px;padding:4px 10px;margin-left:auto" onclick="sdvCargarRetsPendientes()">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px;vertical-align:-2px"></i> Actualizar
+              </button>
+            </h4>
+            <div id="sdv-rets-pend-list"></div>
+          </div>
+
           <!-- 2. Búsqueda Odoo -->
           <div class="sdv-detail-section" id="sdv-lookup-section" style="display:none">
             <div id="sdv-onboard-banner" style="display:none;background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-2);line-height:1.5">
@@ -9042,7 +9052,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v208';
+var APP_BUILD = 'v209';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -35079,6 +35089,8 @@ var _sdvOrders = [];           // multi-orden (despacho_cliente): [{ref, client}
 var _sdvRets = [];             // devolución multi-RET: [{id,name,state,origin,retRef,itemCount}] de la orden
 var _sdvRetSel = {};           // {retId: true/false} — RETs marcadas en el selector
 var _sdvItemsFull = [];        // devolución: TODOS los items del lookup (el filtro por RET recorta _sdvItems)
+var _sdvRetsPend = [];         // devolución browse-first: RETs pendientes (confirmadas, no ejecutadas) de la vendedora
+var _sdvRetsPendSel = {};      // {retId:true} marcadas en la lista de pendientes (UNA sola orden a la vez)
 var _sdvSolicitudOrigenId = null; // si esta nueva SDV es "adicional" de una ya en despacho
 var _sdvOrigenPrev = '';       // valor previo del select origen (para revertir)
 var _sdvMisFiltro = '';        // filtro activo en "Mis solicitudes"
@@ -35192,6 +35204,11 @@ function sdvSetTipo(tipo) {
   _sdvRets = []; _sdvRetSel = {}; _sdvItemsFull = [];
   var _rs = document.getElementById('sdv-rets-selector');
   if (_rs) { _rs.style.display = 'none'; _rs.innerHTML = ''; }
+  // Devolución browse-first: la lista de RETs pendientes se muestra (y carga) solo en este tipo
+  _sdvRetsPendSel = {};
+  var _rp = document.getElementById('sdv-rets-pend-section');
+  if (_rp) _rp.style.display = (tipo==='devolucion') ? '' : 'none';
+  if (tipo === 'devolucion') sdvCargarRetsPendientes();
   sdvRenderOrderChips();
   // El hint de multi-orden solo aplica al tipo despacho (la acumulación está acotada a él)
   var _mh = document.getElementById('sdv-multi-hint');
@@ -35548,6 +35565,100 @@ function sdvOrigenChanged() {
     }
   }
   _sdvOrigenPrev = _sdv$('sdv-origen').value;
+}
+
+// ── Devolución browse-first: RETs pendientes de la vendedora ──────────────
+// Al presionar "Devolución" se listan las RET confirmadas en Odoo pero NO ejecutadas
+// (waiting/confirmed/assigned), agrupadas por orden. La vendedora marca 1..N de la
+// MISMA orden y "Continuar" cae al form de siempre con esas RET pre-seleccionadas.
+// La búsqueda por número de orden queda debajo como fallback (RET ya ejecutada, etc.).
+async function sdvCargarRetsPendientes() {
+  var list = document.getElementById('sdv-rets-pend-list');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-3)">Consultando Odoo…</div>';
+  try {
+    var r = await authFetch('/api/sdv/rets-pendientes');
+    var d = await r.json();
+    if (_sdvTipo !== 'devolucion') return;   // la vendedora cambió de tipo mientras cargaba
+    _sdvRetsPend = (d.ok && Array.isArray(d.rets)) ? d.rets : [];
+    if (!d.ok) {
+      list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-3)">No se pudo consultar Odoo en este momento — usa la búsqueda por número de orden abajo.</div>';
+      return;
+    }
+    sdvRenderRetsPend();
+  } catch(e) {
+    list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-3)">Error consultando Odoo — usa la búsqueda por número de orden abajo.</div>';
+  }
+}
+
+function sdvRenderRetsPend() {
+  var list = document.getElementById('sdv-rets-pend-list');
+  if (!list) return;
+  if (!_sdvRetsPend.length) {
+    list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text-3)">No tienes devoluciones pendientes en Odoo. Si necesitas documentar una ya ejecutada, búscala por número de orden abajo.</div>';
+    return;
+  }
+  var stTxt = { assigned:'Lista para procesar', confirmed:'En espera', waiting:'En espera', draft:'Borrador' };
+  var fmtF = function(iso){ if(!iso) return ''; var d=new Date(String(iso).replace(' ','T')); return isNaN(d)?'':d.toLocaleDateString('es-DO',{day:'2-digit',month:'short'}); };
+  // Agrupar por orden, conservando el orden de llegada (scheduled_date asc)
+  var ords = []; var byOrd = {};
+  _sdvRetsPend.forEach(function(r){ var k=r.orderRef||'—'; if(!byOrd[k]){byOrd[k]=[];ords.push(k);} byOrd[k].push(r); });
+  var nSel = Object.keys(_sdvRetsPendSel).length;
+  var html = ords.map(function(ord){
+    var rows = byOrd[ord];
+    var head = '<div class="sdv-ord-group" style="margin-top:10px">'+esc(ord)+' <span>· '+esc(rows[0].client||'')+
+      (rows[0].salesperson?' · '+esc(rows[0].salesperson):'')+'</span></div>';
+    return head + rows.map(function(r){
+      var sel = !!_sdvRetsPendSel[r.retId];
+      return '<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1.5px solid '+(sel?'var(--amber-dot)':'var(--border)')+';border-radius:8px;cursor:pointer;background:'+(sel?'rgba(245,158,11,.06)':'var(--surface-2)')+';transition:all .15s;margin-bottom:6px">'+
+        '<input type="checkbox" '+(sel?'checked':'')+' onchange="sdvToggleRetPend('+r.retId+', this.checked)" style="width:16px;height:16px;accent-color:var(--amber-dot);flex-shrink:0">'+
+        '<i data-lucide="rotate-ccw" style="width:14px;height:14px;stroke:var(--amber-dot);flex-shrink:0"></i>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:12px;font-weight:700;color:var(--text)">'+esc(r.retRef||r.name)+'</div>'+
+          '<div style="font-size:10px;color:var(--text-3);margin-top:1px">estado: '+(stTxt[r.state]||r.state||'—')+(r.scheduledDate?' · prog. '+fmtF(r.scheduledDate):'')+'</div>'+
+        '</div>'+
+      '</label>';
+    }).join('');
+  }).join('');
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:8px">'+
+    '<button type="button" class="btn btn-primary" '+(nSel?'':'disabled ')+'onclick="sdvContinuarRetsPend()">'+
+    '<i data-lucide="arrow-right" style="width:14px;height:14px;vertical-align:-2px"></i> Continuar con '+(nSel||'las')+' devolución'+(nSel===1?'':'es')+' marcada'+(nSel===1?'':'s')+'</button></div>';
+  list.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function sdvToggleRetPend(retId, checked) {
+  var row = _sdvRetsPend.find(function(r){ return r.retId===retId; });
+  if (!row) return;
+  if (checked) {
+    // Una SDV de devolución cubre UNA orden: marcar una RET de otra orden reinicia la selección
+    var prev = _sdvRetsPend.find(function(r){ return _sdvRetsPendSel[r.retId]; });
+    if (prev && prev.orderRef !== row.orderRef) {
+      _sdvRetsPendSel = {};
+      toast('Una solicitud cubre una sola orden — la selección cambió a '+row.orderRef);
+    }
+    _sdvRetsPendSel[retId] = true;
+  } else {
+    delete _sdvRetsPendSel[retId];
+  }
+  sdvRenderRetsPend();
+}
+
+async function sdvContinuarRetsPend() {
+  var sel = _sdvRetsPend.filter(function(r){ return _sdvRetsPendSel[r.retId]; });
+  if (!sel.length) { toast('Marca al menos una devolución'); return; }
+  var ordRef = sel[0].orderRef;
+  if (!ordRef || ordRef==='—') { toast('Esta devolución no tiene orden asociada — búscala manualmente'); return; }
+  document.getElementById('sdv-ref-input').value = ordRef;
+  await sdvBuscar();   // flujo actual completo: cliente, dirección, artículos, selector de RETs
+  if (!_sdvRets.length) return;   // el lookup falló — su mensaje ya está visible, la lista sigue
+  // Acotar la selección del form a las RET que marcó en la lista de pendientes
+  var chosen = {}; sel.forEach(function(r){ chosen[r.retId]=true; });
+  _sdvRets.forEach(function(r){ if (r.id) _sdvRetSel[r.id] = !!chosen[r.id]; });
+  sdvApplyRetFilter();
+  // La lista ya cumplió: se recoge para dejar el form limpio (re-aparece al re-entrar al tipo)
+  var sec = document.getElementById('sdv-rets-pend-section');
+  if (sec) sec.style.display = 'none';
 }
 
 // ── Devolución multi-RET: selector de RETs + filtro de artículos ──────────
@@ -36523,6 +36634,8 @@ function sdvReset(skipConfirm) {
   _sdvOrders=[]; sdvRenderOrderChips();
   _sdvRets=[]; _sdvRetSel={}; _sdvItemsFull=[];
   var _rsR=document.getElementById('sdv-rets-selector'); if(_rsR){_rsR.style.display='none';_rsR.innerHTML='';}
+  _sdvRetsPend=[]; _sdvRetsPendSel={};
+  var _rpR=document.getElementById('sdv-rets-pend-section'); if(_rpR) _rpR.style.display='none';
   ['despacho_cliente','devolucion','traslado_interno','solicitud_especial'].forEach(function(t){
     var b=document.getElementById('sdv-tipo-'+t); if(b) b.classList.remove('selected');
   });

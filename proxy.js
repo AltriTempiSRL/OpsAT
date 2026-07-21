@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v208';
+const APP_BUILD = 'v209';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -16689,6 +16689,49 @@ const server = http.createServer(async (req, res) => {
       } catch(e) {
         res.writeHead(500,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false,error:e.message}));
+      }
+    })();
+    return;
+  }
+
+  // GET /api/sdv/rets-pendientes — RETs de devolución CONFIRMADAS en Odoo pero aún no
+  // ejecutadas (waiting/confirmed/assigned; nunca done/cancel), para que la vendedora las
+  // vea al presionar "Devolución" sin teclear la orden. Ventas ve SOLO las suyas (match
+  // tolerante por nombre contra el vendedor de la orden); admin/manager ven todas.
+  // Ruta con guion: no colisiona con GET /api/sdv/:id. Fail-open: sin Odoo devuelve
+  // rets:[] + odooError y el form sigue usable vía búsqueda manual (fallback).
+  if (reqPath === '/api/sdv/rets-pendientes' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['ventas','manager','admin'])) return;
+    (async () => {
+      try {
+        if (!global._sdvRetsPendCache) global._sdvRetsPendCache = { ts:0, rows:null };
+        let rows = (Date.now() - global._sdvRetsPendCache.ts < 60000) ? global._sdvRetsPendCache.rows : null;
+        if (!rows) {
+          const picks = await odooCall('stock.picking','search_read',
+            [[['picking_type_id.code','=','incoming'],['state','in',['waiting','confirmed','assigned']],['sale_id','!=',false]]],
+            {fields:['id','name','state','origin','scheduled_date','sale_id'],limit:200,order:'scheduled_date asc, id asc'});
+          const soIds = [...new Set((picks||[]).map(p=>p.sale_id[0]))];
+          const sos = soIds.length ? await odooCall('sale.order','read',[soIds],{fields:['id','name','partner_id','user_id']}) : [];
+          const soMap = {}; (sos||[]).forEach(s=>{ soMap[s.id]=s; });
+          rows = (picks||[]).map(p => { const so = soMap[p.sale_id[0]] || {};
+            return { retId:p.id, name:p.name, retRef:sdvRetLabel(p), state:p.state,
+              origin:p.origin||'', scheduledDate:p.scheduled_date||null,
+              orderRef:so.name||'', client:so.partner_id?so.partner_id[1]:'',
+              salesperson:so.user_id?so.user_id[1]:'' }; });
+          global._sdvRetsPendCache = { ts:Date.now(), rows };
+        }
+        let out = rows;
+        if (jp.role === 'ventas') {
+          const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim();
+          const me = norm(jp.name);
+          out = rows.filter(r => { const v = norm(r.salesperson); return v && me && (v===me || v.includes(me) || me.includes(v)); });
+        }
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, total:rows.length, rets:out }));
+      } catch(e) {
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:false, odooError:true, rets:[], error:'Odoo no disponible' }));
       }
     })();
     return;

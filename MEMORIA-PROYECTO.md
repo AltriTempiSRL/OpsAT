@@ -32,6 +32,7 @@
 - La selección es FIJA al crear (decisión Gabriel 20-jul): se persiste `retRefs` saneado (whitelist, ids numéricos, corte a 20) en la SDV, viaja a la tarea (`task.retRefs` + `items[].retId/retRef` vía `sdvEspecialItems`), y el refresh (`/odoo/refresh`) se ANCLA a esos ids (solo excluye canceladas posteriores). Sin "cambiar RET" en el modal de edición.
 - Fix incluido: el diff del refresh agregaba por SKU solo el lado SDV → con el mismo SKU en varias RET daba falsos "modificados"; ahora ambos lados se agregan por SKU.
 - Harness: `tests/_test_sdv_multiret.mjs` (23 asserts) + regresión `tests/_test_sdv_devolucion_recogida.mjs` (38).
+- **v209 browse-first**: al presionar "Devolución" se listan las RET PENDIENTES (waiting/confirmed/assigned, nunca done/cancel) vía `GET /api/sdv/rets-pendientes` (cache 60s, fail-open sin Odoo). Ventas ve SOLO las suyas (match tolerante por nombre normalizado contra `sale.order.user_id`; decisión Gabriel 21-jul); admin/manager ven todas. Selección multi-RET de UNA sola orden (cruzar orden reinicia con toast) → "Continuar" ejecuta el lookup de siempre y acota `_sdvRetSel` a las marcadas. La búsqueda manual por orden queda debajo como fallback (RET ya ejecutada, matching fallido).
 
 ## Modelo de tareas (WWP) — conceptos clave
 - Tipos: `packaging`, `dispatch_order`, `warehouse_move`, `item_pickup`, `truck_loading`, `general`, `staffing`.
