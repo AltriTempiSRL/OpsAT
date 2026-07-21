@@ -399,6 +399,14 @@ async function _importFromFiles() {
   for (const f of files) {
     if (!f.endsWith('.json')) continue;
     const base = f.slice(0, -5);
+    // Basura de respaldos manuales, NO colecciones: nombres con ".json." adentro
+    // (p.ej. wwp-tasks.json.charis-relink-<ts>.json) o sufijo de timestamp en ms
+    // (p.ej. wwp-tasks.relink-1782401507882.json). En el primer corte a PG se
+    // importaron 5 de estos como colecciones inertes — nunca más.
+    if (/\.json\./.test(f) || /-\d{13}$/.test(base)) {
+      console.log('[storage-pg] import: ' + f + ' ignorado (respaldo manual, no colección)');
+      continue;
+    }
     if (state.mem.has(base)) continue; // la DB ya la tiene
     const full = path.join(state.dataDir, f);
     let st;
