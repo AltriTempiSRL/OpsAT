@@ -5147,6 +5147,8 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 .wwp-out-btn:hover{background:var(--accent-hover)}
 .wwp-out-btn:disabled{opacity:.55;cursor:not-allowed}
 .wwp-out-btn i{width:15px;height:15px;stroke:currentColor;flex-shrink:0}
+.wwp-out-btn.ghost{background:transparent;color:var(--amber-text);border:1px dashed var(--amber-text);font-weight:700;margin-top:10px}
+.wwp-out-btn.ghost:hover{background:var(--amber-bg)}
 /* Panel de reconciliación: A = bloqueo duro (rojo), B = warning (ámbar). */
 .wwp-out-recon{border-radius:10px;padding:11px 13px;margin-top:10px;font-size:12px;line-height:1.55}
 .wwp-out-recon.block{background:var(--red-bg);border:1.5px solid var(--red-dot);color:var(--red-text)}
@@ -9052,7 +9054,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v211';
+var APP_BUILD = 'v212';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -15172,11 +15174,17 @@ function wwpOutDrawerHtml(t, canClose){
         '<div class="rc-steps">Se registró la confirmación igual (no bloquea). Revisa con Operaciones si estos artículos deben incluirse en el OUT.</div></div>'
     : '';
   if(confirmed){
-    // OUT elegido, esperando que Odoo lo marque done.
+    // OUT elegido, esperando que Odoo lo marque done. Mientras NO esté done, el que puede
+    // cerrar puede deshacer la elección (se confirmó por error) y volver al selector.
+    var changeBtn = canClose
+      ? '<button type="button" class="wwp-out-btn ghost" id="wwp-out-change" onclick="wwpUnconfirmOut(\''+esc(t.id)+'\')"><i data-lucide="undo-2"></i>Me equivoqué de OUT — cambiarlo</button>'
+      : '';
     return '<div class="wwp-out">'+
       '<div class="wwp-out-hd"><i data-lucide="clock" style="stroke:var(--amber-text)"></i><span class="t amber">OUT pendiente de validar en Odoo</span></div>'+
       '<div class="wwp-out-sub">Confirmaste el OUT <b>'+esc(op.confirmedOutRef)+'</b>. Falta que Operaciones lo <b>valide (done)</b> en Odoo para cerrar el ciclo y evitar stock fantasma.</div>'+
       warnHtml+
+      changeBtn+
+      '<div id="wwp-out-recon"></div>'+
     '</div>';
   }
   // Sin confirmar: selector de elección del OUT.
@@ -16717,6 +16725,39 @@ function wwpConfirmOut(taskId){
   }).catch(function(e){
     if(reconEl){ reconEl.innerHTML = '<div class="wwp-out-recon block"><div class="rc-hd"><i data-lucide="alert-triangle"></i>Error de red</div><div>'+esc((e&&e.message)||'No se pudo confirmar')+'</div></div>'; if(window.lucide) lucide.createIcons(); }
     if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="package-check" style="width:15px;height:15px;stroke:currentColor"></i>Confirmar OUT despachado'; if(window.lucide) lucide.createIcons(); }
+  });
+}
+
+// ── Deshacer la confirmación del OUT (se eligió por error) ──────────────────
+// POST /out-unconfirm limpia confirmedOutRef (guard server-side: si el OUT ya está
+// done en Odoo devuelve 422 y no se puede cambiar). El re-render del drawer vuelve
+// a pintar el selector con los candidatos intactos.
+function wwpUnconfirmOut(taskId){
+  if(!confirm('¿Cambiar el OUT confirmado?\n\nSe volverá a mostrar la lista de OUTs para elegir el correcto.')) return;
+  var btn = document.getElementById('wwp-out-change');
+  var reconEl = document.getElementById('wwp-out-recon');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="do-spin" style="width:15px;height:15px;stroke:currentColor"></i>Cambiando…'; if(window.lucide) lucide.createIcons(); }
+  if(reconEl) reconEl.innerHTML = '';
+  authFetch('/api/wwp/tasks/'+taskId+'/out-unconfirm', { method:'POST' }).then(function(r){
+    return r.json().then(function(d){ return { status:r.status, ok:r.ok, d:d }; });
+  }).then(function(res){
+    var d = res.d || {};
+    if(res.ok && d.ok){
+      toast('Confirmación deshecha — elige el OUT correcto');
+      openDrawer(taskId);   // re-render: vuelve el selector de OUT
+      return;
+    }
+    if(d.outDone){
+      // El OUT ya pasó a done en Odoo: el ciclo cerró y ya no se cambia desde aquí.
+      toast('El OUT ya está validado en Odoo — no se puede cambiar', 5000);
+      openDrawer(taskId);   // re-render: el drawer pinta el estado cerrado
+      return;
+    }
+    if(reconEl){ reconEl.innerHTML = '<div class="wwp-out-recon block"><div class="rc-hd"><i data-lucide="alert-triangle"></i>No se pudo cambiar</div><div>'+esc(d.error||('Error '+res.status))+'</div></div>'; if(window.lucide) lucide.createIcons(); }
+    if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="undo-2" style="width:15px;height:15px;stroke:currentColor"></i>Me equivoqué de OUT — cambiarlo'; if(window.lucide) lucide.createIcons(); }
+  }).catch(function(e){
+    if(reconEl){ reconEl.innerHTML = '<div class="wwp-out-recon block"><div class="rc-hd"><i data-lucide="alert-triangle"></i>Error de red</div><div>'+esc((e&&e.message)||'No se pudo cambiar el OUT')+'</div></div>'; if(window.lucide) lucide.createIcons(); }
+    if(btn){ btn.disabled = false; btn.innerHTML = '<i data-lucide="undo-2" style="width:15px;height:15px;stroke:currentColor"></i>Me equivoqué de OUT — cambiarlo'; if(window.lucide) lucide.createIcons(); }
   });
 }
 

@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v211';
+const APP_BUILD = 'v212';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -18718,6 +18718,72 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente,
           warningB: recon.warningB||[], compensados: recon.compensados||[], odooError: !!recon.odooError,
           note: recon.odooError ? 'OUT registrado, pero Odoo no respondió la reconciliación — se verificará al validar.' : undefined }));
+      } catch(e) {
+        res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
+      }
+    })();
+    return;
+  }
+
+  // ── POST /api/wwp/tasks/:id/out-unconfirm — deshacer la confirmación del OUT (se eligió por error) ──
+  // Reabre el selector del drawer: limpia confirmedOutRef y deja la obligación `outPendiente`
+  // abierta con sus candidatos intactos. GUARD: si el OUT confirmado ya está done en Odoo
+  // (estado guardado O verificación en vivo, con self-heal como /out-badge) NO se puede cambiar
+  // — el ciclo está cerrado y una corrección ahí es por devolución, no por re-selección.
+  // Fail-open sobre Odoo caído: des-confirmar no escribe en el ERP (peor caso: re-confirman
+  // el mismo OUT). Mismo permiso que out-confirm (participante o edit_task). Sin body.
+  if (reqPath.match(/^\/api\/wwp\/tasks\/[a-z0-9_]+\/out-unconfirm$/) && req.method === 'POST') {
+    const _jpOu = requireJwt(req, res); if (!_jpOu) return;
+    const taskId = reqPath.split('/')[4];
+    (async () => {
+      try {
+        const tasks = loadWwpTasks();
+        const idx = tasks.findIndex(t => t.id === taskId);
+        if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+        const task = tasks[idx];
+        if (task.type !== 'dispatch_order') { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo aplica a tareas de despacho'})); return; }
+        if (!isTaskParticipant(task, _jpOu) && !ROLE_PERMISSIONS.edit_task.includes(_jpOu.role)) {
+          res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return;
+        }
+        const op = task.outPendiente;
+        if (!op || !op.confirmedOutRef) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No hay un OUT confirmado que cambiar'})); return; }
+        // Verificación en vivo del estado del OUT confirmado (fail-open si Odoo no responde).
+        let liveState = null;
+        try {
+          const _o = await odooCall('stock.picking','search_read',
+            [[['name','=',op.confirmedOutRef],['picking_type_code','=','outgoing']]],
+            {fields:['name','state'],limit:1});
+          liveState = (_o && _o.length) ? _o[0].state : null;
+        } catch(e) { silentCatch(e,'outUnconfirmLive'); }
+        if (op.outState === 'done' || liveState === 'done') {
+          // Self-heal (mismo patrón que /out-badge): persistir el done para que el badge
+          // quede cerrado en todas las superficies aunque el job aún no lo haya releído.
+          if (liveState === 'done' && op.outState !== 'done') {
+            op.outState = 'done';
+            task.updatedAt = new Date().toISOString();
+            saveWwpTasks(tasks);
+            broadcastWwpTasks('out_reconciled', task, { taskId });
+          }
+          res.writeHead(422,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({ ok:false, outDone:true,
+            error:'El OUT '+op.confirmedOutRef+' ya está validado (done) en Odoo — el ciclo está cerrado y no se puede cambiar desde aquí. Si el OUT fue el equivocado, la corrección es por devolución (RET) en Odoo.' }));
+          return;
+        }
+        const prevRef = op.confirmedOutRef;
+        op.confirmedOutRef = null;
+        op.confirmedAt = null;
+        op.confirmedBy = null;
+        op.reconOk = null;
+        op.outState = liveState || null;
+        op.warningB = [];
+        delete op.compensados;
+        task.updatedAt = new Date().toISOString();
+        // Auditoría inmutable: quién deshizo y cuál OUT estaba confirmado.
+        try { appendAuditLog('out_unconfirm', { taskId, odooRef: task.odooRef||'', prevOutRef: prevRef, by: _jpOu.userId }); } catch(_e) { silentCatch(_e,'auditOutUnconfirm'); }
+        saveWwpTasks(tasks);
+        broadcastWwpTasks('out_unconfirmed', task, { taskId, prevOutRef: prevRef });
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente }));
       } catch(e) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
       }
