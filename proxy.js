@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v213';
+const APP_BUILD = 'v214';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -19498,6 +19498,24 @@ const server = http.createServer(async (req, res) => {
    * Vendedora solicita reactivación CON nueva fecha (sin rechazar)
    * Crea registro "pendiente" para que Ops procese en su bandeja
    */
+  // "No retroactiva" a nivel de DÍA en hora RD. El cliente manda datetime-local SIN
+  // zona ('2026-07-21T17:30'); en prod el contenedor corre en UTC y el parse naive
+  // interpretaba esa hora RD como UTC → cualquier hora de HOY antes de (ahora+4h)
+  // fallaba como "retroactiva" (reporte 21-jul, recién desplegado v213). Se ancla el
+  // string a -04:00 (RD no observa DST) y se compara por día: entregar/procesar HOY
+  // es válido; solo un día ANTERIOR a hoy es retroactivo.
+  function sdvFechaEsRetroactiva(s) {
+    if (typeof s !== 'string' || !s.trim()) return false;   // ausencia la deciden otros guards
+    let iso = s.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso += 'T00:00:00';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(iso)) iso += ':00';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(iso)) iso += '-04:00';
+    const dt = new Date(iso);
+    if (isNaN(dt.getTime())) return false;   // formato ilegible → no bloquear por esto
+    const diaRD = (t) => Math.floor((t.getTime() - 4 * 3600e3) / 864e5);
+    return diaRD(dt) < diaRD(new Date());
+  }
+
   if (reqPath.match(/^\/api\/sdv\/[a-z0-9_]+\/reactivation$/) && req.method === 'POST') {
     const jp = requireJwt(req, res); if (!jp) return;
     const sdvId = reqPath.split('/')[3];
@@ -19517,9 +19535,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Validar fecha no retroactiva
-      const nuevaFecha = new Date(d.new_delivery_date);
-      if (nuevaFecha < new Date()) {
+      // Validar fecha no retroactiva (por DÍA en hora RD — ver sdvFechaEsRetroactiva)
+      if (sdvFechaEsRetroactiva(d.new_delivery_date)) {
         res.writeHead(400, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false, error:'Fecha de reactivación no puede ser retroactiva'}));
         return;
@@ -19594,9 +19611,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Validar fecha
-      const cuandoDate = new Date(d.cuando_procesar);
-      if (cuandoDate < new Date()) {
+      // Validar fecha (por DÍA en hora RD — ver sdvFechaEsRetroactiva arriba)
+      if (sdvFechaEsRetroactiva(d.cuando_procesar)) {
         res.writeHead(400, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false, error:'Fecha de procesamiento no puede ser retroactiva'}));
         return;
@@ -19613,9 +19629,16 @@ const server = http.createServer(async (req, res) => {
       const nuevaTarea = createWwpTaskFromSdv(sdv, jp.userId);
       nuevaTarea.title = `${sdv.clienteNombre || sdv.odooOrderRef || 'Sin cliente'} (REV)`;
       nuevaTarea.dueDate = d.cuando_procesar;
-      nuevaTarea.description = `Reactivación de ${reac.sdv_id}. Original cancelada el ${reac.solicitado_at}`;
+      // Folio legible + fecha real de cancelación (antes: id crudo + solicitado_at, que es
+      // cuándo se pidió la reactivación, no cuándo se canceló).
+      nuevaTarea.description = `Reactivación de ${sdv.folio || reac.sdv_id}. Original cancelada el ${(sdv.cancelado_at || reac.solicitado_at || '').slice(0, 10)}`;
       nuevaTarea.relacionada_a_sdv = reac.sdv_id;
       nuevaTarea.sdvOriginalCancelada = reac.sdv_id;
+      // La tarea reactivada nace con los artículos del pick — mismo motor que la aprobación
+      // normal (fail-open 8s; sin esto nacía vacía y el drawer mostraba "Sin artículos
+      // seleccionados"). Nota: la primera carga solo toma picks 'assigned' (regla v113);
+      // si el pick de la orden ya está 'done', queda el selector "Actualizar desde pick".
+      try { await populateChainItemsFromPick([nuevaTarea]); } catch (e) { silentCatch(e, 'reactPopulateItems'); }
 
       const tasks = loadWwpTasks();
       nuevaTarea.seq = nextTaskSeq();
