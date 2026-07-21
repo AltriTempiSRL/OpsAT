@@ -237,7 +237,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v217';
+const APP_BUILD = 'v218';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -19446,6 +19446,26 @@ const server = http.createServer(async (req, res) => {
       sdv.cancelado_por_nombre = jp.name;
       sdv.cancelado_at = ahora;
 
+      // Bloque B (P0-C auditoría 21-jul): sellar el estado Odoo al cancelar una SDV que ya
+      // estaba EN PREPARACIÓN. Sin esto, un OUT ya validado (stock descontado en Odoo) con el
+      // camión sin salir queda como inventario fantasma sin dueño ni reloj → riesgo doble-venta.
+      // Fail-open: si Odoo no responde, se sella con error y se sigue (jamás bloquear la
+      // cancelación por Odoo). La acción recomendada se notifica a Ops abajo.
+      let _accionOdoo = null;
+      if (estado === 'en_proceso' && (sdv.odooOrderRef || (sdv.odooOrderRefs||[]).length)) {
+        try {
+          const _refs = ((sdv.odooOrderRefs && sdv.odooOrderRefs.length) ? sdv.odooOrderRefs : [sdv.odooOrderRef]).filter(Boolean);
+          const _sts = await Promise.all(_refs.map(r => sdvComputePickStatus(r).catch(()=>null)));
+          const _codes = _sts.filter(Boolean).map(x => x.code);
+          const _out = _codes.includes('despachado') ? 'done'
+            : _codes.includes('parcial') ? 'parcial'
+            : (_codes.includes('listo') || _codes.includes('por_validar')) ? 'assigned' : 'sin_out';
+          sdv.odooAlCancelar = { at: ahora, outState: _out, codes: _codes, refs: _refs };
+          if (_out === 'done' || _out === 'parcial') _accionOdoo = 'El OUT en Odoo ya estaba validado (stock descontado). Decide en ≤48h: crear RET (devolver a stock) o reactivar con fecha programada. La mercancía no debe re-almacenarse sin documento.';
+          else if (_out === 'assigned') _accionOdoo = 'Hay un OUT/pick reservado en Odoo. Si el pedido no continúa, cancela ese OUT para liberar la reserva de stock.';
+        } catch(e) { silentCatch(e,'sdvOdooAlCancelar'); sdv.odooAlCancelar = { at: ahora, outState:null, error:true }; }
+      }
+
       // Auditar
       const audId = auditLogSdvEvent('cancelada', sdvId, jp.userId, jp.name, {
         motivo: d.motivo,
@@ -19490,6 +19510,11 @@ const server = http.createServer(async (req, res) => {
         estado_previo: estado,
         cancelada_por: jp.name
       });
+      // Bloque B: si el OUT en Odoo ya estaba comprometido, alerta dirigida con la acción y el
+      // reloj (48h) — este es el punto de no-retorno físico que antes no tenía señal ni dueño.
+      if (_accionOdoo) {
+        try { notifyMany(getOpsUserIds(), { type:'sdv_cancelada', title:'⚠️ Cancelada con OUT comprometido en Odoo', message:`${sdv.folio||sdvId}: ${_accionOdoo}`, relatedTaskId:sdvId, target:{ kind:'sdv', id:sdvId } }); } catch(e){ silentCatch(e,'notifyOdooAlCancelar'); }
+      }
       // Avisar a la vendedora (si no fue ella quien canceló)
       try { if (jp.userId !== sdv.creadoPor) notifySeller(sdv, { type:'sdv_seller_cancelada', title:'🚫 Solicitud cancelada', message:`Tu solicitud ${sdv.folio||sdv.id} fue cancelada${d.motivo?': '+d.motivo:''}.` }); } catch(e){ silentCatch(e,'notifySeller'); }
       // Si esta SDV tenía solicitudes adicionales vinculadas y activas, no se cancelan
@@ -19951,69 +19976,65 @@ const server = http.createServer(async (req, res) => {
    */
   if (reqPath === '/api/sdv/kpis/cancelaciones' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (!requireRole(jp, res, ['admin', 'ops_manager', 'manager'])) return;
+    if (!requireRole(jp, res, ['admin', 'manager'])) return;
 
     try {
       const ahora = new Date();
       const hace7Dias = new Date(ahora - 7 * 24 * 60 * 60 * 1000);
 
-      // Cargar auditoría
       const audits = loadCancellationAudit().filter(a => new Date(a.timestamp) >= hace7Dias);
-
-      // Contar cancelaciones
       const totalCancelaciones = audits.filter(a => a.tipo_evento === 'cancelada').length;
-
-      // Contar reactivaciones procesadas
       const reactivacionesProcesadas = audits.filter(a => a.tipo_evento === 'reactivacion_procesada').length;
 
-      // % cancelaciones post-empaque (estado D, E al momento)
-      const postEmpaque = audits.filter(a =>
-        a.tipo_evento === 'cancelada' &&
-        (['D', 'E', 'empaque_in_progress', 'packing'].includes(a.detalles?.estado_al_momento))
-      ).length;
-      const porcentajePostEmpaque = totalCancelaciones > 0 ? Math.round((postEmpaque / totalCancelaciones) * 100) : 0;
+      // % cancelaciones POST-APROBACIÓN (ya en preparación) — antes comparaba contra estados
+      // ('D','E',...) que NO existen en la FSM → siempre 0 (Carl/Pit P2). estado_al_momento
+      // 'en_proceso' = Ops ya había empezado: son las cancelaciones caras.
+      const postAprob = audits.filter(a => a.tipo_evento === 'cancelada' && a.detalles?.estado_al_momento === 'en_proceso').length;
+      const porcentajePostAprobacion = totalCancelaciones > 0 ? Math.round((postAprob / totalCancelaciones) * 100) : 0;
 
-      // Tiempo promedio de respuesta Ops (entre cancelación y decisión)
-      let tiempoPromedioOps = 0;
-      const tiemposRespuesta = [];
-      const cancelaciones = audits.filter(a => a.tipo_evento === 'cancelada');
-      cancelaciones.forEach(cancel => {
-        // Buscar evento relacionado de reactivación o actualización
-        const reactivacion = audits.find(a =>
-          a.sdv_id === cancel.sdv_id &&
-          (a.tipo_evento === 'reactivacion_procesada' || a.tipo_evento === 'reactivacion_solicitada') &&
-          new Date(a.timestamp) > new Date(cancel.timestamp)
-        );
-        if (reactivacion) {
-          const dt = (new Date(reactivacion.timestamp) - new Date(cancel.timestamp)) / 60000; // minutos
-          tiemposRespuesta.push(dt);
-        }
-      });
-      if (tiemposRespuesta.length > 0) {
-        tiempoPromedioOps = Math.round(tiemposRespuesta.reduce((a,b) => a+b, 0) / tiemposRespuesta.length * 10) / 10;
-      }
+      // Tiempo de RESPUESTA DE OPS = solicitado→procesado/rechazado (trabajo de Ops), no
+      // cancelación→solicitud (decisión del cliente, que era lo que medía antes — Carl/Pit).
+      const reacAll = loadReactivationRequests();
+      const decididas = reacAll.filter(r => ['procesado','rechazada'].includes(r.estado) && r.procesado_at && r.solicitado_at && new Date(r.procesado_at) >= hace7Dias);
+      const tiemposOps = decididas.map(r => (new Date(r.procesado_at) - new Date(r.solicitado_at)) / 60000).filter(m => m >= 0);
+      const tiempoPromedioOps = tiemposOps.length ? Math.round(tiemposOps.reduce((a,b)=>a+b,0)/tiemposOps.length*10)/10 : null;
 
-      // Detectar alertas
+      // ── Métricas de GESTIÓN que faltaban (Pit P1-5) ──
+      const sdvsAll = loadSdv();
+      const tasksAll = loadWwpTasks();
+      // 1) Canceladas SIN DECISIÓN: cancelada con OUT comprometido en Odoo (odooAlCancelar done/
+      //    parcial), >48h, sin reactivación viva ni procesada posterior = inventario en limbo.
+      const reacPorSdv = {};
+      reacAll.forEach(r => { (reacPorSdv[r.sdv_id] = reacPorSdv[r.sdv_id] || []).push(r); });
+      const canceladasSinDecision = sdvsAll.filter(s => {
+        if (s.estado !== 'cancelada') return false;
+        const oc = s.odooAlCancelar;
+        if (!oc || !['done','parcial'].includes(oc.outState)) return false;
+        const horas = s.cancelado_at ? (ahora - new Date(s.cancelado_at)) / 3600e3 : 0;
+        if (horas <= 48) return false;
+        const rs = reacPorSdv[s.id] || [];
+        return !rs.some(r => ['pendiente','procesado'].includes(r.estado));
+      }).map(s => ({ folio: s.folio || s.id, cliente: s.clienteNombre || '', out: s.odooAlCancelar.outState, dias: Math.round((ahora - new Date(s.cancelado_at)) / 864e5) }));
+      // 2) % de reactivadas que EFECTIVAMENTE salieron (REV completada/validada ÷ procesadas).
+      const procesadas = reacAll.filter(r => r.estado === 'procesado' && r.nueva_tarea_id);
+      const salieron = procesadas.filter(r => { const t = tasksAll.find(x => x.id === r.nueva_tarea_id); return t && ['completed','validated'].includes(t.status); }).length;
+      const porcentajeReactivadasSalieron = procesadas.length ? Math.round((salieron / procesadas.length) * 100) : null;
+
+      // Alertas
       const alertas = [];
-      const reacPendientes = loadReactivationRequests().filter(r => r.estado === 'pendiente');
-      const reacEnTimeout = reacPendientes.filter(r => {
-        const minDesdeRac = (ahora - new Date(r.solicitado_at)) / 60000;
-        return minDesdeRac > 60; // más de 1h sin procesar
-      });
-      if (reacEnTimeout.length > 0) {
-        alertas.push({
-          tipo: 'warning',
-          mensaje: `${reacEnTimeout.length} reactivaciones en timeout (>1h sin procesar)`
-        });
-      }
+      const reacEnTimeout = reacAll.filter(r => r.estado === 'pendiente' && (ahora - new Date(r.solicitado_at)) / 60000 > 60);
+      if (reacEnTimeout.length > 0) alertas.push({ tipo:'warning', mensaje:`${reacEnTimeout.length} reactivación(es) pendiente(s) >1h sin procesar` });
+      if (canceladasSinDecision.length > 0) alertas.push({ tipo:'critical', mensaje:`${canceladasSinDecision.length} cancelada(s) con OUT comprometido >48h sin decisión (RET o reactivar)` });
 
       const kpis = {
         totalCancelaciones,
         reactivacionesProcesadas,
-        porcentajePostEmpaque,
-        porcentajePostEmpaqueTarget: 5,
-        tiempoPromedioOps,
+        porcentajePostAprobacion,
+        porcentajePostAprobacionTarget: 5,
+        tiempoPromedioOps,          // minutos: solicitud→decisión de Ops
         tiempoPromedioTarget: 5,
+        canceladasSinDecision,      // lista (limbo de inventario)
+        porcentajeReactivadasSalieron,
         alertas
       };
 
