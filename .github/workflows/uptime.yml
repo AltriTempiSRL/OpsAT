@@ -43,17 +43,20 @@ jobs:
           if [ "${{ steps.ping.outputs.ok }}" = "0" ]; then
             if [ -z "$EXISTING" ]; then
               gh label create wwp-down --repo "$REPO" --color B60205 --description "Producción caída" 2>/dev/null || true
+              {
+                echo "El monitor externo no pudo obtener /api/health tras 3 intentos."
+                echo ""
+                echo "**Qué revisar (runbook corto):**"
+                echo "1. https://dashboard-despachos-production.up.railway.app/api/health en el navegador."
+                echo "2. Panel de Railway → servicio dashboard-despachos → Deployments/Logs."
+                echo "3. Si el deploy más reciente es el problema: redeploy del anterior."
+                echo "4. Si es la base de datos: quitar DATABASE_URL y redeployar vuelve a modo archivos (pérdida <=1 h)."
+                echo ""
+                echo "_Este issue se cierra solo cuando el monitor vuelva a ver el servicio arriba._"
+              } > /tmp/body.md
               gh issue create --repo "$REPO" --label wwp-down \
                 --title "🔴 WWP producción no responde ($(date -u +'%Y-%m-%d %H:%M UTC'))" \
-                --body "El monitor externo no pudo obtener /api/health tras 3 intentos.
-
-**Qué revisar (runbook corto):**
-1. https://dashboard-despachos-production.up.railway.app/api/health en el navegador.
-2. Panel de Railway → servicio dashboard-despachos → Deployments/Logs.
-3. Si el deploy más reciente es el problema: redeploy del anterior.
-4. Si es la base de datos: quitar DATABASE_URL y redeployar vuelve a modo archivos (pérdida ≤1 h).
-
-_Este issue se cierra solo cuando el monitor vuelva a ver el servicio arriba._"
+                --body-file /tmp/body.md
             else
               echo "Issue #$EXISTING ya abierto — sin duplicar."
             fi
