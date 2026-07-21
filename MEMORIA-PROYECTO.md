@@ -19,6 +19,12 @@
 - **Contrato**: `tests/test-storage-pg.mjs` (necesita `WWP_PG_TEST_URL` hacia la DB `wwp_dev`; sin ella hace SKIP limpio).
 - Fix incluido en la migración: `enrichOverdueTasks` ya NO persiste en cada GET (la comparación incluía `escalation.generatedAt`, timestamp nuevo por llamada → reescribía 28 MB por request con ≥1 tarea vencida).
 
+## Imágenes de producto: /prod-img/ (Fase 2, jul-2026) — NUNCA base64 inline
+- Las fotos de producto de Odoo (`image_128`/`image_512`) ya NO se guardan base64 dentro de `items[].image/kitImage` — eso duplicaba la misma imagen por cada componente y hacía el payload de tareas de ~19 MB gzip (87% imágenes repetidas). Ahora: `saveProductImageB64()` las escribe UNA vez en `DATA_DIR/prod-img/<sha1-16>.<ext>` (dedup por contenido) y el item lleva la URL `/prod-img/...` (servida `immutable`, 1 año de caché).
+- Regla: cualquier flujo nuevo que traiga imágenes de Odoo a items usa `saveProductImageB64(prod.image_128)`, jamás `'data:image/png;base64,'+...`. (El avatar de usuario del chat es flujo aparte y quedó como estaba.)
+- `migrateProductImagesInline()` corre en cada boot (idempotente): convierte cualquier base64 inline heredado. Resultado medido con datos reales: archivo de tareas 6.1 MB → 93 KB; payload GET tasks 4.2 MB gzip → 8 KB.
+- `<img src>` acepta URLs igual que data URIs → el cliente no cambió.
+
 ## Modelo de tareas (WWP) — conceptos clave
 - Tipos: `packaging`, `dispatch_order`, `warehouse_move`, `item_pickup`, `truck_loading`, `general`, `staffing`.
 - Estados: pending → assigned → in_progress → completed → validated (+ cancelled).

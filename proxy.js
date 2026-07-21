@@ -211,7 +211,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v204';
+const APP_BUILD = 'v205';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -432,6 +432,76 @@ if (!fs.existsSync(WWP_FOTOS_DIR)) fs.mkdirSync(WWP_FOTOS_DIR, { recursive: true
 // wwp-fotos porque su ciclo de vida es de la SDV, no de las tareas.
 const SDV_ADJ_DIR = path.join(DATA_DIR, 'sdv-adjuntos');
 if (!fs.existsSync(SDV_ADJ_DIR)) fs.mkdirSync(SDV_ADJ_DIR, { recursive: true });
+
+// ── Imágenes de producto (Fase 2, jul-2026) ──────────────────────────────────
+// Las fotos de producto de Odoo (image_128/image_512) se guardaban como base64
+// INLINE dentro de items[].image/kitImage — duplicadas por cada componente y
+// enviadas a cada cliente en cada GET de tareas (87% del peso del payload eran
+// imágenes repetidas). Ahora se guardan UNA vez en disco, deduplicadas por hash
+// de contenido, y los items llevan la URL /prod-img/<hash>.<ext> (inmutable,
+// cacheable un año). <img src> acepta URLs igual que data URIs → cero cambios
+// en el cliente.
+const PROD_IMG_DIR = path.join(DATA_DIR, 'prod-img');
+if (!fs.existsSync(PROD_IMG_DIR)) fs.mkdirSync(PROD_IMG_DIR, { recursive: true });
+
+function _imgExtFromBuffer(buf) {
+  if (buf.length > 4 && buf[0] === 0x89 && buf[1] === 0x50) return 'png';
+  if (buf.length > 3 && buf[0] === 0xFF && buf[1] === 0xD8) return 'jpg';
+  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (buf.length > 4 && buf.toString('ascii', 0, 4) === 'GIF8') return 'gif';
+  return 'png';
+}
+
+// b64 puede venir crudo (Odoo) o como data URI. Devuelve la URL servible, o ''
+// si el contenido no es utilizable. Dedup: mismo contenido → mismo archivo.
+function saveProductImageB64(b64) {
+  try {
+    if (!b64) return '';
+    const clean = String(b64).replace(/^data:[^;]+;base64,/, '');
+    const buf = Buffer.from(clean, 'base64');
+    if (!buf.length) return '';
+    const hash = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16);
+    const fname = hash + '.' + _imgExtFromBuffer(buf);
+    const fpath = path.join(PROD_IMG_DIR, fname);
+    if (!fs.existsSync(fpath)) fs.writeFileSync(fpath, buf);
+    return '/prod-img/' + fname;
+  } catch (e) {
+    console.warn('[prod-img]', e.message);
+    return '';
+  }
+}
+
+// Migración (idempotente, corre en cada boot): convierte las imágenes base64
+// que quedaron INLINE en las tareas existentes a URLs /prod-img/ deduplicadas.
+// Tras la primera corrida ya no encuentra base64 y no escribe nada. Si una
+// imagen individual falla, se deja como está (se reintenta al próximo boot).
+function migrateProductImagesInline() {
+  try {
+    const tasks = loadWwpTasks();
+    let converted = 0, bytesInline = 0;
+    const conv = (val) => {
+      if (typeof val !== 'string' || !val.startsWith('data:image/')) return val;
+      const u = saveProductImageB64(val);
+      if (!u) return val;
+      converted++; bytesInline += val.length;
+      return u;
+    };
+    for (const t of tasks) {
+      for (const it of (t.items || [])) {
+        it.image = conv(it.image);
+        it.kitImage = conv(it.kitImage);
+        for (const c of (it.components || [])) c.image = conv(c.image);
+      }
+    }
+    if (converted) {
+      saveWwpTasks(tasks);
+      let uniq = 0; try { uniq = fs.readdirSync(PROD_IMG_DIR).length; } catch {}
+      console.log('[prod-img] migración: ' + converted + ' imágenes inline (' +
+        Math.round(bytesInline / 1048576 * 10) / 10 + ' MB de base64) → URLs; ' +
+        uniq + ' archivos únicos en prod-img/');
+    }
+  } catch (e) { console.error('[prod-img] migración falló:', e.message); }
+}
 
 function loadLunchBreaks() { return loadJson(WWP_LUNCH_FILE, []); }
 function saveLunchBreaks(b) { saveJson(WWP_LUNCH_FILE, b); }
@@ -1213,7 +1283,7 @@ async function buildItemsFromPicks(orderName, stateFilter, opts = {}) {
       odoo_categ_id:prod.categ_id?prod.categ_id[0]:null, odoo_categ_nombre:prod.categ_id?prod.categ_id[1]:null,
       sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
       product_name:composeItemName(g.desc, g.name, prod.default_code), quantity:units, units,
-      image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
+      image:prod.image_128?saveProductImageB64(prod.image_128):null,
       unitBins:g.unitBins, pickName:g.pickName, isRet:g.isRet||false, fromPick:true,
       ...(kit ? { kitId:kit.kitId, kitRef:kit.kitRef, kitName:kit.kitName, kitImage:kit.kitImage } : {}),
       locations:[], selected_location:null,
@@ -1380,7 +1450,7 @@ async function resolveKitInfo(products) {
       const kp = kpForBom(bom); if (!kp) return;
       out[line.product_id[0]] = {
         kitId: 'bom_'+bom.id, kitRef: kp.default_code||'', kitName: stripCopia(kp.name||''),  // maestro puede traer "(Copia)"
-        kitImage: kp._img ? ('data:image/png;base64,'+kp._img) : '' };
+        kitImage: kp._img ? saveProductImageB64(kp._img) : '' };
     });
   } catch(_) { /* mrp no instalado o sin permiso */ }
   return out;
@@ -15874,7 +15944,7 @@ const server = http.createServer(async (req, res) => {
           // composeItemName conserva el prefijo [default_code] y cae a product_id[1] si no hay descripción.
           product_name:composeItemName(l.description_picking||l.name, l.product_id[1], prod.default_code),
           quantity:units, units,                 // units = unidades de la Demanda (editable)
-          image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
+          image:prod.image_128?saveProductImageB64(prod.image_128):null,
           locations, selected_location:locations.length===1?0:null,
           selected:false, evidence_images:[], comments:'', status:'pending' };
       });
@@ -15948,7 +16018,7 @@ const server = http.createServer(async (req, res) => {
               sku:prod.barcode||prod.default_code||'', barcode:prod.barcode||'',
               // Descripción del move (correcta) con prefijo [default_code]; fallback al display_name.
               product_name:composeItemName(m.description_picking||m.name, m.product_id[1], prod.default_code), quantity:units, units,
-              image:prod.image_128?'data:image/png;base64,'+prod.image_128:null,
+              image:prod.image_128?saveProductImageB64(prod.image_128):null,
               ...(kit ? {kitId:kit.kitId,kitRef:kit.kitRef,kitName:kit.kitName,kitImage:kit.kitImage} : {}),
               locations:[], selected_location:null,   // sin ubicación → manual
               selected:false, evidence_images:[], comments:'', status:'pending' };
@@ -15975,7 +16045,7 @@ const server = http.createServer(async (req, res) => {
         const item = {
           item_id:'art_'+p.id, odoo_line_id:null, odoo_product_id:p.id,
           sku:p.default_code||p.barcode||'', product_name:p.name||'',
-          quantity:1, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
+          quantity:1, image:p.image_128?saveProductImageB64(p.image_128):null,
           locations, selected_location:locations.length===1?0:null,
           selected:true, evidence_images:[], comments:'', status:'pending'
         };
@@ -16513,7 +16583,7 @@ const server = http.createServer(async (req, res) => {
           const desc = m.move_id ? retDescByMoveId[m.move_id[0]] : '';
           return { item_id:'ret_'+m.product_id[0]+'_'+i, odoo_product_id:m.product_id[0],
             product_name:composeItemName(desc, m.product_id[1], p.default_code), sku:p.default_code||p.barcode||'',
-            quantity:qty, image:p.image_128?'data:image/png;base64,'+p.image_128:null,
+            quantity:qty, image:p.image_128?saveProductImageB64(p.image_128):null,
             selected:true, status:'pending' };
         });
         // Flujo nuevo: el origin trae la referencia que ve la vendedora ("RET/00035 - S09474").
@@ -16552,7 +16622,7 @@ const server = http.createServer(async (req, res) => {
           stockOrigen, desdeLabel: desde||null,
           items:[{item_id:'art_'+p.id,odoo_product_id:p.id,product_name:p.name,
             sku:p.default_code||p.barcode||'',quantity:1, maxQty: stockOrigen||null,
-            image:p.image_128?'data:image/png;base64,'+p.image_128:null,selected:true,status:'pending'}]};
+            image:p.image_128?saveProductImageB64(p.image_128):null,selected:true,status:'pending'}]};
         global._sdvLookupCache.set(cacheKey, {ts:Date.now(), data:_artPayload});
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify(_artPayload));
@@ -16591,7 +16661,7 @@ const server = http.createServer(async (req, res) => {
           return { item_id:'ord_'+l.product_id[0]+'_'+i, odoo_product_id:l.product_id[0],
             product_name:composeItemName(l.name, l.product_id[1], p.default_code),
             sku:p.default_code||p.barcode||'', quantity:qty,
-            image:p.image_128?'data:image/png;base64,'+p.image_128:null,
+            image:p.image_128?saveProductImageB64(p.image_128):null,
             selected:false, status:'pending' };
         });
         const _ordPayload = {ok:true,tipo:'orden_historica',orderRef:soH.name,
@@ -19826,6 +19896,7 @@ const server = http.createServer(async (req, res) => {
   if (reqPath.startsWith('/desp-fotos/')) filePath = path.join(DESP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/sdv-adjuntos/')) filePath = path.join(SDV_ADJ_DIR, path.basename(reqPath));
+  if (reqPath.startsWith('/prod-img/')) filePath = path.join(PROD_IMG_DIR, path.basename(reqPath));
 
   // ── Protección: path traversal + archivos sensibles ──────────────────────
   const _realPath = path.resolve(filePath);
@@ -19877,6 +19948,10 @@ const server = http.createServer(async (req, res) => {
     } else if (parsed.query && parsed.query.v) {
       // Libs versionadas por hash de contenido (?v=): el URL cambia si el archivo
       // cambia, así que la respuesta es inmutable — cero revalidaciones
+      headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+    } else if (reqPath.startsWith('/prod-img/')) {
+      // Imágenes de producto nombradas por hash de contenido → inmutables:
+      // el teléfono las baja UNA vez y no vuelve a preguntar.
       headers['Cache-Control'] = 'public, max-age=31536000, immutable';
     } else if (['.png','.svg'].includes(ext) && /icon|apple-touch|favicon/.test(path.basename(filePath))) {
       // Íconos PWA: caché corta para que los cambios se propaguen
@@ -20016,6 +20091,7 @@ server.listen(PORT, async () => {
   console.log(`   Odoo:       ${ODOO_URL}\n`);
   seedAuthUsers();
   recoverOpenLunchBreaks();
+  migrateProductImagesInline();   // Fase 2: base64 inline → /prod-img/ (idempotente)
   try {
     await authenticate();
   } catch (e) {
