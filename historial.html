@@ -7730,10 +7730,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   </style>
   <!-- Mapa de ubicaciones (solo admin) -->
   <div class="modal-overlay" id="modal-users-map">
-    <div class="modal-card" style="max-width:1120px;width:96vw">
+    <div class="modal-card" style="max-width:1120px;width:96vw" role="dialog" aria-modal="true" aria-labelledby="users-map-title" tabindex="-1">
       <div class="modal-header">
         <span class="modal-title" id="users-map-title">Mapa de auxiliares</span>
-        <button class="modal-close" onclick="closeUsersMap()">✕</button>
+        <button class="modal-close" onclick="closeUsersMap()" aria-label="Cerrar mapa">✕</button>
       </div>
       <div style="padding:0 16px 8px">
         <div id="users-map-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--text-3);margin-bottom:8px"></div>
@@ -7751,6 +7751,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
               </div>
             </div>
             <div id="users-map-list" style="overflow:auto;padding:8px;display:flex;flex-direction:column;gap:7px"></div>
+            <div id="users-map-adoption" style="border-top:1px solid var(--border);padding:8px 10px;font-size:11px;color:var(--text-3);display:none"></div>
           </aside>
           <div id="users-map" style="width:100%;height:62vh;border-radius:10px;overflow:hidden;background:var(--surface-2)"></div>
         </div>
@@ -7848,6 +7849,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <button class="filters-toggle" id="btn-cierre-admin" type="button" onclick="dcOpenAdmin()" title="Reporte del día del equipo" style="display:none">
           <i data-lucide="clipboard-check" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
           Resumen del equipo
+        </button>
+        <button class="filters-toggle" id="btn-users-map-tasks" type="button" onclick="openUsersMap()" title="Última ubicación y recorrido de los auxiliares en campo" style="display:none">
+          <i data-lucide="map" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
+          Ver mapa
         </button>
         <button class="filters-toggle" id="filters-toggle" type="button" onclick="toggleFilters()" aria-expanded="false">
           <i data-lucide="sliders-horizontal" style="width:14px;height:14px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i>
@@ -8858,6 +8863,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Campo</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="wwp.rastreo_gps"> <span><i data-lucide="map-pin" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Rastreo de ubicación GPS</span></label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.mapa_auxiliares"> <span><i data-lucide="map" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px"></i>Ver mapa de auxiliares</span></label>
         </div>
       </div>
     </div>
@@ -9030,7 +9036,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v203';
+var APP_BUILD = 'v204';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -9986,6 +9992,7 @@ var _NOTIF_META = {
   inventario_negativo:{cat:'operacion',urg:'critical'},
   reposicion_nueva:{cat:'operacion',urg:'info'}, reposicion_aprobada:{cat:'operacion',urg:'success'},
   reposicion_rechazada:{cat:'operacion',urg:'alert'},
+  geo_evidencia_lejos:{cat:'operacion',urg:'alert'}, geo_sin_senal:{cat:'operacion',urg:'alert'},
   // chat
   comment_new:{cat:'chat',urg:'info'}, task_chat:{cat:'chat',urg:'info'},
   // tareas (v180): re-examen LMS
@@ -11963,6 +11970,9 @@ async function dcUpdateBadge() {
     if (b) { if (d.enabled && n>0 && !d.already) { b.textContent = n; b.style.display=''; } else { b.style.display='none'; } }
     var adminBtn = document.getElementById('btn-cierre-admin');
     if (adminBtn) adminBtn.style.display = (_user && (_user.role==='admin'||_user.role==='manager')) ? '' : 'none';
+    // Mapa de auxiliares para roles con permiso; admin ya lo tiene en tab Usuarios
+    var mapBtn = document.getElementById('btn-users-map-tasks');
+    if (mapBtn) mapBtn.style.display = (_canUsersMap() && _user.role!=='admin') ? '' : 'none';
   } catch(e) {}
 }
 
@@ -16115,6 +16125,7 @@ function renderDrawer(t) {
       ${taskAuxiliaryIds(t).length?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Auxiliares</div><div class="info-cell-val" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${taskAuxiliaryIds(t).map(id=>{const u=(_authUsers||[]).find(u=>u.id===id);return u?'<span style="display:flex;align-items:center;gap:4px;margin-right:4px">'+avatarHtml(u,22)+'<span style="font-size:12px">'+esc(u.name.split(' ').slice(0,2).join(' '))+'</span></span>':'';}).join('')}</div></div>`:''}
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
       ${t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Entrega</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
+      ${geoBadgeHtml(t)}
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
     </div>
     ${sdvBlockHtml}
@@ -16162,6 +16173,7 @@ function renderDrawer(t) {
       ${t.odooRef?`<div class="info-cell"><div class="info-cell-label">Orden Odoo</div><div class="info-cell-val">${esc(t.odooRef)}</div></div>`:''}
       ${t.location?`<div class="info-cell"><div class="info-cell-label">Localidad</div><div class="info-cell-val">${esc(t.location)}</div></div>`:''}
       ${t.taskConcept==='customer_return'&&t.deliveryAddress?`<div class="info-cell info-cell-wide"><div class="info-cell-label">Dirección de recogida</div><div class="info-cell-val">${esc(t.deliveryAddress)}</div></div>`:''}
+      ${geoBadgeHtml(t)}
       ${t.taskConcept==='customer_return'&&t.phone&&!t.sdvId?`<div class="info-cell"><div class="info-cell-label">Teléfono cliente</div><div class="info-cell-val">${esc(t.phone)}</div></div>`:''}
       ${t.dueDate?`<div class="info-cell"><div class="info-cell-label">Fecha límite</div><div class="info-cell-val">${t.dueDate}</div></div>`:''}
       <div class="info-cell"><div class="info-cell-label">Creado</div><div class="info-cell-val">${fmtDate(t.createdAt)}</div></div>
@@ -16486,6 +16498,22 @@ function _captureGeo(context, taskId){
       function(){}, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 }
     );
   }catch(e){}
+}
+
+// Sello de geo-verificación (v204): el servidor compara cada punto GPS anclado a la
+// tarea contra su destino (gpsCoords de la SDV) y sella task.geoCheck. ok = el chofer
+// estuvo a ≤ radio del punto de entrega/recogida en algún momento.
+function geoBadgeHtml(t){
+  var g=t&&t.geoCheck; if(!g||g.minDistM==null) return '';
+  var fmt=function(m){ return m>=1000?(Math.round(m/100)/10)+' km':Math.round(m)+' m'; };
+  if(g.ok){
+    return '<div class="info-cell info-cell-wide"><div class="info-cell-label">GPS en sitio</div>'
+      +'<div class="info-cell-val" style="color:var(--green-text)"><i data-lucide="map-pin" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>'
+      +'Verificado a '+fmt(g.minDistM)+' del destino ('+g.points+' señal'+(g.points===1?'':'es')+')</div></div>';
+  }
+  return '<div class="info-cell info-cell-wide"><div class="info-cell-label">GPS en sitio</div>'
+    +'<div class="info-cell-val" style="color:var(--amber-text)"><i data-lucide="alert-triangle" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>'
+    +'Señal más cercana a '+fmt(g.minDistM)+' del destino (radio '+fmt(g.radiusM||300)+')</div></div>';
 }
 
 async function changeStatus(taskId, status, note) {
@@ -21312,11 +21340,13 @@ function renderUsersMapList(){
     const a=_mapAgeInfo(u.lastLocation), active=_usersMapState.selectedUser===u.id;
     const ago=u.lastLocation&&u.lastLocation.at?timeSince(u.lastLocation.at):'sin fecha';
     const acc=u.lastLocation&&isFinite(u.lastLocation.accuracy)?' · ±'+Math.round(u.lastLocation.accuracy)+'m':'';
+    const adop=(_usersMapState.adoption||{})[u.id];
+    const pts=adop?' · '+adop.pts7d+' pts 7d':'';
     const ctx=u.lastLocation&&u.lastLocation.context?'<div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.lastLocation.context)+'</div>':'';
     return '<button class="users-map-row '+(active?'active':'')+'" onclick="focusUserOnMap(\''+esc(u.id)+'\')">'
       +'<span class="users-map-dot '+a.cls+'"></span>'
       +'<span style="min-width:0;flex:1"><span style="display:block;font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(u.name||'Auxiliar')+'</span>'
-      +'<span style="display:block;font-size:11px;color:var(--text-3)">'+a.label+' · '+esc(ago)+acc+'</span>'+ctx+'</span>'
+      +'<span style="display:block;font-size:11px;color:var(--text-3)">'+a.label+' · '+esc(ago)+acc+pts+'</span>'+ctx+'</span>'
       +'<i data-lucide="route" style="width:15px;height:15px;stroke:var(--accent);flex-shrink:0"></i>'
       +'</button>';
   }).join('');
@@ -21372,10 +21402,18 @@ function focusUserOnMap(userId){
   if(_usersGMap) _usersGMap.setZoom(16);
   showUserRoute(userId,u.name||'Auxiliar');
 }
+// Acceso al mapa: admin siempre; otros roles solo con wwp.mapa_auxiliares (v204,
+// espejo de canSeeUsersMap en proxy.js — el servidor repite la validación).
+function _canUsersMap(){ return !!(_user && (_user.role==='admin' || (_user.sectionPerms||{})['wwp.mapa_auxiliares'])); }
+var _usersMapReturnFocus=null;
 async function openUsersMap(){
-  if(_user.role!=='admin'){ toast('Solo admin'); return; }
+  if(!_canUsersMap()){ toast('Sin permiso para el mapa de auxiliares'); return; }
+  _usersMapReturnFocus=document.activeElement;
   const modal=document.getElementById('modal-users-map');
   modal.classList.add('open');
+  var _umCard=modal.querySelector('.modal-card');
+  if(_umCard) setTimeout(function(){ _umCard.focus(); },0);
+  _usersMapLoadAdoption();
   const empty=document.getElementById('users-map-empty');
   const mapEl=document.getElementById('users-map');
   const dateEl=document.getElementById('users-map-date');
@@ -21408,7 +21446,40 @@ async function openUsersMap(){
     }, 80);
   }catch(e){ toast('Error: '+e.message); document.getElementById('users-map-bar').innerHTML='Error al cargar el mapa'; }
 }
-function closeUsersMap(){ document.getElementById('modal-users-map').classList.remove('open'); }
+function closeUsersMap(){
+  document.getElementById('modal-users-map').classList.remove('open');
+  if(_usersMapReturnFocus && _usersMapReturnFocus.isConnected){ var b=_usersMapReturnFocus; setTimeout(function(){ b.focus(); },0); }
+  _usersMapReturnFocus=null;
+}
+// Escape cierra el mapa (a11y v204)
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){ var m=document.getElementById('modal-users-map'); if(m && m.classList.contains('open')) closeUsersMap(); }
+});
+
+// Adopción del rastreo (7 días): quién alimenta el mapa y quién está en silencio.
+async function _usersMapLoadAdoption(){
+  var el=document.getElementById('users-map-adoption'); if(!el) return;
+  el.style.display='none';
+  try{
+    var r=await authFetch('/api/wwp/auth/locations/adoption');
+    var d=await r.json();
+    if(!r.ok||!d.ok||!Array.isArray(d.users)) return;
+    _usersMapState.adoption={};
+    d.users.forEach(function(u){ _usersMapState.adoption[u.id]=u; });
+    var silent=d.users.filter(function(u){ return u.pts7d===0; });
+    var conSenal=d.users.length-silent.length;
+    var html='<div style="font-weight:800;color:var(--text-2);margin-bottom:3px"><i data-lucide="activity" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Cobertura GPS · 7 días</div>'
+      +'<div>'+conSenal+' de '+d.users.length+' auxiliares con señal</div>';
+    if(silent.length){
+      html+='<div style="margin-top:3px;color:var(--amber-text)">Sin señal: '+esc(silent.map(function(u){return u.name;}).join(', '))
+        +'</div><div style="margin-top:2px">Probable permiso GPS denegado en su teléfono — pedirles activarlo.</div>';
+    }
+    el.innerHTML=html;
+    el.style.display='block';
+    if(window.lucide)lucide.createIcons();
+    renderUsersMapList();
+  }catch(e){}
+}
 
 // Recorrido (historial) de un usuario sobre el mapa
 async function showUserRoute(userId, userName){

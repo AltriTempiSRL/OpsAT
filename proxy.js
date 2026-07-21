@@ -20,7 +20,19 @@ try { webpush = require('web-push'); } catch { /* web-push no instalado */ }
 // ── Helpers de persistencia JSON ─────────────────────────────────────────────
 const _jsonFileCache = new Map();
 
+// ── Backend dual (migración PG, jul-2026): Postgres vía storage-pg.js ────────
+// Los .json que viven DIRECTO en DATA_DIR son colecciones → se enrutan a la DB
+// (memoria precargada por boot.js). Cualquier otro archivo (fixtures, rutas
+// externas) sigue en filesystem. Sin DATABASE_URL este bloque queda inerte.
+const pgStorage = require('./storage-pg.js');
+function _isPgCollection(file) {
+  if (!pgStorage.isActive()) return false;
+  const full = path.resolve(file);
+  return full.endsWith('.json') && path.dirname(full) === path.resolve(DATA_DIR);
+}
+
 function loadJson(file, fallback) {
+  if (_isPgCollection(file)) return pgStorage.loadCollection(path.basename(file, '.json'), fallback);
   const def = () => (fallback !== undefined ? fallback : []);
   let st;
   try { st = fs.statSync(file); }
@@ -46,6 +58,7 @@ function loadJson(file, fallback) {
   }
 }
 function saveJson(file, data) {
+  if (_isPgCollection(file)) { pgStorage.saveCollection(path.basename(file, '.json'), data); return; }
   // Escritura atómica: tmp → rename. Si el proceso es killed a mitad de writeFileSync,
   // el archivo original queda intacto (el kernel solo intercambia el inodo en rename).
   // El estado anterior queda en .bak para recuperación ante corrupción (ver loadJson).
@@ -109,6 +122,16 @@ function loadEnv(filename) {
   }
 })();
 
+// Guard del backend dual: con DATABASE_URL el almacenamiento DEBE venir ya
+// inicializado por boot.js (la precarga es async y este módulo es síncrono).
+// Arrancar proxy.js directo en ese estado leería archivos viejos y escribiría
+// fuera de la DB — mejor fallar visible.
+if (pgStorage.isEnabled() && !pgStorage.isActive()) {
+  console.error('FATAL: DATABASE_URL está definida pero storage-pg no fue inicializado.');
+  console.error('       Arranca con `node boot.js` (o quita DATABASE_URL para modo archivos JSON).');
+  process.exit(1);
+}
+
 // ── Directorio de datos persistentes ────────────────────────────────────────
 // En Render: DATA_DIR=/data (disco persistente). En local: ./data-local (desde .env)
 const DATA_DIR = process.env.DATA_DIR || __dirname;
@@ -133,6 +156,9 @@ function _rotateBackups(prefix, keep) {
 // Guardado protegido para arrays críticos. Devuelve false (sin lanzar) si la guarda
 // anti-vacío bloqueó la escritura — preservando el archivo bueno en disco.
 function saveCriticalArray(file, data) {
+  // En modo PG el blindaje anti-vacío vive en storage-pg (mismas reglas); los
+  // respaldos rotativos de archivo los cubre el export horario memoria→JSON.
+  if (_isPgCollection(file)) return pgStorage.saveCollection(path.basename(file, '.json'), data, { critical: true });
   const base = path.basename(file).replace(/\.json$/, '');
   const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
   // (1) Guarda anti-vacío: nunca vaciar un archivo que tenía >=5 items (caso del incidente)
@@ -162,7 +188,10 @@ function saveCriticalArray(file, data) {
 }
 
 // Snapshot horario de TODOS los .json de DATA_DIR (24h de historia por archivo).
+// En modo PG primero se vuelca memoria→archivos: mantiene los .json frescos
+// (≤1 h) como respaldo legible y como línea base de rollback a modo archivo.
 function snapshotAllCritical() {
+  try { if (pgStorage.isActive()) pgStorage.exportAllToFiles(); } catch (e) { console.warn('[storage-pg] export horario falló:', e.message); }
   try {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 13); // granularidad por hora
     for (const f of fs.readdirSync(DATA_DIR)) {
@@ -182,7 +211,7 @@ try { setTimeout(snapshotAllCritical, 60 * 1000); setInterval(snapshotAllCritica
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v203';
+const APP_BUILD = 'v204';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -256,14 +285,12 @@ function pushUrgencyForType(type = '') {
   let priv = process.env.VAPID_PRIVATE_KEY || '';
   if (!pub || !priv) {
     const keysFile = path.join(DATA_DIR, 'vapid-keys.json');
-    if (fs.existsSync(keysFile)) {
-      try { const k = JSON.parse(fs.readFileSync(keysFile,'utf-8')); pub = k.pub; priv = k.priv; } catch {}
-    }
+    try { const k = loadJson(keysFile, null); if (k) { pub = k.pub; priv = k.priv; } } catch {}
     if (!pub || !priv) {
       const keys = webpush.generateVAPIDKeys();
       pub  = keys.publicKey;
       priv = keys.privateKey;
-      fs.writeFileSync(keysFile, JSON.stringify({pub, priv}), 'utf-8');
+      saveJson(keysFile, {pub, priv});
     }
   }
   webpush.setVapidDetails(
@@ -1943,7 +1970,7 @@ function loadSdv() { return loadJson(SDV_FILE, []); }
 // respaldo rotativo pre-escritura), no saveJson plano. Ver saveCriticalArray (arriba) y el incidente del 25-jun.
 function saveSdv(list) { saveCriticalArray(SDV_FILE, list); }
 function sdvNextFolio() {
-  let seq; try { seq = JSON.parse(fs.readFileSync(SDV_SEQ_FILE,'utf-8')); } catch { seq = {n:0}; }
+  let seq; try { seq = loadJson(SDV_SEQ_FILE, {n:0}); } catch { seq = {n:0}; }
   seq.n = (seq.n||0)+1;
   // Blindaje SDV (Fase BK, jul-2026): escritura atómica (tmp→rename) para evitar torn-write / colisión de folios.
   saveJson(SDV_SEQ_FILE, seq);
@@ -3081,12 +3108,12 @@ function csvCell(value) {
 const WWP_AUDIT_FILE = path.join(DATA_DIR, 'wwp-audit.json');
 function appendAuditLog(event, data) {
   try {
-    const logs = fs.existsSync(WWP_AUDIT_FILE)
-      ? JSON.parse(fs.readFileSync(WWP_AUDIT_FILE, 'utf-8'))
-      : [];
+    // Migración PG: vía helpers (antes fs directo sin escritura atómica ni caché).
+    // En modo PG el diff detecta el append y escribe UNA fila, no las 10000.
+    const logs = loadJson(WWP_AUDIT_FILE, []);
     logs.push({ timestamp: new Date().toISOString(), event, ...data });
     if (logs.length > 10000) logs.splice(0, logs.length - 10000);
-    fs.writeFileSync(WWP_AUDIT_FILE, JSON.stringify(logs, null, 2), 'utf-8');
+    saveJson(WWP_AUDIT_FILE, logs);
   } catch(e) { console.warn('[audit]', e.message); }
 }
 
@@ -3108,7 +3135,7 @@ function buildPhotoArchiveIndex() {
   }; });
   // Títulos de tareas que ya no existen, recuperados del audit log (último conocido)
   let audit = [];
-  try { audit = JSON.parse(fs.readFileSync(WWP_AUDIT_FILE, 'utf-8')); } catch(e) { audit = []; }
+  try { audit = loadJson(WWP_AUDIT_FILE, []); } catch(e) { audit = []; }
   const auditTitle = {};
   audit.forEach(e => { if (e && e.taskId && e.taskTitle) auditTitle[e.taskId] = e.taskTitle; });
   const parseRef = s => { const m = String(s||'').match(/(S\d{4,6}|PTN\/[A-Z]+\/\d+)/); return m ? m[1] : ''; };
@@ -4550,6 +4577,84 @@ const WWP_LOCATIONS_FILE = path.join(DATA_DIR, 'wwp-locations.json');
 function loadLocations()    { return loadJson(WWP_LOCATIONS_FILE, []); }
 function saveLocations(arr) { try { saveJson(WWP_LOCATIONS_FILE, arr); } catch(e){} }
 
+// ── Geo: verificación de evidencia en sitio + acceso al mapa (v204) ───────────
+// Radio de "en sitio": la foto de entrega cuenta como verificada si el GPS del
+// chofer quedó a ≤ radio del destino de la tarea (gpsCoords heredado de la SDV).
+const GEO_VERIFY_RADIUS_M   = Math.max(50, parseInt(process.env.GEO_VERIFY_RADIUS_M, 10) || 300);
+const GEO_SILENT_HOURS      = Number(process.env.GEO_SILENT_HOURS != null ? process.env.GEO_SILENT_HOURS : 4);
+const GEO_SILENT_GRACE_MIN  = Number(process.env.GEO_SILENT_GRACE_MIN != null ? process.env.GEO_SILENT_GRACE_MIN : 45);
+const GEO_STALE_CHECK_MINUTES = parseInt(process.env.GEO_STALE_CHECK_MINUTES, 10);
+
+function geoParseCoords(str) {
+  if (!str) return null;
+  const parts = String(str).split(',');
+  if (parts.length !== 2) return null;
+  const lat = Number(parts[0].trim()), lng = Number(parts[1].trim());
+  if (!isFinite(lat) || !isFinite(lng) || (lat === 0 && lng === 0)) return null;
+  return { lat, lng };
+}
+
+// Distancia haversine en metros (suficiente para "¿está en el sitio?")
+function geoDistM(a, b) {
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(2 * R * Math.asin(Math.sqrt(s)));
+}
+
+function geoFmtDist(m) { return m >= 1000 ? (Math.round(m / 100) / 10) + ' km' : m + ' m'; }
+
+// Acceso al mapa de auxiliares: admin siempre; otros roles solo si su rol tiene
+// el permiso wwp.mapa_auxiliares (configurable en el editor de roles).
+function canSeeUsersMap(jp) {
+  if (jp && jp.role === 'admin') return true;
+  return !!((getRoleDefPerms(jp && jp.role) || {})['wwp.mapa_auxiliares']);
+}
+
+// Notifica a admins activos + encargado de la tarea (deduplicado).
+function geoNotifyOps(task, type, title, message) {
+  try {
+    const ids = new Set(loadAuthUsers().filter(u => u.role === 'admin' && u.active !== false).map(u => u.id));
+    if (task.managerId) ids.add(task.managerId);
+    ids.forEach(uid => createNotification(uid, { type, title, message, relatedTaskId: task.id, by: 'Sistema' }));
+  } catch (e) { console.warn('[geo-notify]', e.message); }
+}
+
+// Job: despacho/recogida en curso cuyo chofer lleva demasiado sin señal GPS.
+// Alerta UNA vez por tarea (geoSilenceAlertAt); reaparece solo en tarea nueva.
+function geoCheckStaleSignals() {
+  const now = Date.now();
+  const tasks = loadWwpTasks();
+  const users = loadAuthUsers();
+  let alerted = 0;
+  for (const t of tasks) {
+    if (t.status !== 'in_progress') continue;
+    if (!['dispatch_order', 'item_pickup'].includes(t.type)) continue;
+    if (t.geoSilenceAlertAt) continue;
+    const sh = (t.statusHistory || []).filter(h => h.status === 'in_progress').slice(-1)[0];
+    const startedMs = t.dispatchStartedAt ? Date.parse(t.dispatchStartedAt) : (sh ? Date.parse(sh.date) : NaN);
+    if (!isFinite(startedMs) || now - startedMs < GEO_SILENT_GRACE_MIN * 60000) continue;
+    const worker = users.find(u => u.active !== false &&
+      ('oe_' + u.odooId === t.assignedTo || (t.executors || []).includes('oe_' + u.odooId) || (t.executors || []).includes(u.id)) &&
+      (getRoleDefPerms(u.role) || {})['wwp.rastreo_gps']);
+    if (!worker) continue;
+    const lastMs = worker.lastLocation ? Date.parse(worker.lastLocation.at) : NaN;
+    const silentMs = isFinite(lastMs) ? now - lastMs : now - startedMs;
+    if (silentMs < GEO_SILENT_HOURS * 3600000) continue;
+    t.geoSilenceAlertAt = new Date().toISOString();
+    t.updatedAt = t.geoSilenceAlertAt;
+    alerted++;
+    const horas = Math.max(1, Math.round(silentMs / 3600000));
+    geoNotifyOps(t, 'geo_sin_senal', 'Chofer sin señal GPS',
+      `${worker.name} lleva ~${horas} h sin señal GPS con "${t.title}" en curso.`);
+  }
+  if (alerted) saveWwpTasks(tasks);
+  return alerted;
+}
+// Por defecto corre cada 30 min; GEO_STALE_CHECK_MINUTES=0 lo apaga (tests).
+const _geoStaleMin = isFinite(GEO_STALE_CHECK_MINUTES) ? GEO_STALE_CHECK_MINUTES : 30;
+if (_geoStaleMin > 0) setInterval(() => { try { geoCheckStaleSignals(); } catch (e) { console.warn('[geo-stale]', e.message); } }, _geoStaleMin * 60000);
+
 function wsEncodeFrame(payload) {
   const data = Buffer.from(JSON.stringify(payload));
   const len = data.length;
@@ -5071,11 +5176,14 @@ function enrichOverdueTasks(tasks, opts = {}) {
     // destino de escalación); bumpear por generatedAt haría que el 304 dejara de proteger
     // el polling móvil y cada request bajaría la lista completa (clase #0166).
     const matBefore = JSON.stringify([!!t.overdue, t.overdueDays||0, (t.escalation||{}).action||null, (t.escalation||{}).suggestedUserId||null]);
-    const snapshot = JSON.stringify({ overdue: t.overdue, overdueDays: t.overdueDays, escalation: t.escalation });
     t.overdue = true;
     t.overdueDays = days;
     t.escalation = nextEscalation;
-    if (JSON.stringify({ overdue: t.overdue, overdueDays: t.overdueDays, escalation: t.escalation }) !== snapshot) changed = true;
+    // Fix 20-jul: persistir SOLO ante cambio material. La comparación anterior por
+    // snapshot completo incluía escalation.generatedAt (timestamp nuevo en cada
+    // llamada) → con ≥1 tarea vencida, CADA GET /api/wwp/tasks reescribía el
+    // archivo completo (28 MB síncronos), incluso los que respondían 304.
+    // El cliente igual recibe la escalación fresca: se muta en memoria arriba.
     const matAfter = JSON.stringify([true, days, nextEscalation.action, nextEscalation.suggestedUserId]);
     if (matAfter !== matBefore) { t.updatedAt = new Date().toISOString(); changed = true; }
   });
@@ -5172,6 +5280,8 @@ const NOTIF_META = {
   reposicion_nueva    : { cat:'operacion', urg:'info' },
   reposicion_aprobada : { cat:'operacion', urg:'success' },
   reposicion_rechazada: { cat:'operacion', urg:'alert' },
+  geo_evidencia_lejos : { cat:'operacion', urg:'alert' },
+  geo_sin_senal       : { cat:'operacion', urg:'alert' },
   // chat
   comment_new : { cat:'chat', urg:'info' },
   task_chat   : { cat:'chat', urg:'info' },
@@ -5231,6 +5341,8 @@ const SUPERVISOR_SKIP_TYPES = new Set([
   'task_chat','comment_new','lunch_ended','agent_routine',
   // el watchdog de inventario ya notifica directo a admin+manager — sin copia extra
   'inventario_negativo',
+  // v204 — geoNotifyOps ya notifica directo a admins + encargado de la tarea
+  'geo_evidencia_lejos','geo_sin_senal',
   // v180 — canal vendedora: antes usaba tipos de tareas que YA estaban en esta lista
   // (status_changed/task_completed/task_rejected/task_cancelled). Los tipos nuevos
   // heredan el skip para NO crear un forwarding a supervisores que hoy no existe.
@@ -8235,6 +8347,7 @@ const server = http.createServer(async (req, res) => {
         tasksFileExists: fs.existsSync(WWP_TASKS_FILE),
         tasksFileSize: fs.existsSync(WWP_TASKS_FILE) ? fs.statSync(WWP_TASKS_FILE).size : 0,
         tasksRawPreview: tasksRaw,
+        storage: pgStorage.isActive() ? pgStorage.health() : { mode: 'json' },
         odoo: { ok: !!odooUid, uid: odooUid || null },
         note: 'shallow check — use ?deep=true for full Odoo+Sheets verification'
       }));
@@ -11477,7 +11590,10 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/wwp/auth/users' && req.method === 'GET') {
     const jwtPayload = requireJwt(req, res); if (!jwtPayload) return;
     if (!['admin','manager'].includes(jwtPayload.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Se requiere rol admin o manager'})); return; }
-    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:u.lastLocation||null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,vehicleInspectionRequired:!!u.vehicleInspectionRequired,assignedManager:u.assignedManager||null,sectionPerms:getRoleDefPerms(u.role)}));
+    // v204: lastLocation solo viaja a quien puede ver el mapa (antes se filtraba
+    // a managers sin acceso al mapa — minimización de datos de ubicación).
+    const _canMap = canSeeUsersMap(jwtPayload);
+    const users = loadAuthUsers().map(u => ({id:u.id,name:u.name,email:u.email,role:u.role,odooId:u.odooId,active:u.active,lastLogin:u.lastLogin,createdAt:u.createdAt,presenceStatus:u.presenceStatus||'active',presenceAt:u.presenceAt||null,lunchTimeAllowed:u.lunchTimeAllowed||60,lastLocation:_canMap?(u.lastLocation||null):null,categoria:u.categoria||null,dailySummaryEnabled:!!u.dailySummaryEnabled,vehicleInspectionRequired:!!u.vehicleInspectionRequired,assignedManager:u.assignedManager||null,sectionPerms:getRoleDefPerms(u.role)}));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify(users));
     return;
   }
@@ -11504,15 +11620,49 @@ const server = http.createServer(async (req, res) => {
         if (hist.length > 5000) hist = hist.slice(hist.length - 5000);
         saveLocations(hist);
       } catch(e){}
-      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true}));
+      // Geo-verificación (v204): punto anclado a una tarea con destino GPS →
+      // sella la distancia en la tarea. La foto de entrega queda verificada
+      // "en sitio" sin revisión manual; lejos del radio dispara alerta (1× por tarea).
+      let geoCheck = null;
+      try {
+        if (d.taskId) {
+          const tasks = loadWwpTasks();
+          const ti = tasks.findIndex(t => t.id === d.taskId);
+          const dest = ti >= 0 ? geoParseCoords(tasks[ti].gpsCoords) : null;
+          if (dest) {
+            const t = tasks[ti];
+            const dist = geoDistM({ lat, lng }, dest);
+            const prev = t.geoCheck || {};
+            const minDistM = prev.minDistM != null ? Math.min(prev.minDistM, dist) : dist;
+            t.geoCheck = {
+              radiusM: GEO_VERIFY_RADIUS_M,
+              lastAt: now, lastDistM: dist, lastContext: ctx,
+              minDistM, minAt: minDistM === dist ? now : (prev.minAt || now),
+              ok: minDistM <= GEO_VERIFY_RADIUS_M,
+              points: (prev.points || 0) + 1,
+              alertedFarAt: prev.alertedFarAt || null
+            };
+            if (/^foto/i.test(ctx) && dist > GEO_VERIFY_RADIUS_M && !t.geoCheck.alertedFarAt) {
+              t.geoCheck.alertedFarAt = now;
+              geoNotifyOps(t, 'geo_evidencia_lejos', 'Evidencia lejos del destino',
+                `${jp.name || 'Auxiliar'} subió evidencia de "${t.title}" a ${geoFmtDist(dist)} del punto de entrega (radio: ${geoFmtDist(GEO_VERIFY_RADIUS_M)}).`);
+            }
+            t.updatedAt = now; // material: el drawer debe re-pintar el sello geo
+            saveWwpTasks(tasks);
+            geoCheck = t.geoCheck;
+          }
+        }
+      } catch(e){ console.warn('[geo-verify]', e.message); }
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, geoCheck}));
     } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
 
-  // GET /api/wwp/auth/locations — última ubicación de todos los usuarios [solo admin]
+  // GET /api/wwp/auth/locations — última ubicación de todos los usuarios
+  // [admin o rol con wwp.mapa_auxiliares — v204: antes hardcodeado a admin]
   if (reqPath === '/api/wwp/auth/locations' && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    if (!canSeeUsersMap(jp)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso para el mapa de auxiliares'})); return; }
     // Solo usuarios cuyo rol tiene el rastreo GPS habilitado (por defecto: auxiliares)
     const users = loadAuthUsers().filter(u => u.active !== false && u.lastLocation && (getRoleDefPerms(u.role)||{})['wwp.rastreo_gps']);
     const out = users.map(u => ({ id:u.id, name:u.name, role:u.role, lastLocation:u.lastLocation }));
@@ -11543,13 +11693,54 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/wwp/auth/users/:id/locations — recorrido (historial) de un usuario [solo admin]
+  // GET /api/wwp/auth/users/:id/locations — recorrido (historial) de un usuario
+  // [admin o rol con wwp.mapa_auxiliares]
   if (reqPath.match(/^\/api\/wwp\/auth\/users\/[A-Za-z0-9_]+\/locations$/) && req.method === 'GET') {
     const jp = requireJwt(req, res); if (!jp) return;
-    if (jp.role !== 'admin') { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo admin'})); return; }
+    if (!canSeeUsersMap(jp)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso para el mapa de auxiliares'})); return; }
     const uid = reqPath.split('/')[5];
     const points = loadLocations().filter(p => p.userId === uid).sort((a,b)=> new Date(a.at)-new Date(b.at));
     res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, points }));
+    return;
+  }
+
+  // GET /api/wwp/auth/locations/adoption — adopción del rastreo GPS (7 días)
+  // por auxiliar: puntos capturados, eventos de tarea (aprox por statusHistory)
+  // y última señal. Responde "¿quién NO está alimentando el mapa?".
+  if (reqPath === '/api/wwp/auth/locations/adoption' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!canSeeUsersMap(jp)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso para el mapa de auxiliares'})); return; }
+    const cutoff = Date.now() - 7*24*60*60*1000;
+    const hist = loadLocations();
+    const tasks = loadWwpTasks();
+    const tracked = loadAuthUsers().filter(u => u.active !== false && (getRoleDefPerms(u.role)||{})['wwp.rastreo_gps']);
+    const out = tracked.map(u => {
+      const pts = hist.filter(p => p.userId === u.id && new Date(p.at).getTime() >= cutoff);
+      // Denominador aproximado: cambios de estado hechos por este usuario en 7 días
+      // (statusHistory guarda `by` como nombre — suficiente como proxy de actividad).
+      let eventos7d = 0;
+      for (const t of tasks) for (const h of (t.statusHistory||[])) {
+        if (h.by === u.name && ['in_progress','completed'].includes(h.status) && new Date(h.date).getTime() >= cutoff) eventos7d++;
+      }
+      const lastAt = (u.lastLocation && u.lastLocation.at) || (pts.length ? pts[pts.length-1].at : null);
+      return { id: u.id, name: u.name, role: u.role, pts7d: pts.length, eventos7d,
+        coberturaPct: eventos7d > 0 ? Math.min(100, Math.round(pts.length / eventos7d * 100)) : null,
+        lastAt };
+    }).sort((a,b) => (a.pts7d - b.pts7d) || String(a.name).localeCompare(String(b.name)));
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, users: out, radiusM: GEO_VERIFY_RADIUS_M }));
+    return;
+  }
+
+  // POST /api/wwp/auth/locations/stale-check — corre el chequeo de señal perdida
+  // ahora mismo (el job automático corre cada GEO_STALE_CHECK_MINUTES).
+  if (reqPath === '/api/wwp/auth/locations/stale-check' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!canSeeUsersMap(jp)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Sin permiso para el mapa de auxiliares'})); return; }
+    try {
+      const alerted = geoCheckStaleSignals();
+      res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, alerted}));
+    } catch(e) { res.writeHead(500,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
 
@@ -11918,7 +12109,7 @@ const server = http.createServer(async (req, res) => {
       ];
       const data = { exportedAt: new Date().toISOString(), files: {} };
       exportFiles.forEach(({ key, file }) => {
-        try { data.files[key] = JSON.parse(fs.readFileSync(file, 'utf-8')); }
+        try { data.files[key] = loadJson(file, null); }
         catch { data.files[key] = null; }
       });
       sendGzipJson(req, res, 200, data);

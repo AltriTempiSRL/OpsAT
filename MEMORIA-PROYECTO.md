@@ -11,6 +11,14 @@
 - Datos: producción en disco persistente (env `DATA_DIR`); local en `data-local/`.
 - Convención: librerías LOCALES, nunca CDN (lucide.min.js, leaflet.js, leaflet.css).
 
+## Almacenamiento: PostgreSQL (Railway) con backend dual — migración jul-2026
+- **Producción**: PostgreSQL en el mismo proyecto Railway (servicio `Postgres`). Con `DATABASE_URL` definida, `loadJson/saveJson/saveCriticalArray` enrutan los `.json` del DATA_DIR a `storage-pg.js` (store en memoria precargado + escritura diferencial por fila a `collection_rows`/`kv_store`, orden por `ord` fraccional, anti-vacío en `rejected_writes`).
+- **Arranque**: SIEMPRE `node boot.js` (railway.json y npm start ya apuntan ahí) — inicializa PG async ANTES del monolito. `node proxy.js` directo con `DATABASE_URL` definida sale con error a propósito.
+- **Local/tests**: SIN `DATABASE_URL` todo sigue en archivos JSON como siempre (restart.bat, launch.json, harnesses que siembran archivos). ⚠️ No poner `DATABASE_URL` en el `.env` local.
+- **Respaldo/rollback**: cada hora (y en SIGTERM) el estado vivo se exporta de PG a los mismos `.json` de siempre en `/data` → quitar `DATABASE_URL` + redeploy vuelve a modo archivos perdiendo ≤1 h. El import al boot es idempotente (solo colecciones que no existan en la DB).
+- **Contrato**: `tests/test-storage-pg.mjs` (necesita `WWP_PG_TEST_URL` hacia la DB `wwp_dev`; sin ella hace SKIP limpio).
+- Fix incluido en la migración: `enrichOverdueTasks` ya NO persiste en cada GET (la comparación incluía `escalation.generatedAt`, timestamp nuevo por llamada → reescribía 28 MB por request con ≥1 tarea vencida).
+
 ## Modelo de tareas (WWP) — conceptos clave
 - Tipos: `packaging`, `dispatch_order`, `warehouse_move`, `item_pickup`, `truck_loading`, `general`, `staffing`.
 - Estados: pending → assigned → in_progress → completed → validated (+ cancelled).
@@ -66,9 +74,18 @@ Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada
 - Permiso de rol **`wwp.rastreo_gps`** (configurable en Roles → Editar permisos, sección "Campo"). Activo por defecto para Auxiliar. Admins NO rastrean.
 - `_captureGeo(context, taskId)`: captura best-effort en iniciar/completar tarea, "Terminé mi parte", subir fotos de despacho. Solo si el rol tiene el permiso.
 - Backend: `POST /auth/location` (guarda `lastLocation` + historial `wwp-locations.json`, retención 7 días). `GET /auth/locations` (última de todos, filtra por permiso), `GET /auth/users/:id/locations` (recorrido).
-- **Mapa** (Leaflet local): botón "Ver mapa" en Usuarios (solo admin) → modal con pines de auxiliares; click → popup + "Ver recorrido" (polyline inicio rojo / intermedios azul / última verde). `invalidateSize()` tras abrir el modal (si no, tiles no cargan).
-- ⚠️ **CSP/Permissions-Policy** (proxy.js ~línea 1360): `Permissions-Policy: geolocation=(self)` (sin esto el GPS no funciona); CSP `img-src`/`connect-src` incluyen `https://*.tile.openstreetmap.org` (sin esto el mapa sale gris).
+- **Mapa** (Google Maps vía `_ensureGoogleMaps` + `/api/maps-key`; Leaflet quedó archivado): botón "Ver mapa" en Usuarios (admin) y en la barra de Tareas para roles con permiso; modal con pines por frescura (≤45min reciente / ≤4h viejo), buscador, recorrido con filtro por fecha (polyline inicio rojo / última verde, decimación >30 pts).
+- ⚠️ **Permissions-Policy** (proxy.js): `geolocation=(self)` — sin esto el GPS no funciona.
 - Permiso del navegador: una vez por dispositivo+navegador (no por cuenta).
+
+### v204 — Geo-verificación + adopción + alertas (paquete "sacar el máximo al mapa")
+- Permiso nuevo **`wwp.mapa_auxiliares`** (Roles → Campo): acceso al mapa configurable — admin siempre, managers/roles custom si se les marca. Server valida con `canSeeUsersMap()` en `/auth/locations`, `/auth/users/:id/locations`, `/auth/locations/adoption` y `/auth/locations/stale-check`. `GET /auth/users` ya NO manda `lastLocation` a roles sin este permiso (minimización).
+- **Geo-verificación de entrega**: `POST /auth/location` con `taskId` compara el punto contra `task.gpsCoords` (heredado de la SDV al crear la tarea) y sella `task.geoCheck` {minDistM, ok, points, radiusM}. Radio por env `GEO_VERIFY_RADIUS_M` (default 300 m). El drawer muestra "GPS en sitio: verificado a X del destino" (verde) o "señal más cercana a X" (ámbar). Foto lejos del radio → notif `geo_evidencia_lejos` a admins+encargado, 1× por tarea.
+- **Alerta señal perdida**: job cada `GEO_STALE_CHECK_MINUTES` (default 30; 0 = off) — despacho/recogida `in_progress` cuyo chofer (rol rastreado) lleva > `GEO_SILENT_HOURS` (default 4) sin señal tras `GEO_SILENT_GRACE_MIN` (default 45) → notif `geo_sin_senal`, 1× por tarea (`geoSilenceAlertAt`). Trigger manual: `POST /auth/locations/stale-check`.
+- **Adopción**: `GET /auth/locations/adoption` — por auxiliar rastreado: puntos 7d, eventos 7d (aprox por statusHistory), última señal. El modal del mapa muestra "Cobertura GPS · 7 días" + lista de auxiliares sin señal (probable permiso GPS denegado).
+- Tipos notif nuevos en NOTIF_META (ambos espejos) + `SUPERVISOR_SKIP_TYPES` (geoNotifyOps ya notifica directo — sin copia a supervisores, misma regla que inventario_negativo).
+- A11y del modal: `role="dialog"`, `aria-modal`, Escape cierra, foco entra y regresa al abridor.
+- Suite: `npm run test:geo` (tests/test-geo-contract.mjs, 10 pruebas HTTP funcionales: RBAC, spoof, minimización, cerca/lejos/sin destino, dedupe de alertas, adopción).
 
 ## Pantalla de bienvenida + consentimiento (primera vez, todos los usuarios)
 - `maybeShowWelcome()` en `enterApp` si no existe flag `wwp_welcome_v1`. Describe la plataforma (foco en sección Tareas) + permisos. Botón "Aceptar y continuar" dispara notificaciones + ubicación (si rol con rastreo) en secuencia. Opción "Ahora no".

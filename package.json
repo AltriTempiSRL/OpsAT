@@ -4,12 +4,13 @@
   "description": "Dashboard de despachos y gestión de tareas para Altri Tempi — integración Odoo + Google Sheets",
   "main": "proxy.js",
   "scripts": {
-    "start": "node proxy.js",
-    "dev": "node proxy.js",
+    "start": "node boot.js",
+    "dev": "node boot.js",
     "test": "node tests/test-smoke.js",
     "test:inventario": "node tests/test-inventario-contract.mjs",
+    "test:geo": "node tests/test-geo-contract.mjs",
     "test:smoke": "node tests/test-smoke.js",
-    "test:all": "npm run test:inventario && npm run test:smoke"
+    "test:all": "npm run test:inventario && npm run test:geo && npm run test:smoke"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -20,6 +21,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
     "nodemailer": "^6.10.1",
+    "pg": "^8.22.0",
     "web-push": "^3.6.7"
   },
   "notes": {
