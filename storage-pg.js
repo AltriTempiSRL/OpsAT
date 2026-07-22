@@ -533,7 +533,7 @@ async function shutdown() {
 // Proyectan collection_rows (JSONB) como TABLAS legibles/consultables, SIN cambiar
 // cómo la app lee o escribe (fuente de verdad sigue siendo la colección en memoria).
 // Best-effort: un fallo aquí NO debe tumbar el arranque (las vistas son accesorias).
-const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas']);
+const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas', 'v_averias', 'v_inventario']);
 async function _createViews() {
   const ddls = [
     // Usuarios — EXCLUYE campos sensibles (passwordHash, resetToken*). Todo TEXT
@@ -557,6 +557,19 @@ async function _createViews() {
     "data->>'managerId' AS encargado_id, data->>'sdvId' AS sdv_id, " +
     "data->>'createdAt' AS creado " +
     "FROM collection_rows WHERE collection = 'wwp-tasks' ORDER BY ord",
+    // Averías (averias) — cabecera; sin statusHistory (array) ni image (base64/url).
+    "CREATE OR REPLACE VIEW v_averias AS SELECT " +
+    "data->>'id' AS id, data->>'ref' AS ref, data->>'name' AS producto, " +
+    "data->>'barcode' AS barcode, data->>'location' AS ubicacion, " +
+    "data->>'qty' AS cantidad, data->>'status' AS estado, " +
+    "data->>'comentario' AS comentario, data->>'createdAt' AS creado " +
+    "FROM collection_rows WHERE collection = 'averias' ORDER BY ord",
+    // Casos de inventario (wwp-inventario-casos) — seguimiento de negativos Odoo.
+    "CREATE OR REPLACE VIEW v_inventario AS SELECT " +
+    "data->>'id' AS id, data->>'sku' AS sku, data->>'estado' AS estado, " +
+    "data->>'tipo' AS tipo, data->>'causa' AS causa, data->>'qty' AS cantidad, " +
+    "data->>'responsable' AS responsable, data->>'nota' AS nota " +
+    "FROM collection_rows WHERE collection = 'wwp-inventario-casos' ORDER BY ord",
   ];
   for (const ddl of ddls) {
     try { await state.pool.query(ddl); }
