@@ -30,8 +30,26 @@ en `proxy.js` (0 resultados al buscarlo). El `politicas.json` archivado aquí es
 anterior. Si el tab sigue visible en producción, probablemente esté devolviendo 404 — pendiente
 de que Gabriel decida si se repara el endpoint o se retira el tab.
 
+## Actualizaciones posteriores a la reorg (jul 2026)
+
+- `_ron_neg_watch.mjs` → archivado en `scripts-ron-ejecutados/` (Fase 0 auditoría): el watchdog
+  de negativos ya vive DENTRO de `proxy.js` (`INV_WATCHDOG`, diario 08:00 RD, v156) — el script
+  externo quedó superado.
+- `sync-from-prod.js` → archivado en `scripts-obsoletos/` (poda 1/2): estaba roto — apuntaba a
+  Render (producción vieja) y a nombres de archivo antiguos.
+- `wwp.html` → archivado en `versions-artifact-original/` (poda 1/2): la ruta `/wwp.html` sigue
+  respondiendo 302 → `historial.html` desde `proxy.js`; el archivo en sí ya no se sirve.
+- `_mockup_notif_panel.html` → archivado en `mockups-portados/` (poda 1/2).
+
+| Carpeta (nueva) | Contenido | Por qué se archivó |
+|---|---|---|
+| `scripts-obsoletos/` | `sync-from-prod.js` | Roto: apunta a Render y a nombres de colecciones viejos |
+
 ## Qué NO se archivó (y por qué)
 
-- `_ron_neg_watch.mjs` — Gabriel confirmó que el watchdog de negativos sigue activo; se quedó en la raíz.
 - `_ron_stamhouse_detalle.md` — es un documento vivo que Ron actualiza entre sesiones (ver memoria del proyecto); se quedó en la raíz.
-- `sync-from-prod.js` — usa rutas relativas a `__dirname` (`data-local/`, `.env`); moverlo de carpeta rompería esas rutas sin tocar el código, así que se quedó en la raíz.
+- `render.yaml` y `scripts/sync-render-to-railway.ps1` — Render sigue VIVO como respaldo
+  (health 200 verificado 2026-07-22) y redeploya desde GitHub; ver `RAILWAY.md`.
+- `AUDITORIA-WWP-2026-07-06.md`, `CORRECCION-INVENTARIO-2026-06-30.md`,
+  `PLAN-ACCION-NEGATIVOS-2026-07-07.md` — ciclos AÚN ABIERTOS (backlog R0a-R10 pendiente;
+  negativos con watchdog activo y casos en seguimiento). Se archivarán cuando cierren.

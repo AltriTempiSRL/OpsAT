@@ -9,7 +9,8 @@
 - Local: `http://localhost:3000` (correr con `DATA_DIR=<ruta>/data-local node proxy.js`).
 - Deploy: `railway up --service dashboard-despachos --detach` desde la raíz (CLI; ver RAILWAY.md). GitHub es solo respaldo — push a `master` NO despliega. Commitear siempre antes de deployar.
 - Datos: producción en disco persistente (env `DATA_DIR`); local en `data-local/`.
-- Convención: librerías LOCALES, nunca CDN (lucide.min.js, leaflet.js, leaflet.css).
+- Convención: librerías LOCALES, nunca CDN (lucide.min.js, chart.min.js, xlsx.min.js, three.min.js + OrbitControls.js). Leaflet se archivó — el mapa usa Google Maps.
+- GitHub Pages (`altritempisrl.github.io/OpsAT/`, rama `gh-pages`) publica SOLO el dashboard `index.html` en Modo B (CSV de Google Sheets, sin backend) — curado a propósito (jun 22), NO es fósil; se mantiene casi en sync con master.
 
 ## Almacenamiento: PostgreSQL (Railway) con backend dual — migración jul-2026
 - **Producción**: PostgreSQL en el mismo proyecto Railway (servicio `Postgres`). Con `DATABASE_URL` definida, `loadJson/saveJson/saveCriticalArray` enrutan los `.json` del DATA_DIR a `storage-pg.js` (store en memoria precargado + escritura diferencial por fila a `collection_rows`/`kv_store`, orden por `ord` fraccional, anti-vacío en `rejected_writes`).
@@ -170,3 +171,18 @@ Punto de entrada: `openNewTaskModal()` → `openTaskWizard(opts)`. 4 pasos, cada
 - Backend: `wwp-inventario-casos.json` (saveCriticalArray), 8 endpoints `/api/inventario/*`, cache Odoo TTL 5 min (force 30s), auto-conciliación (corregido-auto al desaparecer el negativo, reabre si reaparece), heurística de causa (A=kit phantom vía mrp.bom, B=sin IN previo, C=salida antes de entrada por balance corriente), seed idempotente de los 2 casos iniciales (46+5).
 - Watchdog diario 08:00 RD (`INV_WATCHDOG`, default ON) → notificación `inventario_negativo` (operacion/critical, en NOTIF_META + espejos historial/sw) a admin+manager si hay negativos sin caso o recepciones >24h. `POST /api/inventario/watchdog-run` (admin) lo fuerza para verificar tras deploy.
 - Verificado en local (curl + navegador): RBAC 401/403, seed idempotente, conciliación (Irva + MOR.LILO corregidos-auto), heurística A con kit exacto `GE.KAYLE.SOFA.BG.K3` y B en `AN-05100S201/M`, PATCH acciones con auditoría, gate 409 al cerrar con pendientes, watchdog E2E con notificación, fail-open sin Odoo (banner + casos persistidos).
+
+## Poda 2/2 + /api/politicas restaurado (v219, 22-jul-2026)
+- **Código muerto eliminado de `historial.html`: ~1,970 líneas** (40,727 → 38,760), todo verificado con 0 llamadores antes de cortar (mapa por agente + script verify-then-cut):
+  - Reportes Operacionales completos (`loadAllReports` + 5 `renderRpt*` + 11 helpers `rpt*`) — inalcanzables, sin DOM.
+  - Modo Guiado entero (CSS + panel DOM + `GUIDED_STEPS` + 9 funciones) — el botón que lo abría ya no existía.
+  - Monitor de Tránsitos standalone (`tmCargar/tmRender/tmExportCsv`) — reemplazado por `invdTransitCargar` (sección inventario). `tmAge` SE CONSERVÓ (lo usa inventario).
+  - Isla Devoluciones (`loadDevoluciones/renderDevoluciones/devMonthHtml/renderComparativo/…` + 2 bloques CSS + `toggleDev`) — lazo cerrado sin entrada. `var DEVOLUCIONES=[]` SE CONSERVÓ (lo lee `buscarDirecta`).
+  - `renderPendientes`/`cargarPendientesOut`/`toggleDept` + array demo `PENDIENTES` — sin llamadores ni DOM; claves fantasma `pendientes`/`pendientes-out` quitadas del ORDER de aterrizaje (daban página en blanco).
+  - `_EO_MOCK` desenrollado en `estadoOrdenesCargar` — quitaba un `ReferenceError` latente (`_EO_MOCK_DATA` se usaba sin definirse).
+  - Compartidos intocados: `tmAge`, `_wwpTypeIcon`, `rptEventHtml` (viva pese al prefijo), `DEVOLUCIONES`, CSS `dept-`/`dias-*` (los usa la línea de tiempo).
+- **`/api/politicas` implementado en `proxy.js`** (GET/POST/PATCH/DELETE, admin-only con `requireRole`, seed `POL-20260518-001` desde el politicas.json archivado, sentinel null para no re-sembrar colección vaciada, funciona en modo archivos Y PG): el tab Políticas (admin) llamaba a este endpoint y NUNCA existió en la era Node — el tab estaba roto en producción. Historial de políticas sigue siendo client-side (mock seed) — mejora futura si se quiere real.
+- Raíz: `.nojekyll` eliminado de master (Pages sirve desde `gh-pages`, que tiene el suyo). `render.yaml` SE QUEDA: Render vivo (health 200) como fallback. Docs de negativos/auditoría SE QUEDAN en raíz (ciclos abiertos).
+- Docs corregidos: `package.json` notes (decía `node proxy.js`/`.env.txt`/nombres viejos), `_archivo/README.md` (post-podas), `CLAUDE.md` (wwp.html ya no existe en raíz).
+- Colateral (sesión paralela, ae3f500): dominio Railway viejo murió hoy → `uptime.yml` pingaba 404 y abrió issue falso; corregido a `opsat.up.railway.app`.
+- Verificado en local: `node --check` proxy, health `v219`, politicas 401 sin token / 403 assistant / CRUD completo admin (curl), navegador con consola en 0 errores: login → Tareas → tab Políticas E2E (card seed + cumplimiento en vivo 15 empleados) → Estado de Órdenes.

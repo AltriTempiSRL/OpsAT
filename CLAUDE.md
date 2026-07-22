@@ -8,7 +8,6 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 | Archivo | Descripción |
 |---------|-------------|
 | `historial.html` | App principal (historial + WWP embebido) |
-| `wwp.html` | ⚠️ DEPRECADO — redirige a historial.html, no editar |
 | `index.html` | Dashboard de despachos |
 | `proxy.js` | Servidor Node.js (API + archivos estáticos) |
 | `lucide.min.js` | Librería de íconos (LOCAL, no CDN) |
@@ -26,7 +25,7 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 ## Archivos que NO se editan
 
 - `.claude/worktrees/` — worktrees anteriores, ignorar
-- `wwp.html` — DEPRECADO. Nunca editar para implementar funcionalidades de la plataforma. Toda la lógica de Workforce Platform vive en `historial.html`. Si algo hay que arreglar o agregar en WWP, el archivo correcto es SIEMPRE `historial.html`.
+- `wwp.html` — YA NO EXISTE en la raíz (archivado en `_archivo/versions-artifact-original/`, poda 1/2 jul-2026). La ruta `/wwp.html` responde 302 → `historial.html` desde `proxy.js`. Toda la lógica de Workforce Platform vive en `historial.html`: si algo hay que arreglar o agregar en WWP, el archivo correcto es SIEMPRE `historial.html`.
 
 ## Servidor
 

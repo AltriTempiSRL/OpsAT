@@ -25,19 +25,8 @@
     "web-push": "^3.6.7"
   },
   "notes": {
-    "setup": "1. Copia .env.txt con las credenciales de Odoo. 2. Ejecuta: node proxy.js. 3. Abre http://localhost:3000",
-    "dataFiles": [
-      "wwp-tasks.json — Tareas y subtareas",
-      "wwp-users-auth.json — Usuarios del sistema",
-      "wwp-sessions.json — Sesiones activas",
-      "wwp-notifications.json — Historial de notificaciones",
-      "wwp-lunch-breaks.json — Registros de almuerzo",
-      "empaque-materiales.json — Catálogo de materiales de empaque",
-      "empaque-reglas.json — Reglas de empaque por familia de artículo",
-      "politicas.json — Políticas del sistema",
-      "averias.json — Reportes de daños",
-      "vehiculos-inspecciones.json — Inspecciones de vehículos"
-    ],
-    "env": "Copiar .env.txt con: ODOO_URL, ODOO_DB, ODOO_USER, ODOO_API_KEY, COMPANY_NAME"
+    "setup": "1. Copia .env.example a .env con las credenciales de Odoo. 2. Ejecuta: npm start (node boot.js). 3. Abre http://localhost:3000/historial.html",
+    "dataFiles": "Las colecciones viven en DATA_DIR (data-local/ en local, volumen montado en Railway): wwp-tasks.json, wwp-users-auth.json, wwp-sessions.json, wwp-notifications.json, emp-materiales.json, emp-reglas.json, averias.json, vehiculos-inspecciones.json, sdv-*, wwp-inventario-casos.json, entre otras. Inventario completo: docs/auditoria-arquitectura/",
+    "env": "Ver .env.example: ODOO_URL, ODOO_DB, ODOO_USER, ODOO_API_KEY, COMPANY_NAME, DATA_DIR, etc."
   }
 }
