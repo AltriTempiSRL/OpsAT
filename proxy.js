@@ -268,7 +268,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v221';
+const APP_BUILD = 'v222';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -8851,6 +8851,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── /api/analysis/localities — ubicaciones internas de Odoo ─────────────
   if (reqPath === '/api/analysis/localities' && req.method === 'GET') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     try {
       const locs = await odooCall('stock.location', 'search_read',
         [[['usage', '=', 'internal'], ['active', '=', true]]],
@@ -9141,6 +9142,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── /api/analysis/container — comparar artículos PO vs stock.move a ubicación
   if (reqPath === '/api/analysis/container' && req.method === 'POST') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     try {
       const body = await readBody(req);
       const { poNumbers, locationId } = body;
@@ -9714,6 +9716,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── /api/averias/lookup?q= — buscar producto en Odoo por barcode o ref ─────
   if (reqPath === '/api/averias/lookup' && req.method === 'GET') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     const q = (parsed.query.q || '').trim();
     if (!q) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'vacío'})); return; }
     try {
@@ -10712,12 +10715,14 @@ const server = http.createServer(async (req, res) => {
 
   // ── GET /api/averias — lista todas las averías ───────────────────────────
   if (reqPath === '/api/averias' && req.method === 'GET') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     sendGzipJson(req, res, 200, {ok:true,averias:loadAverias()});
     return;
   }
 
   // ── GET /api/averias/product?ref= — averías de un artículo ─────────────
   if (reqPath === '/api/averias/product' && req.method === 'GET') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     const ref = (parsed.query.ref||'').trim().toUpperCase();
     const all = loadAverias();
     const found = all.filter(a=>(a.ref||'').toUpperCase()===ref||(a.barcode||'').toUpperCase()===ref);
@@ -10727,6 +10732,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── POST /api/averias — registrar nueva avería ───────────────────────────
   if (reqPath === '/api/averias' && req.method === 'POST') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     try {
       const d = await readBody(req);
       const list = loadAverias();
@@ -10750,6 +10756,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── PATCH /api/averias/:id — actualizar estatus / comentario ────────────
   if (reqPath.match(/^\/api\/averias\/[a-z0-9]+$/) && req.method === 'PATCH') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     const id = reqPath.split('/').pop();
     try {
       const d = await readBody(req);
@@ -10770,6 +10777,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── POST /api/averias/:id/fotos — subir fotos de daño (base64) ─────────────
   if (reqPath.match(/^\/api\/averias\/[a-z0-9]+\/fotos$/) && req.method === 'POST') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     const id = reqPath.split('/')[3];
     try {
       const d = await readBody(req); // {fotos:[{data:base64,ext:'jpg',caption:''}]}
@@ -10798,6 +10806,7 @@ const server = http.createServer(async (req, res) => {
 
   // ── DELETE /api/averias/:id/fotos/:fname — eliminar foto ───────────────────
   if (reqPath.match(/^\/api\/averias\/[a-z0-9]+\/fotos\/.+$/) && req.method === 'DELETE') {
+    const _jp = requireJwt(req, res); if (!_jp) return;
     const parts=reqPath.split('/');
     const id=parts[3], fname=parts[5];
     const list=loadAverias();

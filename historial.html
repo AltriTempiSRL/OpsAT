@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v221';
+var APP_BUILD = 'v222';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -23405,7 +23405,7 @@ async function loadRsLocalities(){
   var selSr = document.getElementById('rs-showroom-select');
   selSr.innerHTML = '<option value="">Cargando ubicaciones…</option>';
   try {
-    var r = await fetch('/api/analysis/localities');
+    var r = await authFetch('/api/analysis/localities');
     var d = await r.json();
     if (!d.ok || !d.locations || !d.locations.length) {
       selSr.innerHTML = '<option value="">Sin ubicaciones disponibles</option>';
@@ -27912,7 +27912,7 @@ async function avSuggestSearch(q){
   drop.innerHTML='<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">Buscando…</div>';
   drop.style.display='block';
   try{
-    var r=await fetch('/api/averias/search?q='+encodeURIComponent(q));
+    var r=await authFetch('/api/averias/search?q='+encodeURIComponent(q));
     var d=await r.json();
     if(!d.ok||!d.results.length){
       drop.innerHTML='<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">Sin resultados para "'+q+'"</div>';
@@ -27956,7 +27956,7 @@ async function avSuggestSelect(p){
   document.getElementById('av-col-fields').style.display='none';
   try{
     var q=p.barcode||p.ref;
-    var r=await fetch('/api/averias/lookup?q='+encodeURIComponent(q));
+    var r=await authFetch('/api/averias/lookup?q='+encodeURIComponent(q));
     var d=await r.json();
     if(!d.ok) throw new Error(d.error);
     avFillProductCard(d.product);
@@ -28016,7 +28016,7 @@ async function avLookup(){
   document.getElementById('av-product-card').style.display='none';
   document.getElementById('av-col-fields').style.display='none';
   try{
-    var r=await fetch('/api/averias/lookup?q='+encodeURIComponent(q));
+    var r=await authFetch('/api/averias/lookup?q='+encodeURIComponent(q));
     var d=await r.json();
     if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent=d.error; _avCurrentProduct=null; return; }
     avFillProductCard(d.product);
@@ -28067,7 +28067,7 @@ async function avFotosFromFiles(files){
 /* ── Subir fotos pendientes para un id de avería ── */
 async function avUploadFotos(id, fotos){
   if(!fotos||!fotos.length) return;
-  var r=await fetch('/api/averias/'+id+'/fotos',{method:'POST',
+  var r=await authFetch('/api/averias/'+id+'/fotos',{method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({fotos:fotos})});
   var d=await r.json().catch(function(){return {};});
@@ -28084,7 +28084,7 @@ async function avRegistrar(){
   var btn=document.querySelector('.av-register-btn');
   btn.disabled=true; btn.textContent='Registrando…';
   try{
-    var r=await fetch('/api/averias',{method:'POST',headers:{'Content-Type':'application/json'},
+    var r=await authFetch('/api/averias',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({productId:p.id,ref:p.ref,name:p.name,barcode:p.barcode,image:p.image,
         location:p.location,qty:qty,comentario:comentario,status:status})});
     var d=await r.json();
@@ -28121,7 +28121,7 @@ async function avLoadList(){
   var body=document.getElementById('av-list-body');
   body.innerHTML='<div class="empty" style="padding:20px">Cargando…</div>';
   try{
-    var r=await fetch('/api/averias');
+    var r=await authFetch('/api/averias');
     var d=await r.json();
     var list=d.averias||[];
     if(_avFilter) list=list.filter((a) => {return a.status===_avFilter;});
@@ -28269,7 +28269,7 @@ async function avUpdateStatus(id, status){
   var nota=await _iosPrompt('Nota para el cambio a "'+status+'" (opcional):','');
   if(nota===null) return;
   try{
-    var r=await fetch('/api/averias/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+    var r=await authFetch('/api/averias/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({status:status,nota:nota})});
     var d=await r.json();
     if(!d.ok) throw new Error(d.error);
@@ -28290,7 +28290,7 @@ function avAddFotosToItem(id){
         fotos.push({data: b64, ext: 'jpg', caption: ''});
       }
       if (!fotos.length) return;
-      fetch('/api/averias/'+id+'/fotos', {method:'POST', headers:{'Content-Type':'application/json'},
+      authFetch('/api/averias/'+id+'/fotos', {method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({fotos: fotos})})
         .then(function(r){ return r.json(); })
         .then(function(d){ if(!d.ok) throw new Error(d.error||'No se pudieron subir las fotos'); avLoadList(); })
@@ -28632,7 +28632,7 @@ async function doSuggestSearch(q){
   var d=doGetDrop(); doPositionDrop();
   d.innerHTML='<div class="do-suggest-msg">Buscando…</div>'; d.style.display='block';
   try{
-    var r=await fetch('/api/averias/search?q='+encodeURIComponent(q));
+    var r=await authFetch('/api/averias/search?q='+encodeURIComponent(q));
     var data=await r.json();
     if(!data.ok||!data.results.length){ d.innerHTML='<div class="do-suggest-msg">Sin resultados para "'+esc(q)+'"</div>'; return; }
     _doLastResults=data.results;
@@ -28689,7 +28689,7 @@ async function doLookup(){
   document.getElementById('do-line-fields').style.display='none';
   _doCurrentProduct = null;
   try{
-    var r = await fetch('/api/averias/lookup?q='+encodeURIComponent(q));
+    var r = await authFetch('/api/averias/lookup?q='+encodeURIComponent(q));
     var d = await r.json();
     if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent=d.error||'No encontrado'; return; }
     doFillProductCard(d.product);
@@ -29024,7 +29024,7 @@ function doFlushImgQueue(){
     var item = _doImgQueue.shift();
     _doImgInflight++;
     (function(ref, el){
-      fetch('/api/averias/lookup?q='+encodeURIComponent(ref))
+      authFetch('/api/averias/lookup?q='+encodeURIComponent(ref))
         .then(function(r){ return r.json(); })
         .then(function(d){
           _doImgInflight--;
@@ -29523,7 +29523,7 @@ navTo=function(section){
 /* ── Averías en búsqueda de artículos ── */
 async function avGetForProduct(ref){
   try{
-    var r=await fetch('/api/averias/product?ref='+encodeURIComponent(ref));
+    var r=await authFetch('/api/averias/product?ref='+encodeURIComponent(ref));
     var d=await r.json();
     return d.ok?d.averias:[];
   }catch(e){ return []; }
@@ -29927,7 +29927,7 @@ async function loadCaLocalities(){
   var sel=document.getElementById('ca-location-select');
   sel.innerHTML='<option value="">Cargando ubicaciones de Odoo…</option>';
   try{
-    var r=await fetch('/api/analysis/localities');
+    var r=await authFetch('/api/analysis/localities');
     var d=await r.json();
     if(!d.ok||!d.locations||!d.locations.length){
       sel.innerHTML='<option value="">Sin ubicaciones disponibles</option>';
@@ -29967,7 +29967,7 @@ async function runContAnalysis(){
   if(window.lucide) lucide.createIcons();
 
   try{
-    var res=await fetch('/api/analysis/container',{
+    var res=await authFetch('/api/analysis/container',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({poNumbers:pos,locationId:locationId})
