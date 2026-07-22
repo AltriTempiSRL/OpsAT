@@ -135,11 +135,14 @@ async function mediaGet(kind, name) {
       }));
       return { body: r.Body, contentType: r.ContentType || contentTypeFor(name), stream: true };
     } catch (e) {
-      if (e && (e.name === 'NoSuchKey' || (e.$metadata && e.$metadata.httpStatusCode === 404))) return null;
-      throw e;
+      if (!(e && (e.name === 'NoSuchKey' || (e.$metadata && e.$metadata.httpStatusCode === 404)))) throw e;
+      // No está en R2 → cae al disco (evidencia histórica aún sin migrar). Permite
+      // un flip a R2 SIN downtime: lo viejo se sirve de disco, lo nuevo de R2, y la
+      // migración puede correr después sin apuro. Cuando todo esté en R2, el disco
+      // deja de consultarse solo (nunca habrá miss).
     }
   }
-  // disco: intenta la carpeta canónica y luego las grafías legadas (solo lectura)
+  // disco (modo disco puro, o fallback tras un miss en R2): carpeta canónica + grafías legadas
   for (const k of [kind, ...(LEGACY_READ_ALIASES[kind] || [])]) {
     const f = path.join(DATA_DIR, k, name);
     if (fs.existsSync(f)) return { body: fs.readFileSync(f), contentType: contentTypeFor(name), stream: false };
