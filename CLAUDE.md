@@ -32,7 +32,7 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 
 - Correr siempre: doble clic en `restart.bat`
 - URL local: `http://localhost:3000`
-- **URL producción (Railway): `https://dashboard-despachos-production.up.railway.app`** ⚠️ ACTUAL desde jun 2026
+- **URL producción (Railway): `https://opsat.up.railway.app`** ⚠️ ACTUAL desde jun 2026
   - Render (`dashboard-despachos.onrender.com`) fue la producción anterior — ya NO aplicar cambios ahí.
 - Entrada principal: `/historial.html` (la raíz `/` redirige automáticamente)
 - El servidor sirve desde **la raíz** (no desde ningún worktree)

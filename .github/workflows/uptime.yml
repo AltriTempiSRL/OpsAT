@@ -25,7 +25,7 @@ jobs:
       - name: Ping /api/health (3 intentos)
         id: ping
         run: |
-          URL="https://dashboard-despachos-production.up.railway.app/api/health"
+          URL="https://opsat.up.railway.app/api/health"
           OK=0
           for i in 1 2 3; do
             CODE=$(curl -s -o /tmp/health.json -w "%{http_code}" -m 20 "$URL" || echo 000)
@@ -47,7 +47,7 @@ jobs:
                 echo "El monitor externo no pudo obtener /api/health tras 3 intentos."
                 echo ""
                 echo "**Qué revisar (runbook corto):**"
-                echo "1. https://dashboard-despachos-production.up.railway.app/api/health en el navegador."
+                echo "1. https://opsat.up.railway.app/api/health en el navegador."
                 echo "2. Panel de Railway → servicio dashboard-despachos → Deployments/Logs."
                 echo "3. Si el deploy más reciente es el problema: redeploy del anterior."
                 echo "4. Si es la base de datos: quitar DATABASE_URL y redeployar vuelve a modo archivos (pérdida <=1 h)."

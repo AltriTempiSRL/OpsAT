@@ -4,7 +4,7 @@
 > Última actualización: sesión de rediseño del flujo de tareas (jun 2026).
 
 ## URLs y deploy
-- **Producción ACTUAL (Railway): `https://dashboard-despachos-production.up.railway.app`** (desde jun 2026).
+- **Producción ACTUAL (Railway): `https://opsat.up.railway.app`** (desde jun 2026).
   - Render (`dashboard-despachos.onrender.com`) fue la producción anterior — ya no se le aplican cambios.
 - Local: `http://localhost:3000` (correr con `DATA_DIR=<ruta>/data-local node proxy.js`).
 - Deploy: `railway up --service dashboard-despachos --detach` desde la raíz (CLI; ver RAILWAY.md). GitHub es solo respaldo — push a `master` NO despliega. Commitear siempre antes de deployar.
