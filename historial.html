@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v225';
+var APP_BUILD = 'v226';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12427,6 +12427,11 @@ function filterTasks() {
   const fu   = document.getElementById('filter-user')?.value || '';
   const fp   = document.getElementById('filter-priority')?.value || '';
   const fd   = document.getElementById('filter-due')?.value || '';
+  // Persistencia: filtros y búsqueda sobreviven F5 y el reload del version-gate
+  // (sessionStorage: por pestaña, se limpia al cerrarla — no arrastra búsquedas viejas).
+  // El flag evita que un filterTasks del boot (inputs aún vacíos) pise lo guardado
+  // antes de que _wwpFiltersRestore corra.
+  if (window._wwpFiltersRestored) try { sessionStorage.setItem('wwp_task_filters', JSON.stringify({ q: document.getElementById('task-search').value||'', st: st, ty: ty, fu: fu, fp: fp, fd: fd })); } catch(e) {}
   const today = new Date().toISOString().slice(0,10);
   const endOfWeek = (function(){
     var d = new Date(); d.setDate(d.getDate() + (6 - d.getDay())); return d.toISOString().slice(0,10);
@@ -12734,7 +12739,11 @@ function populateTaskUserFilter() {
       opt.textContent = u.name + ' · ' + roleLabel;
       sel.appendChild(opt);
     });
-  sel.value = [...sel.options].some(o => o.value === prev) ? prev : '';
+  // Persistencia: si no había valor vivo (arranque), cae al filtro guardado en sesión
+  let _fuSaved = '';
+  try { _fuSaved = (JSON.parse(sessionStorage.getItem('wwp_task_filters')||'null')||{}).fu || ''; } catch(e) {}
+  const _fuWant = prev || _fuSaved;
+  sel.value = [...sel.options].some(o => o.value === _fuWant) ? _fuWant : '';
 }
 
 function canViewAnyTaskForUser(userId) {
@@ -17031,8 +17040,10 @@ function openEditTaskModal() {
   onTypeChange();
   applyManagerSelfMode();
   document.getElementById('modal-task').classList.add('open');
+  modalBackOpen('task-modal', closeTaskModal);
 }
 function closeTaskModal() {
+  modalBackClosed('task-modal');
   document.getElementById('modal-task').classList.remove('open');
   _modalItems=[]; _modalSearch=[]; _modalCurrentRef=''; _subtaskParentId=null;
   // v188: limpiar fotos de guía para que no se arrastren a la próxima edición
@@ -17664,12 +17675,14 @@ async function openTaskWizard(opts) {
 
   try{const wr=await authFetch('/api/wwp/auth/users/workload');const wd=await wr.json();if(wd.ok)_workloadMap=wd.workload||{};}catch{}
   document.getElementById('modal-task-wizard').classList.add('open');
+  modalBackOpen('task-wizard', closeTaskWizard);
   // Modo subtarea o concepto pre-seleccionado → empieza en paso 1 (subtarea elige tipo) o 2
   wizGoTo(preConcept ? 2 : 1);
 }
 var _wizParentItems = [];
 var _wizSdvId = '';
 function closeTaskWizard(){
+  modalBackClosed('task-wizard');
   document.getElementById('modal-task-wizard').classList.remove('open');
   _wizItems=[];_wizSearch=[];
 }
@@ -21570,6 +21583,9 @@ window.addEventListener('DOMContentLoaded',function(){
   if (_bb) _bb.textContent = 'Build ' + APP_BUILD;
   renderRecentTags();
   initDespFiltro();
+  // Persistencia: restaurar filtros/búsqueda de tareas ANTES de cualquier
+  // filterTasks del flujo de auth (checkStoredSession corre más abajo)
+  _wwpFiltersRestore();
   // Fecha default del reporte Dev→CDP: último mes
   (function(){
     var el = document.getElementById('devcdp-since');
@@ -28000,6 +28016,25 @@ function _routeApplyFromHash(rawOpt){
 /** Aterrizaje post-auth: honra el hash con el que se abrió la app (deep-link,
  *  F5, reload del version-gate). Si no hay hash o no aplica, canoniza la URL
  *  a donde el flujo default aterrizó. */
+/** Restaura búsqueda y filtros de tareas WWP guardados en la sesión (F5/version-gate).
+ *  Corre en DOMContentLoaded, ANTES de cualquier filterTasks del boot; hasta que
+ *  corre, filterTasks no guarda (flag _wwpFiltersRestored) para no pisar lo salvado.
+ *  filter-user se llena async: populateTaskUserFilter re-aplica su valor al poblarse. */
+var _wwpFiltersRestored = false;
+function _wwpFiltersRestore(){
+  try {
+    var s = JSON.parse(sessionStorage.getItem('wwp_task_filters') || 'null');
+    if (s) {
+      var map = { 'task-search':'q', 'filter-status':'st', 'filter-type':'ty', 'filter-user':'fu', 'filter-priority':'fp', 'filter-due':'fd' };
+      Object.keys(map).forEach(function(id){
+        var el = document.getElementById(id);
+        if (el && typeof s[map[id]] === 'string' && el.value !== s[map[id]]) el.value = s[map[id]];
+      });
+    }
+  } catch (e) { }
+  _wwpFiltersRestored = true;
+}
+
 function _routeLand(){
   _routeLanded = false;
   // Vista de tareas preferida (localStorage) — se aplica ANTES del hash, para
@@ -28010,7 +28045,14 @@ function _routeLand(){
   } catch (e) { }
   var h = _routeInitialHash || (location.hash || '').replace(/^#/, '');
   _routeInitialHash = '';
-  if (h && _routeApplyFromHash(h)) _routeLanded = true;
+  if (h && _routeApplyFromHash(h)) {
+    _routeLanded = true;
+    // El restore de vista/nav default pudo re-escribir el hash entre la captura
+    // y el apply: re-plantar la ruta realmente aplicada (replace, sin push)
+    if ((location.hash || '').replace(/^#/, '') !== h) {
+      try { history.replaceState(null, '', '#' + h); } catch (e) { }
+    }
+  }
   if (!_routeLanded) _routeSet(_routeCanonical());
   _routeReady = true;
 }
@@ -28028,6 +28070,36 @@ window.addEventListener('hashchange', function(){
     // para no ensuciar el historial del navegador)
     try { history.replaceState(null, '', '#' + _routeCanonical()); } catch (e) { }
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ATRÁS CIERRA MODALES (v226) — pushState al abrir un modal/lightbox y
+// popstate lo cierra: en móvil (PWA) el gesto atrás de Android cierra la
+// foto/el modal en vez de sacar al usuario de la app. La entrada usa el
+// MISMO location.href (no cambia el hash → no interfiere con el router).
+// Cierre manual (X/fondo/Escape): modalBackClosed consume la entrada con
+// history.back() — el popstate resultante ya no encuentra el token y no
+// re-cierra nada. Anidados (lightbox sobre modal): atrás cierra el último.
+// ═══════════════════════════════════════════════════════════════════════
+var _mbTokens = {};   // name → closeFn con entrada de historial viva
+function modalBackOpen(name, closeFn){
+  if (_mbTokens[name]) return;   // ya registrado (ej. prev/next del lightbox)
+  _mbTokens[name] = closeFn;
+  try { history.pushState({ mb: name }, '', location.href); } catch (e) { delete _mbTokens[name]; }
+}
+function modalBackClosed(name){
+  if (!_mbTokens[name]) return;
+  delete _mbTokens[name];
+  try { if (history.state && history.state.mb === name) history.back(); } catch (e) { }
+}
+window.addEventListener('popstate', function(){
+  var st = history.state;
+  Object.keys(_mbTokens).forEach(function(name){
+    if (!(st && st.mb === name)) {
+      var fn = _mbTokens[name]; delete _mbTokens[name];
+      try { fn(); } catch (e) { }
+    }
+  });
 });
 
 // ════════════════════════════════════════════════════
@@ -29563,6 +29635,7 @@ function avLightboxOpen(src, cap, items, idx){
     _avLbIdx   = 0;
   }
   _avLbLoadCurrent();
+  modalBackOpen('av-lightbox', avLightboxClose);
 }
 
 /* Abrir por groupId (generado en rptEventHtml) */
@@ -29613,6 +29686,7 @@ function avLightboxNext(e){ if(e) e.stopPropagation(); _avLbIdx=(_avLbIdx+1)%_av
 
 /* Cerrar */
 function avLightboxClose(){
+  modalBackClosed('av-lightbox');
   document.getElementById('av-lightbox').classList.remove('open');
   document.body.style.overflow='';
   _avLbZoom=1; _avLbTx=0; _avLbTy=0;
@@ -32645,8 +32719,10 @@ async function empDeleteMat(matId, btn) {
 function empOpenLightbox(url) {
   document.getElementById('emp-lightbox-img').src = url;
   document.getElementById('emp-lightbox').classList.add('open');
+  modalBackOpen('emp-lightbox', empCloseLightbox);
 }
 function empCloseLightbox() {
+  modalBackClosed('emp-lightbox');
   document.getElementById('emp-lightbox').classList.remove('open');
 }
 
@@ -35395,7 +35471,7 @@ async function kpisDespachoCargar() {
 // (cero duplicación de verdad). Datos vivos: /api/sdv + _tasks + pickstatus Odoo.
 var _eoData   = [];
 var _eoScope  = null;   // 'mine' | 'all'  (se resuelve por rol la 1ª vez)
-var _eoQuery  = '';     // texto del buscador (normalizado en el match)
+var _eoQuery  = (function(){ try { return sessionStorage.getItem('eo_query') || ''; } catch (e) { return ''; } })();     // texto del buscador (normalizado en el match); persiste F5 en la pestaña
 var _eoSearchT = null;  // timer de debounce del buscador
 var _eoBloqStock = null;   // conteo "bloqueado por stock" (Odoo, async fail-open)
 var _eoBloqSet   = null;   // Set de sdvId bloqueadas por stock (para el flag 'bloq'); null = sin dato
@@ -35410,7 +35486,23 @@ var _EO_METRICS_TTL = 5*60*1000;
 // que son herramientas de decisión de gerencia, no ruido para la vendedora.
 function eoIsMgmt(){ return !!(_user && (_user.role==='admin' || _user.role==='manager')); }
 // Modelo único de vista: vista activa + agrupar + filtros combinables.
-var _eoState = { view:'list', group:'none', f:{ loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' } };
+// Persistencia (v226): el estado sobrevive F5/version-gate vía sessionStorage,
+// con merge defensivo campo a campo (un shape viejo guardado no rompe el actual).
+var _eoState = (function(){
+  var def = { view:'list', group:'none', f:{ loc:'', vend:'', est:'', flag:'', ord:'', prom:'', d1:'', d2:'' } };
+  try {
+    var s = JSON.parse(sessionStorage.getItem('eo_state') || 'null');
+    if (s && typeof s === 'object') {
+      if (typeof s.view === 'string') def.view = s.view;
+      if (typeof s.group === 'string') def.group = s.group;
+      if (s.f && typeof s.f === 'object') Object.keys(def.f).forEach(function(k){ if (typeof s.f[k] === 'string') def.f[k] = s.f[k]; });
+    }
+  } catch (e) { }
+  return def;
+})();
+function _eoStateSave(){
+  try { sessionStorage.setItem('eo_state', JSON.stringify(_eoState)); sessionStorage.setItem('eo_query', _eoQuery || ''); } catch (e) { }
+}
 // Estado LOCAL del calendario (mes/dimensión/día seleccionado). Se inicializa al mes actual.
 var _eoCalState = { y:new Date().getFullYear(), mo:new Date().getMonth(), dim:'prom', sel:null };
 
@@ -36735,6 +36827,7 @@ function eoSetView(v){
 function renderEstadoOrdenes(){
   var rowsEl = document.getElementById('eo-rows');
   if(!rowsEl) return;
+  _eoStateSave();   // persistencia: cada repintado deja el estado (vista/filtros/búsqueda) en la sesión
   var tasks = _tasks || [];
   if(_eoScope === null) _eoScope = eoDefaultScope();
   var sm = document.getElementById('eo-scope-mine'), sa = document.getElementById('eo-scope-all');
