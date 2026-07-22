@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v220';
+var APP_BUILD = 'v221';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -21016,7 +21016,7 @@ function closePasswordModal() { document.getElementById('modal-password').classL
 // ═══════════════════════════════════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // ── Autofill de buscadores (historial por dispositivo) ─────────────────────
 // El navegador solo autocompleta campos de un <form> que se ENVÍA; nuestros buscadores
@@ -24414,7 +24414,7 @@ function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
 // ════════════════════════════════════════════════════
 //  RENDER — Reporte unificado (orden)
 // ════════════════════════════════════════════════════
-function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 var ICONS={'Orden de Compra':'shopping-cart','Recepción Almacén':'package','Recepción':'package-check','Recepción Villa':'package-check','Orden de Venta':'clipboard-list','Traslado Interno':'arrow-left-right','Traslado Interno (Demo)':'arrow-left-right','Preparación Almacén':'clipboard-list','Preparación':'clipboard-list','Despacho':'truck','Despacho Demo':'truck','Despacho Parcial':'truck','Despacho c/Instalación':'wrench','Despacho (Cambio tope)':'arrow-left-right','Despacho (Pendiente)':'clock','Devolución':'corner-up-left','Solicitud Devolución':'corner-up-left','Devolución Odoo':'credit-card','Consignación':'file-text','Dropship':'globe','Fabricación':'settings','Transferencia Directa':'zap','Procesado en Operaciones':'settings','Cierre de despacho':'check-circle'};
 function _rptIcon(n){ return '<i data-lucide="'+n+'" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px"></i>'; }
 var SRC_CLS={sp:'sb-sp',sheets:'sb-sheets',odoo:'sb-odoo',dev:'sb-sp',wwp:'sb-wwp'};
@@ -29878,7 +29878,7 @@ async function repCrearTarea(id) {
 /* Helper: escapa HTML para evitar XSS en datos del usuario */
 function escHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 
