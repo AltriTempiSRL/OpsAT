@@ -4154,14 +4154,6 @@ body{font-family:var(--font);min-height:100dvh}
   /* KPIs reposición: 2 por fila con mínimos táctiles */
   #rs-stats .cont-stat{flex:1 1 calc(50% - 5px);min-width:0;min-height:48px}
 
-  /* ── Contenedores lista: scroll táctil correcto ────────────────────────── */
-  #section-contenedores .cont-card{padding:10px 0;border-radius:12px;overflow:hidden}
-  #section-contenedores .cont-card>div:first-child,
-  #section-contenedores .cont-subtitle,
-  #section-contenedores .cont-stats{padding-left:12px;padding-right:12px}
-  #section-contenedores .mv-wrap{border-radius:0;margin:0}
-  #section-contenedores .cont-table th{padding:6px 9px;font-size:9px;letter-spacing:.2px}
-  #section-contenedores .cont-table td{padding:6px 9px;font-size:10px}
   .cont-stats{gap:6px}
   .cont-stat{min-width:70px;padding:6px 10px}
   .cont-stat-num{font-size:18px}
@@ -5698,9 +5690,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
 
-    <a class="nav-item" id="nav-dashboard-ventas" href="#" onclick="navTo('dashboard-ventas');return false;">
-      <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>Dashboard Ventas
-    </a>
     <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Estado de Órdenes
     </a>
@@ -5727,9 +5716,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </a>
 
     <div class="sidebar-group" id="navg-compras">Compras</div>
-    <a class="nav-item" id="nav-contenedores" href="#sec-contenedores" onclick="navTo('contenedores');return false;">
-      <span class="nav-icon"><i data-lucide="ship"></i></span>Contenedores
-    </a>
     <a class="nav-item" id="nav-reposicion" href="#sec-reposicion" onclick="navTo('reposicion');return false;">
       <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
     </a>
@@ -5805,7 +5791,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Workforce</button>
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
     <button class="mob-nav-btn"        id="mob-nav-inventario"    onclick="navTo('inventario')"><i data-lucide="package-search"></i>Inventario</button>
-    <button class="mob-nav-btn"        id="mob-nav-contenedores"  onclick="navTo('contenedores')"><i data-lucide="ship"></i>Contenedores</button>
     <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
     <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
     <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa Almacén</button>
@@ -6065,27 +6050,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
     </div><!-- /section-solicitudes-reposicion -->
 
-    <!-- ── CONTENEDORES ──────────────────────────────────── -->
-    <div id="section-contenedores" class="page-section" style="display:none">
-    <div class="cont-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-        <h3 style="margin:0">Control de Contenedores</h3>
-        <button class="btn-consultar" onclick="cargarContenedores()" style="padding:4px 12px;font-size:10px">↻ Actualizar</button>
-      </div>
-      <div class="cont-subtitle" id="cont-subtitle">Cargando datos en vivo…</div>
-      <div class="cont-stats" id="cont-stats"></div>
-      <div class="mv-wrap">
-        <table class="cont-table">
-          <thead><tr>
-            <th>EXP / PO</th><th>Proveedor</th><th>Días Alm.</th><th>Embarque</th><th>Origen</th><th>Método</th>
-            <th>F. Salida</th><th>F. Est. Llegada</th><th>F. Real</th><th>Días Tr.</th><th>Días Rest.</th>
-            <th>Localidad</th><th>Etapas</th><th>Estado</th><th>No de Orden Odoo</th><th>Responsable</th>
-          </tr></thead>
-          <tbody id="cont-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-    </div><!-- /section-contenedores -->
+    <!-- CONTENEDORES — sección eliminada (integración Google Sheets removida, jul-2026 R-06D) -->
 
     <!-- ── REPOSICIÓN SHOWROOM ──────────────────────────── -->
     <div id="section-reposicion" class="page-section" style="display:none">
@@ -7282,10 +7247,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div><!-- /section-sdv-reactivations -->
 
-    <!-- ── DASHBOARD VENTAS ────────────────────────────────────── -->
-    <div id="section-dashboard-ventas" class="page-section" style="display:none">
-      <iframe id="dashboard-ventas-iframe" style="width:100%;height:100dvh;border:none;display:block" loading="lazy"></iframe>
-    </div><!-- /section-dashboard-ventas -->
+    <!-- DASHBOARD VENTAS — sección eliminada (integración Google Sheets removida, jul-2026 R-06D) -->
 
     <!-- ── ESTADO DE ÓRDENES (Panel Ventas) ──────────────────────── -->
     <div id="section-estado-ordenes" class="page-section eo2" style="display:none">
@@ -7762,7 +7724,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         </div>
       </div>
 
-      </div>
       <div id="tasks-list"><div class="loading"><div class="spinner"></div><br>Cargando tareas…</div></div>
       <!-- Vistas Calendario / Gráficos (Mark): mismo subconjunto RBAC que la lista, lazy -->
       <div id="tasks-cal" class="wwp-cal" style="display:none"></div>
@@ -8658,7 +8619,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:0 0 6px">Secciones del historial</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="buscar"> Buscar artículos</label>
-          <label class="perm-check"><input type="checkbox" data-perm="contenedores"> Contenedores</label>
           <label class="perm-check"><input type="checkbox" data-perm="reposicion"> Reposición Showroom</label>
           <label class="perm-check"><input type="checkbox" data-perm="solicitudes"> Solicitudes Showroom</label>
           <label class="perm-check"><input type="checkbox" data-perm="sin-adjuntos"> Sin adjuntos</label>
@@ -8672,7 +8632,6 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <label class="perm-check"><input type="checkbox" data-perm="solicitudes-reposicion"> Solicitudes Repos.</label>
           <label class="perm-check"><input type="checkbox" data-perm="almacen-mapa"> Mapa Almacén</label>
           <label class="perm-check"><input type="checkbox" data-perm="estado-ordenes"> Estado de Órdenes</label>
-          <label class="perm-check"><input type="checkbox" data-perm="dashboard-ventas"> Dashboard Ventas</label>
         </div>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
         <div class="perm-grid">
@@ -8978,8 +8937,8 @@ function isHistorialUser(u) {
 }
 
 // Secciones de CONTENIDO de Despachos (excluye el atajo 'wwp' y los permisos granulares wwp.*)
-const _DESPACHOS_SECTIONS = ['buscar','contenedores','reposicion','solicitudes-reposicion',
-  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','inventario','averias','dashboard-ventas',
+const _DESPACHOS_SECTIONS = ['buscar','reposicion','solicitudes-reposicion',
+  'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','inventario','averias',
   'sdv-portal','sdv-bandeja'];
 /** True si el usuario pertenece a Despachos (tiene al menos una sección de contenido).
  *  Se usa para decidir si el sidebar persistente (app-shell) acompaña a Workforce Labor:
@@ -9001,7 +8960,7 @@ function hasWwpAccess(u) {
 /** Oculta / muestra ítems de nav según sectionPerms del usuario */
 function applyNavPerms() {
   var sections = [
-    'dashboard-ventas','estado-ordenes','buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes',
+    'estado-ordenes','buscar','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
     'inventario','averias','basedatos','wwp',
     'sdv-portal','sdv-bandeja','sdv-reactivations'
@@ -9021,7 +8980,7 @@ function applyNavPerms() {
     'navg-consultar':   ['buscar'],
     'navg-analisis':    ['inventario','averias','basedatos'],
     'navg-plataforma':  ['wwp'],
-    'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
+    'navg-compras':     ['reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
     'navg-ventas':      ['sdv-portal','sdv-bandeja','sdv-reactivations','estado-ordenes']
   };
@@ -25902,12 +25861,11 @@ async function enviarCorreosSinAdjuntos(singleKey){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario','averias','basedatos','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario','averias','basedatos','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
   'buscar':                  'buscar',
-  'contenedores':            'contenedores',
   'reposicion':              'reposicion',
   'solicitudes-reposicion':  'solicitudes-reposicion',
   'solicitudes':             'solicitudes',
@@ -25917,7 +25875,6 @@ var NAV_SECTION_MAP={
   'averias':                 'averias',
   'dev-cdp':                 'dev-cdp',
   'despacho-obsoleto':       'despacho-obsoleto',
-  'dashboard-ventas':        'dashboard-ventas',
   'estado-ordenes':          'estado-ordenes',
   'sdv-portal':              'sdv-portal',
   'sdv-bandeja':             'sdv-bandeja'
@@ -27765,7 +27722,6 @@ function navTo(section){
   setNavActive(section);
   _routeSet(section);
   if(target==='buscar') renderRecentTags();
-  if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
   if(target==='reposicion') { initReposicion(); loadSolicitudes(false); }
   if(target==='solicitudes-reposicion') { repCargarLista(); }
   if(target==='solicitudes') { loadSolicitudes(true); }
@@ -27778,10 +27734,6 @@ function navTo(section){
   if(target==='almacen-mapa') {
     var iframe = document.getElementById('almacen-mapa-iframe');
     if (iframe && !iframe.src) iframe.src = '/almacen-mapa.html';
-  }
-  if(target==='dashboard-ventas') {
-    var dvIframe = document.getElementById('dashboard-ventas-iframe');
-    if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
   if(target==='basedatos') dbViewerLoad();
@@ -27858,11 +27810,11 @@ function setHistorialUser() {
   applyNavPerms();
   // Re-verificar conexión Odoo (por si el DOMContentLoaded corrió sin token, e.g. primer login)
   if (typeof checkOdooConnection === 'function') checkOdooConnection();
-  if (typeof checkSheetsConnection === 'function') checkSheetsConnection();
+  // checkSheetsConnection() eliminado — integración Google Sheets removida (jul-2026 R-06D)
   // Para usuarios no-admin: navegar a la primera sección permitida
   // Usar navTo() para que se ejecuten los init específicos de cada sección (ej: initReposicion)
   if (_user.role !== 'admin') {
-    var ORDER = ['sdv-portal','buscar','contenedores','reposicion','solicitudes',
+    var ORDER = ['sdv-portal','buscar','reposicion','solicitudes',
       'sin-adjuntos','dev-cdp','inventario','averias'];
     // Usuarios sin acceso a WWP (ventas): su primera vista es Estado de Órdenes,
     // no el portal SDV — el tablero orienta mejor al entrar.

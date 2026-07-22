@@ -22,6 +22,12 @@
 - No se tocó `?notif=`/`?task=` del SW (`routeNotifClick` gana por orden de ejecución). Ojo pruebas locales: el SW sirve `historial.html` stale-while-revalidate con cache key normalizada (ignora `?cb=`) — solo el bump de build refresca clientes; en dev, desregistrar el SW.
 - Pendiente natural (no hecho): deep-link a SDV (`#sdv-portal/<id>`), a contenedor, y reflejar el término de artículos en `#buscar`.
 
+## Fix v227: `</div>` huérfano de la poda v219 — la lista de Tareas se pintaba sobre TODOS los tabs WWP (22-jul-2026)
+- Síntoma: en cualquier tab del WWP (p. ej. Empaque) la lista completa de tareas aparecía ENCIMA del contenido del tab ("settings mezclado con lo que no es settings"). En el tab Tareas se veía normal — por eso pasó desapercibido; llegó a prod dentro de v226.
+- Causa: la poda v219 (`e15b7a6`) eliminó el bloque `#guided-tooltip` del HTML pero dejó su `</div>` de cierre. El parser cerraba `#tab-tasks` antes de tiempo → `#tasks-list`/`#tasks-cal`/`#tasks-charts` quedaban FUERA del tab (visibles siempre, ignoran `switchTab`) y el siguiente `</div>` cerraba `.app-body` prematuramente (los demás tabs se desplazaban un nivel en el DOM).
+- Fix: borrar ese `</div>` (1 línea, zona toolbar de tareas ~7726). Verificado con el parser real del navegador: los 3 contenedores vuelven a `#tab-tasks` y `.app-body` recupera sus 9 tabs.
+- Lección (refuerza la de la poda v219): tras podar HTML, correr chequeo de balance de `<div>` por región — el HTML no falla, el parser "repara" en silencio y el síntoma aparece lejos de la causa.
+
 ## Almacenamiento: PostgreSQL (Railway) con backend dual — migración jul-2026
 - **Producción**: PostgreSQL en el mismo proyecto Railway (servicio `Postgres`). Con `DATABASE_URL` definida, `loadJson/saveJson/saveCriticalArray` enrutan los `.json` del DATA_DIR a `storage-pg.js` (store en memoria precargado + escritura diferencial por fila a `collection_rows`/`kv_store`, orden por `ord` fraccional, anti-vacío en `rejected_writes`).
 - **Arranque**: SIEMPRE `node boot.js` (railway.json y npm start ya apuntan ahí) — inicializa PG async ANTES del monolito. `node proxy.js` directo con `DATABASE_URL` definida sale con error a propósito.
