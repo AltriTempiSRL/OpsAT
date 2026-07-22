@@ -1,8 +1,13 @@
 # Prompt — Continuar/terminar la Fase 3 (base de datos relacional) — OpsAT
 
 > Pegá esto en una conversación NUEVA de Claude Code, en el repo OpsAT.
-> Termina la parte tractable (visor completo) y encara el cutover relacional.
+> Encara el cutover relacional (Tarea B) y/o la modularización del frontend (Tarea C).
 > Exige verificación real (curl + navegador + SQL), no suposiciones.
+>
+> ⚠️ ACTUALIZADO 22-jul-2026 (2ª sesión): la Tarea A (read-layer/visor) YA ESTÁ HECHA
+> y verificada — no la repitas; su sección quedó abajo como registro con lo único
+> pendiente (deploy). Se sumó la Tarea C (separar la app por páginas/módulos +
+> auditoría de escalabilidad, docs 07 y 08).
 
 ---
 
@@ -11,20 +16,16 @@ Trabajás en OpsAT: plataforma de despachos/almacén. Backend monolito Node en `
 **Qué es la Fase 3:** hacer los datos **visibles y consultables como tablas** (read-layer) y, a futuro, el **cutover** a un esquema relacional real donde la app escriba en tablas tipadas.
 
 **Estado actual (verificá con `git log`):**
-- Read-layer: **8 vistas SQL tipadas** + un visor admin **"Base de datos"** en la app (sidebar → Análisis Operacional). Las vistas proyectan `collection_rows` (JSONB) como tablas legibles, SIN cambiar cómo la app lee/escribe.
-- **5 vistas + el visor YA están vivas en prod** (`v_usuarios/v_roles/v_tareas/v_averias/v_inventario`, build v226).
-- **3 vistas nuevas committeadas pero SIN botón ni deploy** (commit `86f3baf`): `v_sdv`, `v_inspecciones`, `v_vehiculos` (en `storage-pg.js` `_createViews`), con campos **best-effort** (pueden tener columnas nulas si adiviné mal un nombre de campo).
+- Read-layer TERMINADO (commit `5163d22`, 22-jul): **13 vistas SQL tipadas** + visor admin **"Base de datos"** con 13 botones. Las vistas proyectan `collection_rows` (JSONB) como tablas legibles, SIN cambiar cómo la app lee/escribe.
+- Las 13 vistas ya están **CREADAS y verificadas en el PG de prod** (por psql directo, con datos reales — campos confirmados con `jsonb_object_keys`, cero columnas fantasma). `v_inspecciones` EXCLUYE `fotos_condicion` (17 MB de base64 — ver hallazgo A1 del doc 07).
+- **Pendiente SOLO deploy** (`railway up -d -y` cuando el árbol esté limpio de trabajo ajeno): hasta entonces prod (v226/v227) sirve por el endpoint las vistas que su proceso whitelistea; las nuevas responden al deployar. Verificar tras deploy: `/api/health` build nuevo + visor lista 13 vistas con datos.
 
 ## ⚠️ ANTES DE TOCAR NADA — concurrencia (crítico en este repo)
 Puede haber **otra sesión de Claude editando el mismo árbol**. SIEMPRE corré `git status` y `git diff` antes de editar, commitear o deployar. **Nunca hagas `railway up` si hay cambios sin commitear que no son tuyos** (sube trabajo ajeno a medias). Commiteá SOLO tus archivos (`git add <archivo-específico>`, no `git add .`). Re-chequeá `git status` justo antes de cada commit.
 
-## Tarea A — Terminar el read-layer (tractable, ~1–2 h)
-1. **Botones del visor**: en `historial.html`, buscá `var DBV_VIEWS = [` y agregá las 3 vistas nuevas al array:
-   `{ key:'sdv', label:'SDV' }, { key:'inspecciones', label:'Inspecciones' }, { key:'vehiculos', label:'Vehículos' }`.
-   (El endpoint `GET /api/admin/db/:view` ya sirve cualquier vista whitelisteada; el `key` mapea a `v_<key>`. No hay que tocar el backend para esto.)
-2. **Bump `APP_BUILD`** en `proxy.js` y `historial.html` (cambió el frontend → los clientes recargan por el version-gate).
-3. **Deploy** `railway up -d -y`. Esperá el build; verificá `build` nuevo en `/api/health`.
-4. **Verificar campos reales de las 3 vistas** (usé best-effort): en Railway → servicio Postgres → Data, corré `SELECT * FROM v_sdv LIMIT 3;` (y `v_inspecciones`, `v_vehiculos`). Si una columna sale **toda NULL**, el nombre de campo del DDL está mal — corregilo en `storage-pg.js` `_createViews` mirando cómo se construye el objeto real en `proxy.js` (colecciones: `sdv-solicitudes`, `wwp-inspecciones`, `wwp-vehicles`), re-deployá. Idealmente agregá también las vistas que falten de colecciones útiles (`wwp-solicitudes-showroom`, `emp-materiales`, `emp-reglas`, `despachos-obsoleto`, `wwp-training-courses`).
+## Tarea A — Read-layer ✅ HECHA (22-jul, commit `5163d22`) — solo registro
+Lo que se hizo (no repetir): 13 botones en `DBV_VIEWS`; DDLs de `v_sdv`/`v_inspecciones`/`v_vehiculos` corregidos con los campos REALES de prod (los best-effort tenían `tipo/cliente/vendedora/odooRef`, `estado/userId/userName`, `nombre/tipo/modelo/activo` — todos inexistentes; los reales: `tipoSolicitud/clienteNombre/creadoNombre/odooOrderRef`, `apto/createdBy/createdByName`, `name/fuelType/isBuiltin`); +5 vistas nuevas (`v_solicitudes_showroom` sin `imageBase64`, `v_materiales`, `v_reglas_empaque`, `v_despachos_obsoleto`, `v_cursos`); todo aplicado y verificado en el PG de prod vía psql (túnel público flaky: reintentar con backoff y `set -o pipefail` — un `| cut` enmascara el exit code de psql). Verificado en navegador local: 13 botones, consola limpia, deep-link `/basedatos/sdv` activa el botón (el router valida contra `DBV_VIEWS`).
+**Único pendiente: deploy** (`railway up -d -y` con árbol limpio; el bump v227 del router ya cubre el version-gate — no hace falta bump propio si van en el mismo deploy).
 
 ## Tarea B — El cutover relacional (megaproyecto, incremental — NO de una sesión)
 Objetivo: que la app **escriba** en tablas tipadas por entidad en vez de blobs JSONB. Enfoque **estrangulador, una entidad a la vez** (empezá por las chicas y estables: `usuarios`, `roles`):
@@ -34,6 +35,23 @@ Objetivo: que la app **escriba** en tablas tipadas por entidad en vez de blobs J
 4. **Doble escritura** breve (tabla + colección JSONB) como red de seguridad; verificá paridad; luego cutover.
 5. Verificá con el harness de esa entidad (`tests/_test_vNNN.mjs`, `tests/test-storage-pg.mjs`) + conteos. Mantené el export a JSON como rollback.
 El plan detallado está en `~/.claude/plans/deep-cooking-clover.md` (Fase 3). Es de **semanas**; hacela y verificala **una entidad por vez**; se puede pausar entre entidades sin dejar el sistema a medias.
+
+## Tarea C — Separar la app por páginas/módulos + sanear lo que no escala (agregada 22-jul)
+La auditoría de escalabilidad completa (backend + frontend + datos, todo medido) está en
+`docs/auditoria-arquitectura/07-auditoria-escalabilidad-2026-07.md`, y el plan de
+modularización del frontend en `08-plan-modularizacion.md`. Resumen operativo:
+1. **Quick-wins backend** (independientes, empezá por acá): cablear `queueWrite` (definida
+   en `proxy.js:4712` y JAMÁS llamada — cierra la ventana de lost-update); migrar
+   `fotos_condicion` de `wwp-inspecciones` a R2 (17 MB de base64 en JSONB, patrón de
+   Fase 1 ya existente); dirty-flags en `_diffArray` de `storage-pg.js` (hoy re-serializa
+   la colección ENTERA en cada save).
+2. **Modularización frontend** (plan 08, por olas): Ola 0 = Playwright mínimo (hoy hay
+   CERO tests de frontend — prerrequisito duro); Ola 1 = extraer `core.js` + `theme.css`
+   compartidos; Ola 2 = isla piloto `basedatos` en iframe (el precedente vivo es
+   `almacen-mapa.html`); olas 3–5 = resto de secciones de fácil a difícil (SDV y
+   tasks/drawer al final). NO hagas big-bang; una isla por sesión, con la suite verde.
+3. Cada ítem se pausa/retoma sin dejar nada a medias; C y B (cutover) no se bloquean
+   entre sí — se pueden intercalar por dominio.
 
 ## Patrón del codebase (reusar, no reinventar)
 - `storage-pg.js`: `const READABLE_VIEWS = new Set([...])` (whitelist), `_createViews()` (array de DDLs `CREATE OR REPLACE VIEW v_x AS SELECT data->>'campo' AS alias ... FROM collection_rows WHERE collection = 'X' ORDER BY ord` — **best-effort**: un DDL que falla se atrapa y no tumba el boot), `readView(name)` (solo whitelisteadas).
