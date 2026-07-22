@@ -1,9 +1,15 @@
 // Ron — Watchdog de negativos: estado actual vs auditoría 30-jun + negativos nuevos
 // Uso: node _ron_neg_watch.mjs
-const ODOO_URL = 'https://altritempi.odoo.com';
-const ODOO_DB  = 'marjorie82-altritempi-altritempi-5787837';
-const ODOO_USER = 'gsanchez@altritempi.com.do';
-const ODOO_KEY  = 'e3f2d0ca3b14858debbe2c336f09e9bb864ff717';
+// Credenciales desde entorno — NUNCA hardcodeadas (R-02 auditoría). Exportá
+// ODOO_DB, ODOO_USER y ODOO_API_KEY antes de correr (o cargalas desde un .env).
+const ODOO_URL  = process.env.ODOO_URL  || 'https://altritempi.odoo.com';
+const ODOO_DB   = process.env.ODOO_DB   || '';
+const ODOO_USER = process.env.ODOO_USER || '';
+const ODOO_KEY  = process.env.ODOO_API_KEY || process.env.ODOO_KEY || '';
+if (!ODOO_DB || !ODOO_USER || !ODOO_KEY) {
+  console.error('Faltan credenciales Odoo. Exportá ODOO_DB, ODOO_USER y ODOO_API_KEY.');
+  process.exit(1);
+}
 
 async function jsonrpc(service, method, args) {
   const r = await fetch(`${ODOO_URL}/jsonrpc`, {

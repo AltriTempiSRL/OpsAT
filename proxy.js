@@ -17,6 +17,25 @@ try { nodemailer = require('nodemailer'); } catch { /* no disponible en este ent
 let webpush = null;
 try { webpush = require('web-push'); } catch { /* web-push no instalado */ }
 
+// ── Red de seguridad de errores (R-01 auditoría) ─────────────────────────────
+// silentCatch(): tragar de forma controlada un error "a ignorar". Se usaba en
+// decenas de catch pero NUNCA se había definido → cada uso lanzaba un
+// ReferenceError desde dentro del propio catch. Se declara aquí (hoisted) para
+// que todos los call-sites queden inertes y solo dejen rastro en el log.
+function silentCatch(err, ctx) {
+  try { console.warn('[silentCatch]' + (ctx ? ' ' + ctx : ''), (err && err.message) ? err.message : err); }
+  catch (_) { /* el logging nunca debe re-lanzar */ }
+}
+// Último recinto: una excepción/rejection no manejada NO debe tumbar el proceso
+// (Node ≥15 mata en unhandledRejection). Coherente con el fail-open del resto
+// del sistema y con el restart-on-failure de Railway: se registra y se sigue.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', (reason && reason.stack) ? reason.stack : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', (err && err.stack) ? err.stack : err);
+});
+
 // ── Helpers de persistencia JSON ─────────────────────────────────────────────
 const _jsonFileCache = new Map();
 
@@ -20462,7 +20481,9 @@ const server = http.createServer(async (req, res) => {
     'wwp-roles.json', 'wwp-tasks.json', 'wwp-lunch-breaks.json',
     'wwp-inspecciones.json', 'averias.json', 'reposiciones.json',
     'despachos-obsoleto.json', 'despacho-obsoleto-seq.json', 'package.json',
-    'package-lock.json', '.gitignore'
+    'package-lock.json', '.gitignore',
+    // Fuente del servidor: no debe poder descargarse en producción (R-03 auditoría)
+    'proxy.js', 'boot.js', 'storage-pg.js', 'sync-from-prod.js', 'media.js'
   ]);
   const _ALLOWED_EXT = new Set([
     '.html', '.css', '.js', '.json', '.ico', '.png', '.jpg',
