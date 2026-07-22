@@ -533,7 +533,7 @@ async function shutdown() {
 // Proyectan collection_rows (JSONB) como TABLAS legibles/consultables, SIN cambiar
 // cómo la app lee o escribe (fuente de verdad sigue siendo la colección en memoria).
 // Best-effort: un fallo aquí NO debe tumbar el arranque (las vistas son accesorias).
-const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas', 'v_averias', 'v_inventario']);
+const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas', 'v_averias', 'v_inventario', 'v_sdv', 'v_inspecciones', 'v_vehiculos']);
 async function _createViews() {
   const ddls = [
     // Usuarios — EXCLUYE campos sensibles (passwordHash, resetToken*). Todo TEXT
@@ -570,6 +570,23 @@ async function _createViews() {
     "data->>'tipo' AS tipo, data->>'causa' AS causa, data->>'qty' AS cantidad, " +
     "data->>'responsable' AS responsable, data->>'nota' AS nota " +
     "FROM collection_rows WHERE collection = 'wwp-inventario-casos' ORDER BY ord",
+    // SDV (sdv-solicitudes) — cabecera de la solicitud de despacho/devolución.
+    "CREATE OR REPLACE VIEW v_sdv AS SELECT " +
+    "data->>'id' AS id, data->>'folio' AS folio, data->>'estado' AS estado, " +
+    "data->>'tipo' AS tipo, data->>'cliente' AS cliente, data->>'vendedora' AS vendedora, " +
+    "data->>'odooRef' AS odoo_ref, data->>'retRef' AS ret_ref, data->>'creadoAt' AS creado " +
+    "FROM collection_rows WHERE collection = 'sdv-solicitudes' ORDER BY ord",
+    // Inspecciones de vehículos (wwp-inspecciones).
+    "CREATE OR REPLACE VIEW v_inspecciones AS SELECT " +
+    "data->>'id' AS id, data->>'placa' AS placa, data->>'vehiculo' AS vehiculo, " +
+    "data->>'fecha' AS fecha, data->>'estado' AS estado, data->>'userId' AS usuario_id, " +
+    "data->>'userName' AS usuario, data->>'createdAt' AS creado " +
+    "FROM collection_rows WHERE collection = 'wwp-inspecciones' ORDER BY ord",
+    // Vehículos / flota (wwp-vehicles).
+    "CREATE OR REPLACE VIEW v_vehiculos AS SELECT " +
+    "data->>'id' AS id, data->>'nombre' AS nombre, data->>'placa' AS placa, " +
+    "data->>'tipo' AS tipo, data->>'modelo' AS modelo, data->>'activo' AS activo " +
+    "FROM collection_rows WHERE collection = 'wwp-vehicles' ORDER BY ord",
   ];
   for (const ddl of ddls) {
     try { await state.pool.query(ddl); }
