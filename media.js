@@ -82,7 +82,11 @@ function _r2() {
   let S3;
   try { S3 = require('@aws-sdk/client-s3'); }
   catch { throw new Error('media: R2 activo pero falta @aws-sdk/client-s3 — corré `npm i @aws-sdk/client-s3`'); }
-  const endpoint = 'https://' + process.env.R2_ACCOUNT_ID + '.r2.cloudflarestorage.com';
+  // Endpoint estándar derivado del Account ID; overridable con R2_ENDPOINT para
+  // buckets con jurisdicción (EU: <id>.eu.r2.cloudflarestorage.com, FedRAMP:
+  // <id>.fedramp.r2.cloudflarestorage.com) o cualquier endpoint S3 custom.
+  const endpoint = process.env.R2_ENDPOINT ||
+    ('https://' + process.env.R2_ACCOUNT_ID + '.r2.cloudflarestorage.com');
   _s3 = {
     lib: S3,
     client: new S3.S3Client({
