@@ -533,7 +533,7 @@ async function shutdown() {
 // Proyectan collection_rows (JSONB) como TABLAS legibles/consultables, SIN cambiar
 // cómo la app lee o escribe (fuente de verdad sigue siendo la colección en memoria).
 // Best-effort: un fallo aquí NO debe tumbar el arranque (las vistas son accesorias).
-const READABLE_VIEWS = new Set(['v_usuarios']);
+const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas']);
 async function _createViews() {
   const ddls = [
     // Usuarios — EXCLUYE campos sensibles (passwordHash, resetToken*). Todo TEXT
@@ -544,6 +544,19 @@ async function _createViews() {
     "data->>'lastLogin' AS ultimo_login, data->>'mustChangePassword' AS debe_cambiar_pw, " +
     "data->>'createdAt' AS creado " +
     "FROM collection_rows WHERE collection = 'wwp-users-auth' ORDER BY ord",
+    // Roles (wwp-role-defs) — id, nombre y si es rol integrado del sistema.
+    "CREATE OR REPLACE VIEW v_roles AS SELECT " +
+    "data->>'id' AS id, data->>'name' AS nombre, data->>'isBuiltin' AS es_builtin " +
+    "FROM collection_rows WHERE collection = 'wwp-role-defs' ORDER BY ord",
+    // Tareas (wwp-tasks) — SOLO la cabecera (sin items/fotos/historial, que son
+    // arrays anidados). Campos verificados contra datos reales de producción.
+    "CREATE OR REPLACE VIEW v_tareas AS SELECT " +
+    "data->>'id' AS id, data->>'seq' AS seq, data->>'type' AS tipo, " +
+    "data->>'title' AS titulo, data->>'client' AS cliente, data->>'status' AS estado, " +
+    "data->>'dueDate' AS vence, data->>'odooRef' AS odoo_ref, " +
+    "data->>'managerId' AS encargado_id, data->>'sdvId' AS sdv_id, " +
+    "data->>'createdAt' AS creado " +
+    "FROM collection_rows WHERE collection = 'wwp-tasks' ORDER BY ord",
   ];
   for (const ddl of ddls) {
     try { await state.pool.query(ddl); }
