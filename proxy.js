@@ -45,6 +45,7 @@ const _jsonFileCache = new Map();
 // externas) sigue en filesystem. Sin DATABASE_URL este bloque queda inerte.
 const pgStorage = require('./storage-pg.js');
 const media = require('./media.js');  // capa de fotos/videos: disco o Cloudflare R2 (Fase 1)
+const { queueWrite } = require('./write-queue.js'); // sección crítica por colección (B1/B2, auditoría 07)
 // Escritura/borrado de media por media.js (disco o R2). Reemplazan los
 // fs.writeFileSync(path.join(<DIR>, fname), Buffer.from(b64,'base64')) dispersos.
 // saveMediaB64 es async → debe AWAITearse (en R2 el PUT completa antes de
@@ -55,6 +56,22 @@ async function saveMediaB64(kind, fname, b64) {
 function deleteMediaUrl(kind, url) {
   try { media.mediaDelete(kind, path.basename(String(url || ''))).catch(() => {}); }
   catch (_) { /* best-effort */ }
+}
+// A1/A2 (auditoría 2): dataURL base64 → objeto en la capa media. Devuelve la
+// URL pública (/<kind>/<name>.<ext>) o null si el valor NO es un dataURL de
+// imagen (una URL ya migrada, un texto o un vacío pasan de largo sin tocarse —
+// eso hace idempotentes tanto los endpoints como la migración on-boot).
+// maxBytes: los endpoints usan el límite de upload; la migración pasa Infinity
+// (las fotos históricas gordas son exactamente las que MÁS conviene sacar).
+async function dataUrlToMedia(kind, baseName, dataUrl, maxBytes) {
+  const m = /^data:image\/(jpeg|jpg|png|webp|gif);base64,([A-Za-z0-9+/=\s]+)$/i.exec(String(dataUrl || ''));
+  if (!m) return null;
+  const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+  const b64 = m[2].replace(/\s+/g, '');
+  const limit = maxBytes || PHOTO_MAX_BYTES;
+  if (Math.ceil(b64.length * 0.75) > limit)
+    throw new Error('Imagen demasiado grande (' + (Math.ceil(b64.length * 0.75) / 1024 / 1024).toFixed(1) + ' MB, máx ' + Math.round(limit / 1024 / 1024) + ' MB)');
+  return await saveMediaB64(kind, baseName + '.' + ext, b64);
 }
 function _isPgCollection(file) {
   if (!pgStorage.isActive()) return false;
@@ -88,8 +105,11 @@ function loadJson(file, fallback) {
     throw new Error('Datos corruptos en ' + path.basename(file) + ': ' + e.message);
   }
 }
-function saveJson(file, data) {
-  if (_isPgCollection(file)) { pgStorage.saveCollection(path.basename(file, '.json'), data); return; }
+function saveJson(file, data, opts) {
+  // opts.touched (B3, auditoría 07): filas que el caller declara mutadas — en modo
+  // PG evita re-stringificar la colección entera en el diff. En modo archivo se
+  // ignora (la escritura es del archivo completo de todos modos).
+  if (_isPgCollection(file)) { pgStorage.saveCollection(path.basename(file, '.json'), data, opts); return; }
   // Escritura atómica: tmp → rename. Si el proceso es killed a mitad de writeFileSync,
   // el archivo original queda intacto (el kernel solo intercambia el inodo en rename).
   // El estado anterior queda en .bak para recuperación ante corrupción (ver loadJson).
@@ -186,10 +206,10 @@ function _rotateBackups(prefix, keep) {
 
 // Guardado protegido para arrays críticos. Devuelve false (sin lanzar) si la guarda
 // anti-vacío bloqueó la escritura — preservando el archivo bueno en disco.
-function saveCriticalArray(file, data) {
+function saveCriticalArray(file, data, opts) {
   // En modo PG el blindaje anti-vacío vive en storage-pg (mismas reglas); los
   // respaldos rotativos de archivo los cubre el export horario memoria→JSON.
-  if (_isPgCollection(file)) return pgStorage.saveCollection(path.basename(file, '.json'), data, { critical: true });
+  if (_isPgCollection(file)) return pgStorage.saveCollection(path.basename(file, '.json'), data, { critical: true, ...opts });
   const base = path.basename(file).replace(/\.json$/, '');
   const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
   // (1) Guarda anti-vacío: nunca vaciar un archivo que tenía >=5 items (caso del incidente)
@@ -628,11 +648,89 @@ async function migrateMediaToR2OnBoot() {
   }
 }
 
+// ── A1/A2 (auditoría 2): imágenes EMBEBIDAS como dataURL → capa media ────────
+// Migración one-shot de los dataURL guardados DENTRO de las colecciones
+// (wwp-inspecciones: 17 MB en 27 filas; averias.image; showroom.imageBase64)
+// hacia media.js, dejando en cada fila solo la URL pública. Idempotente y
+// barata: sin dataURLs no escribe nada; los nombres de objeto son
+// determinísticos (id de la fila), así que re-correr no duplica. Una imagen
+// que falle queda embebida (warn) y se reintenta al próximo arranque. Cada
+// dominio corre encolado en su gate para no cruzarse con handlers en vuelo.
+async function migrateEmbeddedMediaOnBoot() {
+  const stats = { migradas: 0, errores: 0 };
+  const mig = async (kind, baseName, val) => {
+    try {
+      const u = await dataUrlToMedia(kind, baseName, val, Infinity); // sin tope: las gordas son las que MÁS conviene sacar
+      if (u) stats.migradas++;
+      return u;
+    } catch (e) { stats.errores++; console.warn('[media-embed] ' + kind + '/' + baseName + ': ' + e.message); return null; }
+  };
+  const safeKey = s => String(s || '').replace(/[^a-z0-9_-]/gi, '');
+  await queueWrite('gate:inspecciones', async () => {
+    const all = loadInspections();
+    const touched = [];
+    for (let n = 0; n < all.length; n++) {
+      const insp = all[n];
+      const key = safeKey(insp.id) || ('legacy_' + n);
+      let dirty = false;
+      const fc = insp.fotos_condicion || {};
+      for (const pos of Object.keys(fc)) {
+        const u = await mig('inspection', key + '_' + safeKey(pos), fc[pos]);
+        if (u) { fc[pos] = u; dirty = true; }
+      }
+      if (Array.isArray(insp.fotos)) {
+        for (let i = 0; i < insp.fotos.length; i++) {
+          const u = await mig('inspection', key + '_f' + i, insp.fotos[i]);
+          if (u) { insp.fotos[i] = u; dirty = true; }
+        }
+      }
+      const uf = await mig('inspection', key + '_firma', insp.firmaConductor);
+      if (uf) { insp.firmaConductor = uf; dirty = true; }
+      if (dirty) touched.push(insp);
+    }
+    if (touched.length) saveInspections(all, { touched });
+  });
+  await queueWrite('gate:averias', async () => {
+    const all = loadAverias();
+    let dirty = false;
+    for (const a of all) {
+      const u = await mig('av-fotos', 'av_' + safeKey(a.id || 'x') + '_main', a.image);
+      if (u) { a.image = u; dirty = true; }
+    }
+    if (dirty) saveAverias(all);
+  });
+  await queueWrite('gate:showroom', async () => {
+    const all = loadSolicitudes();
+    let dirty = false;
+    for (const s of all) {
+      const u = await mig('showroom-fotos', safeKey(s.id || 'x'), s.imageBase64);
+      if (u) { s.imageBase64 = u; dirty = true; }
+    }
+    if (dirty) saveSolicitudes(all);
+  });
+  if (stats.migradas || stats.errores) {
+    console.log('[media-embed] embebidas → media: ' + stats.migradas + ' migrada(s), ' + stats.errores + ' error(es)' +
+      (stats.errores ? ' — se reintenta al próximo arranque' : ''));
+  }
+}
+
 function loadLunchBreaks() { return loadJson(WWP_LUNCH_FILE, []); }
 function saveLunchBreaks(b) { saveJson(WWP_LUNCH_FILE, b); }
 
 function loadInspections() { return loadJson(WWP_INSPECTIONS_FILE, []); }
-function saveInspections(d) { saveJson(WWP_INSPECTIONS_FILE, d); }
+// A1: al eliminar una inspección, liberar sus objetos de la capa media
+// (best-effort). Cubre ambos shapes: fotos_condicion{} (endpoint /api/vehiculos)
+// y fotos[] (endpoint /api/wwp/inspections), más la firma si fue imagen.
+function freeInspectionMedia(insp) {
+  if (!insp) return;
+  Object.values(insp.fotos_condicion || {})
+    .concat(Array.isArray(insp.fotos) ? insp.fotos : [])
+    .concat(insp.firmaConductor || [])
+    .forEach(v => { if (typeof v === 'string' && v.startsWith('/inspection/')) deleteMediaUrl('inspection', v); });
+}
+// opts.touched: la colección más pesada del sistema (17 MB, fotos base64 —
+// hallazgo A1); declarar la fila mutada evita re-stringificarla entera por save.
+function saveInspections(d, opts) { saveJson(WWP_INSPECTIONS_FILE, d, opts); }
 
 // ── Vehículos de la flota (inspección diaria) ────────────────────────────────
 // Los 5 originales tienen medidor de combustible dibujado a mano en el frontend
@@ -654,7 +752,7 @@ function loadVehicles() {
 function saveVehicles(list) { saveJson(WWP_VEHICLES_FILE, list); }
 
 function loadWwpTasks() { return loadJson(WWP_TASKS_FILE, []); }
-function saveWwpTasks(list) { saveCriticalArray(WWP_TASKS_FILE, list); }
+function saveWwpTasks(list, opts) { saveCriticalArray(WWP_TASKS_FILE, list, opts); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SALÓN DE ENTRENAMIENTOS — cursos, exámenes, certificaciones (LMS operativo)
@@ -3375,11 +3473,13 @@ const WWP_AUDIT_FILE = path.join(DATA_DIR, 'wwp-audit.json');
 function appendAuditLog(event, data) {
   try {
     // Migración PG: vía helpers (antes fs directo sin escritura atómica ni caché).
-    // En modo PG el diff detecta el append y escribe UNA fila, no las 10000.
+    // En modo PG el diff detecta el append y escribe UNA fila, no las 10000 —
+    // y con `touched` (B3) tampoco re-STRINGIFICA las 10000 para descubrirlo.
     const logs = loadJson(WWP_AUDIT_FILE, []);
-    logs.push({ timestamp: new Date().toISOString(), event, ...data });
+    const entry = { timestamp: new Date().toISOString(), event, ...data };
+    logs.push(entry);
     if (logs.length > 10000) logs.splice(0, logs.length - 10000);
-    saveJson(WWP_AUDIT_FILE, logs);
+    saveJson(WWP_AUDIT_FILE, logs, { touched: [entry] });
   } catch(e) { console.warn('[audit]', e.message); }
 }
 
@@ -4708,13 +4808,11 @@ function validatePhoto(f) {
 }
 
 // ── Cola de escritura para evitar race conditions ────────────────────────────
-const _writeQueues = new Map();
-function queueWrite(key, writeFn) {
-  const prev = _writeQueues.get(key) || Promise.resolve();
-  const next  = prev.then(writeFn).catch(e => console.error(`[write-queue:${key}]`, e.message));
-  _writeQueues.set(key, next);
-  return next;
-}
+// queueWrite vive ahora en write-queue.js (módulo propio, testeable sin
+// levantar el servidor; require al tope). Semántica: serializa por clave, el
+// error del writeFn se propaga al caller y la cadena sobrevive. Cableada (B1)
+// en los mutadores de wwp-tasks/cursos con `await` entre load y save, y en los
+// destructivos (splice/filter) que invalidan índices de secciones en vuelo.
 
 // Mapa de permisos por módulo (única fuente de verdad)
 const ROLE_PERMISSIONS = {
@@ -4813,7 +4911,22 @@ ${supNote}
 // SSE clients: userId → Set<res>
 const sseClients = new Map();
 const wwpWsClients = new Set();
-let wwpStateVersion = Date.now();
+// Versión de estado WWP monotónica y PERSISTIDA (auditoría 2, B13): con
+// Date.now() per-proceso, un redeploy podía "retroceder" la versión que ven
+// los clientes WS conectados a la instancia anterior. Arranca en
+// max(reloj, persistida+1) y cada bump se persiste (kv chico: en PG es un
+// UPDATE diferencial asíncrono; en disco, un JSON de un número).
+const WWP_STATE_VERSION_FILE = path.join(DATA_DIR, 'wwp-state-version.json');
+let wwpStateVersion = (() => {
+  let persisted = 0;
+  try { persisted = Number(loadJson(WWP_STATE_VERSION_FILE, 0)) || 0; } catch (_) { /* kv ausente o corrupto: se re-crea */ }
+  return Math.max(Date.now(), persisted + 1);
+})();
+function bumpWwpStateVersion() {
+  wwpStateVersion++;
+  try { saveJson(WWP_STATE_VERSION_FILE, wwpStateVersion); } catch (e) { console.warn('[wwp-version]', e.message); }
+  return wwpStateVersion;
+}
 
 // Limpieza de sockets muertos cada 30s — iOS puede matar WS sin disparar close/error
 setInterval(() => {
@@ -4835,7 +4948,7 @@ const lunchTimerMap = new Map();
 
 const WWP_NOTIF_FILE = path.join(DATA_DIR, 'wwp-notifications.json');
 function loadNotifications()    { return loadJson(WWP_NOTIF_FILE, []); }
-function saveNotifications(arr) { saveJson(WWP_NOTIF_FILE, arr); }
+function saveNotifications(arr, opts) { saveJson(WWP_NOTIF_FILE, arr, opts); }
 
 // Historial de ubicaciones GPS por acción (recorrido). Retención: últimos 7 días.
 const WWP_LOCATIONS_FILE = path.join(DATA_DIR, 'wwp-locations.json');
@@ -4945,7 +5058,7 @@ function broadcastWwp(event, payload={}) {
   const msg = {
     scope: 'wwp',
     event,
-    version: ++wwpStateVersion,
+    version: bumpWwpStateVersion(),
     at: new Date().toISOString(),
     ...payload
   };
@@ -5743,7 +5856,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
           firstAt: prev.firstAt || prev.createdAt,
           createdAt: nowIso, coalescedAt: nowIso };
         all.unshift(upd); // re-flotar al tope
-        saveNotifications(all.slice(0, 2000));
+        saveNotifications(all.slice(0, 2000), { touched: [upd] });
         _emitNotif(uid, upd, level, true);
         if (uid === userId) primaryNotif = upd;
         return; // por este uid — no crear notif nueva
@@ -5765,7 +5878,7 @@ function createNotification(userId, {type, title, message, relatedTaskId=null, p
     const all = loadNotifications();
     all.unshift(notif);
     // Mantener máx 200 notificaciones por usuario (trim total a 2000)
-    saveNotifications(all.slice(0, 2000));
+    saveNotifications(all.slice(0, 2000), { touched: [notif] });
     _emitNotif(uid, notif, level, false);
     if (uid === userId) primaryNotif = notif;
   });
@@ -6217,6 +6330,9 @@ async function reconcileOutPendiente() {
   if (_outReconBusy) return;
   _outReconBusy = true;
   try {
+    // B1: mismo lock que los handlers — el await a Odoo de abajo no debe
+    // intercalarse con mutaciones de tareas en vuelo.
+    await queueWrite('wwp-tasks', async () => {
     const list = loadWwpTasks();
     const targets = list.filter(t =>
       t && t.type === 'dispatch_order' && t.outPendiente &&
@@ -6247,14 +6363,19 @@ async function reconcileOutPendiente() {
       }
     });
     if (changed) { saveWwpTasks(list); broadcastWwpTasks('out_reconciled', null, { count: changed }); console.log(`[out-recon] ${changed} OUT cerrado(s) en Odoo → badge apagado`); }
+    }); // /B1 sección crítica wwp-tasks
   } catch(e) {
     console.warn('[out-recon]', e.message); // fail-open: Odoo caído no toca nada
   } finally {
     _outReconBusy = false;
   }
 }
-setTimeout(() => { reconcileOutPendiente(); }, 90 * 1000);
-setInterval(() => { reconcileOutPendiente(); }, 10 * 60 * 1000);
+// Encolado en el dominio 'tasks-sdv' del gate de escritura (B1): el reconcile
+// muta tareas tras un await a Odoo — sin la cola competiría con los handlers.
+const _runOutRecon = () => queueWrite('gate:tasks-sdv', reconcileOutPendiente)
+  .catch(e => console.warn('[out-recon]', e.message)); // write-queue propaga errores: capturar (job sin caller)
+setTimeout(_runOutRecon, 90 * 1000);
+setInterval(_runOutRecon, 10 * 60 * 1000);
 
 // ═══ Salud de Inventario — negativos Odoo con seguimiento por caso (v156) ═══
 // Odoo es SaaS (no se puede instalar stock_no_negative), así que la plataforma
@@ -6622,7 +6743,7 @@ async function invWatchdog(forceRun) {
     _invWatchdogBusy = false;
   }
 }
-setInterval(() => { invWatchdog(false); }, 60_000);
+setInterval(() => { queueWrite('gate:inventario', () => invWatchdog(false)).catch(e => console.warn('[inv-watchdog]', e.message)); }, 60_000);
 
 // ═══ Dashboard de Inventario consolidado (v187) — SOLO LECTURA contra Odoo ═══
 // Consolida en un panorama las señales hoy dispersas (Salud de Inventario, monitor
@@ -7391,7 +7512,7 @@ async function invTransitReconcileRun() {
   }
 }
 if (INV_TRANSIT_RECON_MINUTES > 0) {
-  setInterval(invTransitReconcileRun, INV_TRANSIT_RECON_MINUTES * 60 * 1000);
+  setInterval(() => { queueWrite('gate:inventario', invTransitReconcileRun).catch(e => console.warn('[inv-transit-recon]', e.message)); }, INV_TRANSIT_RECON_MINUTES * 60 * 1000);
 }
 
 // Notificación por DELTAS: compara el snapshot nuevo vs el anterior y notifica SOLO
@@ -7475,7 +7596,7 @@ async function invSnapshotRun(forceRun) {
     _invSnapBusy = false;
   }
 }
-setInterval(() => { invSnapshotRun(false); }, 60_000);
+setInterval(() => { queueWrite('gate:inventario', () => invSnapshotRun(false)).catch(e => console.warn('[inv-snapshot]', e.message)); }, 60_000);
 
 // ── Estado de sesión Odoo ────────────────────────────────────────────────────
 let odooUid  = null;
@@ -7713,6 +7834,43 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(429, {'Content-Type': 'application/json', 'Retry-After': '60'});
     res.end(JSON.stringify({ ok: false, error: 'Demasiadas solicitudes. Espera un momento.' }));
     return;
+  }
+
+  // ── Gate de escritura por dominio (auditoría 2, B1/B2) ──────────────────────
+  // Serializa los requests MUTADORES (no-GET) de cada dominio de datos con
+  // queueWrite: un handler que hace load → await Odoo → mutar → save termina
+  // completo antes de que entre el siguiente mutador del mismo dominio, lo que
+  // cierra la ventana de lost-update/write-skew entre requests concurrentes.
+  // Las lecturas (GET/HEAD) no se encolan. Los jobs de fondo que mutan estas
+  // mismas colecciones (out-recon, inventario) se encolan en el mismo dominio
+  // en su setInterval. El lock se suelta al cerrar la respuesta ('close' cubre
+  // finish y abort); backstop de 60 s por si un handler colgara sin responder
+  // (los timeouts de Odoo/PG son menores, no debería activarse jamás).
+  // Convive con las colas por-colección de write-queue.js dentro de handlers:
+  // claves distintas y orden de adquisición fijo gate→colección (sin ciclos).
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const _gateDomain =
+      (reqPath.startsWith('/api/wwp/tasks') || reqPath.startsWith('/api/sdv') ||
+       reqPath.startsWith('/api/_fix/'))            ? 'tasks-sdv'
+      : reqPath.startsWith('/api/inventario')       ? 'inventario'
+      : reqPath.startsWith('/api/averias')          ? 'averias'
+      : reqPath.startsWith('/api/vehiculos/inspeccion') ? 'inspecciones'
+      : reqPath.startsWith('/api/solicitudes-showroom') ? 'showroom'
+      : null;
+    if (_gateDomain) {
+      await new Promise(turno => {
+        queueWrite('gate:' + _gateDomain, () => new Promise(fin => {
+          let _released = false;
+          const release = () => { if (!_released) { _released = true; clearTimeout(guard); fin(); } };
+          const guard = setTimeout(() => {
+            console.warn('[write-gate] ' + _gateDomain + ' liberado por backstop 60s (' + req.method + ' ' + reqPath + ')');
+            release();
+          }, 60000);
+          res.once('close', release);
+          turno();
+        }));
+      });
+    }
   }
 
   // ── Codex Bridge — datos vivos para reuniones desde este chat/Codex ────────
@@ -10358,9 +10516,18 @@ const server = http.createServer(async (req, res) => {
       const list = loadAverias();
       const id = Date.now().toString(36)+Math.random().toString(36).slice(2,6);
       const now = new Date().toISOString();
+      // A2 (auditoría 2): la foto principal llegaba como dataURL y quedaba
+      // embebida en la colección (199 kB de los 204 kB totales). Va a la capa
+      // media (kind av-fotos, junto a las fotos de daño). El gate 'averias'
+      // serializa este handler: el await no abre ventana de carrera.
+      let _img = d.image || null;
+      if (_img) {
+        const _u = await dataUrlToMedia('av-fotos', 'av_' + id + '_main', _img);
+        if (_u) _img = _u;
+      }
       const rec = {
         id, productId:d.productId||null, ref:d.ref||'', name:d.name||'',
-        barcode:d.barcode||'', image:d.image||null, location:d.location||'',
+        barcode:d.barcode||'', image:_img, location:d.location||'',
         qty:parseInt(d.qty)||1, comentario:d.comentario||'',
         status:'Recibido',
         statusHistory:[{status:'Recibido',date:now,nota:d.comentario||''}],
@@ -12038,15 +12205,27 @@ const server = http.createServer(async (req, res) => {
       if (dup) { res.writeHead(200,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:true, solicitud: dup, existing: true})); return; }
       const users = loadAuthUsers();
       const user  = users.find(u => u.id === _jpSol.userId);
+      const _solId = wwpId('sol');
+      // A2: la miniatura llegaba como dataURL (~123 kB embebidos en la
+      // colección). Va a la capa media; el campo conserva su nombre histórico
+      // (el front la pinta como src de <img>: dataURL o URL da igual). Foto
+      // inválida o gigante NO tumba la solicitud: se guarda sin imagen.
+      let _sImg = d.imageBase64 || '';
+      if (_sImg) {
+        try {
+          const _u = await dataUrlToMedia('showroom-fotos', _solId, _sImg);
+          if (_u) _sImg = _u;
+        } catch (e) { console.warn('[showroom-img]', e.message); _sImg = ''; }
+      }
       const sol = {
-        id:              wwpId('sol'),
+        id:              _solId,
         source:          d.source || 'reposicion',   // 'reposicion' | 'contenedores'
         productId:       d.productId || null,
         contId:          d.contId    || null,
         name:            d.name      || '',
         ref:             d.ref       || '',
         barcode:         d.barcode   || '',
-        imageBase64:     d.imageBase64 || '',
+        imageBase64:     _sImg,
         almacen:         d.almacen   || '',
         ubicacion:       d.ubicacion || '',
         nota:            (d.nota || '').trim(),
@@ -12643,14 +12822,21 @@ const server = http.createServer(async (req, res) => {
       videoUrl: _videoUrl,
       createdAt: new Date().toISOString()
     };
-    if (!tasks[idx].messages) tasks[idx].messages = [];
-    tasks[idx].messages.push(msg);
-    tasks[idx].updatedAt = msg.createdAt;
-    saveWwpTasks(tasks);
+    // B1 (auditoría 07): los awaits de readBody/subida de media dejaron stale a
+    // tasks/idx (el chequeo 404/403 de arriba fue solo fast-fail). Dentro de la
+    // sección crítica se re-resuelve la tarea con estado fresco.
+    await queueWrite('wwp-tasks', async () => {
+    const tasksQ = loadWwpTasks();
+    const idxQ = tasksQ.findIndex(t => t.id === taskId);
+    if (idxQ === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+    if (!tasksQ[idxQ].messages) tasksQ[idxQ].messages = [];
+    tasksQ[idxQ].messages.push(msg);
+    tasksQ[idxQ].updatedAt = msg.createdAt;
+    saveWwpTasks(tasksQ);
     // Audit: capturar mensaje para recuperación ante pérdida de wwp-tasks.json
-    try { appendAuditLog('task_chat', { taskId, taskTitle: tasks[idx].title||'', odooRef: tasks[idx].odooRef||'', msgId: msg.id, fromId: msg.fromId, fromName: msg.fromName, text: msg.text||'', hasImage: !!_imgUrl, hasVideo: !!_videoUrl, imageUrl: _imgUrl||null, createdAt: msg.createdAt }); } catch(e) { console.warn('[audit task_chat]', e.message); }
+    try { appendAuditLog('task_chat', { taskId, taskTitle: tasksQ[idxQ].title||'', odooRef: tasksQ[idxQ].odooRef||'', msgId: msg.id, fromId: msg.fromId, fromName: msg.fromName, text: msg.text||'', hasImage: !!_imgUrl, hasVideo: !!_videoUrl, imageUrl: _imgUrl||null, createdAt: msg.createdAt }); } catch(e) { console.warn('[audit task_chat]', e.message); }
     // Notificar a todos los participantes de la tarea (excepto quien envió)
-    const task = tasks[idx];
+    const task = tasksQ[idxQ];
     const recipients = new Set();
     if (task.managerId && task.managerId !== jp.userId) recipients.add(task.managerId);
     const assigneeId = odooStrToAuthId(task.assignedTo);
@@ -12694,6 +12880,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('message_created', task, { taskId, message: msg });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, message:msg}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -12878,6 +13065,11 @@ const server = http.createServer(async (req, res) => {
     }
     try {
       const d = await readBody(req);
+      // B1 (auditoría 07): sección crítica de wwp-tasks — el gate de OUT hace
+      // `await odooCall` entre load y save; sin la cola, un DELETE concurrente
+      // reasigna el array y este handler acabaría guardando el array viejo
+      // (resucita la tarea borrada y pisa lo guardado en el medio).
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
@@ -13656,6 +13848,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('task_updated', tasks[idx], { parentTask, changed: Object.keys(d||{}) });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,task:tasks[idx],parentTask}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -13665,6 +13858,9 @@ const server = http.createServer(async (req, res) => {
     const _jpDel = requireJwt(req, res); if (!_jpDel) return;
     if (!requireRole(_jpDel, res, ROLE_PERMISSIONS.delete_task)) return;
     const id = reqPath.split('/')[4];
+    // B1: el borrado REASIGNA el array (filter) — debe serializarse con las
+    // secciones en vuelo para no invalidar sus referencias mientras esperan.
+    await queueWrite('wwp-tasks', async () => {
     let tasks = loadWwpTasks();
     const before = tasks.length;
     const _delTask = tasks.find(t=>t.id===id) || null;
@@ -13697,6 +13893,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('task_deleted', null, { taskId:id });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, linkedSdv:_linkedSdv}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -13706,6 +13903,8 @@ const server = http.createServer(async (req, res) => {
     const id = reqPath.split('/')[4];
     try {
       const d = await readBody(req); // {fotos:[{data,ext,caption}]}
+      // B1: sección crítica — el saveMediaB64 (R2) del loop abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
@@ -13728,6 +13927,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('evidence_created', tasks[idx], { taskId:id, evidence:saved });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,evidence:saved,total:tasks[idx].evidence.length}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -13738,6 +13938,8 @@ const server = http.createServer(async (req, res) => {
     if (!requireRole(_jpEvDel, res, ROLE_PERMISSIONS.edit_task)) return;
     const parts=reqPath.split('/');
     const id=parts[4], fname=parts[6];
+    // B1: reasigna el array de evidencia — serializar con subidas en vuelo.
+    await queueWrite('wwp-tasks', async () => {
     const tasks=loadWwpTasks();
     const idx=tasks.findIndex(t=>t.id===id);
     if (idx===-1){ res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
@@ -13749,6 +13951,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('evidence_deleted', tasks[idx], { taskId:id, file:fname });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -13907,26 +14110,39 @@ const server = http.createServer(async (req, res) => {
         if (!requireRole(jp, res, ['admin'])) return;
         try {
           const d = await readBody(req);
-          const c = courses[idx];
+          // B1: courses/idx de arriba quedaron detrás del await de readBody —
+          // re-resolver dentro de la sección crítica de cursos.
+          await queueWrite('wwp-training-courses', async () => {
+          const coursesQ = loadCourses();
+          const idxQ = coursesQ.findIndex(cc => cc.id === mCourse[1]);
+          if (idxQ === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Curso no encontrado'})); return; }
+          const c = coursesQ[idxQ];
           ['title','category','competency','description','passingScore','maxAttempts','validityDays','lessons','exam','roles'].forEach(k => { if (d[k] !== undefined) c[k] = d[k]; });
           if (d.enforceGate !== undefined) c.enforceGate = !!d.enforceGate;
           if (d.active !== undefined) c.active = !!d.active;
           c.version = (c.version||1) + 1;
           c.updatedAt = new Date().toISOString();
-          saveCourses(courses);
+          saveCourses(coursesQ);
           appendAuditLog('training_course_update', { courseId:c.id, by:jp.userId, changed:Object.keys(d) });
           res.writeHead(200, {'Content-Type':'application/json'});
           res.end(JSON.stringify({ ok:true, course:c }));
+          }); // /B1 cursos
         } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
         return;
       }
       if (req.method === 'DELETE') {
         if (!requireRole(jp, res, ['admin'])) return;
-        const removed = courses.splice(idx, 1);
-        saveCourses(courses);
+        // B1: destructivo (splice) — serializar con los PATCH en vuelo.
+        await queueWrite('wwp-training-courses', async () => {
+        const coursesQ = loadCourses();
+        const idxQ = coursesQ.findIndex(cc => cc.id === mCourse[1]);
+        if (idxQ === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Curso no encontrado'})); return; }
+        const removed = coursesQ.splice(idxQ, 1);
+        saveCourses(coursesQ);
         appendAuditLog('training_course_delete', { courseId:removed[0].id, title:removed[0].title, by:jp.userId });
         res.writeHead(200, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ ok:true }));
+        }); // /B1 cursos
         return;
       }
     }
@@ -15659,9 +15875,21 @@ const server = http.createServer(async (req, res) => {
       createdBy:   jp.userId,
       createdByName: (loadAuthUsers().find(u=>u.id===jp.userId)||{}).name || jp.userId,
     };
+    // A1: dataURLs → capa media (las que no lo sean quedan tal cual). Append
+    // puro sobre la referencia viva: no necesita gate aunque haya awaits.
+    for (let _i = 0; _i < insp.fotos.length; _i++) {
+      try {
+        const _u = await dataUrlToMedia('inspection', insp.id + '_f' + _i, insp.fotos[_i]);
+        if (_u) insp.fotos[_i] = _u;
+      } catch (e) {
+        res.writeHead(422,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Foto ' + (_i + 1) + ': ' + e.message}));
+        return;
+      }
+    }
     const all = loadInspections();
     all.push(insp);
-    saveInspections(all);
+    saveInspections(all, { touched: [insp] });
     res.writeHead(201, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, inspection: insp}));
     return;
@@ -15675,8 +15903,9 @@ const server = http.createServer(async (req, res) => {
     let all = loadInspections();
     const idx = all.findIndex(i => i.id === id);
     if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'No encontrada'})); return; }
+    freeInspectionMedia(all[idx]); // A1: liberar fotos/firma de la capa media
     all.splice(idx, 1);
-    saveInspections(all);
+    saveInspections(all, { touched: [] }); // baja pura: los deletes salen del snapshot
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
     return;
@@ -15752,9 +15981,36 @@ const server = http.createServer(async (req, res) => {
       createdByName: creatorUser.name || jp.userId,
       createdByOdooId: creatorUser.odooId || null,
     });
+    // A1 (auditoría 2): las fotos llegan como dataURL base64 y ANTES quedaban
+    // embebidas en la colección (17 MB de JSONB en 27 filas — cada boot/save
+    // cargaba y re-serializaba todo). Ahora cada foto va a la capa media
+    // (R2 o disco) y en la fila queda solo la URL /inspection/<archivo>.
+    // El gate 'inspecciones' serializa este handler: los await no abren ventana.
+    const _fc = insp.fotos_condicion || {};
+    for (const _pos of Object.keys(_fc)) {
+      if (!_fc[_pos]) continue;
+      try {
+        const _u = await dataUrlToMedia('inspection', insp.id + '_' + String(_pos).replace(/[^a-z0-9_-]/gi, ''), _fc[_pos]);
+        if (_u) _fc[_pos] = _u;
+      } catch (e) {
+        res.writeHead(422, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error: 'Foto "' + _pos + '": ' + e.message}));
+        return;
+      }
+    }
+    if (insp.firmaConductor) {
+      try {
+        const _u = await dataUrlToMedia('inspection', insp.id + '_firma', insp.firmaConductor);
+        if (_u) insp.firmaConductor = _u; // si es texto (nombre tipeado), queda tal cual
+      } catch (e) {
+        res.writeHead(422, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error: 'Firma: ' + e.message}));
+        return;
+      }
+    }
     const all = loadInspections();
     all.push(insp);
-    saveInspections(all);
+    saveInspections(all, { touched: [insp] });
     res.writeHead(201, {'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true, id: insp.id}));
     return;
@@ -15768,8 +16024,9 @@ const server = http.createServer(async (req, res) => {
     let all = loadInspections();
     const idx = all.findIndex(i => i.id === id);
     if (idx < 0) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'No encontrada'})); return; }
+    freeInspectionMedia(all[idx]); // A1: liberar fotos/firma de la capa media
     all.splice(idx, 1);
-    saveInspections(all);
+    saveInspections(all, { touched: [] }); // baja pura: los deletes salen del snapshot
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
     return;
@@ -17635,6 +17892,10 @@ const server = http.createServer(async (req, res) => {
       const pickIds = Array.isArray(d.pickIds) ? d.pickIds.map(Number).filter(n => Number.isFinite(n)) : [];
       if (!pickIds.length) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Debes elegir al menos un pick (pickIds)'})); return; }
       const apply = d.apply === true;
+      // B1: sección crítica — listOrderPicks/buildPickMergeForTask esperan a Odoo
+      // con la tarea en la mano; serializar evita que un DELETE/PATCH concurrente
+      // deje idx/array stale y el apply pise estado ajeno.
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(x => x.id === id);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -17680,6 +17941,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, applied:true, taskId:id, orderRef:t.odooRef, pickIds, pickNames:chosenNames,
         resumen, omitted:out.omitted||[], picks:out.picks||[], items:t.items}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) {
       const msg = String((e && e.message) || e);
       const odooDown = /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|ECONNRESET|Invalid URL|network|getaddrinfo/i.test(msg);
@@ -18163,6 +18425,8 @@ const server = http.createServer(async (req, res) => {
     const taskId = reqPath.split('/')[4];
     try {
       const d = await readBody(req);
+      // B1: sección crítica — el saveMediaB64 (R2) de abajo abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===taskId);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18205,6 +18469,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('item_group_confirmed', task, { taskId, group_ref:gref, count:units.length });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ ok:true, count:units.length, photoUrl:url }));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -18216,6 +18481,8 @@ const server = http.createServer(async (req, res) => {
     const taskId=parts[4], itemId=parts[6];
     try {
       const d=await readBody(req);
+      // B1: sección crítica — el saveMediaB64 (R2) del loop abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks=loadWwpTasks();
       const idx=tasks.findIndex(t=>t.id===taskId);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18250,6 +18517,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('item_evidence_created', tasks[idx], { taskId, itemId, evidence:saved });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true,evidence:saved}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -18260,6 +18528,8 @@ const server = http.createServer(async (req, res) => {
     if (!requireRole(_jpItemEvDel, res, ROLE_PERMISSIONS.edit_task)) return;
     const parts=reqPath.split('/');
     const taskId=parts[4], itemId=parts[6], evId=parts[8];
+    // B1: reasigna evidence_images anidado — serializar con subidas en vuelo.
+    await queueWrite('wwp-tasks', async () => {
     const tasks=loadWwpTasks();
     const idx=tasks.findIndex(t=>t.id===taskId);
     if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false})); return; }
@@ -18276,6 +18546,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('item_evidence_deleted', tasks[idx], { taskId, itemId, evidenceId:evId });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -18397,6 +18668,8 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ok:false,error:'Se requiere una foto del artículo'}));
         return;
       }
+      // B1: sección crítica — el saveMediaB64 (R2) de abajo abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18444,6 +18717,7 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, articulo, devolucionRuta: task.devolucionRuta}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) {
       res.writeHead(500,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:false,error:e.message}));
@@ -18502,6 +18776,8 @@ const server = http.createServer(async (req, res) => {
         const d = await readBody(req);
         const outRef = String(d.outRef||'').trim();
         if (!outRef) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Falta outRef'})); return; }
+        // B1: sección crítica — sdvReconcileOutVsTask espera a Odoo con la tarea en la mano
+        await queueWrite('wwp-tasks', async () => {
         const tasks = loadWwpTasks();
         const idx = tasks.findIndex(t => t.id === taskId);
         if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18558,6 +18834,7 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente,
           warningB: recon.warningB||[], compensados: recon.compensados||[], odooError: !!recon.odooError,
           note: recon.odooError ? 'OUT registrado, pero Odoo no respondió la reconciliación — se verificará al validar.' : undefined }));
+        }); // /B1 sección crítica wwp-tasks
       } catch(e) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
       }
@@ -18577,6 +18854,8 @@ const server = http.createServer(async (req, res) => {
     const taskId = reqPath.split('/')[4];
     (async () => {
       try {
+        // B1: sección crítica — la verificación en vivo contra Odoo abre ventana
+        await queueWrite('wwp-tasks', async () => {
         const tasks = loadWwpTasks();
         const idx = tasks.findIndex(t => t.id === taskId);
         if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18624,6 +18903,7 @@ const server = http.createServer(async (req, res) => {
         broadcastWwpTasks('out_unconfirmed', task, { taskId, prevOutRef: prevRef });
         res.writeHead(200,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ ok:true, outPendiente: task.outPendiente }));
+        }); // /B1 sección crítica wwp-tasks
       } catch(e) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:safeError(e)}));
       }
@@ -18827,6 +19107,8 @@ const server = http.createServer(async (req, res) => {
     const taskId = reqPath.split('/')[4];
     try {
       const d = await readBody(req);
+      // B1: sección crítica — el saveMediaB64 (R2) del loop abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -18851,6 +19133,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('fotos_guia_created', tasks[idx], { taskId, fotos: saved });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, fotos: saved}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -18861,6 +19144,8 @@ const server = http.createServer(async (req, res) => {
     if (!requireRole(_jpFgDel, res, ROLE_PERMISSIONS.edit_task)) return;
     const parts = reqPath.split('/');
     const taskId = parts[4], fname = decodeURIComponent(parts[6]);
+    // B1: reasigna el array anidado fotos_guia — serializar con subidas en vuelo.
+    await queueWrite('wwp-tasks', async () => {
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false})); return; }
@@ -18900,6 +19185,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('fotos_guia_deleted', tasks[idx], { taskId, fname });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -19027,6 +19313,8 @@ const server = http.createServer(async (req, res) => {
     const taskId = parts[4], fotoId = decodeURIComponent(parts[6]);
     try {
       const d = await readBody(req);
+      // B1: sección crítica — el saveMediaB64 (R2) del loop abre ventana de race
+      await queueWrite('wwp-tasks', async () => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
@@ -19052,6 +19340,7 @@ const server = http.createServer(async (req, res) => {
       broadcastWwpTasks('fotos_guia_evidencia_created', tasks[idx], { taskId, fotoId, evidencia: saved });
       res.writeHead(200,{'Content-Type':'application/json'});
       res.end(JSON.stringify({ok:true, evidencia: saved}));
+      }); // /B1 sección crítica wwp-tasks
     } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); }
     return;
   }
@@ -19061,6 +19350,8 @@ const server = http.createServer(async (req, res) => {
     const _jpFgEvDel = requireJwt(req, res); if (!_jpFgEvDel) return;
     const parts = reqPath.split('/');
     const taskId = parts[4], fotoId = decodeURIComponent(parts[6]), evFname = decodeURIComponent(parts[8]);
+    // B1: reasigna evidencias anidadas — serializar con subidas en vuelo.
+    await queueWrite('wwp-tasks', async () => {
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false})); return; }
@@ -19078,6 +19369,7 @@ const server = http.createServer(async (req, res) => {
     broadcastWwpTasks('fotos_guia_evidencia_deleted', tasks[idx], { taskId, fotoId, fname: evFname });
     res.writeHead(200,{'Content-Type':'application/json'});
     res.end(JSON.stringify({ok:true}));
+    }); // /B1 sección crítica wwp-tasks
     return;
   }
 
@@ -20300,6 +20592,7 @@ const server = http.createServer(async (req, res) => {
     const _MEDIA_PREFIX = {
       '/av-fotos/': 'av-fotos', '/desp-fotos/': 'desp-fotos', '/wwp-fotos/': 'wwp-fotos',
       '/sdv-adjuntos/': 'sdv-adjuntos', '/prod-img/': 'prod-img',
+      '/inspection/': 'inspection', '/showroom-fotos/': 'showroom-fotos', // A1/A2: fotos que antes iban embebidas en el JSONB
     };
     const _mp = Object.keys(_MEDIA_PREFIX).find(p => reqPath.startsWith(p));
     if (_mp && req.method === 'GET') {
@@ -20539,6 +20832,11 @@ server.listen(PORT, async () => {
   recoverOpenLunchBreaks();
   migrateProductImagesInline();   // Fase 2: base64 inline → /prod-img/ (idempotente)
   migrateMediaToR2OnBoot().catch(e => console.error('[media-r2] migración falló:', e.message)); // Fase 1: disco→R2, 1 vez, background
+  // A1/A2: dataURLs embebidos en colecciones → media. 45 s tras el boot para no
+  // competir con el arranque; idempotente, así que un redeploy a mitad no daña.
+  setTimeout(() => {
+    migrateEmbeddedMediaOnBoot().catch(e => console.error('[media-embed] migración falló:', e.message));
+  }, 45000);
   try {
     await authenticate();
   } catch (e) {

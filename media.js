@@ -34,6 +34,7 @@ const KINDS = new Set([
   'sdv-adjuntos', // adjuntos de SDV (fotos/videos)
   'prod-img',     // imágenes de producto de Odoo (deduplicadas por SHA-1)
   'inspection',   // inspección de vehículos (unifica las grafías legadas)
+  'showroom-fotos', // miniaturas de solicitudes de reposición showroom (A2, auditoría 2)
 ]);
 
 // Grafías legadas que solo se LEEN por compatibilidad (unificación de las 3

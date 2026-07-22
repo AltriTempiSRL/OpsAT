@@ -1,0 +1,13 @@
+{
+  "name": "opsat-e2e",
+  "private": true,
+  "description": "Ola 0 del plan de modularización (docs/auditoria-arquitectura/08): red de seguridad Playwright. AUTOCONTENIDA — no mover estas deps al package.json raíz: Railway construye la raíz con `npm install --production` y el lockfile raíz se deploya.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report .report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

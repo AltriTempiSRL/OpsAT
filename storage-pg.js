@@ -17,6 +17,10 @@
 //    DIFERENCIAL: solo las filas que cambiaron (INSERT/UPDATE/DELETE) en una
 //    transacción, serializada por colección, con reintentos y auto-resync si
 //    la cola se acumula.
+//  - saveCollection(base, data, { touched: [filas|ids] }) — dirty-flags (B3):
+//    el caller declara qué filas mutó y las demás reusan su serialización
+//    previa (el costo CPU del diff deja de crecer con el tamaño total).
+//    Sin `touched` el diff completo sigue igual que siempre.
 //  - El orden del array se preserva con la columna `ord` (indexación
 //    fraccional; renumeración completa solo si se agota la precisión).
 //  - Filas sin id natural (id/seq/folio) reciben un `_rid` inyectado — clave
@@ -80,8 +84,37 @@ function _keyFor(item, seen) {
   return k;
 }
 
+// B3 (dirty-flags): normaliza opts.touched → Set de claves de fila, o null si
+// no se declaró nada (diff completo). Acepta objetos (usa su id natural o el
+// _rid ya inyectado) o claves directas. Un objeto aún sin clave (fila nueva)
+// se ignora: las filas sin snapshot previo se stringifican siempre.
+function _touchedKeySet(touched) {
+  if (!touched) return null;
+  const list = Array.isArray(touched) ? touched : (touched instanceof Set ? [...touched] : [touched]);
+  const keys = new Set();
+  for (const t of list) {
+    if (t && typeof t === 'object') {
+      const k = _naturalId(t) ?? (t._rid != null ? String(t._rid) : null);
+      if (k !== null) keys.add(k);
+    } else if (t !== null && t !== undefined && t !== '') {
+      keys.add(String(t));
+    }
+  }
+  return keys;
+}
+
+// Una fila puede reusar su serialización previa solo si: hay touchedKeys, la
+// fila ya existía en el snapshot, no fue declarada tocada, y su clave NO fue
+// remapeada por id natural duplicado (ahí la clave del caller y la del diff
+// divergen y reusar podría perder una mutación real).
+function _canReuseSer(touchedKeys, known, id, item) {
+  if (!touchedKeys || !known || touchedKeys.has(id)) return false;
+  const nat = _naturalId(item);
+  return nat === null || nat === id;
+}
+
 // ── Diff de arrays con orden fraccional ──────────────────────────────────────
-function _diffArray(base, arr) {
+function _diffArray(base, arr, touchedKeys) {
   const prev = state.rowSnap.get(base) || new Map();
   const next = new Map();
   const seen = new Set();
@@ -90,8 +123,8 @@ function _diffArray(base, arr) {
   for (let i = 0; i < arr.length; i++) {
     const item = arr[i];
     const id = _keyFor(item, seen);
-    const ser = JSON.stringify(item);
     const known = prev.get(id);
+    const ser = _canReuseSer(touchedKeys, known, id, item) ? known.ser : JSON.stringify(item);
     const floor = lastOrd === null ? -Infinity : lastOrd;
     let ord;
     if (known && known.ord > floor) {
@@ -123,16 +156,17 @@ function _diffArray(base, arr) {
 }
 
 // Renumeración completa (ord = (i+1)*ORD_STEP); se usa cuando el gap se agota.
-function _renumberArray(base, arr) {
+function _renumberArray(base, arr, touchedKeys) {
   const prev = state.rowSnap.get(base) || new Map();
   const next = new Map();
   const seen = new Set();
   const upserts = [];
   for (let i = 0; i < arr.length; i++) {
-    const id = _keyFor(arr[i], seen);
-    const ser = JSON.stringify(arr[i]);
-    const ord = (i + 1) * ORD_STEP;
+    const item = arr[i];
+    const id = _keyFor(item, seen);
     const known = prev.get(id);
+    const ser = _canReuseSer(touchedKeys, known, id, item) ? known.ser : JSON.stringify(item);
+    const ord = (i + 1) * ORD_STEP;
     if (!known || known.ser !== ser || known.ord !== ord) upserts.push({ id, ord, ser });
     next.set(id, { ser, ord });
   }
@@ -161,8 +195,9 @@ function saveCollection(base, data, opts = {}) {
       _enqueue(base, { rejected: { attemptedLen: 0, prevLen } });
       return false;
     }
-    let d = _diffArray(base, data);
-    if (d.renumber) d = _renumberArray(base, data);
+    const touchedKeys = _touchedKeySet(opts.touched);
+    let d = _diffArray(base, data, touchedKeys);
+    if (d.renumber) d = _renumberArray(base, data, touchedKeys);
     state.mem.set(base, data);
     state.kind.set(base, 'rows');
     state.rowSnap.set(base, d.next);

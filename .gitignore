@@ -68,6 +68,11 @@ wwp-audit.json
 proxy.js.tmp.*
 .compare-render/
 
+# ── E2E Playwright (tests/e2e, Ola 0 plan modularización) — runtime ──────────
+tests/e2e/.data-e2e/
+tests/e2e/.artifacts/
+tests/e2e/.report/
+
 # ── Cerebro de agentes: vive en C:\Users\Gabriel Ramirez\Agentes-Estandar (fuera del proyecto) ──
 agentes-estandar/
 
