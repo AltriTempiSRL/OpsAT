@@ -4653,7 +4653,6 @@ function clearSelfPwAttempts(userId) { _selfPwAttempts.delete(userId); }
 const _ipRateMap = new Map();
 const IP_RATE_RULES = {
   '/api/odoo':              { max: 30, windowMs: 60_000 },
-  '/api/sheets':            { max: 20, windowMs: 60_000 },
   '/api/transfer/search':   { max: 30, windowMs: 60_000 },
   '/api/averias/search':    { max: 30, windowMs: 60_000 },
   '/api/analysis':          { max: 20, windowMs: 60_000 },
@@ -7664,318 +7663,11 @@ function readBody(req) {
   });
 }
 
-// ── Google Sheets — CSV público ──────────────────────────────────────────────
-const SHEETS_ID  = '1UXWSVXlW5zRjlYjYBEjYePNnGB1Rk_4f';
-const SHEETS_URL = `https://docs.google.com/spreadsheets/d/${SHEETS_ID}/export?format=csv`;
-const SHEETS_TTL = 5 * 60 * 1000; // 5 minutos de caché
-let sheetsCache    = null;
-let sheetsCacheTime = 0;
-
-/** Fetch con seguimiento de redirecciones */
-function fetchText(urlStr) {
-  return new Promise((resolve, reject) => {
-    const parsed = new url.URL(urlStr);
-    const opts = {
-      hostname: parsed.hostname,
-      port: parsed.port || 443,
-      path: parsed.pathname + parsed.search,
-      headers: { 'User-Agent': 'Mozilla/5.0 DashboardDespachos/1.0' }
-    };
-    https.get(opts, res => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return resolve(fetchText(res.headers.location));
-      }
-      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => resolve(data));
-    }).on('error', reject);
-  });
-}
-
-/** Parser CSV simple con soporte de comillas */
-function parseCSVLine(line) {
-  const out = []; let cur = ''; let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"' && !inQ)          { inQ = true; }
-    else if (c === '"' && inQ)      { if (line[i+1] === '"') { cur += '"'; i++; } else { inQ = false; } }
-    else if (c === ',' && !inQ)     { out.push(cur); cur = ''; }
-    else                            { cur += c; }
-  }
-  out.push(cur);
-  return out;
-}
-
-/** "Monday, March 02, 2026" → "02/03/2026" */
-function fmtGSDate(s) {
-  if (!s) return '';
-  const M = {January:1,February:2,March:3,April:4,May:5,June:6,July:7,August:8,September:9,October:10,November:11,December:12};
-  const m = s.match(/\w+,\s+(\w+)\s+(\d+),\s+(\d+)/);
-  if (!m) return s;
-  return `${String(parseInt(m[2])).padStart(2,'0')}/${String(M[m[1]]||1).padStart(2,'0')}/${m[3]}`;
-}
-
-/**
- * Extrae la clave numérica canónica de un número de orden.
- * Maneja: "S09115", "S9115", "SO9115", "s09115", "9115", "  S0 9115 " → "9115"
- * Paso 1: quitar espacios
- * Paso 2: quitar letras iniciales (S, O, o cualquier letra)
- * Paso 3: quitar ceros iniciales
- */
-function canonicKey(raw) {
-  return (raw || '').trim()
-    .replace(/^[A-Za-z]+/, '')   // quita letras iniciales (S, SO, s, etc.)
-    .replace(/^0+/, '')           // quita ceros iniciales
-    || (raw || '').trim().toUpperCase(); // fallback si el resultado está vacío
-}
-
-/** Obtiene datos de Sheets (con caché TTL) */
-async function getSheetsData() {
-  const now = Date.now();
-  if (sheetsCache && (now - sheetsCacheTime) < SHEETS_TTL) return sheetsCache;
-
-  const csv  = await fetchText(SHEETS_URL);
-  const lines = csv.split('\n').filter(l => l.trim());
-  if (!lines.length) throw new Error('Sheets CSV vacío');
-
-  const headers = parseCSVLine(lines[0]);
-  const idx = {};
-  headers.forEach((h, i) => idx[h.trim()] = i);
-
-  const data = {};
-  let rowsProcessed = 0;
-
-  lines.slice(1).forEach(line => {
-    const v = parseCSVLine(line);
-    const get = col => (v[idx[col]] || '').trim();
-    const rawKey = get('No. Orden');
-    if (!rawKey) return;
-
-    const record = {
-      tipoMov:       get('Tipo de Movimiento'),
-      cliente:       get('Nombre Cliente'),
-      ciudad:        get('Ciudades'),
-      lugarEntrega:  get('Lugar de Entrega'),
-      fSolicitada:   fmtGSDate(get('Fecha Solicitada')),
-      fEntrega:      fmtGSDate(get('Fecha de Entrega')),
-      vendedor:      get('VENDEDOR'),
-      diasPrep:      parseInt(get('Dias de preparacion'))  || 0,
-      diasRest:      parseInt(get('Dias Restantes'))       || 0,
-      instalacion:   get('Lleva instalacion?'),
-      horario:       get('Horario de Entrega'),
-      origen:        get('LUGAR DE DESPACHO'),
-      prioridad:     get('Prioridad'),
-      articulos:     parseInt(get('Cantidad de Articulos')) || 0,
-      vehiculo:      get('Vehículo'),
-      transporte:    get('Tipo de Transporte'),
-      estatus:       get('estatus'),
-      comentario:    get('Comentario'),
-      artAdicionales:parseInt(get('Articulos Adicionales')) || 0
-    };
-
-    // El campo No. Orden puede contener múltiples órdenes separadas por espacios
-    // Ej: "S08011 S08723" → registrar ambas con el mismo registro de despacho
-    const rawParts = rawKey.split(/\s+/).filter(Boolean);
-    rowsProcessed++;
-
-    rawParts.forEach(part => {
-      const num = canonicKey(part); // clave numérica: "9115"
-      // Indexar bajo todas las variantes que puedan usarse como búsqueda:
-      data[part]          = record; // original: "S09115"
-      if (num !== part)   data[num] = record; // numérico: "9115"
-    });
-  });
-
-  sheetsCache    = data;
-  sheetsCacheTime = now;
-  return data;
-}
-
-// ── Google Sheets — Control de Contenedores ──────────────────────────────────
-const CONT_SHEETS_ID  = process.env.CONT_SHEETS_ID  || '';
-const CONT_SHEETS_GID = process.env.CONT_SHEETS_GID || '0';
-const CONT_SHEETS_URL = CONT_SHEETS_ID
-  ? `https://docs.google.com/spreadsheets/d/${CONT_SHEETS_ID}/export?format=csv&gid=${CONT_SHEETS_GID}`
-  : '';
-const CONT_TTL = 5 * 60 * 1000;
-let contCache     = null;
-let contCacheTime = 0;
-
-/** Mapa flexible de encabezados CSV → campo interno
- *  Las claves ya deben estar en minúsculas y SIN tildes (como las procesa stripAccents).
- *  También se incluyen variantes con tildes por si el raw match funciona primero. */
-const CONT_COL_MAP = {
-  // ── EXP / PO ──────────────────────────────────────────────────────────────
-  'exp / po':'exp','exp/po':'exp','expediente':'exp','exp':'exp','po':'exp',
-  // ── Proveedor ──────────────────────────────────────────────────────────────
-  'proveedor':'proveedor','supplier':'proveedor',
-  // ── Descripción del Embarque ───────────────────────────────────────────────
-  'embarque':'embarque',
-  'descripcion del embarque':'embarque','descripcion embarque':'embarque',
-  // ── No de Orden Odoo ───────────────────────────────────────────────────────
-  'no de orden odoo':'noOrdenOdoo','no orden odoo':'noOrdenOdoo','no. orden odoo':'noOrdenOdoo',
-  'orden odoo':'noOrdenOdoo','numero orden odoo':'noOrdenOdoo','num orden odoo':'noOrdenOdoo',
-  'oc odoo':'noOrdenOdoo','orden compra odoo':'noOrdenOdoo','ordenes compra':'noOrdenOdoo','oc':'noOrdenOdoo',
-  // ── País de Origen ─────────────────────────────────────────────────────────
-  'origen':'origen','origin':'origen',
-  'pais de origen':'origen','pais origen':'origen',
-  // ── Método de Envío ────────────────────────────────────────────────────────
-  'metodo':'metodo','metodo transporte':'metodo','method':'metodo',
-  'metodo de envio':'metodo',
-  'metodo de envio (maritimo/aereo)':'metodo',
-  // ── Fecha de Salida ────────────────────────────────────────────────────────
-  'f. salida':'fSalida','fecha salida':'fSalida','fsalida':'fSalida','salida':'fSalida',
-  'fecha de salida':'fSalida',
-  // ── Fecha Estimada de Llegada ──────────────────────────────────────────────
-  'f. est. llegada':'fEst','fecha estimada':'fEst','eta':'fEst','fecha eta':'fEst','estimada':'fEst',
-  'fecha estimada de llegada':'fEst',
-  // ── Fecha de Llegada Real ──────────────────────────────────────────────────
-  'f. real':'fReal','fecha real':'fReal','freal':'fReal','llegada real':'fReal',
-  'fecha de llegada real':'fReal',
-  // ── Días en Tránsito ───────────────────────────────────────────────────────
-  'dias tr.':'diasTr','dias tr':'diasTr',
-  'dias transito':'diasTr','dias en transito':'diasTr',
-  // ── Días Restantes ─────────────────────────────────────────────────────────
-  'dias rest.':'diasRest','dias rest':'diasRest',
-  'dias restantes':'diasRest','dias restantes de llegada':'diasRest',
-  // ── Localidad de Entrega ───────────────────────────────────────────────────
-  'localidad':'localidad','localidad de entrega':'localidad',
-  // ── Etapas (booleanos) ─────────────────────────────────────────────────────
-  'en transito':'enTransito','transito':'enTransito',
-  'llego al pais':'llego','llego':'llego',
-  'pago impuestos':'pagoImp','aduana':'pagoImp','pago imp.':'pagoImp','pago imp':'pagoImp',
-  'pago de impuestos':'pagoImp',
-  'cita entrega':'citaEnt','cita':'citaEnt','citaent':'citaEnt','cita de entrega':'citaEnt',
-  'recibido almacen':'recAlm','recibido':'recAlm','recalm':'recAlm',
-  'recibido en almacen':'recAlm',
-  // ── Responsable / Comentarios ──────────────────────────────────────────────
-  'responsable':'responsable',
-  'comentarios':'comentario','comentario':'comentario',
-};
-
-function parseBool(v) {
-  const s = (v || '').toString().trim().toUpperCase();
-  return s === 'TRUE' || s === 'SI' || s === 'SÍ' || s === 'X' || s === 'VERDADERO' || s === '1' || s === 'YES';
-}
-
 /** Normaliza texto quitando tildes para comparar encabezados */
 function stripAccents(s) {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-/** Convierte fecha M/D/YYYY o MM/DD/YYYY → DD/MM/YYYY */
-function parseMDYDate(s) {
-  if (!s) return '';
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!m) return s;
-  return `${m[2].padStart(2,'0')}/${m[1].padStart(2,'0')}/${m[3]}`;
-}
-
-/** Lee y parsea un CSV de contenedores (string) → array de objetos */
-function parseContCSV(csv) {
-  const lines = csv.split('\n').filter(l => l.trim());
-  if (!lines.length) throw new Error('CSV vacío');
-
-  // ── Auto-detectar fila de encabezados ────────────────────────────────────
-  // El Excel tiene: fila 1 = nota "Llenar con x", fila 2 = encabezados reales
-  // Buscamos la primera fila (entre las 5 primeras) que tenga ≥ 3 columnas reconocidas
-  let headerLineIdx = 0;
-  let headerMap = {};
-
-  for (let li = 0; li < Math.min(5, lines.length); li++) {
-    const cols = parseCSVLine(lines[li]);
-    const testMap = {};
-    let hits = 0;
-    cols.forEach((h, i) => {
-      const raw  = h.trim().toLowerCase();
-      const norm = stripAccents(raw);
-      const field = CONT_COL_MAP[raw] || CONT_COL_MAP[norm];
-      if (field) { testMap[i] = field; hits++; }
-    });
-    if (hits >= 3) {
-      headerLineIdx = li;
-      headerMap = testMap;
-      break;
-    }
-  }
-
-  if (!Object.keys(headerMap).length) {
-    throw new Error('No se pudo identificar la fila de encabezados en el CSV. Verifica el formato del archivo.');
-  }
-
-  const BOOL_FIELDS = ['enTransito','llego','pagoImp','citaEnt','recAlm'];
-  const NUM_FIELDS  = ['diasTr','diasRest'];
-  const DATE_FIELDS = ['fSalida','fEst','fReal'];
-
-  return lines.slice(headerLineIdx + 1).map(line => {
-    const v   = parseCSVLine(line);
-    const rec = {};
-    Object.keys(headerMap).forEach(i => {
-      const f   = headerMap[i];
-      const val = (v[parseInt(i)] || '').trim();
-      if (BOOL_FIELDS.includes(f))      rec[f] = parseBool(val);
-      else if (NUM_FIELDS.includes(f))  rec[f] = val === '' ? null : (parseInt(val) || 0);
-      else if (DATE_FIELDS.includes(f)) rec[f] = parseMDYDate(val);
-      else                              rec[f] = val;
-    });
-    if (!rec.exp) return null;
-    return rec;
-  }).filter(Boolean);
-}
-
-const LOCAL_CSV          = path.join(__dirname, 'contenedores.csv');
-const LOCAL_CSV_PROYECTO = path.join(__dirname, '..', '..', '..', 'contenedores.csv');
-const LOCAL_CSV_DATA     = path.join(DATA_DIR, 'contenedores.csv');   // disco persistente Render
-
-async function getContainerData() {
-  const now = Date.now();
-  if (contCache && (now - contCacheTime) < CONT_TTL) return contCache;
-
-  let csv    = null;
-  let source = '';
-
-  // 1️⃣  Google Sheets (si CONT_SHEETS_ID está configurado)
-  if (CONT_SHEETS_URL) {
-    try {
-      csv    = await fetchText(CONT_SHEETS_URL);
-      source = 'Google Sheets';
-    } catch (e) {
-      console.warn(`⚠️  Error leyendo Sheets: ${e.message}`);
-    }
-  }
-
-  // 2️⃣  Disco persistente Render (/data/contenedores.csv) — sobrevive deploys
-  if (!csv && fs.existsSync(LOCAL_CSV_DATA)) {
-    csv    = fs.readFileSync(LOCAL_CSV_DATA, 'utf-8');
-    source = 'contenedores.csv (disco persistente)';
-  }
-
-  // 3️⃣  Archivo local junto al servidor (dev)
-  if (!csv && fs.existsSync(LOCAL_CSV)) {
-    csv    = fs.readFileSync(LOCAL_CSV, 'utf-8');
-    source = 'contenedores.csv (local)';
-  }
-
-  // 4️⃣  Fallback: contenedores.csv en la carpeta raíz del proyecto
-  if (!csv && fs.existsSync(LOCAL_CSV_PROYECTO)) {
-    csv    = fs.readFileSync(LOCAL_CSV_PROYECTO, 'utf-8');
-    source = 'contenedores.csv (proyecto)';
-  }
-
-  if (!csv) {
-    throw new Error(
-      'No hay fuente de datos configurada. ' +
-      'Opciones: (A) agrega CONT_SHEETS_ID en .env.txt, ' +
-      'o (B) sube contenedores.csv al disco persistente (/data/) vía Render Shell.'
-    );
-  }
-
-  const data = parseContCSV(csv);
-  contCache     = data;
-  contCacheTime = now;
-  return data;
-}
 
 // ── Servidor HTTP ────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
@@ -8083,23 +7775,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/sheets-csv-index — proxy CSV del Dashboard Ventas (index.html) ──
-  if (reqPath === '/api/sheets-csv-index' && req.method === 'GET') {
-    const INDEX_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRGtrgzYY0kHkDkM6tEwt69panoQsyLdWlL0ytJ5Y3WRTkOnBQBXnbEjR2WsnQ2hw/pub?gid=246525732&single=true&output=csv';
-    try {
-      const csv = await fetchText(INDEX_CSV_URL + '&_t=' + Date.now());
-      res.writeHead(200, {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(csv);
-    } catch (e) {
-      res.writeHead(502, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({error: e.message}));
-    }
-    return;
-  }
+  // /api/sheets-csv-index — ELIMINADO: integración Google Sheets removida (jul-2026, R-06D). El 404 es intencional.
 
   // ── /api/_fix/reset-pendiente — ELIMINADO post-ejecucion ──────────────────
   if (false && reqPath === '/api/_fix/reset-pendiente' && req.method === 'POST') {
@@ -8597,6 +8273,9 @@ const server = http.createServer(async (req, res) => {
 
   if (reqPath === '/api/health' && req.method === 'GET') {
     const deep = (url.parse(req.url, true).query.deep === 'true');
+    // R-06C: el health shallow queda PÚBLICO (monitoreo). El deep dispara auth de
+    // Odoo y expone ids de conexión (DB/USER/URL) + stats de disco → requiere sesión.
+    if (deep) { const _jpHealthDeep = requireJwt(req, res); if (!_jpHealthDeep) return; }
     if (!deep) {
       // R-05: el health público NO debe filtrar rutas del disco (DATA_DIR) ni un
       // preview de datos reales de tareas. Solo señales operativas no sensibles.
@@ -8612,7 +8291,7 @@ const server = http.createServer(async (req, res) => {
         odoo: { ok: !!odooUid, uid: odooUid || null },
         media: { mode: media.isR2Enabled() ? 'r2' : 'disk',
                  migrated: (function(){ try { return fs.existsSync(path.join(DATA_DIR, '.media-r2-migrated')); } catch(e){ return false; } })() },
-        note: 'shallow check — use ?deep=true for full Odoo+Sheets verification'
+        note: 'shallow check — use ?deep=true for full Odoo verification'
       }));
       return;
     }
@@ -8620,14 +8299,7 @@ const server = http.createServer(async (req, res) => {
     const health = {
       timestamp: new Date().toISOString(),
       mode: 'live',
-      odoo: { ok: false, source: 'Odoo', error: null, uid: null, db: ODOO_DB, user: ODOO_USER, url: ODOO_URL },
-      sheets: { ok: false, source: 'Google Sheets', error: null, rows: 0 },
-      contenedores: {
-        ok: false,
-        source: CONT_SHEETS_URL ? 'Google Sheets' : (fs.existsSync(LOCAL_CSV) ? 'contenedores.csv' : 'sin fuente'),
-        error: null,
-        rows: 0
-      }
+      odoo: { ok: false, source: 'Odoo', error: null, uid: null, db: ODOO_DB, user: ODOO_USER, url: ODOO_URL }
     };
 
     try {
@@ -8638,23 +8310,7 @@ const server = http.createServer(async (req, res) => {
       health.odoo.error = e.message;
     }
 
-    try {
-      const data = await getSheetsData();
-      health.sheets.ok = true;
-      health.sheets.rows = Object.keys(data || {}).length;
-    } catch (e) {
-      health.sheets.error = e.message;
-    }
-
-    try {
-      const cont = await getContainerData();
-      health.contenedores.ok = true;
-      health.contenedores.rows = Array.isArray(cont) ? cont.length : 0;
-    } catch (e) {
-      health.contenedores.error = e.message;
-    }
-
-    health.allOk = health.odoo.ok && health.sheets.ok && health.contenedores.ok;
+    health.allOk = health.odoo.ok;
 
     // QW6 (auditoría 6-jul): footprint de la evidencia en disco. Los backups NO cubren
     // las fotos (snapshotAllCritical solo copia .json) → el volumen es la única copia.
@@ -8691,6 +8347,9 @@ const server = http.createServer(async (req, res) => {
 
   // ── /api/smoke-test — Pruebas de funcionalidad básica ─────────────────
   if (reqPath === '/api/smoke-test' && req.method === 'GET') {
+    // R-06C: gate — anónimo disparaba authenticate() de Odoo + fetch de Sheets
+    // (quema cuota) y devolvía info de sistema/env. Requiere sesión.
+    const _jpSmoke = requireJwt(req, res); if (!_jpSmoke) return;
     const tests = [];
 
     // Test 1: Odoo real
@@ -8701,24 +8360,7 @@ const server = http.createServer(async (req, res) => {
       tests.push({ name: 'Odoo', passed: false, detail: e.message });
     }
 
-    // Test 2: Sheets real
-    try {
-      const data = await getSheetsData();
-      tests.push({ name: 'Google Sheets principal', passed: true, detail: `EN VIVO · ${Object.keys(data || {}).length} claves` });
-    } catch (e) {
-      tests.push({ name: 'Google Sheets principal', passed: false, detail: e.message });
-    }
-
-    // Test 3: Control de contenedores
-    try {
-      const data = await getContainerData();
-      const source = CONT_SHEETS_URL ? 'Google Sheets' : 'contenedores.csv';
-      tests.push({ name: 'Control de contenedores', passed: true, detail: `EN VIVO · ${source} · ${data.length} registros` });
-    } catch (e) {
-      tests.push({ name: 'Control de contenedores', passed: false, detail: e.message });
-    }
-
-    // Test 4: Averías persistencia
+    // Test 2: Averías persistencia
     const averiasExist = fs.existsSync(AVERIAS_FILE);
     tests.push({ name: 'Archivo averias.json', passed: averiasExist, detail: averiasExist ? 'OK' : 'No existe' });
 
@@ -8784,31 +8426,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── /api/sheets — datos en vivo de Google Sheets (despachos) ───────────
-  if (reqPath === '/api/sheets' && req.method === 'GET') {
-    try {
-      const data = await getSheetsData();
-      res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: true, result: data, ts: sheetsCacheTime }));
-    } catch (e) {
-      res.writeHead(502, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
-    return;
-  }
+  // /api/sheets — ELIMINADO: integración Google Sheets removida (jul-2026, R-06D). El 404 es intencional.
 
-  // ── /api/sheets/contenedores — Control de Contenedores ─────────────────
-  if (reqPath === '/api/sheets/contenedores' && req.method === 'GET') {
-    try {
-      const data = await getContainerData();
-      res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: true, result: data, ts: contCacheTime }));
-    } catch (e) {
-      res.writeHead(502, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
-    return;
-  }
+  // /api/sheets/contenedores — ELIMINADO: integración Google Sheets removida (jul-2026, R-06D). El 404 es intencional.
 
   // ── GET /api/products/search?q= — búsqueda global de productos en Odoo ──
   if (reqPath.startsWith('/api/products/search') && req.method === 'GET') {
@@ -12982,6 +12602,8 @@ const server = http.createServer(async (req, res) => {
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+    // R-06C: IDOR — solo participante de la tarea o rol edit_task puede mutarla (igual que sus hermanos)
+    if (!isTaskParticipant(tasks[idx], jp) && !ROLE_PERMISSIONS.edit_task.includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
     const d = await readBody(req);
     const _txt = (d.text||'').trim();
     // Imagen opcional en el mensaje
@@ -14087,6 +13709,8 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpEv) && !ROLE_PERMISSIONS.edit_task.includes(_jpEv.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (!tasks[idx].evidence) tasks[idx].evidence=[];
       const saved=[];
       let fi=0;
@@ -16265,6 +15889,10 @@ const server = http.createServer(async (req, res) => {
 
   // GET /api/wwp/odoo-order/:ref — artículos de orden, transferencia o artículo Odoo
   if (reqPath.match(/^\/api\/wwp\/odoo-order\/[^/]+$/) && req.method === 'GET') {
+    // R-06C: consultaba Odoo con la API key privilegiada SIN autenticar (fuga de
+    // pedidos/stock/cliente del ERP + quema de cuota). El front ya llama con authFetch;
+    // exigir JWT es drop-in y lo alinea con sus hermanos /api/wwp/odoo/*.
+    const _jpOdooOrder = requireJwt(req, res); if (!_jpOdooOrder) return;
     const ref = decodeURIComponent(reqPath.split('/')[4]).trim();
 
     // Helper: obtener stock por ubicación para un array de productIds
@@ -18369,6 +17997,8 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpK) && !ROLE_PERMISSIONS.edit_task.includes(_jpK.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const items = tasks[idx].items||[];
       const comps = items.filter(it => it.kitId===kitId && (it.unit_index||1)===Number(instance) && !it.isKit);
       if (!comps.length) throw new Error('Kit/instancia sin componentes');
@@ -18413,6 +18043,8 @@ const server = http.createServer(async (req, res) => {
       const idx = tasks.findIndex(t=>t.id===id);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       const task = tasks[idx];
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(task, jp) && !ROLE_PERMISSIONS.edit_task.includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (!task.auxDone) task.auxDone = {};
       if (d.done) {
         // Requiere fotos completas (igual que la compuerta de completar, sin confirmaciones)
@@ -18535,6 +18167,8 @@ const server = http.createServer(async (req, res) => {
       const idx = tasks.findIndex(t=>t.id===taskId);
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const task = tasks[idx];
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(task, _jpGc) && !ROLE_PERMISSIONS.edit_task.includes(_jpGc.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (!['packaging','warehouse_move'].includes(task.type)) {
         res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La evidencia por grupo solo aplica a empaque o almacenamiento.'})); return;
       }
@@ -18587,6 +18221,8 @@ const server = http.createServer(async (req, res) => {
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const itemIdx=(tasks[idx].items||[]).findIndex(it=>it.item_id===itemId);
       if (itemIdx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpItemEv) && !ROLE_PERMISSIONS.edit_task.includes(_jpItemEv.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (!tasks[idx].items[itemIdx].evidence_images) tasks[idx].items[itemIdx].evidence_images=[];
       // ── Anti-duplicado: hashes de TODAS las evidencias de la tarea (todos los items)
       // Evita que se suba la misma foto a varias unidades para simular evidencias.
@@ -18687,6 +18323,8 @@ const server = http.createServer(async (req, res) => {
       const task = tasks[idx];
       const itemIdx = (task.items||[]).findIndex(it => it.item_id === itemId);
       if (itemIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Artículo no encontrado'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(task, jp) && !ROLE_PERMISSIONS.edit_task.includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const item = task.items[itemIdx];
       item.demoStatus = d.action;
       if (!item.demoHistory) item.demoHistory = [];
@@ -18763,6 +18401,8 @@ const server = http.createServer(async (req, res) => {
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       const task = tasks[idx];
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(task, jp) && !ROLE_PERMISSIONS.edit_task.includes(jp.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (task.status === 'validated') {
         res.writeHead(400,{'Content-Type':'application/json'});
         res.end(JSON.stringify({ok:false,error:'No se puede registrar devolución en una tarea ya validada'}));
@@ -19190,6 +18830,8 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpFg) && !ROLE_PERMISSIONS.edit_task.includes(_jpFg.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       if (!tasks[idx].fotos_guia) tasks[idx].fotos_guia = [];
       const saved = [];
       let fi = 0;
@@ -19362,6 +19004,8 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpFgConf) && !ROLE_PERMISSIONS.edit_task.includes(_jpFgConf.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const fgIdx = (tasks[idx].fotos_guia||[]).findIndex(f => f.id === fotoId);
       if (fgIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Foto no encontrada'})); return; }
       tasks[idx].fotos_guia[fgIdx].confirmado = !!d.confirmado;
@@ -19386,6 +19030,8 @@ const server = http.createServer(async (req, res) => {
       const tasks = loadWwpTasks();
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
+      // R-06C: IDOR — solo participante o edit_task
+      if (!isTaskParticipant(tasks[idx], _jpFgEv) && !ROLE_PERMISSIONS.edit_task.includes(_jpFgEv.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
       const fgIdx = (tasks[idx].fotos_guia||[]).findIndex(f => f.id === fotoId);
       if (fgIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Foto de guía no encontrada'})); return; }
       if (!tasks[idx].fotos_guia[fgIdx].evidencias) tasks[idx].fotos_guia[fgIdx].evidencias = [];
@@ -19418,6 +19064,8 @@ const server = http.createServer(async (req, res) => {
     const tasks = loadWwpTasks();
     const idx = tasks.findIndex(t => t.id === taskId);
     if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false})); return; }
+    // R-06C: IDOR — solo participante o edit_task
+    if (!isTaskParticipant(tasks[idx], _jpFgEvDel) && !ROLE_PERMISSIONS.edit_task.includes(_jpFgEvDel.role)) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No tienes permiso para modificar esta tarea'})); return; }
     const fgIdx = (tasks[idx].fotos_guia||[]).findIndex(f => f.id === fotoId);
     if (fgIdx !== -1) {
       const evArr = tasks[idx].fotos_guia[fgIdx].evidencias || [];
