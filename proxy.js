@@ -45,6 +45,17 @@ const _jsonFileCache = new Map();
 // externas) sigue en filesystem. Sin DATABASE_URL este bloque queda inerte.
 const pgStorage = require('./storage-pg.js');
 const media = require('./media.js');  // capa de fotos/videos: disco o Cloudflare R2 (Fase 1)
+// Escritura/borrado de media por media.js (disco o R2). Reemplazan los
+// fs.writeFileSync(path.join(<DIR>, fname), Buffer.from(b64,'base64')) dispersos.
+// saveMediaB64 es async → debe AWAITearse (en R2 el PUT completa antes de
+// devolver la URL). deleteMediaUrl es best-effort (como los try/catch de unlink).
+async function saveMediaB64(kind, fname, b64) {
+  return media.mediaPut(kind, fname, Buffer.from(b64, 'base64'));
+}
+function deleteMediaUrl(kind, url) {
+  try { media.mediaDelete(kind, path.basename(String(url || ''))).catch(() => {}); }
+  catch (_) { /* best-effort */ }
+}
 function _isPgCollection(file) {
   if (!pgStorage.isActive()) return false;
   const full = path.resolve(file);
@@ -10914,13 +10925,15 @@ const server = http.createServer(async (req, res) => {
           if (!ln) throw Object.assign(new Error('Línea no encontrada'), {httpStatus:404});
           if (!ln.fotos) ln.fotos = [];
           saved = [];
-          (d.fotos||[]).forEach((f,fi)=>{
+          let fi = 0;
+          for (const f of (d.fotos||[])) {
             const { b64, ext } = validatePhoto(f);
             const fname = `${mDespFotos[1]}_${mDespFotos[2]}_${Date.now()}_${fi}.${ext}`;
-            fs.writeFileSync(path.join(DESP_FOTOS_DIR, fname), Buffer.from(b64,'base64'));
+            await saveMediaB64('desp-fotos', fname, b64);
             const entry = { url:`/desp-fotos/${fname}`, caption:f.caption||'', date:new Date().toISOString() };
             ln.fotos.push(entry); saved.push(entry);
-          });
+            fi++;
+          }
           list[idx].version = (list[idx].version||0) + 1;
           list[idx].updatedAt = new Date().toISOString();
           saveDespachos(list);
@@ -12832,7 +12845,7 @@ const server = http.createServer(async (req, res) => {
         const { b64, ext } = validatePhoto({ data:d.image, ext:d.ext||'jpg' });
         const ts = Date.now();
         const fname = `${taskId}_chat_${ts}.${ext}`;
-        fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64,'base64'));
+        await saveMediaB64('wwp-fotos', fname, b64);
         _imgUrl = `/wwp-fotos/${fname}`;
       } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
     }
@@ -12848,7 +12861,7 @@ const server = http.createServer(async (req, res) => {
         if (vBytes > 30 * 1024 * 1024) throw new Error('Video demasiado grande (máx 30 MB)');
         const ts = Date.now();
         const fname = `${taskId}_chat_${ts}.${vExt}`;
-        fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(vB64,'base64'));
+        await saveMediaB64('wwp-fotos', fname, vB64);
         _videoUrl = `/wwp-fotos/${fname}`;
       } catch(e) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
     }
@@ -17161,13 +17174,13 @@ const server = http.createServer(async (req, res) => {
         const bytes = Math.ceil(b64.length * 0.75);
         if (bytes > 30 * 1024 * 1024) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:`Video demasiado grande (${(bytes/1024/1024).toFixed(1)} MB, máx 30 MB)`})); return; }
         fname = `${sol.id}_adj_${ts}_${rand}.${rawExt}`; tipo = 'video';
-        fs.writeFileSync(path.join(SDV_ADJ_DIR, fname), Buffer.from(b64,'base64'));
+        await saveMediaB64('sdv-adjuntos', fname, b64);
       } else {
         let vp;
         try { vp = validatePhoto({ data: d.data, ext: rawExt }); }
         catch(e) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:e.message})); return; }
         fname = `${sol.id}_adj_${ts}_${rand}.${vp.ext}`; tipo = 'imagen';
-        fs.writeFileSync(path.join(SDV_ADJ_DIR, fname), Buffer.from(vp.b64,'base64'));
+        await saveMediaB64('sdv-adjuntos', fname, vp.b64);
       }
       const adjunto = {
         url: '/sdv-adjuntos/' + fname,
