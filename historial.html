@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v224';
+var APP_BUILD = 'v225';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12176,7 +12176,7 @@ function switchTab(tab) {
   if (tab==='formacion')  { trLoad(); }
   // Router: reflejar el tab en la URL solo si Workforce está al frente (enterApp
   // puede llamar switchTab durante el boot con la pantalla de historial activa)
-  if (_routeAppScreenActive()) _routeSet('wwp/' + tab);
+  if (_routeAppScreenActive()) _routeSet(tab === 'tasks' ? _routeTasksHash() : 'wwp/' + tab);
   closeProfileMenu();
 }
 
@@ -12751,6 +12751,10 @@ function setTaskView(v) {
     if(b.dataset.view) b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   filterTasks();
+  // Router + preferencia: la vista es direccionable (#wwp/tasks/<vista>; list =
+  // default = base) y persiste entre sesiones. El drawer abierto manda sobre la vista.
+  try { localStorage.setItem('wwp_task_view', v); } catch(e) {}
+  if (_routeAppScreenActive() && _currentTab === 'tasks' && !window._drawerTask) _routeSet(_routeTasksHash());
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -14186,6 +14190,8 @@ async function openDrawer(taskId) {
   const t = (_tasks||[]).find(x=>x.id===taskId) || preTask;
   if (!t) return;
   _drawerTask = t;
+  // Router: la tarea abierta es direccionable (#wwp/tasks/<id>); atrás cierra el drawer
+  if (_routeAppScreenActive() && _currentTab === 'tasks') _routeSet('wwp/tasks/' + t.id);
 
   // Mostrar breadcrumb para subtareas, título para tareas principales
   const isSubtask = !!t.parentId;
@@ -14290,6 +14296,8 @@ function closeDrawer() {
   _drawerTask = null;
   _lastDrawerFp = null;
   renderTasks();
+  // Router: al cerrar, la URL vuelve al hash canónico del tab Tareas
+  if (_routeAppScreenActive() && _currentTab === 'tasks') _routeSet(_routeTasksHash());
 }
 // True si el usuario está escribiendo dentro del drawer (input/textarea con foco).
 // Se usa para NO reconstruir el drawer en un refresh de fondo (poll/WS) y evitar
@@ -24196,6 +24204,8 @@ function buscarOrden(){
 async function buscarTransferencia(name){
   saveRecentSearch(name, 'T · '+name);
   goToBuscar();
+  _routeLastBuscar = name;
+  _routeSet('buscar/' + encodeURIComponent(name));
   var rs=document.getElementById('result-section');
   var rBanner=document.getElementById('r-banner');
   rs.style.display='';
@@ -25151,6 +25161,11 @@ var _LAST_SEARCH_NUM='';
 async function buscarDirecta(num){
   pushNavHistory(); // only executes if _navSearchLock===false (called from historial, not buscarOrden)
   _LAST_SEARCH_NUM=num;
+  // Router: la búsqueda es direccionable (#buscar/<término>) — también en los
+  // early-returns de transferencia/compra (goToBuscar es idempotente)
+  goToBuscar();
+  _routeLastBuscar = num;
+  _routeSet('buscar/' + encodeURIComponent(num));
   document.getElementById('order-input').value=num;
   // Auto-rutear por tipo de referencia
   var detected=detectRefType(num);
@@ -25210,6 +25225,9 @@ function cerrarResultado(){
   document.getElementById('order-input').value='';
   _navHistory=[];
   _updateBackBtn();
+  // Router: sin resultado visible, la URL vuelve a la base de la sección
+  _routeLastBuscar = '';
+  if (CURRENT_SECTION === 'buscar') _routeSet('buscar');
 }
 
 // ════════════════════════════════════════════════════
@@ -25218,6 +25236,8 @@ function cerrarResultado(){
 async function buscarOrdenCompra(num){
   saveRecentSearch(num, 'OC · '+num);
   goToBuscar();
+  _routeLastBuscar = num;
+  _routeSet('buscar/' + encodeURIComponent(num));
   var rs=document.getElementById('result-section');
   var rBanner=document.getElementById('r-banner');
   rs.style.display='';
@@ -25924,14 +25944,19 @@ function dbViewerLoad(){
   if (window.lucide) lucide.createIcons();
   dbvShow('usuarios');
 }
+var _dbvSeq = 0;   // guard de secuencia: solo la última vista pedida pinta la tabla
 async function dbvShow(view){
+  var mySeq = ++_dbvSeq;
   DBV_VIEWS.forEach(function(v){ var b=document.getElementById('dbv-btn-'+v.key); if(b) b.classList.toggle('active', v.key===view); });
+  // Router: la vista activa es direccionable (#basedatos/<vista>; usuarios = default = base)
+  if (CURRENT_SECTION === 'basedatos') _routeSet(view === 'usuarios' ? 'basedatos' : 'basedatos/' + view);
   var tbl = document.getElementById('dbv-table');
   if (!tbl) return;
   tbl.innerHTML = '<div style="padding:20px;color:var(--text-2)">Cargando…</div>';
   try{
     var r = await authFetch('/api/admin/db/'+encodeURIComponent(view));
     var d = await r.json();
+    if (mySeq !== _dbvSeq) return;   // otra vista tomó el control mientras cargaba
     if (!r.ok || !d.ok){ tbl.innerHTML = '<div style="padding:20px;color:var(--red-text)">'+esc((d&&d.error)||('Error '+r.status))+'</div>'; return; }
     var rows = d.rows||[];
     if (!rows.length){ tbl.innerHTML = '<div style="padding:20px;color:var(--text-2)">(sin filas)</div>'; return; }
@@ -25944,6 +25969,7 @@ async function dbvShow(view){
     html += '</tbody></table>';
     tbl.innerHTML = html;
   }catch(e){
+    if (mySeq !== _dbvSeq) return;   // error de una vista vieja: no pisar la vigente
     tbl.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+esc(e.message)+'</div>';
   }
 }
@@ -26402,6 +26428,8 @@ async function invdCargar(force){
 
 function invdTab(name){
   _invdTab = name;
+  // Router: el tab activo es direccionable (#inventario/<tab>; fiabilidad = default = base)
+  if (CURRENT_SECTION === 'inventario') _routeSet(name === 'fiabilidad' ? 'inventario' : 'inventario/' + name);
   document.querySelectorAll('#invd-tabs .wwp-tab').forEach(function(b){
     var active = b.dataset.invtab===name;
     b.classList.toggle('active', active); b.setAttribute('aria-selected', active ? 'true' : 'false'); b.tabIndex = active ? 0 : -1;
@@ -27785,7 +27813,7 @@ function goToWWP() {
   }
   // Marcar "Workforce Labor" como activo en el sidebar persistente
   setNavActive('wwp');
-  _routeSet('wwp/' + _currentTab);
+  _routeSet(_currentTab === 'tasks' ? _routeTasksHash() : 'wwp/' + _currentTab);
 }
 function goBackToHistorial() {
   showScreen('screen-historial');
@@ -27880,33 +27908,89 @@ function _routeSet(h){
   }
 }
 
-/** Navega según un hash ('inventario', 'wwp/tasks'…). Silencioso si el hash
- *  no es válido o no hay acceso. Devuelve true si la ruta aplicó (o ya
- *  estábamos ahí — guard anti-loop). */
+// Subrutas (v225): segundo segmento por sección. Regla: segmento vacío = default
+// de la sección — así la URL base y el default son la misma ruta y la entrada a
+// una sección no genera doble push en el historial.
+var _ROUTE_INVD_TABS = ['fiabilidad','transitos','estructural','cuadre'];
+var _ROUTE_TASK_VIEWS = ['list','cards','kanban','person','cal','charts'];
+var _routeLastBuscar = '';   // último término reflejado en #buscar/<término> (guard anti re-búsqueda)
+var _routeLastAveria = '';   // ídem para #averias/<sku>
+
+/** Hash canónico del tab Tareas de WWP: base o base/vista (el drawer se refleja aparte). */
+function _routeTasksHash(){
+  return 'wwp/tasks' + (typeof _taskView === 'string' && _taskView !== 'list' ? '/' + _taskView : '');
+}
+
+/** Aplica el 2º segmento del hash dentro de una sección ya navegada. Con guards
+ *  de idempotencia: si el estado visible ya coincide, no re-ejecuta nada. */
+function _routeApplySub(section, sub){
+  try {
+    if (section === 'buscar') {
+      if (sub && sub !== _routeLastBuscar) buscarDirecta(sub);
+      return;
+    }
+    if (section === 'inventario') {
+      var t = (sub && _ROUTE_INVD_TABS.indexOf(sub) >= 0) ? sub : 'fiabilidad';
+      if (window._invdTab !== t && document.getElementById('invd-tabs')) invdTab(t);
+      return;
+    }
+    if (section === 'basedatos') {
+      var v = (typeof DBV_VIEWS !== 'undefined' && DBV_VIEWS.some(function(x){ return x.key === sub; })) ? sub : 'usuarios';
+      var btn = document.getElementById('dbv-btn-' + v);
+      if (btn && !btn.classList.contains('active')) dbvShow(v);
+      return;
+    }
+    if (section === 'averias') {
+      if (sub && sub !== _routeLastAveria) {
+        var inp = document.getElementById('av-barcode-input');
+        if (inp) { inp.value = sub; _routeLastAveria = sub; avLookup(); }
+      }
+      return;
+    }
+  } catch (e) { }
+}
+
+/** Extra del tab Tareas: vista (lista blanca) o tarea wt_… (abre el drawer vía
+ *  routeNotifTarget, que ya valida rol y existencia). Vacío = cerrar drawer. */
+function _routeApplyTasksExtra(extra){
+  try {
+    if (!extra) { if (window._drawerTask) closeDrawer(); return; }
+    if (_ROUTE_TASK_VIEWS.indexOf(extra) >= 0) { if (_taskView !== extra) setTaskView(extra); return; }
+    if (/^wt_/.test(extra)) {
+      if (window._drawerTask && _drawerTask.id === extra) return;   // ya abierto
+      routeNotifTarget({ kind: 'task', id: extra });                 // async, valida y abre
+    }
+  } catch (e) { }
+}
+
+/** Navega según un hash ('inventario', 'wwp/tasks/wt_x'…). Silencioso si el
+ *  hash no es válido o no hay acceso. Devuelve true si la ruta aplicó. */
 function _routeApplyFromHash(rawOpt){
   if (_routeApplying) return false;
   if (!_user || !_token) return false;    // sin sesión: se aplica al aterrizar (_routeLand)
   var raw = (rawOpt != null ? rawOpt : (location.hash || '')).replace(/^#/, '');
-  try { raw = decodeURIComponent(raw); } catch (e) { }
   if (!raw) return false;
-  var parts = raw.split('/');
+  // Decode POR SEGMENTO (no del raw entero): un término con '/' codificado
+  // (%2F — ej. transferencias WH/OUT/00123) debe quedar entero en su segmento.
+  var parts = raw.split('/').map(function(p){ try { return decodeURIComponent(p); } catch (e) { return p; } });
   _routeApplying = true;
   try {
     if (parts[0] === 'wwp') {
       if (!hasWwpAccess(_user)) return false;
       var tab = (parts[1] && _ROUTE_WWP_TABS.indexOf(parts[1]) >= 0) ? parts[1] : '';
-      if (_routeAppScreenActive() && (!tab || tab === _currentTab)) return true;  // ya estamos ahí
       if (!_routeAppScreenActive()) goToWWP();
       if (tab && tab !== _currentTab) switchTab(tab);
+      if ((tab || _currentTab) === 'tasks') _routeApplyTasksExtra(parts.slice(2).join('/'));
       return true;
     }
-    var section = raw;
+    var section = parts[0];
     if (section === 'inventario-salud' || section === 'validacion') section = 'inventario';
     if (!_routeSectionValida(section)) return false;
     if (!canSection(section)) return false;   // sin acceso: no navegar, sin toast
     var target = NAV_SECTION_MAP[section] || section;
-    if (!_routeAppScreenActive() && CURRENT_SECTION === target) { setNavActive(section); return true; }
-    navTo(section);
+    var yaAhi = !_routeAppScreenActive() && CURRENT_SECTION === target;
+    if (yaAhi) setNavActive(section); else navTo(section);
+    _routeApplySub(target, parts.slice(1).join('/'));
     return true;
   } finally {
     _routeApplying = false;
@@ -27918,11 +28002,23 @@ function _routeApplyFromHash(rawOpt){
  *  a donde el flujo default aterrizó. */
 function _routeLand(){
   _routeLanded = false;
+  // Vista de tareas preferida (localStorage) — se aplica ANTES del hash, para
+  // que una vista explícita en la URL gane sobre la preferencia guardada.
+  try {
+    var _tv = localStorage.getItem('wwp_task_view');
+    if (_tv && _tv !== _taskView && _ROUTE_TASK_VIEWS.indexOf(_tv) >= 0) setTaskView(_tv);
+  } catch (e) { }
   var h = _routeInitialHash || (location.hash || '').replace(/^#/, '');
   _routeInitialHash = '';
   if (h && _routeApplyFromHash(h)) _routeLanded = true;
-  if (!_routeLanded) _routeSet(_routeAppScreenActive() ? ('wwp/' + _currentTab) : CURRENT_SECTION);
+  if (!_routeLanded) _routeSet(_routeCanonical());
   _routeReady = true;
+}
+
+/** Hash canónico de la ubicación visible actual (sin subrutas de detalle). */
+function _routeCanonical(){
+  if (!_routeAppScreenActive()) return CURRENT_SECTION;
+  return _currentTab === 'tasks' ? _routeTasksHash() : 'wwp/' + _currentTab;
 }
 
 window.addEventListener('hashchange', function(){
@@ -27930,8 +28026,7 @@ window.addEventListener('hashchange', function(){
   if (!_routeApplyFromHash()) {
     // Hash inválido o sin acceso: re-canonizar a la ubicación real (sin push,
     // para no ensuciar el historial del navegador)
-    var h = _routeAppScreenActive() ? ('wwp/' + _currentTab) : CURRENT_SECTION;
-    try { history.replaceState(null, '', '#' + h); } catch (e) { }
+    try { history.replaceState(null, '', '#' + _routeCanonical()); } catch (e) { }
   }
 });
 
@@ -28129,6 +28224,9 @@ async function avLookup(){
     var d=await r.json();
     if(!d.ok){ msg.className='av-lookup-msg err'; msg.textContent=d.error; _avCurrentProduct=null; return; }
     avFillProductCard(d.product);
+    // Router: el producto consultado es direccionable (#averias/<término>)
+    _routeLastAveria = q;
+    if (CURRENT_SECTION === 'averias') _routeSet('averias/' + encodeURIComponent(q));
   }catch(e){ msg.className='av-lookup-msg err'; msg.textContent='Error: '+e.message; _avCurrentProduct=null; }
 }
 
