@@ -377,6 +377,26 @@ if (!fs.existsSync(AV_FOTOS_DIR)) fs.mkdirSync(AV_FOTOS_DIR, { recursive: true }
 function loadAverias() { return loadJson(AVERIAS_FILE, []); }
 function saveAverias(list) { saveJson(AVERIAS_FILE, list); }
 
+// ── Políticas (tab admin) — persistencia ─────────────────────────────────────
+// Definiciones de políticas de cumplimiento (almuerzo, llegada, tareas,
+// inspección vehicular). La evaluación es client-side en historial.html (pol*);
+// el backend solo persiste las definiciones. Endpoint restaurado en poda 2/2
+// jul-2026: el tab llamaba a /api/politicas y la ruta no existía.
+const POLITICAS_FILE = path.join(DATA_DIR, 'politicas.json');
+const POLITICAS_SEED = [{
+  id: 'POL-20260518-001', nombre: 'Horario de Almuerzo', tipo: 'lunch_duration',
+  descripcion: 'Los empleados solo pueden tomar el tiempo de almuerzo asignado en su perfil de usuario.',
+  activa: true, parametros: { toleranciaMinutos: 5, aplicaA: 'all' },
+  creadaEn: '2026-05-18T19:14:36.794Z'
+}];
+function loadPoliticas() {
+  // Sentinel null: distingue "colección ausente" (→ seed) de "vacía a propósito"
+  // (→ []). Funciona igual en modo archivos y en modo PG (loadJson enruta).
+  const list = loadJson(POLITICAS_FILE, null);
+  return Array.isArray(list) ? list : POLITICAS_SEED.map(p => ({ ...p }));
+}
+function savePoliticas(list) { saveJson(POLITICAS_FILE, list); }
+
 // ── Despacho de Obsoleto — persistencia ──────────────────────────────────────
 // Conduce documental de salida de mercancía en OBSOLETO / NAVE 2 (venta al por
 // mayor "como está"). NO toca inventario en Odoo; es respaldo con fotos + firma.
@@ -10183,6 +10203,77 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /api/politicas — CRUD de definiciones (tab Políticas, admin-only) ───────
+  // Restaurado en poda 2/2 (jul-2026): el frontend admin llamaba a estas rutas
+  // y no existían. GET devuelve el ARRAY plano (el cliente hace Array.isArray).
+  if (reqPath === '/api/politicas' && req.method === 'GET') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    sendGzipJson(req, res, 200, loadPoliticas());
+    return;
+  }
+
+  if (reqPath === '/api/politicas' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const d = await readBody(req);
+      const nombre = String(d.nombre || '').trim().slice(0, 120);
+      const tipo   = String(d.tipo || '').trim().slice(0, 40);
+      if (!nombre) { sendJson(res, 400, { ok: false, error: 'nombre requerido' }); return; }
+      if (!tipo)   { sendJson(res, 400, { ok: false, error: 'tipo requerido' }); return; }
+      const list = loadPoliticas();
+      const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      let seq = 1, id;
+      do { id = 'POL-' + hoy + '-' + String(seq).padStart(3, '0'); seq++; } while (list.some(p => p.id === id));
+      const pol = {
+        id, nombre, tipo,
+        descripcion: String(d.descripcion || '').trim().slice(0, 500),
+        activa: d.activa !== false,
+        parametros: (d.parametros && typeof d.parametros === 'object') ? d.parametros : {},
+        creadaEn: new Date().toISOString()
+      };
+      list.push(pol);
+      savePoliticas(list);
+      try { appendAuditLog('politica_creada', { id: pol.id, nombre, tipo, by: jp.userId }); } catch (e) {}
+      sendJson(res, 200, { ok: true, politica: pol });
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e.message });
+    }
+    return;
+  }
+
+  if (reqPath.startsWith('/api/politicas/') && (req.method === 'PATCH' || req.method === 'DELETE')) {
+    const jp = requireJwt(req, res); if (!jp) return;
+    if (!requireRole(jp, res, ['admin'])) return;
+    try {
+      const polId = decodeURIComponent(reqPath.slice('/api/politicas/'.length));
+      const list = loadPoliticas();
+      const idx = list.findIndex(p => p.id === polId);
+      if (idx === -1) { sendJson(res, 404, { ok: false, error: 'política no encontrada' }); return; }
+      if (req.method === 'DELETE') {
+        const gone = list.splice(idx, 1)[0];
+        savePoliticas(list);
+        try { appendAuditLog('politica_eliminada', { id: polId, nombre: gone && gone.nombre, by: jp.userId }); } catch (e) {}
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      const d = await readBody(req);
+      const pol = list[idx];
+      if (d.nombre !== undefined)      pol.nombre = String(d.nombre || '').trim().slice(0, 120) || pol.nombre;
+      if (d.tipo !== undefined)        pol.tipo = String(d.tipo || '').trim().slice(0, 40) || pol.tipo;
+      if (d.descripcion !== undefined) pol.descripcion = String(d.descripcion || '').trim().slice(0, 500);
+      if (d.activa !== undefined)      pol.activa = !!d.activa;
+      if (d.parametros !== undefined && d.parametros && typeof d.parametros === 'object') pol.parametros = d.parametros;
+      savePoliticas(list);
+      try { appendAuditLog('politica_actualizada', { id: polId, by: jp.userId }); } catch (e) {}
+      sendJson(res, 200, { ok: true, politica: pol });
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e.message });
     }
     return;
   }
@@ -20524,6 +20615,20 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       sendJson(res, 500, { ok: false, error: safeError(e) });
     }
+    return;
+  }
+
+  // ── GET /api/admin/db/:view — visor de solo lectura de las vistas tipadas (Fase 3) ──
+  // Devuelve una colección como TABLA (columnas), no como JSON opaco. Solo admin.
+  if (reqPath.match(/^\/api\/admin\/db\/[a-z_]+$/) && req.method === 'GET') {
+    const _jpDb = requireJwt(req, res); if (!_jpDb) return;
+    if (!requireRole(_jpDb, res, ['admin'])) return;
+    if (!pgStorage.isActive()) { sendJson(res, 503, { ok:false, error:'Las vistas SQL requieren PostgreSQL activo (producción).' }); return; }
+    const _view = 'v_' + reqPath.split('/').pop();
+    try {
+      const rows = await pgStorage.readView(_view);
+      sendJson(res, 200, { ok:true, view:_view, count:rows.length, rows });
+    } catch (e) { sendJson(res, 400, { ok:false, error: e.message }); }
     return;
   }
 

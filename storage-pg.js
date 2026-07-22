@@ -361,6 +361,7 @@ async function init(opts = {}) {
     'CREATE TABLE IF NOT EXISTS rejected_writes(id BIGSERIAL PRIMARY KEY, collection TEXT,' +
     ' attempted_len INT, prev_len INT, at TIMESTAMPTZ NOT NULL DEFAULT now())');
 
+  await _createViews();
   await _preload();
   await _importFromFiles();
   state.active = true;
@@ -528,9 +529,40 @@ async function shutdown() {
   state.active = false;
 }
 
+// ── Vistas SQL tipadas (Fase 3, incremento 1) ────────────────────────────────
+// Proyectan collection_rows (JSONB) como TABLAS legibles/consultables, SIN cambiar
+// cómo la app lee o escribe (fuente de verdad sigue siendo la colección en memoria).
+// Best-effort: un fallo aquí NO debe tumbar el arranque (las vistas son accesorias).
+const READABLE_VIEWS = new Set(['v_usuarios']);
+async function _createViews() {
+  const ddls = [
+    // Usuarios — EXCLUYE campos sensibles (passwordHash, resetToken*). Todo TEXT
+    // (data->>'x') para que ningún cast falle en runtime.
+    "CREATE OR REPLACE VIEW v_usuarios AS SELECT " +
+    "data->>'id' AS id, data->>'name' AS nombre, data->>'email' AS email, " +
+    "data->>'role' AS rol, data->>'odooId' AS odoo_id, data->>'active' AS activo, " +
+    "data->>'lastLogin' AS ultimo_login, data->>'mustChangePassword' AS debe_cambiar_pw, " +
+    "data->>'createdAt' AS creado " +
+    "FROM collection_rows WHERE collection = 'wwp-users-auth' ORDER BY ord",
+  ];
+  for (const ddl of ddls) {
+    try { await state.pool.query(ddl); }
+    catch (e) { console.warn('[storage-pg] creación de vista falló (no crítico): ' + e.message); }
+  }
+  console.log('[storage-pg] vistas SQL listas: ' + [...READABLE_VIEWS].join(', '));
+}
+// Lectura de una vista whitelisteada (para el visor admin). Solo lectura.
+async function readView(name) {
+  if (!state.active) throw new Error('storage-pg no activo');
+  if (!READABLE_VIEWS.has(name)) throw new Error('vista no permitida: ' + name);
+  const res = await state.pool.query('SELECT * FROM ' + name);  // name whitelisteado arriba
+  return res.rows;
+}
+
 module.exports = {
   init, isActive, isEnabled,
   loadCollection, saveCollection,
   exportAllToFiles, flushAll, health, shutdown, snapshotAll,
+  readView,
   _internals: state, // solo para tests
 };
