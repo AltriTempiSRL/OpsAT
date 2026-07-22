@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v223';
+var APP_BUILD = 'v224';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -12174,6 +12174,9 @@ function switchTab(tab) {
   if (tab==='impacto')    { impInit(); }
   if (tab==='empaque')    { empInit(); }
   if (tab==='formacion')  { trLoad(); }
+  // Router: reflejar el tab en la URL solo si Workforce está al frente (enterApp
+  // puede llamar switchTab durante el boot con la pantalla de historial activa)
+  if (_routeAppScreenActive()) _routeSet('wwp/' + tab);
   closeProfileMenu();
 }
 
@@ -27706,6 +27709,7 @@ function navTo(section){
   var target=NAV_SECTION_MAP[section]||section;
   showSection(target);
   setNavActive(section);
+  _routeSet(section);
   if(target==='buscar') renderRecentTags();
   if(target==='contenedores'&&!CONT_LOADED) cargarContenedores();
   if(target==='reposicion') { initReposicion(); loadSolicitudes(false); }
@@ -27761,6 +27765,7 @@ function goToBuscar(){
   if(CURRENT_SECTION!=='buscar'){
     showSection('buscar');
     setNavActive('buscar');
+    _routeSet('buscar');
   }
 }
 
@@ -27780,9 +27785,11 @@ function goToWWP() {
   }
   // Marcar "Workforce Labor" como activo en el sidebar persistente
   setNavActive('wwp');
+  _routeSet('wwp/' + _currentTab);
 }
 function goBackToHistorial() {
   showScreen('screen-historial');
+  _routeSet(CURRENT_SECTION);
 }
 function setHistorialUser() {
   if (!_user) return;
@@ -27807,7 +27814,10 @@ function setHistorialUser() {
     // no el portal SDV — el tablero orienta mejor al entrar.
     if (!hasWwpAccess(_user)) ORDER.unshift('estado-ordenes');
     var first = ORDER.find(function(s){ return canSection(s); });
-    if (first) { navTo(first); }
+    // Router: si el aterrizaje ya honró un deep-link válido (sección propia o WWP),
+    // el re-run tras doRefresh() no debe pisarlo con la sección default.
+    var _pisaDeepLink = _routeLanded && (_routeAppScreenActive() || canSection(CURRENT_SECTION));
+    if (first && !_pisaDeepLink) { navTo(first); }
   }
 }
 
@@ -27826,7 +27836,104 @@ function landAfterAuth() {
   } else {
     showScreen('screen-app'); setNavActive('wwp');
   }
+  _routeLand();
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// ROUTER POR HASH (v223) — cada módulo tiene URL propia: #<seccion> para
+// Despachos (ej. #inventario, #basedatos) y #wwp/<tab> para Workforce
+// (ej. #wwp/tasks). Aditivo: navTo/switchTab/goToWWP escriben el hash;
+// hashchange navega (atrás/adelante y edición manual de URL); al aterrizar
+// post-auth se honra el hash si el usuario tiene acceso (canSection /
+// hasWwpAccess), en silencio — sin toasts en carga.
+// NO pisa ?notif=/?task= del service worker: esos siguen ruteando vía
+// routeNotifClick después del aterrizaje (y ganan, por orden de ejecución).
+// ═══════════════════════════════════════════════════════════════════════
+var _ROUTE_WWP_TABS = ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion','archivo'];
+// Capturado al parsear: durante el aterrizaje setHistorialUser/navTo pueden
+// reescribir location.hash antes de que _routeLand() lo lea.
+var _routeInitialHash = (location.hash || '').replace(/^#/, '');
+var _routeReady = false;      // true tras el primer aterrizaje: los cambios pasan a pushear historial
+var _routeApplying = false;   // true mientras navegamos POR el hash (evita re-escribirlo / loops)
+var _routeLanded = false;     // true si el aterrizaje aplicó un deep-link válido
+
+function _routeAppScreenActive(){
+  var el = document.getElementById('screen-app');
+  return !!(el && el.classList.contains('active'));
+}
+
+function _routeSectionValida(s){
+  return Object.prototype.hasOwnProperty.call(NAV_SECTION_MAP, s) ||
+    PAGE_SECTIONS.indexOf(s) >= 0 || s === 'inventario-salud' || s === 'validacion';
+}
+
+/** Escribe el hash sin disparar re-navegación. Push si la app ya aterrizó
+ *  (atrás/adelante del navegador funciona); replace silencioso durante el boot. */
+function _routeSet(h){
+  if (_routeApplying) return;             // la navegación vino DEL hash: ya está escrito
+  var cur = (location.hash || '').replace(/^#/, '');
+  if (cur === h) return;
+  if (_routeReady) {
+    location.hash = h;
+  } else {
+    try { history.replaceState(null, '', '#' + h); } catch (e) { }
+  }
+}
+
+/** Navega según un hash ('inventario', 'wwp/tasks'…). Silencioso si el hash
+ *  no es válido o no hay acceso. Devuelve true si la ruta aplicó (o ya
+ *  estábamos ahí — guard anti-loop). */
+function _routeApplyFromHash(rawOpt){
+  if (_routeApplying) return false;
+  if (!_user || !_token) return false;    // sin sesión: se aplica al aterrizar (_routeLand)
+  var raw = (rawOpt != null ? rawOpt : (location.hash || '')).replace(/^#/, '');
+  try { raw = decodeURIComponent(raw); } catch (e) { }
+  if (!raw) return false;
+  var parts = raw.split('/');
+  _routeApplying = true;
+  try {
+    if (parts[0] === 'wwp') {
+      if (!hasWwpAccess(_user)) return false;
+      var tab = (parts[1] && _ROUTE_WWP_TABS.indexOf(parts[1]) >= 0) ? parts[1] : '';
+      if (_routeAppScreenActive() && (!tab || tab === _currentTab)) return true;  // ya estamos ahí
+      if (!_routeAppScreenActive()) goToWWP();
+      if (tab && tab !== _currentTab) switchTab(tab);
+      return true;
+    }
+    var section = raw;
+    if (section === 'inventario-salud' || section === 'validacion') section = 'inventario';
+    if (!_routeSectionValida(section)) return false;
+    if (!canSection(section)) return false;   // sin acceso: no navegar, sin toast
+    var target = NAV_SECTION_MAP[section] || section;
+    if (!_routeAppScreenActive() && CURRENT_SECTION === target) { setNavActive(section); return true; }
+    navTo(section);
+    return true;
+  } finally {
+    _routeApplying = false;
+  }
+}
+
+/** Aterrizaje post-auth: honra el hash con el que se abrió la app (deep-link,
+ *  F5, reload del version-gate). Si no hay hash o no aplica, canoniza la URL
+ *  a donde el flujo default aterrizó. */
+function _routeLand(){
+  _routeLanded = false;
+  var h = _routeInitialHash || (location.hash || '').replace(/^#/, '');
+  _routeInitialHash = '';
+  if (h && _routeApplyFromHash(h)) _routeLanded = true;
+  if (!_routeLanded) _routeSet(_routeAppScreenActive() ? ('wwp/' + _currentTab) : CURRENT_SECTION);
+  _routeReady = true;
+}
+
+window.addEventListener('hashchange', function(){
+  if (!_user || !_token) return;
+  if (!_routeApplyFromHash()) {
+    // Hash inválido o sin acceso: re-canonizar a la ubicación real (sin push,
+    // para no ensuciar el historial del navegador)
+    var h = _routeAppScreenActive() ? ('wwp/' + _currentTab) : CURRENT_SECTION;
+    try { history.replaceState(null, '', '#' + h); } catch (e) { }
+  }
+});
 
 // ════════════════════════════════════════════════════
 //  ARTÍCULOS AVERIADOS
