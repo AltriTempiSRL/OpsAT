@@ -8862,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v226';
+var APP_BUILD = 'v227';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -11298,7 +11298,9 @@ function enterApp() {
   // Guía de usuario: admin → guía completa, encargado/auxiliar → guía staff
   var guideBtn = document.getElementById('btn-guide');
   if (guideBtn) {
-    guideBtn.href = (_user.role === 'admin') ? 'wwp-guide.html' : 'wwp-guide-staff.html';
+    // v227: absoluto — bajo paths de módulo (/inventario) un href relativo
+    // resolvería a /inventario/wwp-guide.html y serviría la app, no la guía
+    guideBtn.href = (_user.role === 'admin') ? '/wwp-guide.html' : '/wwp-guide-staff.html';
   }
 
   // ── Construir nav dinámicamente según rol (RBAC) ──────────────────────
@@ -27884,19 +27886,32 @@ function landAfterAuth() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ROUTER POR HASH (v223) — cada módulo tiene URL propia: #<seccion> para
-// Despachos (ej. #inventario, #basedatos) y #wwp/<tab> para Workforce
-// (ej. #wwp/tasks). Aditivo: navTo/switchTab/goToWWP escriben el hash;
-// hashchange navega (atrás/adelante y edición manual de URL); al aterrizar
-// post-auth se honra el hash si el usuario tiene acceso (canSection /
+// ROUTER DE URLs (v224 hash → v227 PATHS REALES) — cada módulo tiene URL
+// propia con path de verdad: /inventario, /basedatos, /buscar/S09115,
+// /wwp/tasks (el server sirve la app en toda ruta de módulo — proxy.js,
+// bloque "Rutas de módulo"). navTo/switchTab/goToWWP escriben el path
+// (history.pushState); popstate navega (atrás/adelante); al aterrizar
+// post-auth se honra la ruta si el usuario tiene acceso (canSection /
 // hasWwpAccess), en silencio — sin toasts en carga.
+// Compat: los links #hash de v224–v226 (…historial.html#inventario) se
+// siguen aceptando al aterrizar y por hashchange, normalizando al path.
 // NO pisa ?notif=/?task= del service worker: esos siguen ruteando vía
 // routeNotifClick después del aterrizaje (y ganan, por orden de ejecución).
 // ═══════════════════════════════════════════════════════════════════════
 var _ROUTE_WWP_TABS = ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion','archivo'];
+/** Ruta actual desde la URL: path real (/inventario → 'inventario'); si el path
+ *  es la base (/historial.html, /historial o /), cae al esquema #hash viejo
+ *  (compat con links compartidos de v224–v226). */
+function _routeCurrentPath(){
+  var p = (location.pathname || '/').replace(/^\//, '');
+  if (p === '' || p === 'historial.html' || p === 'historial') {
+    return (location.hash || '').replace(/^#/, '');
+  }
+  return p;
+}
 // Capturado al parsear: durante el aterrizaje setHistorialUser/navTo pueden
-// reescribir location.hash antes de que _routeLand() lo lea.
-var _routeInitialHash = (location.hash || '').replace(/^#/, '');
+// reescribir la URL antes de que _routeLand() la lea.
+var _routeInitialHash = _routeCurrentPath();
 var _routeReady = false;      // true tras el primer aterrizaje: los cambios pasan a pushear historial
 var _routeApplying = false;   // true mientras navegamos POR el hash (evita re-escribirlo / loops)
 var _routeLanded = false;     // true si el aterrizaje aplicó un deep-link válido
@@ -27911,17 +27926,17 @@ function _routeSectionValida(s){
     PAGE_SECTIONS.indexOf(s) >= 0 || s === 'inventario-salud' || s === 'validacion';
 }
 
-/** Escribe el hash sin disparar re-navegación. Push si la app ya aterrizó
- *  (atrás/adelante del navegador funciona); replace silencioso durante el boot. */
+/** Escribe la ruta en la URL (path real) sin disparar re-navegación. Push si la
+ *  app ya aterrizó (atrás/adelante del navegador funciona); replace en el boot.
+ *  pushState no emite popstate → sin eco que re-navegar. */
 function _routeSet(h){
-  if (_routeApplying) return;             // la navegación vino DEL hash: ya está escrito
-  var cur = (location.hash || '').replace(/^#/, '');
+  if (_routeApplying) return;             // la navegación vino DE la URL: ya está escrita
+  var cur = _routeCurrentPath();
   if (cur === h) return;
-  if (_routeReady) {
-    location.hash = h;
-  } else {
-    try { history.replaceState(null, '', '#' + h); } catch (e) { }
-  }
+  try {
+    if (_routeReady) history.pushState(null, '', '/' + h);
+    else history.replaceState(null, '', '/' + h);
+  } catch (e) { }
 }
 
 // Subrutas (v225): segundo segmento por sección. Regla: segmento vacío = default
@@ -27971,7 +27986,13 @@ function _routeApplySub(section, sub){
 function _routeApplyTasksExtra(extra){
   try {
     if (!extra) { if (window._drawerTask) closeDrawer(); return; }
-    if (_ROUTE_TASK_VIEWS.indexOf(extra) >= 0) { if (_taskView !== extra) setTaskView(extra); return; }
+    if (_ROUTE_TASK_VIEWS.indexOf(extra) >= 0) {
+      // Una vista en el extra también significa "sin drawer": la URL ya no
+      // nombra tarea (atrás desde el drawer con vista ≠ list cae aquí)
+      if (window._drawerTask) closeDrawer();
+      if (_taskView !== extra) setTaskView(extra);
+      return;
+    }
     if (/^wt_/.test(extra)) {
       if (window._drawerTask && _drawerTask.id === extra) return;   // ya abierto
       routeNotifTarget({ kind: 'task', id: extra });                 // async, valida y abre
@@ -27979,12 +28000,13 @@ function _routeApplyTasksExtra(extra){
   } catch (e) { }
 }
 
-/** Navega según un hash ('inventario', 'wwp/tasks/wt_x'…). Silencioso si el
- *  hash no es válido o no hay acceso. Devuelve true si la ruta aplicó. */
+/** Navega según una ruta ('inventario', 'wwp/tasks/wt_x'…) — de path real o,
+ *  por compat, de un #hash viejo. Silencioso si no es válida o no hay acceso.
+ *  Devuelve true si la ruta aplicó. */
 function _routeApplyFromHash(rawOpt){
   if (_routeApplying) return false;
   if (!_user || !_token) return false;    // sin sesión: se aplica al aterrizar (_routeLand)
-  var raw = (rawOpt != null ? rawOpt : (location.hash || '')).replace(/^#/, '');
+  var raw = (rawOpt != null ? String(rawOpt).replace(/^#/, '') : _routeCurrentPath());
   if (!raw) return false;
   // Decode POR SEGMENTO (no del raw entero): un término con '/' codificado
   // (%2F — ej. transferencias WH/OUT/00123) debe quedar entero en su segmento.
@@ -28043,14 +28065,15 @@ function _routeLand(){
     var _tv = localStorage.getItem('wwp_task_view');
     if (_tv && _tv !== _taskView && _ROUTE_TASK_VIEWS.indexOf(_tv) >= 0) setTaskView(_tv);
   } catch (e) { }
-  var h = _routeInitialHash || (location.hash || '').replace(/^#/, '');
+  var h = _routeInitialHash || _routeCurrentPath();
   _routeInitialHash = '';
   if (h && _routeApplyFromHash(h)) {
     _routeLanded = true;
-    // El restore de vista/nav default pudo re-escribir el hash entre la captura
-    // y el apply: re-plantar la ruta realmente aplicada (replace, sin push)
-    if ((location.hash || '').replace(/^#/, '') !== h) {
-      try { history.replaceState(null, '', '#' + h); } catch (e) { }
+    // El restore de vista/nav default pudo re-escribir la URL entre la captura
+    // y el apply — y si se entró por #hash viejo, hay que normalizar al path.
+    // Re-plantar la ruta realmente aplicada (replace, sin push).
+    if (_routeCurrentPath() !== h || location.hash) {
+      try { history.replaceState(null, '', '/' + h); } catch (e) { }
     }
   }
   if (!_routeLanded) _routeSet(_routeCanonical());
@@ -28063,12 +28086,28 @@ function _routeCanonical(){
   return _currentTab === 'tasks' ? _routeTasksHash() : 'wwp/' + _currentTab;
 }
 
-window.addEventListener('hashchange', function(){
+// Atrás/adelante del navegador entre paths de módulo. Convive con el back-guard
+// de modales (más abajo): sus entradas usan el MISMO path, así que este apply
+// resulta no-op por los guards de estado y es su propio handler quien cierra.
+window.addEventListener('popstate', function(){
   if (!_user || !_token) return;
   if (!_routeApplyFromHash()) {
-    // Hash inválido o sin acceso: re-canonizar a la ubicación real (sin push,
+    // Ruta inválida o sin acceso: re-canonizar a la ubicación real (sin push,
     // para no ensuciar el historial del navegador)
-    try { history.replaceState(null, '', '#' + _routeCanonical()); } catch (e) { }
+    try { history.replaceState(null, '', '/' + _routeCanonical()); } catch (e) { }
+  }
+});
+
+// Compat #hash (esquema v224–v226): si alguien edita/pega un #ruta sobre la URL
+// base, se aplica y se normaliza al path real.
+window.addEventListener('hashchange', function(){
+  if (!_user || !_token) return;
+  var h = (location.hash || '').replace(/^#/, '');
+  if (!h) return;
+  if (_routeApplyFromHash(h)) {
+    try { history.replaceState(null, '', '/' + h); } catch (e) { }
+  } else {
+    try { history.replaceState(null, '', '/' + _routeCanonical()); } catch (e) { }
   }
 });
 

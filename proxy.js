@@ -268,7 +268,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v226';
+const APP_BUILD = 'v227';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -20127,7 +20127,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── Redirect wwp.html → historial.html (versión standalone deprecada) ───────
-  if (reqPath === '/wwp.html' || reqPath === '/wwp') {
+  // v227: '/wwp' ya NO redirige — es ruta de módulo (la atiende el bloque de
+  // rutas de módulo del static serving, conservando el path en la barra).
+  if (reqPath === '/wwp.html') {
     res.writeHead(302, { 'Location': '/historial.html' });
     res.end();
     return;
@@ -20322,6 +20324,18 @@ const server = http.createServer(async (req, res) => {
   // ── Servir archivos estáticos ─────────────────────────────────────────────
   let filePath = path.join(__dirname, reqPath);
   if (reqPath === '/historial') filePath = path.join(__dirname, 'historial.html');
+  // ── Rutas de módulo (v227): cada módulo tiene URL propia con path REAL
+  // (/inventario, /buscar/S09115, /wwp/tasks/wt_x…), no #hash. Se decide por el
+  // PRIMER segmento (no por extensión: los subpaths llevan términos con puntos,
+  // ej. /averias/JC.ARTEMIS.RUG.300X400.BG.P) y se sirve la app — el router
+  // client-side de historial.html aterriza en esa sección/subruta.
+  const _MODULE_ROUTES = new Set(['buscar','contenedores','reposicion','solicitudes-reposicion',
+    'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario',
+    'averias','basedatos','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja',
+    'sdv-reactivations','inventario-salud','validacion','wwp']);
+  if (req.method === 'GET' && _MODULE_ROUTES.has((reqPath.split('/')[1] || ''))) {
+    filePath = path.join(__dirname, 'historial.html');
+  }
   if (reqPath.startsWith('/av-fotos/'))  filePath = path.join(AV_FOTOS_DIR,  path.basename(reqPath));
   if (reqPath.startsWith('/desp-fotos/')) filePath = path.join(DESP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));

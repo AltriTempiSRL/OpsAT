@@ -1,5 +1,5 @@
 // WWP Service Worker — Cache-first para estáticos + Web Push
-const CACHE = 'wwp-v57';
+const CACHE = 'wwp-v58';
 const STATIC = [
   '/manifest.json',
   '/icon-192.png',
@@ -46,7 +46,12 @@ self.addEventListener('fetch', e => {
   // historial.html, corre a los 2s y cada 60s) borra TODOS los caches y recarga
   // en cuanto /api/app-version (que el SW nunca intercepta) reporte build nuevo.
   // Cache key normalizado a /historial.html: ?task= / ?reset= reciben el mismo body.
-  if (e.request.method === 'GET' && (url.pathname === '/historial.html' || url.pathname === '/historial')) {
+  // v227 (rutas de módulo con path real): CUALQUIER navegación sin '.' en el path
+  // (/inventario, /buscar/S09115, /wwp/tasks/…) es la app → misma entrada de caché.
+  // Los .html reales (almacen-mapa.html, wwp-guide.html) llevan punto y NO entran.
+  // Subpaths con puntos (/averias/JC.ART….P) van a red directa — funcionan sin SWR.
+  if (e.request.method === 'GET' && (url.pathname === '/historial.html' || url.pathname === '/historial' ||
+      (e.request.mode === 'navigate' && !url.pathname.includes('.')))) {
     e.respondWith(
       caches.open(CACHE).then(c =>
         c.match('/historial.html').then(cached => {
