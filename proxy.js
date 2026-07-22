@@ -44,6 +44,7 @@ const _jsonFileCache = new Map();
 // (memoria precargada por boot.js). Cualquier otro archivo (fixtures, rutas
 // externas) sigue en filesystem. Sin DATABASE_URL este bloque queda inerte.
 const pgStorage = require('./storage-pg.js');
+const media = require('./media.js');  // capa de fotos/videos: disco o Cloudflare R2 (Fase 1)
 function _isPgCollection(file) {
   if (!pgStorage.isActive()) return false;
   const full = path.resolve(file);
@@ -20456,6 +20457,36 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 500, { ok: false, error: safeError(e) });
     }
     return;
+  }
+
+  // ── Media (fotos/videos): lectura por la capa media.js (disco o R2) ──────────
+  // Punto ÚNICO de lectura de las carpetas de evidencia. En modo disco lee de
+  // DATA_DIR igual que antes; con R2_* en el entorno lee del bucket R2. Se sirve
+  // SIN Authorization a propósito: las <img>/<video> del cliente no mandan
+  // cabeceras (el endurecimiento por URL firmada es un paso posterior de Fase 1).
+  {
+    const _MEDIA_PREFIX = {
+      '/av-fotos/': 'av-fotos', '/desp-fotos/': 'desp-fotos', '/wwp-fotos/': 'wwp-fotos',
+      '/sdv-adjuntos/': 'sdv-adjuntos', '/prod-img/': 'prod-img',
+    };
+    const _mp = Object.keys(_MEDIA_PREFIX).find(p => reqPath.startsWith(p));
+    if (_mp && req.method === 'GET') {
+      try {
+        const got = await media.mediaGet(_MEDIA_PREFIX[_mp], path.basename(reqPath));
+        if (!got) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not Found'); return; }
+        const headers = { 'Content-Type': got.contentType || 'application/octet-stream' };
+        headers['Cache-Control'] = (_mp === '/prod-img/')
+          ? 'public, max-age=31536000, immutable'   // nombradas por hash de contenido
+          : 'public, max-age=3600';
+        res.writeHead(200, headers);
+        if (got.stream && got.body && typeof got.body.pipe === 'function') got.body.pipe(res);
+        else res.end(got.body);
+      } catch (e) {
+        console.error('[media serve]', reqPath, e.message);
+        res.writeHead(500, { 'Content-Type': 'text/plain' }); res.end('Media error');
+      }
+      return;
+    }
   }
 
   // ── Servir archivos estáticos ─────────────────────────────────────────────
