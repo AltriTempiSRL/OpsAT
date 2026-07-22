@@ -519,8 +519,17 @@ function saveProductImageB64(b64) {
     if (!buf.length) return '';
     const hash = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 16);
     const fname = hash + '.' + _imgExtFromBuffer(buf);
-    const fpath = path.join(PROD_IMG_DIR, fname);
-    if (!fs.existsSync(fpath)) fs.writeFileSync(fpath, buf);
+    if (media.isR2Enabled()) {
+      // Content-addressed (sha1) → idempotente. Subida en segundo plano: este helper
+      // es SÍNCRONO (lo llaman ~10 sitios sin await), así que no bloquea el render;
+      // R2 recibe la imagen aparte. La URL es determinística del contenido.
+      media.mediaExists('prod-img', fname)
+        .then(ex => ex ? null : media.mediaPut('prod-img', fname, buf))
+        .catch(e => console.warn('[prod-img r2]', e && e.message));
+    } else {
+      const fpath = path.join(PROD_IMG_DIR, fname);
+      if (!fs.existsSync(fpath)) fs.writeFileSync(fpath, buf);
+    }
     return '/prod-img/' + fname;
   } catch (e) {
     console.warn('[prod-img]', e.message);
@@ -10642,15 +10651,16 @@ const server = http.createServer(async (req, res) => {
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       if (!list[idx].fotos) list[idx].fotos=[];
       const saved=[];
-      (d.fotos||[]).forEach((f,fi)=>{
+      let fi=0;
+      for (const f of (d.fotos||[])) {
         const { b64, ext } = validatePhoto(f);
         const fname=`${id}_${Date.now()}_${fi}.${ext}`;
-        const fpath=path.join(AV_FOTOS_DIR,fname);
-        fs.writeFileSync(fpath,Buffer.from(b64,'base64'));
+        await saveMediaB64('av-fotos', fname, b64);
         const entry={url:`/av-fotos/${fname}`,caption:f.caption||'',date:new Date().toISOString()};
         list[idx].fotos.push(entry);
         saved.push(entry);
-      });
+        fi++;
+      }
       list[idx].updatedAt=new Date().toISOString();
       saveAverias(list);
       res.writeHead(200,{'Content-Type':'application/json'});
@@ -13943,15 +13953,16 @@ const server = http.createServer(async (req, res) => {
       if (idx===-1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'No encontrado'})); return; }
       if (!tasks[idx].evidence) tasks[idx].evidence=[];
       const saved=[];
-      (d.fotos||[]).forEach((f,fi)=>{
+      let fi=0;
+      for (const f of (d.fotos||[])) {
         const { b64, ext } = validatePhoto(f);
         const fname=`${id}_${Date.now()}_${fi}.${ext}`;
-        const fpath=path.join(WWP_FOTOS_DIR,fname);
-        fs.writeFileSync(fpath,Buffer.from(b64,'base64'));
+        await saveMediaB64('wwp-fotos', fname, b64);
         const entry={url:`/wwp-fotos/${fname}`,caption:f.caption||'',date:new Date().toISOString(),by:d.by||''};
         tasks[idx].evidence.push(entry);
         saved.push(entry);
-      });
+        fi++;
+      }
       tasks[idx].updatedAt=new Date().toISOString();
       saveWwpTasks(tasks);
       broadcastWwpTasks('evidence_created', tasks[idx], { taskId:id, evidence:saved });
@@ -17749,7 +17760,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const now = new Date().toISOString();
-      const unlinkEv = (arr) => (arr || []).forEach(it => (it.evidence_images || []).forEach(ev => { try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(ev.url))); } catch(e) {} }));
+      const unlinkEv = (arr) => (arr || []).forEach(it => (it.evidence_images || []).forEach(ev => deleteMediaUrl('wwp-fotos', ev.url)));
       unlinkEv(removed);
       task.items = (task.items || []).filter(i => !matches(i));
       task.updatedAt = now; task.itemsUpdatedAt = now;
@@ -18405,7 +18416,7 @@ const server = http.createServer(async (req, res) => {
       if (existingHashes.has(hash)) { res.writeHead(422,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Esta foto ya fue subida en esta tarea. Toma una foto distinta.'})); return; }
       const ts = Date.now();
       const fname = `${taskId}_grp_${ts}.${ext}`;
-      fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64,'base64'));
+      await saveMediaB64('wwp-fotos', fname, b64);
       const url = `/wwp-fotos/${fname}`;
       const entry = { id:`ev_grp_${ts}`, url, hash, caption:foto.caption||'', uploaded_by:_jpGc.name||'', uploaded_at:new Date().toISOString(), group:true };
       const now = new Date().toISOString();
@@ -18446,7 +18457,8 @@ const server = http.createServer(async (req, res) => {
       const existingHashes = new Set();
       (tasks[idx].items||[]).forEach(it => (it.evidence_images||[]).forEach(e => { if (e.hash) existingHashes.add(e.hash); }));
       const saved=[];
-      (d.fotos||[]).forEach((f,fi)=>{
+      let fi=0;
+      for (const f of (d.fotos||[])) {
         const { b64, ext } = validatePhoto(f);
         const hash = crypto.createHash('sha256').update(Buffer.from(b64,'base64')).digest('hex');
         if (existingHashes.has(hash)) {
@@ -18455,11 +18467,11 @@ const server = http.createServer(async (req, res) => {
         existingHashes.add(hash); // bloquea duplicados dentro del mismo lote
         const ts=Date.now();
         const fname=`${taskId}_${itemId}_${ts}_${fi}.${ext}`;
-        const fpath=path.join(WWP_FOTOS_DIR,fname);
-        fs.writeFileSync(fpath,Buffer.from(b64,'base64'));
+        await saveMediaB64('wwp-fotos', fname, b64);
         const entry={id:`ev_${ts}_${fi}`,url:`/wwp-fotos/${fname}`,hash,caption:f.caption||'',uploaded_by:d.by||'',uploaded_at:new Date().toISOString()};
         tasks[idx].items[itemIdx].evidence_images.push(entry); saved.push(entry);
-      });
+        fi++;
+      }
       if (tasks[idx].items[itemIdx].evidence_images.length>0) tasks[idx].items[itemIdx].status='evidenced';
       tasks[idx].updatedAt=new Date().toISOString();
       saveWwpTasks(tasks);
@@ -18483,7 +18495,7 @@ const server = http.createServer(async (req, res) => {
     if (itemIdx!==-1) {
       const evArr=tasks[idx].items[itemIdx].evidence_images||[];
       const evEntry=evArr.find(e=>e.id===evId||e.url.endsWith('/'+evId));
-      if (evEntry) { try{fs.unlinkSync(path.join(WWP_FOTOS_DIR,path.basename(evEntry.url)));}catch(e){} }
+      if (evEntry) { deleteMediaUrl('wwp-fotos', evEntry.url); }
       tasks[idx].items[itemIdx].evidence_images=evArr.filter(e=>e.id!==evId&&!e.url.endsWith('/'+evId));
       if (!tasks[idx].items[itemIdx].evidence_images.length) tasks[idx].items[itemIdx].status='pending';
     }
@@ -18622,7 +18634,7 @@ const server = http.createServer(async (req, res) => {
       }
       const { b64, ext } = validatePhoto(d.foto);
       const fname = `${taskId}_devart_${Date.now()}.${ext}`;
-      fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64, 'base64'));
+      await saveMediaB64('wwp-fotos', fname, b64);
       const fotoUrl = `/wwp-fotos/${fname}`;
       const now = new Date().toISOString();
       const esNueva = !task.devolucionRuta || task.devolucionRuta.estado === 'cerrada';
@@ -19044,16 +19056,18 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
       if (!tasks[idx].fotos_guia) tasks[idx].fotos_guia = [];
       const saved = [];
-      (d.fotos||[]).forEach((f, fi) => {
+      let fi = 0;
+      for (const f of (d.fotos||[])) {
         const { b64, ext } = validatePhoto(f);
         const ts = Date.now();
         const fotoId = `fg_${ts}_${fi}`;
         const fname = `${taskId}_${fotoId}.${ext}`;
-        fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64, 'base64'));
+        await saveMediaB64('wwp-fotos', fname, b64);
         const entry = { id: fotoId, url: `/wwp-fotos/${fname}`, instruccion: f.instruccion||'', confirmado: false, evidencias: [], creado_by: d.by||'', creado_at: new Date().toISOString() };
         tasks[idx].fotos_guia.push(entry);
         saved.push(entry);
-      });
+        fi++;
+      }
       tasks[idx].updatedAt = new Date().toISOString();
       saveWwpTasks(tasks);
       broadcastWwpTasks('fotos_guia_created', tasks[idx], { taskId, fotos: saved });
@@ -19098,9 +19112,9 @@ const server = http.createServer(async (req, res) => {
       }
     }
     if (fgEntry) {
-      try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(fgEntry.url))); } catch(e) {}
+      deleteMediaUrl('wwp-fotos', fgEntry.url);
       // eliminar evidencias asociadas
-      (fgEntry.evidencias||[]).forEach(ev => { try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(ev.url))); } catch(e) {} });
+      (fgEntry.evidencias||[]).forEach(ev => deleteMediaUrl('wwp-fotos', ev.url));
     }
     tasks[idx].fotos_guia = fgArr.filter(f => !f.url.endsWith('/'+fname) && f.id !== fname);
     tasks[idx].updatedAt = new Date().toISOString();
@@ -19130,16 +19144,18 @@ const server = http.createServer(async (req, res) => {
         if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Tarea no encontrada'})); return; }
         if (!tasks[idx][field]) tasks[idx][field] = [];
         const saved = [];
-        (d.fotos||[]).forEach((f, fi) => {
+        let fi = 0;
+        for (const f of (d.fotos||[])) {
           const { b64, ext } = validatePhoto(f);
           const ts = Date.now();
           const fotoId = `${cat.slice(0,3)}_${ts}_${fi}`;
           const fname  = `${taskId}_${fotoId}.${ext}`;
-          fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64, 'base64'));
+          await saveMediaB64('wwp-fotos', fname, b64);
           const entry = { id: fotoId, url: `/wwp-fotos/${fname}`, by: d.by||_jpFc.name||'', at: new Date().toISOString() };
           tasks[idx][field].push(entry);
           saved.push(entry);
-        });
+          fi++;
+        }
         tasks[idx].updatedAt = new Date().toISOString();
         saveWwpTasks(tasks);
         broadcastWwpTasks('fotos_'+cat+'_created', tasks[idx], { taskId, fotos: saved });
@@ -19159,7 +19175,7 @@ const server = http.createServer(async (req, res) => {
       const idx = tasks.findIndex(t => t.id === taskId);
       if (idx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false})); return; }
       const fe = (tasks[idx][field]||[]).find(f => f.url.endsWith('/'+fname) || f.id === fname);
-      if (fe) { try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(fe.url))); } catch(e) {} }
+      if (fe) { deleteMediaUrl('wwp-fotos', fe.url); }
       tasks[idx][field] = (tasks[idx][field]||[]).filter(f => !f.url.endsWith('/'+fname) && f.id !== fname);
       tasks[idx].updatedAt = new Date().toISOString();
       saveWwpTasks(tasks);
@@ -19238,15 +19254,17 @@ const server = http.createServer(async (req, res) => {
       if (fgIdx === -1) { res.writeHead(404,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Foto de guía no encontrada'})); return; }
       if (!tasks[idx].fotos_guia[fgIdx].evidencias) tasks[idx].fotos_guia[fgIdx].evidencias = [];
       const saved = [];
-      (d.fotos||[]).forEach((f, fi) => {
+      let fi = 0;
+      for (const f of (d.fotos||[])) {
         const { b64, ext } = validatePhoto(f);
         const ts = Date.now();
         const fname = `${taskId}_${fotoId}_ev_${ts}_${fi}.${ext}`;
-        fs.writeFileSync(path.join(WWP_FOTOS_DIR, fname), Buffer.from(b64, 'base64'));
+        await saveMediaB64('wwp-fotos', fname, b64);
         const entry = { id: `fgev_${ts}_${fi}`, url: `/wwp-fotos/${fname}`, uploaded_by: d.by||'', uploaded_at: new Date().toISOString() };
         tasks[idx].fotos_guia[fgIdx].evidencias.push(entry);
         saved.push(entry);
-      });
+        fi++;
+      }
       tasks[idx].updatedAt = new Date().toISOString();
       saveWwpTasks(tasks);
       broadcastWwpTasks('fotos_guia_evidencia_created', tasks[idx], { taskId, fotoId, evidencia: saved });
@@ -19268,7 +19286,7 @@ const server = http.createServer(async (req, res) => {
     if (fgIdx !== -1) {
       const evArr = tasks[idx].fotos_guia[fgIdx].evidencias || [];
       const evEntry = evArr.find(e => e.url.endsWith('/'+evFname) || e.id === evFname);
-      if (evEntry) { try { fs.unlinkSync(path.join(WWP_FOTOS_DIR, path.basename(evEntry.url))); } catch(e) {} }
+      if (evEntry) { deleteMediaUrl('wwp-fotos', evEntry.url); }
       tasks[idx].fotos_guia[fgIdx].evidencias = evArr.filter(e => !e.url.endsWith('/'+evFname) && e.id !== evFname);
     }
     tasks[idx].updatedAt = new Date().toISOString();
@@ -20133,11 +20151,9 @@ const server = http.createServer(async (req, res) => {
       const id = reqPath.split('/')[4];
       const d  = await readBody(req);
       if (!d.data) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Imagen requerida'})); return; }
-      const buf  = Buffer.from(d.data, 'base64');
       const ext  = (d.ext || 'jpg').replace(/[^a-z]/g, '');
       const fname = id + '_' + Date.now() + '.' + ext;
-      const fpath = path.join(EMP_FOTOS_DIR, fname);
-      fs.writeFileSync(fpath, buf);
+      await saveMediaB64('emp-fotos', fname, d.data);
       const url = '/api/empaque/foto/' + fname;
       const mats = loadEmpMateriales();
       const idx  = mats.findIndex(m => m.id === id);
@@ -20151,12 +20167,15 @@ const server = http.createServer(async (req, res) => {
   // GET /api/empaque/foto/:fname — serve foto material
   if (reqPath.match(/^\/api\/empaque\/foto\/.+$/) && req.method === 'GET') {
     const fname = path.basename(reqPath);
-    const fpath = path.join(EMP_FOTOS_DIR, fname);
-    if (!fs.existsSync(fpath)) { res.writeHead(404); res.end(); return; }
-    const ext = path.extname(fname).slice(1).toLowerCase();
-    const mime = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'}[ext]||'image/jpeg';
-    res.writeHead(200,{'Content-Type':mime,'Cache-Control':'public,max-age=31536000'});
-    fs.createReadStream(fpath).pipe(res);
+    try {
+      const got = await media.mediaGet('emp-fotos', fname);
+      if (!got) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { 'Content-Type': got.contentType || 'image/jpeg', 'Cache-Control': 'public,max-age=31536000' });
+      if (got.stream && got.body && typeof got.body.pipe === 'function') got.body.pipe(res);
+      else res.end(got.body);
+    } catch (e) {
+      console.error('[emp foto serve]', fname, e.message); res.writeHead(500); res.end();
+    }
     return;
   }
 
