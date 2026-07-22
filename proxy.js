@@ -20569,6 +20569,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ── GET /api/admin/db/typed-parity — paridad memoria ↔ tablas tipadas (Fase 3B) ──
+  // Verifica el cutover relacional: por colección, conteos y filas divergentes
+  // entre el snapshot en memoria y su tabla t_*. Solo admin.
+  if (reqPath === '/api/admin/db/typed-parity' && req.method === 'GET') {
+    const _jpTp = requireJwt(req, res); if (!_jpTp) return;
+    if (!requireRole(_jpTp, res, ['admin'])) return;
+    if (!pgStorage.isActive()) { sendJson(res, 503, { ok:false, error:'Requiere PostgreSQL activo (producción).' }); return; }
+    try {
+      sendJson(res, 200, await pgStorage.typedParity());
+    } catch (e) { sendJson(res, 500, { ok:false, error: e.message }); }
+    return;
+  }
+
   // ── GET /api/admin/db/:view — visor de solo lectura de las vistas tipadas (Fase 3) ──
   // Devuelve una colección como TABLA (columnas), no como JSON opaco. Solo admin.
   if (reqPath.match(/^\/api\/admin\/db\/[a-z_]+$/) && req.method === 'GET') {

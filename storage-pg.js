@@ -38,6 +38,17 @@ const UPSERT_CHUNK = 400;       // filas por statement (400×4 params < límite 
 const QUEUE_COALESCE_AT = 6;    // lotes en cola → colapsar a un resync completo
 const CONNECT_RETRIES = 10;     // intentos de conexión al boot (3 s entre sí)
 
+// ── Cutover relacional (Fase 3B): tablas tipadas por entidad ─────────────────
+// Cada colección de typed-schemas.js tiene su tabla real t_<coleccion>
+// (columnas tipadas + _key PK + _ord + _extra JSONB). WWP_TYPED gobierna:
+//   off  → solo collection_rows (kill-switch / rollback total)
+//   dual → collection_rows + tabla tipada en la MISMA transacción (default)
+//   read → como dual, pero la memoria del boot se reconstruye desde las tipadas
+// collection_rows y el export a JSON siguen vivos en TODOS los modos: el
+// rollback es cambiar la env var y reiniciar (sin migración de vuelta).
+const TYPED_SCHEMAS = require('./typed-schemas.js');
+const TYPED_MODE = ['off', 'dual', 'read'].includes(process.env.WWP_TYPED) ? process.env.WWP_TYPED : 'dual';
+
 const state = {
   active: false,
   pool: null,
@@ -305,6 +316,7 @@ async function _flushOp(base, op) {
       }
       if (op.upserts && op.upserts.length) await _insertRows(client, base, op.upserts);
     }
+    await _typedApplyOps(client, base, op); // Fase 3B: dual-write tipado en la MISMA transacción
     await client.query('COMMIT');
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) { /* conexión rota */ }
@@ -338,6 +350,207 @@ async function _insertRows(client, base, rows) {
       ' ON CONFLICT (collection, id) DO UPDATE SET ord = EXCLUDED.ord, data = EXCLUDED.data, updated_at = now()',
       params);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fase 3B — Tablas tipadas por entidad (cutover relacional, patrón estrangulador)
+// ═══════════════════════════════════════════════════════════════════════════
+const _PG_TYPE = { text: 'TEXT', boolean: 'BOOLEAN', float8: 'DOUBLE PRECISION', jsonb: 'JSONB' };
+
+function _typedTable(base) { return 't_' + String(base).replace(/[^a-z0-9]+/gi, '_'); }
+
+// Descompone un objeto en columnas tipadas + _extra, SIN pérdida:
+//  - null explícito, clave fuera de esquema, o valor cuyo tipo no coincide con
+//    la columna → viaja en _extra (JSONB) tal cual.
+//  - Contrato de reconstrucción: NULL en columna = clave AUSENTE del objeto
+//    (los null reales viven en _extra) — así {} y {campo:null} sobreviven distintos.
+function _typedDecompose(obj, schema) {
+  const cols = {};
+  const extra = {};
+  let hasExtra = false;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const t = schema[k];
+    if (v === null || t === undefined) { extra[k] = v; hasExtra = true; continue; }
+    if (t === 'text' && typeof v === 'string') { cols[k] = v.indexOf('\u0000') === -1 ? v : v.split('\u0000').join(''); continue; }
+    if (t === 'boolean' && typeof v === 'boolean') { cols[k] = v; continue; }
+    if (t === 'float8' && typeof v === 'number' && Number.isFinite(v)) { cols[k] = v; continue; }
+    if (t === 'jsonb' && typeof v === 'object') { cols[k] = _pgSafe(JSON.stringify(v)); continue; }
+    extra[k] = v; hasExtra = true; // drift de tipo → sin pérdida
+  }
+  return { cols, extra: hasExtra ? _pgSafe(JSON.stringify(extra)) : null };
+}
+
+// Inversa exacta de _typedDecompose (los nombres de columna conservan mayúsculas
+// porque el DDL las crea SIEMPRE entre comillas).
+function _typedReconstruct(row, schema) {
+  const obj = Object.assign({}, row._extra || {});
+  for (const k of Object.keys(schema)) {
+    const v = row[k];
+    if (v !== null && v !== undefined) obj[k] = v;
+  }
+  return obj;
+}
+
+async function _createTypedTables() {
+  if (TYPED_MODE === 'off') return;
+  for (const [base, schema] of Object.entries(TYPED_SCHEMAS)) {
+    const t = _typedTable(base);
+    const defs = Object.entries(schema).map(([k, ty]) => '"' + k + '" ' + _PG_TYPE[ty]);
+    await state.pool.query(
+      'CREATE TABLE IF NOT EXISTS ' + t + ' ("_key" TEXT PRIMARY KEY, "_ord" DOUBLE PRECISION NOT NULL, "_extra" JSONB' +
+      (defs.length ? ', ' + defs.join(', ') : '') + ')');
+    // Evolución del esquema entre deploys: agregar columnas nuevas es idempotente.
+    const adds = Object.entries(schema).map(([k, ty]) => 'ADD COLUMN IF NOT EXISTS "' + k + '" ' + _PG_TYPE[ty]);
+    if (adds.length) await state.pool.query('ALTER TABLE ' + t + ' ' + adds.join(', '));
+    await state.pool.query('CREATE INDEX IF NOT EXISTS idx_' + t + '_ord ON ' + t + '("_ord")');
+  }
+  console.log('[typed] ' + Object.keys(TYPED_SCHEMAS).length + ' tablas tipadas listas (modo ' + TYPED_MODE + ')');
+}
+
+// Upsert de filas {id, ord, ser} a la tabla tipada (dentro de la transacción del caller).
+async function _typedUpsertRows(client, base, rows) {
+  const schema = TYPED_SCHEMAS[base];
+  const t = _typedTable(base);
+  const colNames = Object.keys(schema);
+  const all = ['_key', '_ord', '_extra'].concat(colNames);
+  const colList = all.map(c => '"' + c + '"').join(',');
+  const casts = all.map((c, i) => '$' + (i + 1) + ((c === '_extra' || schema[c] === 'jsonb') ? '::jsonb' : ''));
+  const sets = all.slice(1).map(c => '"' + c + '" = EXCLUDED."' + c + '"').join(', ');
+  const sql = 'INSERT INTO ' + t + ' (' + colList + ') VALUES (' + casts.join(',') + ') ' +
+    'ON CONFLICT ("_key") DO UPDATE SET ' + sets;
+  for (const r of rows) {
+    let obj = null;
+    try { obj = JSON.parse(r.ser); } catch (_e) { /* corrupto: visible en typedParity */ }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      console.warn('[typed] fila no-objeto en ' + base + ' (' + r.id + ') — queda solo en collection_rows');
+      continue;
+    }
+    const { cols, extra } = _typedDecompose(obj, schema);
+    const params = [r.id, r.ord, extra].concat(colNames.map(k => (cols[k] === undefined ? null : cols[k])));
+    await client.query(sql, params);
+  }
+}
+
+// Se llama dentro de la transacción de _flushOp: espeja la op en la tabla tipada.
+async function _typedApplyOps(client, base, op) {
+  if (TYPED_MODE === 'off') return;
+  const schema = TYPED_SCHEMAS[base];
+  if (!schema) return; // colección sin tabla tipada (o clave kv) — solo collection_rows
+  const t = _typedTable(base);
+  if (op.resyncRows) {
+    await client.query('DELETE FROM ' + t);
+    await _typedUpsertRows(client, base, op.resyncRows);
+    return;
+  }
+  if (op.deletes && op.deletes.length) {
+    await client.query('DELETE FROM ' + t + ' WHERE "_key" = ANY($1::text[])', [op.deletes]);
+  }
+  if (op.upserts && op.upserts.length) await _typedUpsertRows(client, base, op.upserts);
+}
+
+// Backfill idempotente al boot: si el conteo de la tabla difiere del snapshot en
+// memoria, se reconstruye entera (transaccional). Con dual-write activo esto solo
+// trabaja la primera vez (o tras un fallo); después los conteos coinciden.
+async function _typedBackfill() {
+  if (TYPED_MODE === 'off') return;
+  for (const base of Object.keys(TYPED_SCHEMAS)) {
+    const snap = state.rowSnap.get(base);
+    const memRows = snap ? snap.size : 0;
+    const t = _typedTable(base);
+    let n = -1;
+    try { n = (await state.pool.query('SELECT count(*)::int AS n FROM ' + t)).rows[0].n; }
+    catch (e) { console.error('[typed] conteo de ' + t + ' falló: ' + e.message); continue; }
+    if (n === memRows) continue;
+    const client = await state.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM ' + t);
+      if (memRows) {
+        const rows = [];
+        for (const [id, v] of snap) rows.push({ id, ord: v.ord, ser: v.ser });
+        await _typedUpsertRows(client, base, rows);
+      }
+      await client.query('COMMIT');
+      console.log('[typed] backfill ' + base + ' → ' + t + ': ' + memRows + ' filas (tenía ' + n + ')');
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* conexión rota */ }
+      console.error('[typed] backfill ' + base + ' falló: ' + e.message);
+    } finally {
+      client.release();
+    }
+  }
+}
+
+// Modo read: la memoria del boot se reconstruye DESDE las tablas tipadas.
+// Guardia dura: si el conteo no coincide con collection_rows, esa colección se
+// queda con collection_rows como fuente (jamás arrancar con datos de menos).
+async function _typedRebuildMem() {
+  for (const base of Object.keys(TYPED_SCHEMAS)) {
+    const t = _typedTable(base);
+    const schema = TYPED_SCHEMAS[base];
+    let res;
+    try { res = await state.pool.query('SELECT * FROM ' + t + ' ORDER BY "_ord"'); }
+    catch (e) { console.error('[typed] READ: lectura de ' + t + ' falló (' + e.message + ') — ' + base + ' sigue en collection_rows'); continue; }
+    const prevSnap = state.rowSnap.get(base);
+    const prevN = prevSnap ? prevSnap.size : 0;
+    if (res.rows.length !== prevN) {
+      console.error('[typed] READ: ' + t + ' tiene ' + res.rows.length + ' filas vs ' + prevN +
+        ' en collection_rows — ' + base + ' sigue en collection_rows');
+      continue;
+    }
+    const arr = [];
+    const snapMap = new Map();
+    for (const row of res.rows) {
+      const obj = _typedReconstruct(row, schema);
+      arr.push(obj);
+      snapMap.set(row._key, { ser: JSON.stringify(obj), ord: Number(row._ord) });
+    }
+    state.mem.set(base, arr);
+    state.kind.set(base, 'rows');
+    state.rowSnap.set(base, snapMap);
+  }
+  console.log('[typed] modo read: memoria reconstruida desde las tablas tipadas');
+}
+
+// Serialización canónica (claves ordenadas, recursiva) para comparar objetos
+// sin depender del orden de inserción de claves.
+function _canonical(v) {
+  if (Array.isArray(v)) return '[' + v.map(_canonical).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + _canonical(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+
+// Paridad memoria ↔ tabla tipada, por colección (para verificación admin/tests).
+async function typedParity() {
+  if (!state.active) throw new Error('storage-pg no activo');
+  const out = { mode: TYPED_MODE, ok: true, collections: {} };
+  for (const base of Object.keys(TYPED_SCHEMAS)) {
+    const schema = TYPED_SCHEMAS[base];
+    const snap = state.rowSnap.get(base) || new Map();
+    let res;
+    try { res = await state.pool.query('SELECT * FROM ' + _typedTable(base)); }
+    catch (e) { out.collections[base] = { error: e.message }; out.ok = false; continue; }
+    const difs = [];
+    const seen = new Set();
+    for (const row of res.rows) {
+      seen.add(row._key);
+      const s = snap.get(row._key);
+      if (!s) { if (difs.length < 10) difs.push(row._key + ' (solo en tabla)'); continue; }
+      let a = null;
+      try { a = JSON.parse(s.ser); } catch (_e) { /* corrupto en snap */ }
+      if (_canonical(_typedReconstruct(row, schema)) !== _canonical(a)) {
+        if (difs.length < 10) difs.push(row._key);
+      }
+    }
+    for (const k of snap.keys()) { if (!seen.has(k) && difs.length < 10) difs.push(k + ' (solo en memoria)'); }
+    const okC = res.rows.length === snap.size && difs.length === 0;
+    if (!okC) out.ok = false;
+    out.collections[base] = { memoria: snap.size, tabla: res.rows.length, ok: okC, difs };
+  }
+  return out;
 }
 
 // Espera a que todas las colas terminen (para shutdown y tests).
@@ -397,11 +610,16 @@ async function init(opts = {}) {
     ' attempted_len INT, prev_len INT, at TIMESTAMPTZ NOT NULL DEFAULT now())');
 
   await _createViews();
+  // Fase 3B: las tablas tipadas se crean ANTES del preload/import — así los flush
+  // de la cola pueden dual-escribir desde el primer save sin carrera con el DDL.
+  await _createTypedTables();
   await _preload();
   await _importFromFiles();
+  await _typedBackfill();
+  if (TYPED_MODE === 'read') await _typedRebuildMem();
   state.active = true;
   const cols = [...state.mem.keys()];
-  console.log('[storage-pg] activo — ' + cols.length + ' colecciones en memoria: ' +
+  console.log('[storage-pg] activo (typed=' + TYPED_MODE + ') — ' + cols.length + ' colecciones en memoria: ' +
     cols.map(b => b + '(' + (Array.isArray(state.mem.get(b)) ? state.mem.get(b).length : 'kv') + ')').join(', '));
 }
 
@@ -550,6 +768,7 @@ function health() {
   for (const q of state.opQueues.values()) queuePending += q.length;
   return {
     mode: 'pg', active: state.active, collections, queuePending,
+    typed: { mode: TYPED_MODE, tablas: Object.keys(TYPED_SCHEMAS).length },
     lastError: state.lastError, lastFlushAt: state.lastFlushAt,
   };
 }
@@ -687,5 +906,6 @@ module.exports = {
   loadCollection, saveCollection,
   exportAllToFiles, flushAll, health, shutdown, snapshotAll,
   readView,
+  typedParity, // Fase 3B: paridad memoria ↔ tablas tipadas (endpoint admin + tests)
   _internals: state, // solo para tests
 };
