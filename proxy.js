@@ -8595,6 +8595,8 @@ const server = http.createServer(async (req, res) => {
         tasksRawPreview: tasksRaw,
         storage: pgStorage.isActive() ? pgStorage.health() : { mode: 'json' },
         odoo: { ok: !!odooUid, uid: odooUid || null },
+        media: { mode: media.isR2Enabled() ? 'r2' : 'disk',
+                 migrated: (function(){ try { return fs.existsSync(path.join(DATA_DIR, '.media-r2-migrated')); } catch(e){ return false; } })() },
         note: 'shallow check — use ?deep=true for full Odoo+Sheets verification'
       }));
       return;

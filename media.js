@@ -109,15 +109,22 @@ async function mediaPut(kind, name, buf, contentType) {
   name = _safeName(name);
   const ct = contentType || contentTypeFor(name);
   if (isR2Enabled()) {
-    const { lib, client } = _r2();
-    await client.send(new lib.PutObjectCommand({
-      Bucket: process.env.R2_BUCKET, Key: _key(kind, name), Body: buf, ContentType: ct,
-    }));
-  } else {
-    const dir = path.join(DATA_DIR, kind);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, name), buf);
+    try {
+      const { lib, client } = _r2();
+      await client.send(new lib.PutObjectCommand({
+        Bucket: process.env.R2_BUCKET, Key: _key(kind, name), Body: buf, ContentType: ct,
+      }));
+      return _publicUrl(kind, name);
+    } catch (e) {
+      // R2 mal configurado o caído → NO perder la evidencia: cae a disco. mediaGet
+      // ya sirve de disco ante un miss de R2, así que la foto se sigue viendo. En
+      // cuanto R2 quede bien, las subidas nuevas vuelven al bucket solas.
+      console.error('[media] R2 put falló (' + kind + '/' + name + ') → guardo en disco: ' + (e && e.message));
+    }
   }
+  const dir = path.join(DATA_DIR, kind);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, name), buf);
   return _publicUrl(kind, name);
 }
 
