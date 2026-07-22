@@ -5717,6 +5717,9 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
       <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
     </a>
+    <a class="nav-item" id="nav-basedatos" href="#sec-basedatos" onclick="navTo('basedatos');return false;">
+      <span class="nav-icon"><i data-lucide="database"></i></span>Base de datos
+    </a>
 
     <div class="sidebar-group" id="navg-plataforma">Plataforma</div>
     <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
@@ -6518,6 +6521,22 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       }
       @media(prefers-reduced-motion:reduce){.invd-side-card.flash{animation:none}.invd-kpi{transition:none}}
     </style>
+    <div id="section-basedatos" class="page-section" style="display:none">
+      <style>
+        .dbv-tbl{border-collapse:collapse;width:100%;font-size:13px}
+        .dbv-tbl th,.dbv-tbl td{border:1px solid var(--border,#d0d0d0);padding:6px 10px;text-align:left;white-space:nowrap}
+        .dbv-tbl th{background:var(--bg-2,#f4f4f4);position:sticky;top:0}
+        .dbv-tbl tr:nth-child(even) td{background:rgba(127,127,127,0.06)}
+        .dbv-btn{padding:6px 14px;border:1px solid var(--border,#d0d0d0);border-radius:6px;background:var(--bg-1,transparent);color:inherit;cursor:pointer;font-size:13px}
+        .dbv-btn.active{background:var(--accent,#2563eb);color:#fff;border-color:var(--accent,#2563eb)}
+      </style>
+      <div style="padding:16px 0">
+        <h2 style="margin:0 0 4px;display:flex;align-items:center;gap:8px"><i data-lucide="database"></i> Base de datos</h2>
+        <p style="margin:0;color:var(--text-2,#777);font-size:13px">Vistas tipadas de solo lectura (admin). Los datos viven en PostgreSQL; esto los muestra como tablas — sin campos sensibles.</p>
+      </div>
+      <div id="dbv-body"></div>
+    </div>
+
     <div id="section-inventario" class="page-section" style="display:none">
 
       <!-- Header + indicador de frescura + acciones -->
@@ -8843,7 +8862,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v219';
+var APP_BUILD = 'v220';
 var _versionReloading = false;
 
 const WWP_SERVER_ORIGIN = location.protocol === 'file:' ? 'http://localhost:3000' : '';
@@ -8984,7 +9003,7 @@ function applyNavPerms() {
   var sections = [
     'dashboard-ventas','estado-ordenes','buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'inventario','averias','wwp',
+    'inventario','averias','basedatos','wwp',
     'sdv-portal','sdv-bandeja','sdv-reactivations'
   ];
   sections.forEach(function(s) {
@@ -9000,7 +9019,7 @@ function applyNavPerms() {
   // Ocultar cabeceras de grupo cuando todos sus ítems están ocultos
   var GROUPS = {
     'navg-consultar':   ['buscar'],
-    'navg-analisis':    ['inventario','averias'],
+    'navg-analisis':    ['inventario','averias','basedatos'],
     'navg-plataforma':  ['wwp'],
     'navg-compras':     ['contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
     'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
@@ -25842,7 +25861,7 @@ async function enviarCorreosSinAdjuntos(singleKey){
 // ════════════════════════════════════════════════════
 
 // Todas las secciones de página
-var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario','averias','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
+var PAGE_SECTIONS=['buscar','contenedores','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario','averias','basedatos','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations'];
 
 // Mapa: id del nav-item → id de la sección (ordenes comparte contenedor con pendientes)
 var NAV_SECTION_MAP={
@@ -25874,6 +25893,54 @@ function showSection(sectionId){
   CURRENT_SECTION=sectionId;
   // Scroll al tope al cambiar de sección
   window.scrollTo({top:0,behavior:'instant'});
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BASE DE DATOS (visor) — Fase 3: muestra las vistas SQL tipadas como tablas.
+// Solo admin (gate por canSection). Lee /api/admin/db/:view (solo lectura, PG).
+// ═══════════════════════════════════════════════════════════════════════
+var DBV_VIEWS = [
+  { key:'usuarios', label:'Usuarios' },
+  { key:'roles',    label:'Roles' },
+  { key:'tareas',   label:'Tareas' }
+];
+var _dbvBuilt = false;
+function dbViewerLoad(){
+  var host = document.getElementById('dbv-body');
+  if (!host) return;
+  if (!_dbvBuilt){
+    var btns = DBV_VIEWS.map(function(v){
+      return '<button class="dbv-btn" id="dbv-btn-'+v.key+'" onclick="dbvShow(\''+v.key+'\')">'+esc(v.label)+'</button>';
+    }).join(' ');
+    host.innerHTML = '<div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap">'+btns+'</div>'+
+      '<div id="dbv-table" style="overflow-x:auto"></div>';
+    _dbvBuilt = true;
+  }
+  if (window.lucide) lucide.createIcons();
+  dbvShow('usuarios');
+}
+async function dbvShow(view){
+  DBV_VIEWS.forEach(function(v){ var b=document.getElementById('dbv-btn-'+v.key); if(b) b.classList.toggle('active', v.key===view); });
+  var tbl = document.getElementById('dbv-table');
+  if (!tbl) return;
+  tbl.innerHTML = '<div style="padding:20px;color:var(--text-2)">Cargando…</div>';
+  try{
+    var r = await authFetch('/api/admin/db/'+encodeURIComponent(view));
+    var d = await r.json();
+    if (!r.ok || !d.ok){ tbl.innerHTML = '<div style="padding:20px;color:var(--red-text)">'+esc((d&&d.error)||('Error '+r.status))+'</div>'; return; }
+    var rows = d.rows||[];
+    if (!rows.length){ tbl.innerHTML = '<div style="padding:20px;color:var(--text-2)">(sin filas)</div>'; return; }
+    var cols = Object.keys(rows[0]);
+    var html = '<div style="margin:0 0 8px;color:var(--text-2);font-size:13px">'+d.count+' fila(s) · vista <code>'+esc(d.view)+'</code></div>';
+    html += '<table class="dbv-tbl"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    html += rows.map(function(row){
+      return '<tr>'+cols.map(function(c){ var val=row[c]; return '<td>'+esc(val==null?'':String(val))+'</td>'; }).join('')+'</tr>';
+    }).join('');
+    html += '</tbody></table>';
+    tbl.innerHTML = html;
+  }catch(e){
+    tbl.innerHTML = '<div style="padding:20px;color:var(--red-text)">Error: '+esc(e.message)+'</div>';
+  }
 }
 
 /** Navega a una sección desde el sidebar */
@@ -27657,6 +27724,7 @@ function navTo(section){
     if (dvIframe && !dvIframe.src) dvIframe.src = '/index.html';
   }
   if(target==='estado-ordenes') estadoOrdenesCargar();
+  if(target==='basedatos') dbViewerLoad();
 }
 
 function setNavActive(section){
