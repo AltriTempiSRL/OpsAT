@@ -10,9 +10,12 @@
 const ALLOW = [
   /\/api\/odoo/i,
   /\/api\/sheets/i,
-  // Isla almacen-mapa: su helper odoo() (almacen-mapa.html ~1743) loguea
-  // "Invalid URL" cuando no hay credenciales Odoo en local. Solo ese origen.
-  /Invalid URL[\s\S]*\/almacen-mapa:\d+/,
+  // Isla almacen-mapa: TODO error originado en su helper odoo() (almacen-mapa
+  // ~1743) es ambiental en local — "Invalid URL" sin credenciales Odoo, o 429
+  // "Demasiadas solicitudes" del rate limiter (/api/odoo max 30/min,
+  // proxy.js ~4755) tras muchas páginas cargadas en la misma corrida.
+  // Se filtra por ORIGEN en el stack, no por mensaje.
+  /at odoo \([^)]*\/almacen-mapa:\d+/,
 ];
 
 // 502/503 sobre /api/* = upstream no disponible en el entorno local de test:

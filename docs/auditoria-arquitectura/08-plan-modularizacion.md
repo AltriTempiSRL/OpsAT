@@ -80,6 +80,14 @@ isla duplicaría auth/tema/escape.
 build): login, smoke de cada sección (navega + no hay error de consola + render básico),
 y los flujos críticos de tasks/SDV. Hoy hay CERO tests de frontend (hallazgo C6) — sin
 esto, toda extracción es a ciegas.
+→ **HECHA la base (22-jul-2026):** suite en `tests/e2e/` (autocontenida, no toca el
+package.json raíz), 60 tests verdes en ~22s: contratos HTTP del server (health,
+redirects, fallback SPA de los 20 paths, no-store, denylist), login por UI, deep-link
+de las 15 secciones + 9 tabs WWP con guardia de consola (pageerror = fallo; solo se
+permite ruido ambiental 502/503 de Odoo/PG ausentes en local). Correr:
+`cd tests/e2e && npx playwright test` (o `npm run test:e2e` desde la raíz).
+**Pendiente de Ola 0:** los flujos críticos tasks/SDV reales — esqueletos `fixme` en
+`tests/e2e/flujos-criticos.spec.js` esperando que el equipo defina los 3–5 flujos.
 
 **Ola 1 — `core.js` + `theme.css`.** Extraer el núcleo compartido a archivos versionados
 (`?v=hash`). El shell los carga con `<script src>`; el monolito sigue funcionando igual

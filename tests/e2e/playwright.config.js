@@ -33,7 +33,8 @@ module.exports = defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `rm -rf "${DATA_DIR}" && node proxy.js`,
+    // start-server.js limpia el sandbox .data-e2e (con guardia) y carga proxy.js.
+    command: 'node tests/e2e/start-server.js',
     cwd: ROOT,
     url: `${BASE}/api/health`,
     reuseExistingServer: false,
