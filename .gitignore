@@ -6,20 +6,33 @@
 *.pem
 
 # ── Datos en tiempo de ejecución (PII / datos del negocio) ───────────────────
-wwp-users-auth.json
-wwp-sessions.json
-wwp-tasks.json
-wwp-notifications.json
-wwp-lunch-breaks.json
-wwp-roles.json
+# Globs para cubrir TODAS las colecciones (incluidas las nuevas) sin listarlas
+# una por una. Ninguna de estas familias contiene archivos que deban trackearse.
+wwp-*.json              # tasks, users-auth, sessions, roles, locations(GPS), inventario, etc.
+sdv-*.json              # solicitudes de despacho/devolución, alertas, auditorías
+emp-*.json              # materiales/reglas de empaque
+ops-notifications.json
+push-subscriptions.json
+vapid-keys.json         # ⚠ contiene la clave VAPID privada
+reposiciones.json
+despachos-obsoleto.json
+despacho-obsoleto-seq.json
 vehiculos-inspecciones.json
 averias.json
 contenedores.csv
+.media-r2-migrated      # marcador de migración a R2
 
-# ── Fotos subidas por usuarios ───────────────────────────────────────────────
+# ── Fotos/videos subidos por usuarios (evidencia) ────────────────────────────
 av-fotos/
 wwp-fotos/
 empaque-fotos/
+emp-fotos/
+desp-fotos/
+sdv-adjuntos/
+prod-img/
+inspection/
+inspections/
+inspeccion/
 
 # ── Archivos temporales ───────────────────────────────────────────────────────
 *.tmp

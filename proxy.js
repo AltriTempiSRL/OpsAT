@@ -8578,21 +8578,16 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/health' && req.method === 'GET') {
     const deep = (url.parse(req.url, true).query.deep === 'true');
     if (!deep) {
+      // R-05: el health público NO debe filtrar rutas del disco (DATA_DIR) ni un
+      // preview de datos reales de tareas. Solo señales operativas no sensibles.
       const tasksOnDisk = loadWwpTasks();
-      let tasksRaw = '';
-      try { tasksRaw = fs.readFileSync(WWP_TASKS_FILE, 'utf-8').slice(0, 200); } catch(e) { tasksRaw = '[error:' + e.message + ']'; }
       res.writeHead(200, {'Content-Type': 'application/json'});
       res.end(JSON.stringify({
         timestamp: new Date().toISOString(),
         mode: 'live',
         ok: true,
         build: APP_BUILD,
-        dataDir: DATA_DIR,
-        tasksFile: WWP_TASKS_FILE,
         tasksCount: tasksOnDisk.length,
-        tasksFileExists: fs.existsSync(WWP_TASKS_FILE),
-        tasksFileSize: fs.existsSync(WWP_TASKS_FILE) ? fs.statSync(WWP_TASKS_FILE).size : 0,
-        tasksRawPreview: tasksRaw,
         storage: pgStorage.isActive() ? pgStorage.health() : { mode: 'json' },
         odoo: { ok: !!odooUid, uid: odooUid || null },
         media: { mode: media.isR2Enabled() ? 'r2' : 'disk',
