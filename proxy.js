@@ -569,6 +569,45 @@ function migrateProductImagesInline() {
   } catch (e) { console.error('[prod-img] migración falló:', e.message); }
 }
 
+// Migración de media histórica del disco → Cloudflare R2 (Fase 1). Corre UNA vez
+// en segundo plano cuando R2 está activo: sube lo que aún no esté en el bucket
+// (idempotente vía mediaExists) y deja el disco intacto — el fallback de mediaGet
+// sirve lo no migrado mientras tanto, así que el flip a R2 es SIN downtime. Un
+// marcador en DATA_DIR evita re-escanear en cada arranque una vez completada.
+async function migrateMediaToR2OnBoot() {
+  if (!media.isR2Enabled()) return;
+  const marker = path.join(DATA_DIR, '.media-r2-migrated');
+  try { if (fs.existsSync(marker)) return; } catch {}
+  const FOLDERS = ['av-fotos', 'desp-fotos', 'emp-fotos', 'wwp-fotos', 'sdv-adjuntos',
+                   'prod-img', 'inspection', 'inspections', 'inspeccion'];
+  const CANON = { inspections: 'inspection', inspeccion: 'inspection' };
+  let up = 0, skip = 0, err = 0;
+  console.log('[media-r2] migración histórica disco→R2: iniciando en segundo plano…');
+  for (const folder of FOLDERS) {
+    const dir = path.join(DATA_DIR, folder);
+    let files; try { files = fs.readdirSync(dir); } catch { continue; }
+    const kind = CANON[folder] || folder;
+    for (const name of files) {
+      const fp = path.join(dir, name);
+      let st; try { st = fs.statSync(fp); } catch { continue; }
+      if (!st.isFile()) continue;
+      try {
+        if (await media.mediaExists(kind, name)) { skip++; continue; }
+        await media.mediaPut(kind, name, fs.readFileSync(fp));
+        up++;
+        if (up % 100 === 0) console.log('[media-r2] … ' + up + ' subidos');
+      } catch (e) { err++; if (err <= 10) console.warn('[media-r2] ✗ ' + kind + '/' + name + ': ' + e.message); }
+    }
+  }
+  console.log('[media-r2] migración: subidos=' + up + ' saltados=' + skip + ' errores=' + err);
+  if (err === 0) {
+    try { fs.writeFileSync(marker, new Date().toISOString()); console.log('[media-r2] completa — marcador escrito, no se re-escanea.'); }
+    catch (e) { console.warn('[media-r2] no se pudo escribir el marcador:', e.message); }
+  } else {
+    console.warn('[media-r2] con ' + err + ' error(es) — se reintenta en el próximo arranque.');
+  }
+}
+
 function loadLunchBreaks() { return loadJson(WWP_LUNCH_FILE, []); }
 function saveLunchBreaks(b) { saveJson(WWP_LUNCH_FILE, b); }
 
@@ -20726,6 +20765,7 @@ server.listen(PORT, async () => {
   seedAuthUsers();
   recoverOpenLunchBreaks();
   migrateProductImagesInline();   // Fase 2: base64 inline → /prod-img/ (idempotente)
+  migrateMediaToR2OnBoot().catch(e => console.error('[media-r2] migración falló:', e.message)); // Fase 1: disco→R2, 1 vez, background
   try {
     await authenticate();
   } catch (e) {
