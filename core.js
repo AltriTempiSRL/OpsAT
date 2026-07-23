@@ -1695,10 +1695,25 @@ function connectWwpRealtime() {
     _wwpSocket = null;
   }
   if (_wwpSocketRetry) { clearTimeout(_wwpSocketRetry); _wwpSocketRetry = null; }
+  if (!_token) return;
+  // F2.1 (API-01): el WS exige un ticket efímero de un solo uso emitido por
+  // POST autenticado — nunca JWT en query ni conexiones anónimas.
+  authFetch('/api/wwp/realtime/ticket', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d || !d.ok || !d.ticket) throw new Error('sin ticket WS');
+      _wwpOpenSocket(d.ticket);
+    })
+    .catch(function() {
+      if (_token) _wwpSocketRetry = setTimeout(connectWwpRealtime, 2500);
+    });
+}
+
+function _wwpOpenSocket(ticket) {
   const proto = WWP_SERVER_ORIGIN
     ? WWP_SERVER_ORIGIN.replace(/^http/, 'ws')
     : (location.protocol === 'https:' ? 'wss://' + location.host : 'ws://' + location.host);
-  const ws = new WebSocket(proto + '/ws/wwp?client=wwp');
+  const ws = new WebSocket(proto + '/ws/wwp?client=wwp&ticket=' + encodeURIComponent(ticket));
   _wwpSocket = ws;
 
   ws.onopen = function() { refreshNotifications(); };

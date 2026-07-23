@@ -4911,6 +4911,28 @@ ${supNote}
 // SSE clients: userId → Set<res>
 const sseClients = new Map();
 const wwpWsClients = new Set();
+// ── Tickets efímeros del WS (API-01, F2.1): el upgrade NO acepta JWT en query
+//    ni conexiones anónimas. POST /api/wwp/realtime/ticket (JWT) emite un
+//    ticket de un solo uso con vida de 60 s; el upgrade lo consume y liga la
+//    conexión a su userId (socket._uid) para entrega per-usuario de notifs.
+const _wsTickets = new Map();   // ticket → { userId, exp }
+function issueWsTicket(userId) {
+  const now = Date.now();
+  for (const [t, info] of _wsTickets) { if (info.exp < now) _wsTickets.delete(t); }
+  const ticket = crypto.randomBytes(24).toString('hex');
+  _wsTickets.set(ticket, { userId, exp: now + 60_000 });
+  return ticket;
+}
+function consumeWsTicket(ticket) {
+  const info = ticket && _wsTickets.get(ticket);
+  if (!info) return null;
+  _wsTickets.delete(ticket);            // un solo uso
+  if (info.exp < Date.now()) return null;
+  return info.userId;
+}
+function wsSendToUser(uid, msg) {
+  wwpWsClients.forEach(s => { if (s._uid === uid) wsSend(s, msg); });
+}
 // Versión de estado WWP monotónica y PERSISTIDA (auditoría 2, B13): con
 // Date.now() per-proceso, un redeploy podía "retroceder" la versión que ven
 // los clientes WS conectados a la instancia anterior. Arranca en
@@ -5066,13 +5088,15 @@ function broadcastWwp(event, payload={}) {
 }
 
 function broadcastWwpTasks(action, task=null, extra={}) {
-  // No incluir tasks en el broadcast — cada cliente re-fetcha via REST (RBAC correcto)
+  // Broadcast MUDO (API-01): SOLO señal de cambio — jamás objetos de negocio
+  // (task/message/items/evidence viajaban antes y los recibía cualquier
+  // conexión). Cada cliente re-fetcha via REST con su RBAC (core.js ~1730).
   broadcastWwp('tasks:changed', {
     action,
-    task,
-    taskId: task?.id || extra.taskId || null,
-    dashboardDirty: true,
-    ...extra
+    taskId: (task && task.id) || extra.taskId || null,
+    parentId: (task && task.parentId) || extra.parentId || null,
+    count: (typeof extra.count === 'number') ? extra.count : undefined,
+    dashboardDirty: true
   });
 }
 
@@ -5790,7 +5814,9 @@ function _emitNotif(uid, notif, level, coalesced) {
   if (level !== 'off') {
     const data = `data: ${JSON.stringify({event:'notification', notif})}\n\n`;
     (sseClients.get(uid)||new Set()).forEach(res => { try { res.write(data); } catch {} });
-    broadcastWwp('notification', { notif, userId: uid });
+    // Per-usuario (API-01): la notif viaja SOLO a las conexiones de su dueño
+    // (antes se difundía a todos los sockets y el cliente filtraba localmente).
+    wsSendToUser(uid, { scope:'wwp', event:'notification', at:new Date().toISOString(), notif, userId: uid });
   }
   if (level === 'all') {
     // Sin icon/badge en el payload — el SW usa sus defaults (icon-192.png, badge por urgencia).
@@ -11197,6 +11223,14 @@ const server = http.createServer(async (req, res) => {
   // ════════════════════════════════════════════════════════════════════════════
   // ── NOTIFICACIONES API ───────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════════
+
+  // POST /api/wwp/realtime/ticket — ticket efímero de un solo uso para el WS
+  // (API-01/F2.1: el upgrade no acepta JWT en query ni conexiones anónimas)
+  if (reqPath === '/api/wwp/realtime/ticket' && req.method === 'POST') {
+    const jp = requireJwt(req, res); if (!jp) return;
+    sendJson(res, 200, { ok: true, ticket: issueWsTicket(jp.userId) });
+    return;
+  }
 
   // GET /api/wwp/notifications/stream — SSE (token en query param porque EventSource no soporta headers)
   if (reqPath === '/api/wwp/notifications/stream' && req.method === 'GET') {
@@ -20778,6 +20812,13 @@ server.on('upgrade', (req, socket) => {
     socket.destroy();
     return;
   }
+  // API-01: solo conexiones con ticket efímero válido (un solo uso, 60 s).
+  const wsUid = consumeWsTicket((parsed.query || {}).ticket);
+  if (!wsUid) {
+    try { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); } catch {}
+    socket.destroy();
+    return;
+  }
   const key = req.headers['sec-websocket-key'];
   if (!key) {
     socket.destroy();
@@ -20796,6 +20837,7 @@ server.on('upgrade', (req, socket) => {
     ''
   ].join('\r\n'));
 
+  socket._uid = wsUid;   // entrega per-usuario (wsSendToUser)
   wwpWsClients.add(socket);
   wsSend(socket, {
     scope: 'wwp',
