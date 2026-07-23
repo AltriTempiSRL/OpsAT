@@ -47,7 +47,10 @@ const CONNECT_RETRIES = 10;     // intentos de conexión al boot (3 s entre sí)
 // collection_rows y el export a JSON siguen vivos en TODOS los modos: el
 // rollback es cambiar la env var y reiniciar (sin migración de vuelta).
 const TYPED_SCHEMAS = require('./typed-schemas.js');
-const TYPED_MODE = ['off', 'dual', 'read'].includes(process.env.WWP_TYPED) ? process.env.WWP_TYPED : 'dual';
+// Default 'read' desde el 22-jul-2026 (cutover completado: paridad 24/24
+// verificada en prod tras el backfill del deploy dual). Para rollback operativo
+// setear WWP_TYPED=dual (o off) en el entorno — la env var siempre gana.
+const TYPED_MODE = ['off', 'dual', 'read'].includes(process.env.WWP_TYPED) ? process.env.WWP_TYPED : 'read';
 
 const state = {
   active: false,
