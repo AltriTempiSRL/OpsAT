@@ -326,6 +326,61 @@ body.app-shell #screen-app{padding-left:210px}
 .sidebar-logout{display:flex;align-items:center;gap:6px;width:100%;padding:7px 10px;margin-bottom:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--radius);color:rgba(255,255,255,.55);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-align:left}
 .sidebar-logout:hover{background:rgba(255,255,255,.14);color:#fff}
 .sidebar-logout svg,.sidebar-logout i{width:12px;height:12px;stroke:currentColor;flex-shrink:0}
+
+/* ── Sidebar colapsable (solo desktop ≥768px) ────────────────────────────────
+   En móvil (≤767px) el sidebar es un drawer off-canvas con body.sidebar-open:
+   ahí `sidebar-collapsed` NO debe tener ningún efecto — por eso todo el bloque
+   vive dentro del @media. Estado persistido en localStorage wwp_sidebar_collapsed
+   y restaurado ANTES del primer paint (IIFE del <head>, junto al tema).
+   Los labels de .nav-item son nodos de texto sueltos (no hay <span> que ocultar):
+   se colapsan con font-size:0 y el icono conserva su tamaño propio (.nav-icon svg). */
+.sidebar-collapse-btn{display:none;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:7px;
+  color:rgba(255,255,255,.55);cursor:pointer;padding:0;transition:background .15s,color .15s}
+.sidebar-collapse-btn:hover{background:rgba(255,255,255,.16);color:#fff}
+.sidebar-collapse-btn svg{width:14px;height:14px;stroke:currentColor;transition:transform .2s}
+
+@media(min-width:768px){
+  .sidebar-collapse-btn{display:flex}
+  /* La animación se habilita SOLO tras el primer toggle del usuario
+     (body.sidebar-anim). Sin esa guarda, el padding se animaba de 0→210px cada
+     vez que la sesión añade body.app-shell → el contenido "entraba deslizándose"
+     en cada login. Verificado en el sondeo: padding medido a media transición. */
+  body.sidebar-anim .sidebar{transition:width .2s cubic-bezier(.4,0,.2,1),min-width .2s cubic-bezier(.4,0,.2,1)}
+  body.sidebar-anim.app-shell #app,body.sidebar-anim.app-shell #screen-app{transition:padding-left .2s cubic-bezier(.4,0,.2,1)}
+
+  body.sidebar-collapsed .sidebar{width:64px;min-width:64px}
+  body.sidebar-collapsed.app-shell #app,
+  body.sidebar-collapsed.app-shell #screen-app{padding-left:64px}
+
+  /* Brand: solo el avatar AT + el botón, apilados y centrados */
+  body.sidebar-collapsed .sidebar-brand{flex-direction:column;gap:9px;padding:12px 8px 10px}
+  body.sidebar-collapsed .sidebar-brand-text{align-items:center}
+  body.sidebar-collapsed .sidebar-brand-word,
+  body.sidebar-collapsed .sidebar-brand-name,
+  body.sidebar-collapsed .sidebar-brand-sub,
+  body.sidebar-collapsed .sidebar-brand-conn{display:none}
+  body.sidebar-collapsed .sidebar-collapse-btn svg{transform:rotate(180deg)}
+
+  /* Ítems: solo icono, centrado. El title lo pone toggleSidebarCollapse() */
+  body.sidebar-collapsed .nav-item{font-size:0;gap:0;justify-content:center;padding:11px 8px;border-left-width:0;border-radius:8px;margin:0 8px}
+  body.sidebar-collapsed .nav-item.active{border-left-width:0;background:var(--sidebar-item-active);box-shadow:inset 2px 0 0 var(--sidebar-accent)}
+  body.sidebar-collapsed .nav-icon{width:auto}
+  body.sidebar-collapsed .nav-icon svg,
+  body.sidebar-collapsed .nav-icon i{width:17px;height:17px}
+  body.sidebar-collapsed .sidebar-group{height:1px;margin:8px 14px;padding:0;overflow:hidden;color:transparent;background:rgba(255,255,255,.1)}
+
+  /* Footer: iconos sin etiquetas; el badge de notificaciones sigue visible */
+  body.sidebar-collapsed .sidebar-footer{padding:10px 8px;text-align:center}
+  body.sidebar-collapsed .sidebar-user,
+  body.sidebar-collapsed .sidebar-footer>div:last-child,
+  body.sidebar-collapsed .sidebar-notif-label,
+  body.sidebar-collapsed .theme-label,
+  body.sidebar-collapsed #hist-imp-box{display:none}
+  body.sidebar-collapsed .sidebar-logout,
+  body.sidebar-collapsed .theme-toggle,
+  body.sidebar-collapsed .sidebar-notif{font-size:0;gap:0;justify-content:center;padding:8px 0}
+}
 main{flex:1;padding:16px 28px;overflow-x:hidden;min-width:0}
 .section-title{font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 10px}
 
@@ -5373,6 +5428,36 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   document.addEventListener('DOMContentLoaded',function(){
     applyTheme(localStorage.getItem('wwp_theme')||'light');
   });
+
+  // ── Sidebar colapsable (desktop) ───────────────────────────────────────────
+  // El estado se restaura en DOMContentLoaded y NO parpadea: el sidebar está
+  // display:none hasta que la sesión añade body.app-shell (bastante después).
+  // Este IIFE corre en <head>, donde document.body aún no existe — por eso la
+  // clase no puede aplicarse antes. En móvil la clase no hace nada: el CSS del
+  // colapso vive dentro de @media(min-width:768px).
+  function applySidebarCollapsed(on){
+    document.body.classList.toggle('sidebar-collapsed', !!on);
+    try{ localStorage.setItem('wwp_sidebar_collapsed', on?'1':'0'); }catch(e){}
+    var btn=document.getElementById('sidebar-collapse-btn');
+    if(btn){
+      btn.title = on ? 'Expandir menú' : 'Colapsar menú';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    }
+    // Colapsado el label se oculta (font-size:0) → el nombre viaja al tooltip
+    // nativo. Se guarda en data-label para poder restaurarlo sin releer el DOM.
+    document.querySelectorAll('.sidebar .nav-item').forEach(function(a){
+      if(!a.dataset.label) a.dataset.label = (a.textContent||'').trim();
+      if(on) a.title = a.dataset.label; else a.removeAttribute('title');
+    });
+  }
+  window.toggleSidebarCollapse=function(){
+    document.body.classList.add('sidebar-anim');   // anima solo a partir del 1er toggle
+    applySidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+  };
+  var _sbCol = false;
+  try{ _sbCol = localStorage.getItem('wwp_sidebar_collapsed')==='1'; }catch(e){}
+  document.addEventListener('DOMContentLoaded',function(){ applySidebarCollapsed(_sbCol); });
 })();
 </script>
 </head>
@@ -5457,7 +5542,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 <!-- ══ SIDEBAR GLOBAL (persistente en Despachos y Workforce Labor) ══ -->
 <!-- En móvil se desliza como drawer; al tocar un destino se cierra. -->
 <div class="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
-<nav class="sidebar" onclick="if(event.target.closest('.nav-item'))toggleSidebar(false)">
+<nav class="sidebar" id="sidebar-nav" onclick="if(event.target.closest('.nav-item'))toggleSidebar(false)">
 
     <div class="sidebar-brand">
       <div class="sidebar-brand-text">
@@ -5471,6 +5556,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
         <span class="conn-dot-wrap" id="sheets-status" title="Sheets verificando…"><span class="sim-dot"></span></span>
         <span class="conn-dot-wrap" id="odoo-status" title="Odoo verificando…"><span class="sim-dot"></span></span>
       </div>
+      <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" onclick="toggleSidebarCollapse()"
+              title="Colapsar menú" aria-label="Colapsar menú" aria-expanded="true" aria-controls="sidebar-nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
     </div>
 
     <!-- Sidebar reagrupado por dominios del negocio (plan 10 §18): Operación del
@@ -8355,7 +8444,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v235';
+var APP_BUILD = 'v236';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=80377dce"></script>
