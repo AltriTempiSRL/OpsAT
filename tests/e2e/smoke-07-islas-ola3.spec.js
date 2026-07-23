@@ -14,6 +14,7 @@ const TABS_ISLA = [
   { tab: 'formacion', iframe: '#formacion-iframe', archivo: '/formacion.html', selector: '#tr-body', texto: null },
   { tab: 'politicas', iframe: '#politicas-iframe', archivo: '/politicas.html', selector: '#pol-cards-container', texto: null },
   { tab: 'impacto', iframe: '#impacto-iframe', archivo: '/impacto.html', selector: '#tab-impacto', texto: null },
+  { tab: 'empaque', iframe: '#empaque-iframe', archivo: '/empaque.html', selector: '#emp-mat-grid', texto: null },
 ];
 
 for (const cfg of TABS_ISLA) {

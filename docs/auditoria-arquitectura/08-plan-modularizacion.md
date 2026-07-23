@@ -48,7 +48,7 @@ isla duplicaría auth/tema/escape.
 | Módulo | HTML (id / líneas) | JS clave | Acoplamiento | Extracción |
 |---|---|---|---|---|
 | almacen-mapa | iframe :6217 | (ya externa) | postMessage | **HECHA** (precedente) |
-| basedatos | `section-basedatos` :6489 | `dbViewerLoad`/`dbvShow` :25909+ (2 fns) | solo core | **HECHA** (piloto Ola 2 → `basedatos.html`) |
+| basedatos | `section-basedatos` :6489 | `dbViewerLoad`/`dbvShow` :25909+ (2 fns) | solo core | **piloto Ola 2 cumplido → visor RETIRADO** (pedido Gabriel: las `t_*` de Fase 3B se consultan por SQL directo; `5275c3a`) |
 | dev-cdp | :6310 | `loadDevCdpReport`+3 :25960+ | solo core | **HECHA** (Ola 3 → `dev-cdp.html`) |
 | estado-ordenes | :7253 | `eo*` (80 fns) 35479–37534 | core + cache `_eoMetrics` + Odoo | MEDIA (cohesivo pero entrelazado con sdv — separar regiones primero) |
 | buscar | :5807 | `buscar*` 24072–25214 | core + drawer de tasks | MEDIA |
@@ -67,7 +67,7 @@ isla duplicaría auth/tema/escape.
 | formacion | :8187 | `tr*` (18 fns) 11431–11740 | solo core | **HECHA** (Ola 3 → `formacion.html`, badge por postMessage) |
 | politicas | :8032 | `pol*` (13 fns) 31182–31622 | solo core | **HECHA** (Ola 3 → `politicas.html`, on/off de timers por postMessage) |
 | impacto | :8050 | `imp*` :20693+ | solo core | **HECHA** (Ola 3 → `impacto.html`, incluye `eqp*`) |
-| empaque | :8112 | `emp*` (25 fns) 32235–32855 | core + fotos | FÁCIL-MEDIA — **siguiente candidata** (quedó en el shell; será la 1ª isla con upload de fotos) |
+| empaque | :8112 | `emp*` (25 fns) 32235–32855 | core + fotos | **HECHA** (Ola 3 → `empaque.html`, 1ª isla con upload de fotos; el subsistema del drawer + lightbox compartido + `apiFetch` QUEDAN en el shell) |
 | dashboard | :7735 | `loadDashboard`, charts :13413 | core + chart.min.js | MEDIA |
 | users | :7825 | `loadUsers`, `showUserRoute` :20951 | core + roles + GMap | MEDIA |
 | vehiculos | :7842 | `veh*` + gate `_vehGate` en `switchTab` | gate acoplado al router de tabs | MEDIA |
@@ -130,11 +130,16 @@ del shell quedó en iframe lazy (patrón almacen-mapa: `src` al navegar) + puent
   standalone también funciona (lee la sesión del storage).
 Verificado: suite 71 verdes (5 nuevos en `tests/e2e/smoke-06-isla-basedatos.spec.js`).
 El monolito ya no contiene el visor: −44 líneas netas más.
+→ **Epílogo (mismo día, `5275c3a`):** el visor Base de datos se ELIMINÓ de la app a
+pedido de Gabriel — las tablas `t_*` del cutover Fase 3B se consultan por SQL directo.
+La isla y su spec (smoke-06) se retiraron; el piloto ya había cumplido su propósito:
+validar el patrón iframe+postMessage que heredaron las islas de Ola 3.
 
 **Ola 3 — islas fáciles.** dev-cdp, formacion, politicas, impacto, empaque. Una por PR,
 verificada con la suite de Ola 0.
-→ **HECHA 4 de 5 (22-jul-2026, noche):** islas `dev-cdp.html`, `formacion.html`,
-`politicas.html`, `impacto.html` (esta última incluye el subsistema `eqp*` de equipo).
+→ **HECHA 5 de 5 (22-jul-2026, noche):** islas `dev-cdp.html`, `formacion.html`,
+`politicas.html`, `impacto.html` (esta última incluye el subsistema `eqp*` de equipo)
+y `empaque.html` (la última en salir — ver partición abajo).
 Novedades del patrón al pasar de 1 isla a 4:
 - **`core-isla.js` versionado** (`?v=<hash md5-8>`, cargado por las 5 islas): `esc`,
   `islaFetch`/`_authHeaders` (Bearer desde `wwp_auth` en cada request), `islaUser`,
@@ -154,9 +159,14 @@ Novedades del patrón al pasar de 1 isla a 4:
   shell) usa — hubo que devolverlo; (3) los duplicados históricos (`escH` ≡ `esc`) y
   los bloques MOCK pueden vivir lejos del cluster (`POL_USE_MOCK` estaba 400 líneas
   antes) — grep por TODOS los identificadores del módulo, no por prefijo.
-- **empaque se difirió a propósito**: es la primera isla con upload de fotos
-  (multipart + lightbox); mejor PR propio con el patrón ya maduro. `apiFetch` quedó
-  restaurado en el shell para ella.
+- **empaque — partición tab/drawer**: la isla se lleva el TAB (catálogo, reglas por
+  familia, editor con upload de foto, picker, copia propia del lightbox); en el shell
+  QUEDAN el subsistema del drawer de tareas (`empEnrichTaskItems`…`empConfirmItem` —
+  el drawer es de Ola 5), el lightbox compartido, el CSS `task-emp-*` y `apiFetch`.
+  La invalidación de `_empResolveCache` al entrar al tab (semántica de `empInit`)
+  vive ahora en el hook de activación del shell; isla y shell tienen caches de
+  resolve INDEPENDIENTES por diseño. `modalBackOpen/Closed` (atrás-cierra-modal PWA)
+  son stubs no-op en la isla — integración de history del shell, no aplica en iframe.
 Verificado: suite 80 verdes (smoke-07-islas-ola3 cubre deep-link embebido, standalone
 con sesión del storage, y el badge por postMessage). Hashes coherentes: `core-isla.js`
 y `theme.css` con el mismo `?v=` en shell + 5 islas.

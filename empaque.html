@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Materiales de Empaque — Ops AT</title>
+<!-- ISLA empaque (Ola 3, plan docs/auditoria-arquitectura/08). Generada con
+     scratchpad/build-isla.mjs desde segmentos verbatim del monolito; el módulo
+     se edita AQUÍ desde ahora. Sesión: wwp_auth del storage (core-isla.js).
+     Al editar theme/ui-isla/core-isla: re-estampar sus ?v= aquí. -->
+<link rel="stylesheet" href="/theme.css?v=f232ab1b">
+<link rel="stylesheet" href="/ui-isla.css?v=0135f0d7">
+<style>*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--text);font-family:var(--font,system-ui,sans-serif);font-size:13px}</style>
+<style>
+[data-theme='dark'] .emp-tree-table thead th{background:var(--surface-3);color:var(--text-secondary)}
+[data-theme='dark'] .emp-tree-row:hover{background:var(--surface-2)}
+[data-theme='dark'] .emp-tree-row.has-rule{background:#0e1e30}
+[data-theme='dark'] .emp-tree-row.has-rule:hover{background:#112036}
+[data-theme='dark'] .emp-tree-lv0 .emp-tree-categ-cell{background:var(--surface-3);color:var(--text-primary)}
+[data-theme='dark'] .emp-tree-lv1 .emp-tree-categ-cell{color:var(--sky-text)}
+[data-theme='dark'] .emp-tree-expand{color:var(--text-muted)}
+[data-theme='dark'] .emp-tree-expand:hover{background:var(--surface-3)}
+[data-theme='dark'] .emp-tree-mat-chip{background:#112036;border-color:#2a4f6e;color:var(--blue-text)}
+[data-theme='dark'] .emp-tree-mat-chip:hover{background:#1a3550}
+[data-theme='dark'] .emp-tree-mat-chip-rm{color:var(--sky-dot)}
+[data-theme='dark'] .emp-tree-mat-chip-rm:hover{color:var(--red-text)}
+[data-theme='dark'] .emp-tree-mat-add{border-color:var(--border);color:var(--text-muted)}
+[data-theme='dark'] .emp-tree-mat-add:hover{border-color:var(--sky-dot);color:var(--sky-text);background:var(--sky-bg)}
+[data-theme='dark'] .emp-inline-picker-item:hover{background:var(--surface-2)}
+[data-theme='dark'] .emp-inline-picker-thumb{background:var(--blue-bg)}
+.emp-mat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+.emp-mat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.emp-mat-foto{width:100%;height:130px;object-fit:cover;background:#f1f5f9;display:block}
+.emp-mat-foto-empty{width:100%;height:130px;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border-bottom:1px solid var(--border-light)}
+.emp-mat-foto-empty::before{content:'📷';font-size:26px;opacity:.35}
+.emp-mat-foto-empty::after{content:'Sin foto';font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px}
+.emp-mat-body{padding:12px;flex:1;display:flex;flex-direction:column;gap:4px}
+.emp-mat-name{font-size:13px;font-weight:700;color:var(--text-primary)}
+.emp-mat-desc{font-size:11px;color:var(--text-muted);line-height:1.4;flex:1}
+.emp-mat-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border-light)}
+.emp-mat-btn{padding:5px 10px;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
+.emp-mat-btn.edit{flex:1;background:var(--blue-bg);color:var(--blue-text)}
+.emp-mat-btn.edit:hover{background:var(--blue-dot);color:#fff}
+.emp-mat-btn.del{flex:none;background:transparent;color:var(--text-3);padding:5px 8px;font-size:13px}
+.emp-mat-btn.del:hover{background:#fff1f2;color:#be123c}
+/* Árbol de reglas por familia */
+.emp-tree-search-wrap{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.emp-tree-search{flex:1;padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;outline:none}
+.emp-tree-search:focus{border-color:#0369a1;box-shadow:0 0 0 2px rgba(3,105,161,.12)}
+.emp-tree-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:24px}
+.emp-tree-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
+.emp-tree-table thead th{background:#f8fafc;padding:9px 10px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2}
+.emp-tree-categ-hdr{min-width:240px;text-align:left!important}
+.emp-tree-mat-hdr{width:145px;text-align:center}
+.emp-tree-row{border-bottom:1px solid var(--border-light);transition:background .1s}
+.emp-tree-row:last-child{border-bottom:none}
+.emp-tree-row:hover{background:#f8fafc}
+.emp-tree-row.has-rule{background:#f0f9ff}
+.emp-tree-row.has-rule:hover{background:#e0f2fe}
+.emp-tree-row.hidden-row{display:none}
+.emp-tree-categ-cell{padding:6px 8px;white-space:nowrap;cursor:default}
+.emp-tree-categ-cell-inner{display:flex;align-items:center;gap:5px}
+.emp-tree-lv0 .emp-tree-categ-cell{font-weight:800;color:var(--text-primary);font-size:13px;background:#f1f5f9}
+.emp-tree-lv1 .emp-tree-categ-cell{font-weight:700;color:#0f4c81}
+.emp-tree-lv2 .emp-tree-categ-cell{font-weight:600;color:var(--text-primary)}
+.emp-tree-lv3 .emp-tree-categ-cell,.emp-tree-lv4 .emp-tree-categ-cell{color:var(--text-muted)}
+.emp-tree-expand{background:none;border:none;cursor:pointer;padding:1px 4px;border-radius:3px;font-size:10px;color:#64748b;line-height:1;flex-shrink:0;transition:background .1s}
+.emp-tree-expand:hover{background:#e2e8f0}
+.emp-tree-mat-cell{padding:4px 5px;text-align:center;vertical-align:middle;border-left:1px solid var(--border-light)}
+.emp-tree-mat-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 7px 3px 4px;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;color:#0369a1;max-width:130px;transition:background .12s}
+.emp-tree-mat-chip:hover{background:#bae6fd}
+.emp-tree-mat-chip-thumb{width:22px;height:22px;border-radius:4px;object-fit:cover;flex-shrink:0}
+.emp-tree-mat-chip-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:10px}
+.emp-tree-mat-chip-rm{background:none;border:none;cursor:pointer;color:#0369a1;font-size:12px;font-weight:700;padding:0 0 0 2px;line-height:1;flex-shrink:0;transition:color .12s}
+.emp-tree-mat-chip-rm:hover{color:var(--red)}
+.emp-tree-mat-add{background:none;border:1px dashed #cbd5e1;border-radius:6px;color:#94a3b8;font-size:10px;padding:4px 8px;cursor:pointer;width:100%;transition:all .12s;white-space:nowrap}
+.emp-tree-mat-add:hover{border-color:#0369a1;color:#0369a1;background:#f0f9ff}
+/* Inline picker */
+.emp-inline-picker{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);z-index:4000;min-width:210px;max-height:260px;display:flex;flex-direction:column}
+.emp-inline-picker-search{padding:8px 10px;border:none;border-bottom:1px solid var(--border);font-size:12px;outline:none;border-radius:10px 10px 0 0;font-family:inherit}
+.emp-inline-picker-list{overflow-y:auto;flex:1}
+.emp-inline-picker-item{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;transition:background .1s}
+.emp-inline-picker-item:hover{background:#f0f9ff}
+.emp-inline-picker-thumb{width:26px;height:26px;border-radius:5px;object-fit:cover;background:#e0f2fe;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px}
+.emp-inline-picker-name{flex:1;font-weight:600;color:var(--text-primary)}
+.emp-inline-picker-empty{padding:14px;text-align:center;color:var(--text-muted);font-size:12px}
+/* Modal editor material */
+.emp-mat-editor-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2100;display:none;align-items:center;justify-content:center}
+.emp-mat-editor-overlay.open{display:flex}
+.emp-mat-editor-box{background:var(--surface);border-radius:14px;width:100%;max-width:500px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:92vh;overflow-y:auto;margin:16px}
+.emp-mat-editor-hdr{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.emp-mat-editor-hdr h3{font-size:15px;font-weight:700;color:var(--text-primary)}
+.emp-mat-editor-body{padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.emp-mat-editor-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+/* (editor de regla por modal eliminado — ahora inline en la tabla) */
+.emp-mat-sortable{display:flex;flex-direction:column;gap:6px}
+.emp-mat-sortable-row{display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:7px 10px}
+.emp-mat-sortable-ord{width:22px;text-align:center;font-size:11px;font-weight:700;color:#64748b;background:#e2e8f0;border-radius:4px;padding:1px 4px;flex-shrink:0}
+.emp-mat-sortable-name{flex:1;font-size:12px;font-weight:600;color:var(--text-primary)}
+.emp-mat-sortable-thumb{width:30px;height:30px;border-radius:5px;object-fit:cover;background:#e2e8f0;flex-shrink:0}
+.emp-mat-sortable-up,.emp-mat-sortable-dn{padding:3px 6px;border:none;background:#e2e8f0;border-radius:4px;cursor:pointer;font-size:11px;line-height:1;transition:background .15s}
+.emp-mat-sortable-up:hover,.emp-mat-sortable-dn:hover{background:#cbd5e1}
+.emp-mat-sortable-rm{padding:3px 7px;border:none;background:var(--red-bg);border-radius:4px;cursor:pointer;font-size:11px;color:var(--red-text);font-weight:700;transition:background .15s}
+.emp-mat-sortable-rm:hover{background:#fecaca}
+.emp-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:3000;display:none;align-items:center;justify-content:center}
+.emp-lightbox.open{display:flex}
+.emp-lightbox img{max-width:90vw;max-height:85vh;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.emp-lightbox-close{position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer;font-weight:700;line-height:1}
+@media(max-width:700px){
+  /* — Catálogo de materiales: vista lista en móvil — */
+  .emp-mat-grid{
+    display:flex;flex-direction:column;gap:0;
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  }
+  .emp-mat-card{
+    flex-direction:row;align-items:center;
+    border-radius:0;gap:12px;padding:10px 12px;
+    border:none;border-bottom:1px solid var(--border-light);
+  }
+  .emp-mat-card:last-child{border-bottom:none}
+  .emp-mat-foto{
+    width:52px;height:52px;flex-shrink:0;
+    border-radius:8px;object-fit:cover;cursor:zoom-in;
+  }
+  .emp-mat-foto-empty{
+    width:52px;height:52px;flex-shrink:0;
+    border-radius:8px;border-bottom:none;
+  }
+  .emp-mat-foto-empty::before{font-size:18px}
+  .emp-mat-foto-empty::after{font-size:9px}
+  .emp-mat-body{
+    flex:1;min-width:0;padding:0;gap:2px;
+  }
+  .emp-mat-name{font-size:13px;white-space:normal;word-break:break-word}
+  .emp-mat-desc{
+    font-size:11px;
+    overflow:hidden;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical;
+  }
+  .emp-mat-actions{
+    border-top:none;padding:0;flex-shrink:0;
+    flex-direction:column;gap:4px;align-items:center;
+  }
+  .emp-mat-btn.edit{flex:none;padding:6px 10px;font-size:11px}
+  .emp-mat-btn.del{padding:4px 6px}
+}
+</style>
+</head>
+<body>
+<!-- ex historial.html 7843–7873 -->
+    <div id="tab-empaque" style="display:none">
+      <div class="emp-page-hdr">
+        <div>
+          <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0"><i data-lucide="package" class="tab-h2-icon"></i>Materiales de Empaque</h2>
+          <p style="font-size:12px;color:var(--text-muted);margin:3px 0 0">Configura el catálogo de materiales y asígnalos por familia de artículos</p>
+        </div>
+      </div>
+
+      <!-- Sub-sección 1: Catálogo de materiales -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="emp-section-title" style="margin:0"><i data-lucide="layers" class="emp-sec-icon"></i>Catálogo de Materiales</div>
+        <button class="btn-primary" onclick="empOpenMatEditor(null)" style="font-size:12px;padding:7px 14px">+ Nuevo Material</button>
+      </div>
+      <div class="emp-mat-grid" id="emp-mat-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-muted);font-size:13px">Cargando materiales…</div>
+      </div>
+
+      <!-- Sub-sección 2: Reglas por familia -->
+      <div style="border-top:1px solid var(--border);padding-top:20px;margin-bottom:12px">
+        <div class="emp-section-title" style="margin:0 0 4px"><i data-lucide="link-2" class="emp-sec-icon"></i>Reglas por Familia de Artículos</div>
+        <p style="font-size:11px;color:var(--text-muted);margin:0 0 12px">Haz clic en cualquier celda para asignar un material. El orden de columnas (1°→4°) es el orden de aplicación. La regla más específica de la jerarquía tiene prioridad.</p>
+        <div class="emp-tree-search-wrap">
+          <input type="text" class="emp-tree-search" id="emp-tree-search" placeholder="Filtrar familias: Alfombra, Sala, Mesas…" oninput="empFilterTree(this.value)">
+          <button onclick="empFilterTree('');document.getElementById('emp-tree-search').value=''" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:11px;cursor:pointer">✕ Limpiar</button>
+        </div>
+      </div>
+      <div class="emp-tree-wrap">
+        <div id="emp-regla-list" style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px">Cargando jerarquía de categorías…</div>
+      </div>
+    </div>
+    <!-- /tab-empaque -->
+<!-- ex historial.html 7945–7977 -->
+<div class="emp-mat-editor-overlay" id="modal-emp-mat">
+  <div class="emp-mat-editor-box">
+    <div class="emp-mat-editor-hdr">
+      <h3 id="emp-mat-editor-title">Nuevo Material</h3>
+      <button onclick="empCloseMatEditor()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">×</button>
+    </div>
+    <div class="emp-mat-editor-body">
+      <input type="hidden" id="emp-mat-id">
+      <div class="form-group">
+        <label class="form-label">Nombre del material *</label>
+        <input type="text" id="emp-mat-nombre" class="form-input" placeholder="Ej: Cinta de embalaje">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Descripción / Para qué sirve *</label>
+        <textarea id="emp-mat-desc" class="form-input" rows="3" placeholder="Ej: Se usa para sellar las cajas y asegurar el contenido durante el transporte" style="resize:vertical"></textarea>
+      </div>
+      <!-- Preview de foto actual -->
+      <div id="emp-mat-foto-preview-wrap" style="display:none;margin-bottom:4px">
+        <p style="font-size:11px;color:var(--text-muted);margin:0 0 5px">Foto actual:</p>
+        <img id="emp-mat-foto-preview" src="" alt="preview" style="height:90px;border-radius:8px;object-fit:cover;border:1px solid var(--border)">
+      </div>
+      <div class="form-group">
+        <label class="form-label"><i data-lucide="camera" class="tab-h3-icon"></i>Foto del material</label>
+        <button type="button" onclick="empSeleccionarFoto()" style="display:flex;align-items:center;gap:7px;padding:8px 14px;border:1.5px dashed var(--border);border-radius:9px;background:var(--surface-2);font-size:12px;cursor:pointer;color:var(--text-secondary)"><i data-lucide="camera" style="width:14px;height:14px;stroke:currentColor"></i>Seleccionar foto</button>
+        <p style="font-size:10px;color:var(--text-muted);margin:4px 0 0">Desde PC o cámara del teléfono.</p>
+      </div>
+    </div>
+    <div class="emp-mat-editor-footer">
+      <button onclick="empCloseMatEditor()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12px;cursor:pointer">Cancelar</button>
+      <button onclick="empSaveMat()" class="btn-primary" style="font-size:12px;padding:7px 18px">Guardar Material</button>
+    </div>
+  </div>
+</div>
+<!-- ex historial.html 7979–7983 -->
+<!-- Picker inline de material (se posiciona vía JS) -->
+<div class="emp-inline-picker" id="emp-inline-picker" style="display:none">
+  <input type="text" class="emp-inline-picker-search" id="emp-picker-search" placeholder="Buscar material…" oninput="empPickerFilter(this.value)" autocomplete="off">
+  <div class="emp-inline-picker-list" id="emp-picker-list"></div>
+</div>
+<!-- ex historial.html 7986–7989 -->
+<div class="emp-lightbox" id="emp-lightbox" onclick="empCloseLightbox()">
+  <span class="emp-lightbox-close">×</span>
+  <img id="emp-lightbox-img" src="" alt="Foto material">
+</div>
+<script src="/lucide.min.js?v=a65241b6" defer></script>
+<script src="/core-isla.js?v=f7b1b597"></script>
+<script>
+// ── Adaptador de entorno: globals que el módulo espera del shell ──
+var authFetch = islaFetch;
+var _user = islaUser() || {};
+var escH = esc;   // escH del shell = misma implementación que esc (duplicado histórico)
+async function authGetJson(url){
+  var r = await islaFetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+var showToast = toast;   // misma firma (msg, tipo)
+async function _iosAlert(m){ alert(m); }
+async function _iosConfirm(m){ return confirm(m); }
+// atrás-cierra-modal es integración PWA del history del shell; no aplica en iframe
+function modalBackOpen(){}
+function modalBackClosed(){}
+var _empResolveCache = {};  // cache local de la isla (el drawer del shell tiene el suyo)
+// Helper: authFetch + json parse, nunca rechaza (retorna {ok:false} en error)
+function apiFetch(url, opts) {
+  return authFetch(url, opts || {})
+    .then(function(r) {
+      return r.json().catch(function() { return { ok: false, status: r.status, error: 'Respuesta no-JSON del servidor' }; });
+    })
+    .catch(function(e) { return { ok: false, error: e.message }; });
+}
+
+// ex historial.html 27758–28261
+var _empMateriales = [];      // catálogo completo
+var _empReglas = [];          // reglas por categoría
+var _empCategorias = [];      // árbol Odoo (cacheado)
+var _empMatEditorId = null;   // null = nuevo
+var _empRegEditorId = null;   // (legacy, no usado)
+var _empRegSortList = [];     // (legacy, no usado)
+var _empResolveCache = {};    // categ_id → materiales[]; evita el flash "Cargando..." en re-renders
+
+// Helper: authFetch + json parse, nunca rechaza (retorna {ok:false} en error)
+// (volvió del corte de la isla impacto — empaque sigue en el shell y lo usa)
+function apiFetch(url, opts) {
+  return authFetch(url, opts || {})
+    .then(function(r) {
+      return r.json().catch(function() { return { ok: false, status: r.status, error: 'Respuesta no-JSON del servidor' }; });
+    })
+    .catch(function(e) { return { ok: false, error: e.message }; });
+}
+
+// ── Carga inicial ─────────────────────────────────────────────────────────
+function empInit() {
+  _empResolveCache = {};  // invalidar cache al entrar al tab (reglas pueden haber cambiado)
+  // Primero categorías + reglas en paralelo, luego renderizar árbol
+  Promise.all([empLoadMateriales(), empLoadReglas(), empLoadCategorias()]).then(function() {
+    empRenderCategTree();
+  });
+}
+
+function empLoadMateriales() {
+  return apiFetch('/api/empaque/materiales').then(function(r) {
+    if (r.ok) { _empMateriales = r.materiales || []; empRenderMatGrid(); }
+  });
+}
+function empLoadReglas() {
+  return apiFetch('/api/empaque/reglas').then(function(r) {
+    if (r.ok) { _empReglas = r.reglas || []; }
+  });
+}
+function empLoadCategorias() {
+  if (_empCategorias.length) return Promise.resolve();
+  return apiFetch('/api/empaque/categorias').then(function(r) {
+    if (r.ok) _empCategorias = r.categorias || [];
+  });
+}
+
+// ── Render: catálogo de materiales ───────────────────────────────────────
+function empRenderMatGrid() {
+  var grid = document.getElementById('emp-mat-grid');
+  if (!grid) return;
+  if (!_empMateriales.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);font-size:13px">No hay materiales. Agrega el primero con <strong>+ Nuevo Material</strong>.</div>';
+    return;
+  }
+  grid.innerHTML = _empMateriales.map((m) => {
+    var fotoHtml = m.foto_url
+      ? '<img class="emp-mat-foto" src="' + m.foto_url + '" alt="' + esc(m.nombre) + '" onclick="empOpenLightbox(\'' + esc(m.foto_url) + '\')">'
+      : '<div class="emp-mat-foto-empty"></div>';
+    return '<div class="emp-mat-card">' +
+      fotoHtml +
+      '<div class="emp-mat-body">' +
+        '<div class="emp-mat-name">' + esc(m.nombre) + '</div>' +
+        '<div class="emp-mat-desc">' + esc(m.descripcion || '—') + '</div>' +
+      '</div>' +
+      '<div class="emp-mat-actions">' +
+        '<button class="emp-mat-btn edit" onclick="empOpenMatEditor(\'' + m.id + '\')">Editar</button>' +
+        '<button class="emp-mat-btn del" title="Eliminar material" onclick="empDeleteMat(\'' + m.id + '\', this)">✕</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Árbol de categorías + tabla inline ───────────────────────────────────
+
+var _empTreeRows = [];      // filas planas del árbol: {cat, level, visible, hasChildren, collapsed}
+var _empPickerCategId = null;
+var _empPickerSlot = null;
+var _empPickerQuery = '';
+
+// Construye y renderiza el árbol completo de categorías
+function empRenderCategTree() {
+  var container = document.getElementById('emp-regla-list');
+  if (!container) return;
+  if (!_empCategorias.length) {
+    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px"><i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-3px;margin-right:5px"></i>No se pudieron cargar las categorías de Odoo.<br><span style="font-size:11px">Verifica que el servidor esté reiniciado con los nuevos endpoints y que haya conexión con Odoo.</span><br><br><button onclick="empInit()" style="padding:7px 16px;border:1px solid var(--border);border-radius:8px;background:#f1f5f9;font-size:12px;cursor:pointer"><i data-lucide="refresh-cw" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Reintentar</button></div>';
+    if(window.lucide) lucide.createIcons();
+    return;
+  }
+
+  // Construir mapa children: parentId → [childIds]
+  var childrenOf = {};
+  _empCategorias.forEach((c) => {
+    var pid = c.parent_id ? c.parent_id[0] : null;
+    if (!childrenOf[pid]) childrenOf[pid] = [];
+    childrenOf[pid].push(c);
+  });
+
+  // Ordenar hijos alfabéticamente
+  Object.keys(childrenOf).forEach((pid) => {
+    childrenOf[pid].sort(function(a,b){ return a.name.localeCompare(b.name); });
+  });
+
+  // Encontrar raíces relevantes (categorías con complete_name sin " / " = top-level, excluir "All")
+  var roots = _empCategorias.filter((c) => {
+    return c.complete_name && !c.complete_name.includes(' / ') && c.name !== 'All';
+  }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+  // Aplanar en depth-first
+  _empTreeRows = [];
+  function flatten(cat, level) {
+    var children = childrenOf[cat.id] || [];
+    var hasChildren = children.length > 0;
+    _empTreeRows.push({ cat: cat, level: level, hasChildren: hasChildren, collapsed: level >= 2, visible: true });
+    if (!hasChildren) return;
+    children.forEach((ch) => { flatten(ch, level + 1); });
+  }
+  roots.forEach((r) => { flatten(r, 0); });
+
+  // Aplicar estado collapsed inicial: ocultar hijos de nivel >= 2
+  _empApplyCollapse();
+
+  // Render tabla
+  _empRenderTable();
+}
+
+function _empApplyCollapse() {
+  // Marca visible/hidden según collapsed de ancestros
+  var collapsedSet = {};
+  _empTreeRows.forEach((row) => {
+    if (row.hasChildren && row.collapsed) collapsedSet[row.cat.id] = true;
+  });
+  // Recorrer y marcar hidden si algún ancestro está colapsado
+  var hiddenParents = {};
+  _empTreeRows.forEach((row) => {
+    var pid = row.cat.parent_id ? row.cat.parent_id[0] : null;
+    if (hiddenParents[pid] || collapsedSet[pid]) {
+      row.visible = false;
+      if (row.hasChildren) hiddenParents[row.cat.id] = true;
+    } else {
+      row.visible = true;
+    }
+  });
+}
+
+function _empRenderTable() {
+  var container = document.getElementById('emp-regla-list');
+  if (!container) return;
+
+  var matMap = {}; _empMateriales.forEach((m) => { matMap[m.id] = m; });
+  var reglaMap = {}; _empReglas.forEach((r) => { reglaMap[r.categ_id] = r; });
+
+  var html = '<table class="emp-tree-table"><thead><tr>' +
+    '<th class="emp-tree-categ-hdr">Familia de Artículos</th>' +
+    '<th class="emp-tree-mat-hdr">1° Material</th>' +
+    '<th class="emp-tree-mat-hdr">2° Material</th>' +
+    '<th class="emp-tree-mat-hdr">3° Material</th>' +
+    '<th class="emp-tree-mat-hdr">4° Material</th>' +
+    '</tr></thead><tbody>';
+
+  _empTreeRows.forEach((row, rowIdx) => {
+    var cat = row.cat;
+    var regla = reglaMap[cat.id];
+    var mats = regla ? (regla.materiales || []).slice().sort(function(a,b){return (a.orden||0)-(b.orden||0);}) : [];
+    var hasRule = mats.length > 0;
+
+    var rowClass = 'emp-tree-row emp-tree-lv' + Math.min(row.level, 4) + (hasRule ? ' has-rule' : '') + (row.visible ? '' : ' hidden-row');
+    var indent = row.level * 18;
+
+    html += '<tr class="' + rowClass + '" data-categ="' + cat.id + '" data-idx="' + rowIdx + '">';
+
+    // Celda de categoría
+    html += '<td class="emp-tree-categ-cell" style="padding-left:' + (indent + 8) + 'px">';
+    html += '<div class="emp-tree-categ-cell-inner">';
+    if (row.hasChildren) {
+      html += '<button class="emp-tree-expand" onclick="empToggleNode(' + rowIdx + ')">' + (row.collapsed ? '▶' : '▼') + '</button>';
+    } else {
+      html += '<span style="width:16px;display:inline-block;flex-shrink:0"></span>';
+    }
+    if (row.level === 0) html += '<i data-lucide="folder" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
+    else if (row.hasChildren) html += '<i data-lucide="folder-open" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
+    else html += '<i data-lucide="file" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:3px;flex-shrink:0"></i>';
+    html += '<span style="font-size:' + (row.level === 0 ? '13' : row.level === 1 ? '12' : '11') + 'px">' + esc(cat.name) + '</span>';
+    html += '</div></td>';
+
+    // 4 celdas de material
+    for (var slot = 0; slot < 4; slot++) {
+      var matEntry = mats[slot] || null;
+      var mat = matEntry ? matMap[matEntry.materialId] : null;
+      html += '<td class="emp-tree-mat-cell">';
+      if (mat) {
+        html += '<div class="emp-tree-mat-chip" onclick="empInlinePickMat(' + cat.id + ',' + slot + ',this)">';
+        if (mat.foto_url) {
+          html += '<img class="emp-tree-mat-chip-thumb" src="' + esc(mat.foto_url) + '" onerror="this.style.display=\'none\'">';
+        } else {
+          html += '<span style="width:22px;height:22px;background:#bae6fd;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="package" style="width:13px;height:13px;stroke:currentColor"></i></span>';
+        }
+        html += '<span class="emp-tree-mat-chip-name" title="' + esc(mat.nombre) + '">' + esc(mat.nombre) + '</span>';
+        html += '<button class="emp-tree-mat-chip-rm" onclick="event.stopPropagation();empInlineClearMat(' + cat.id + ',' + slot + ')">×</button>';
+        html += '</div>';
+      } else {
+        html += '<button class="emp-tree-mat-add" onclick="empInlinePickMat(' + cat.id + ',' + slot + ',this)">+ Agregar</button>';
+      }
+      html += '</td>';
+    }
+
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+  if(window.lucide) lucide.createIcons();
+}
+
+// Toggle expand/collapse de un nodo del árbol
+function empToggleNode(rowIdx) {
+  var row = _empTreeRows[rowIdx];
+  if (!row || !row.hasChildren) return;
+  row.collapsed = !row.collapsed;
+  _empApplyCollapse();
+  // Update DOM en vez de re-renderizar completo (más rápido)
+  var table = document.querySelector('.emp-tree-table tbody');
+  if (!table) { _empRenderTable(); return; }
+  var rows = table.querySelectorAll('tr');
+  _empTreeRows.forEach((r, i) => {
+    if (rows[i]) {
+      rows[i].classList.toggle('hidden-row', !r.visible);
+    }
+  });
+  // Actualizar icono del botón
+  var btn = table.querySelectorAll('tr')[rowIdx];
+  if (btn) {
+    var expBtn = btn.querySelector('.emp-tree-expand');
+    if (expBtn) expBtn.textContent = row.collapsed ? '▶' : '▼';
+  }
+}
+
+// Filtrar filas del árbol por texto
+function empFilterTree(q) {
+  var rows = document.querySelectorAll('.emp-tree-table .emp-tree-row');
+  if (!q) {
+    // Restaurar estado colapsado original
+    _empApplyCollapse();
+    rows.forEach((r, i) => { r.classList.toggle('hidden-row', !_empTreeRows[i].visible); });
+    return;
+  }
+  var lower = q.toLowerCase();
+  // Mostrar solo filas que hagan match (y sus ancestros)
+  var matchSet = new Set();
+  _empTreeRows.forEach((row, i) => {
+    if (row.cat.complete_name && row.cat.complete_name.toLowerCase().includes(lower)) {
+      matchSet.add(i);
+      // Agregar ancestros para mantener contexto
+      var pid = row.cat.parent_id ? row.cat.parent_id[0] : null;
+      while (pid) {
+        var pidx = _empTreeRows.findIndex(function(r){ return r.cat.id === pid; });
+        if (pidx >= 0) { matchSet.add(pidx); pid = _empTreeRows[pidx].cat.parent_id ? _empTreeRows[pidx].cat.parent_id[0] : null; }
+        else break;
+      }
+    }
+  });
+  rows.forEach((r, i) => { r.classList.toggle('hidden-row', !matchSet.has(i)); });
+}
+
+// ── Picker inline ─────────────────────────────────────────────────────────
+function empInlinePickMat(categId, slot, triggerEl) {
+  _empPickerCategId = categId;
+  _empPickerSlot = slot;
+  _empPickerQuery = '';
+  var picker = document.getElementById('emp-inline-picker');
+  var search = document.getElementById('emp-picker-search');
+  if (!picker) return;
+  search.value = '';
+  empPickerFilter('');
+  picker.style.display = 'flex';
+  // Posicionar cerca del trigger
+  var rect = triggerEl.getBoundingClientRect();
+  var ph = 280; // altura aprox del picker
+  var top = rect.bottom + 4;
+  if (top + ph > window.innerHeight) top = rect.top - ph - 4;
+  picker.style.top  = Math.max(8, top) + 'px';
+  picker.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  setTimeout(function(){ search.focus(); }, 30);
+}
+
+function empPickerFilter(q) {
+  _empPickerQuery = q.toLowerCase();
+  var list = document.getElementById('emp-picker-list');
+  if (!list) return;
+  var filtered = _empMateriales.filter((m) => {
+    return !_empPickerQuery || m.nombre.toLowerCase().includes(_empPickerQuery) || (m.descripcion||'').toLowerCase().includes(_empPickerQuery);
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<div class="emp-inline-picker-empty">Sin resultados</div>';
+    return;
+  }
+  list.innerHTML = filtered.map((m) => {
+    var thumbHtml = m.foto_url
+      ? '<img class="emp-inline-picker-thumb" src="' + esc(m.foto_url) + '" onerror="this.style.display=\'none\'">'
+      : '<div class="emp-inline-picker-thumb"><i data-lucide="package" style="width:14px;height:14px;stroke:currentColor;opacity:.5"></i></div>';
+    return '<div class="emp-inline-picker-item" onclick="empInlineApplyMat(\'' + m.id + '\')">' +
+      thumbHtml +
+      '<span class="emp-inline-picker-name">' + esc(m.nombre) + '</span>' +
+    '</div>';
+  }).join('');
+  if(window.lucide) lucide.createIcons();
+}
+
+function empInlineApplyMat(matId) {
+  // Capturar ANTES de cerrar el picker (empClosePicker resetea los valores a null)
+  if (_empPickerCategId === null || _empPickerSlot === null) return;
+  var categId = _empPickerCategId;
+  var slot    = _empPickerSlot;
+  empClosePicker();
+
+  // Obtener la regla actual o crear nueva
+  var regla = _empReglas.find((r) => { return r.categ_id === categId; });
+  var mats  = regla ? (regla.materiales || []).slice().sort(function(a,b){return (a.orden||0)-(b.orden||0);}) : [];
+
+  // Evitar duplicado del mismo material en otra posición
+  var dupeIdx = mats.findIndex(function(m){ return m.materialId === matId; });
+  if (dupeIdx >= 0 && dupeIdx !== slot) {
+    showToast('Ese material ya está asignado en la posición ' + (dupeIdx+1), 'warning'); return;
+  }
+
+  // Rellenar posiciones intermedias vacías con null placeholder si hace falta
+  while (mats.length <= slot) mats.push(null);
+  mats[slot] = { materialId: matId, orden: slot + 1 };
+  // Limpiar nulls y reordenar
+  var cleanMats = mats.map((m,i) => { return m ? {materialId:m.materialId, orden:i+1} : null; }).filter(Boolean);
+
+  var categ = _empCategorias.find((c) => { return c.id === categId; });
+  var body = { categ_id: categId, categ_nombre: categ ? categ.complete_name : '', materiales: cleanMats };
+
+  apiFetch('/api/empaque/reglas', {method:'POST', body:JSON.stringify(body)}).then(function(r) {
+    if (!r.ok) { showToast('Error al guardar', 'error'); return; }
+    // Actualizar _empReglas local
+    var idx = _empReglas.findIndex(function(x){ return x.categ_id === categId; });
+    if (idx >= 0) _empReglas[idx] = r.regla; else _empReglas.push(r.regla);
+    _empRenderTable();
+    showToast('Material asignado', 'success');
+  });
+}
+
+function empInlineClearMat(categId, slot) {
+  var regla = _empReglas.find((r) => { return r.categ_id === categId; });
+  if (!regla) return;
+  var mats = (regla.materiales || []).slice().sort(function(a,b){return (a.orden||0)-(b.orden||0);});
+  // Quitar el slot
+  var newMats = mats.filter((m,i) => { return i !== slot; }).map((m,i) => { return {materialId:m.materialId, orden:i+1}; });
+
+  var categ = _empCategorias.find((c) => { return c.id === categId; });
+  if (!newMats.length) {
+    // Eliminar regla completa
+    apiFetch('/api/empaque/reglas/' + regla.id, {method:'DELETE'}).then(function(r) {
+      if (!r.ok) { showToast('Error al limpiar', 'error'); return; }
+      _empReglas = _empReglas.filter((x) => { return x.categ_id !== categId; });
+      _empRenderTable();
+    });
+  } else {
+    var body = {categ_id: categId, categ_nombre: categ ? categ.complete_name : '', materiales: newMats};
+    apiFetch('/api/empaque/reglas', {method:'POST', body:JSON.stringify(body)}).then(function(r) {
+      if (!r.ok) { showToast('Error al limpiar', 'error'); return; }
+      var idx = _empReglas.findIndex(function(x){ return x.categ_id === categId; });
+      if (idx >= 0) _empReglas[idx] = r.regla;
+      _empRenderTable();
+    });
+  }
+}
+
+function empClosePicker() {
+  var picker = document.getElementById('emp-inline-picker');
+  if (picker) picker.style.display = 'none';
+  _empPickerCategId = null; _empPickerSlot = null;
+}
+
+// Cerrar picker al hacer clic fuera
+document.addEventListener('click', function(e) {
+  var picker = document.getElementById('emp-inline-picker');
+  if (picker && picker.style.display !== 'none') {
+    if (!picker.contains(e.target) && !e.target.classList.contains('emp-tree-mat-add') && !e.target.classList.contains('emp-tree-mat-chip')) {
+      empClosePicker();
+    }
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') empClosePicker();
+});
+
+// ── Editor de material ────────────────────────────────────────────────────
+function empOpenMatEditor(matId) {
+  _empMatEditorId = matId;
+  var overlay = document.getElementById('modal-emp-mat');
+  document.getElementById('emp-mat-editor-title').textContent = matId ? 'Editar Material' : 'Nuevo Material';
+  document.getElementById('emp-mat-id').value = matId || '';
+  document.getElementById('emp-mat-nombre').value = '';
+  document.getElementById('emp-mat-desc').value = '';
+  _empMatFotoB64 = null;
+  var prevWrap = document.getElementById('emp-mat-foto-preview-wrap');
+  var prevImg  = document.getElementById('emp-mat-foto-preview');
+  prevWrap.style.display = 'none';
+  prevImg.src = '';
+  if (matId) {
+    var m = _empMateriales.find((x) => { return x.id === matId; });
+    if (m) {
+      document.getElementById('emp-mat-nombre').value = m.nombre || '';
+      document.getElementById('emp-mat-desc').value   = m.descripcion || '';
+      if (m.foto_url) {
+        prevImg.src = m.foto_url;
+        prevWrap.style.display = 'block';
+      }
+    }
+  }
+  overlay.classList.add('open');
+}
+function empCloseMatEditor() {
+  document.getElementById('modal-emp-mat').classList.remove('open');
+  _empMatEditorId = null;
+}
+
+var _empMatFotoB64 = null;
+
+function empSeleccionarFoto() {
+  _openPhotoSource({
+    title: 'Foto del material',
+    multiple: false,
+    onFiles: async function(files) {
+      var file = files[0];
+      if (!file) return;
+      var b64 = await _compressImage(file);
+      if (!b64) return;
+      _empMatFotoB64 = b64;
+      var prevImg  = document.getElementById('emp-mat-foto-preview');
+      var prevWrap = document.getElementById('emp-mat-foto-preview-wrap');
+      prevImg.src = b64;
+      prevWrap.style.display = 'block';
+    }
+  });
+}
+
+async function empSaveMat() {
+  var nombre = (document.getElementById('emp-mat-nombre').value || '').trim();
+  var desc   = (document.getElementById('emp-mat-desc').value   || '').trim();
+  if (!nombre) { await _iosAlert('El nombre es requerido'); return; }
+
+  var matId  = document.getElementById('emp-mat-id').value;
+  var fotoB64 = _empMatFotoB64; // ya comprimida por empSeleccionarFoto
+
+  function doSave(foto_url) {
+    var url    = '/api/empaque/materiales' + (matId ? '/' + matId : '');
+    var method = matId ? 'PATCH' : 'POST';
+    var body   = {nombre: nombre, descripcion: desc};
+    if (foto_url !== undefined) body.foto_url = foto_url;
+    apiFetch(url, {method: method, body: JSON.stringify(body)}).then(function(r) {
+      if (!r.ok) { showToast('Error: ' + (r.error||'desconocido'), 'error'); return; }
+      empCloseMatEditor();
+      empLoadMateriales();
+      showToast(matId ? 'Material actualizado' : 'Material creado', 'success');
+    });
+  }
+
+  if (fotoB64) {
+    var base64 = fotoB64.split(',')[1];
+    // Si es nuevo, primero creamos el material y luego subimos la foto
+    if (!matId) {
+      apiFetch('/api/empaque/materiales', {method:'POST', body:JSON.stringify({nombre:nombre, descripcion:desc})}).then(function(r) {
+        if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+        var newId = r.material.id;
+        apiFetch('/api/empaque/materiales/' + newId + '/foto', {method:'POST', body:JSON.stringify({data:base64, ext:'jpg'})}).then(function(r2) {
+          empCloseMatEditor();
+          empLoadMateriales();
+          showToast('Material creado', 'success');
+        });
+      });
+    } else {
+      apiFetch('/api/empaque/materiales/' + matId + '/foto', {method:'POST', body:JSON.stringify({data:base64, ext:'jpg'})}).then(function(r2) {
+        doSave(r2.url);
+      });
+    }
+  } else {
+    doSave(undefined);
+  }
+}
+
+async function empDeleteMat(matId, btn) {
+  if (!await _iosConfirm('¿Eliminar este material? Se quitará de todas las reglas.')) return;
+  var orig = btn.textContent; btn.textContent = '…'; btn.disabled = true;
+  apiFetch('/api/empaque/materiales/' + matId, {method:'DELETE'}).then(function(r) {
+    if (!r.ok) { btn.textContent = orig; btn.disabled = false; showToast('Error al eliminar', 'error'); return; }
+    empLoadMateriales();
+    empLoadReglas();
+    showToast('Material eliminado', 'success');
+  });
+}
+
+// (editor de regla por modal eliminado — reemplazado por tabla inline con árbol)
+
+// ── Lightbox ─────────────────────────────────────────────────────────────
+function empOpenLightbox(url) {
+  document.getElementById('emp-lightbox-img').src = url;
+  document.getElementById('emp-lightbox').classList.add('open');
+  modalBackOpen('emp-lightbox', empCloseLightbox);
+}
+function empCloseLightbox() {
+  modalBackClosed('emp-lightbox');
+  document.getElementById('emp-lightbox').classList.remove('open');
+}
+
+window.addEventListener('DOMContentLoaded', function(){
+  var raiz = document.getElementById('tab-empaque');
+  if (raiz) raiz.style.display = 'block';   // en la isla, el bloque ES la página
+  if (window.lucide) lucide.createIcons();
+  empInit();
+  islaAnunciarReady('empaque');
+});
+</script>
+</body>
+</html>

@@ -36,8 +36,11 @@ Reporte HTML: `npx playwright show-report .report`
 | `smoke-04-wwp-tabs` | deep-link de los 9 tabs WWP → panel visible + sin errores JS |
 | `flujos-criticos` | vistas de tareas por URL (real) + esqueletos `fixme` que **el equipo debe definir** |
 | `smoke-05-core` | contrato Ola 1: core.js servido+immutable, núcleo definido en window, `APP_BUILD` dentro del HTML (= `/api/app-version`), tokens de theme.css en claro y oscuro |
-| `smoke-06-isla-basedatos` | contrato Ola 2 (isla piloto): iframe con 13 vistas, subvista por handshake postMessage, la isla actualiza el path real, standalone con sesión del storage, mismo hash de theme.css en shell e isla |
-| `smoke-07-islas-ola3` | islas dev-cdp/formacion/politicas/impacto: deep-link embebido renderiza contenido real de cada isla, standalone con sesión del storage, y el badge de formacion llega al shell por postMessage |
+| `smoke-07-islas-ola3` | islas dev-cdp/formacion/politicas/impacto/empaque: deep-link embebido renderiza contenido real de cada isla, standalone con sesión del storage, y el badge de formacion llega al shell por postMessage |
+
+> `smoke-06-isla-basedatos` existió para la isla piloto de Ola 2; se retiró junto
+> con el visor Base de datos (pedido Gabriel, `5275c3a` — las tablas `t_*` de la
+> Fase 3B se consultan por SQL directo). El patrón que validó vive en smoke-07.
 
 ## Notas
 
