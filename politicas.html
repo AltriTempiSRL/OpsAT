@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Políticas de la Empresa — Ops AT</title>
+<!-- ISLA politicas (Ola 3, plan docs/auditoria-arquitectura/08). Generada con
+     scratchpad/build-isla.mjs desde segmentos verbatim del monolito; el módulo
+     se edita AQUÍ desde ahora. Sesión: wwp_auth del storage (core-isla.js).
+     Al editar theme/ui-isla/core-isla: re-estampar sus ?v= aquí. -->
+<link rel="stylesheet" href="/theme.css?v=f232ab1b">
+<link rel="stylesheet" href="/ui-isla.css?v=0135f0d7">
+<style>*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--text);font-family:var(--font,system-ui,sans-serif);font-size:13px}</style>
+<style>
+/* ── MÓDULO POLÍTICAS ── */
+.pol-page-hdr{margin-bottom:20px}
+.pol-page-hdr h2{font-size:18px;font-weight:800;color:var(--text-primary);margin:0 0 3px}
+.pol-page-hdr p{font-size:12px;color:var(--text-muted);margin:0}
+.pol-card{background:var(--surface);border:1.5px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden}
+.pol-card-hdr{padding:18px 22px 16px;border-bottom:1px solid var(--border-light)}
+.pol-card-meta{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pol-badge-active{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;background:var(--green-bg);color:var(--green-text);border-radius:20px;font-size:11px;font-weight:700}
+.pol-num{font-size:11px;color:var(--text-muted);font-weight:700;font-family:monospace;background:var(--surface-2);padding:2px 7px;border-radius:5px;border:1px solid var(--border-light)}
+.pol-card-hdr h3{font-size:16px;font-weight:800;color:var(--text-primary);margin:0 0 8px}
+.pol-rule{background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:var(--text-secondary);margin-top:4px;line-height:1.6;font-style:italic}
+.pol-section{padding:18px 22px;border-bottom:1px solid var(--border-light)}
+.pol-section:last-child{border-bottom:none}
+.pol-section-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.pol-section-hdr h4{font-size:12px;font-weight:800;color:var(--text-primary);text-transform:uppercase;letter-spacing:.5px;margin:0;display:flex;align-items:center;gap:7px;flex:1}
+.pol-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);animation:pol-pulse 1.8s infinite}
+@keyframes pol-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.85)}}
+.pol-refresh-info{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.pol-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.pol-kpi{background:var(--surface-2);border:1px solid var(--border-light);border-radius:10px;padding:14px 16px;text-align:center}
+.pol-kpi-val{font-size:30px;font-weight:800;line-height:1;margin-bottom:5px}
+.pol-kpi-label{font-size:11px;color:var(--text-muted);font-weight:600}
+.pol-kpi.k-lunch .pol-kpi-val{color:var(--amber)}
+.pol-kpi.k-ok    .pol-kpi-val{color:var(--green)}
+.pol-kpi.k-fail  .pol-kpi-val{color:var(--red)}
+.pol-kpi.k-none  .pol-kpi-val{color:#9ca3af}
+.pol-emp-table{width:100%;border-collapse:collapse;font-size:13px}
+.pol-emp-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border);background:var(--surface-2)}
+.pol-emp-table td{padding:10px 12px;border-bottom:1px solid var(--border-light);vertical-align:middle}
+.pol-emp-table tr:last-child td{border-bottom:none}
+.pol-emp-table tr:hover td{background:var(--surface-2)}
+.pol-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.pol-s-lunch{background:var(--amber-bg);color:var(--amber-text)}
+.pol-s-exceeding{background:var(--red-bg);color:var(--red-text)}
+.pol-s-ok{background:var(--green-bg);color:var(--green-text)}
+.pol-s-fail{background:var(--red-bg);color:var(--red-text)}
+.pol-s-none{background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-light)}
+.pol-progress-wrap{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:80px}
+.pol-progress-bar{height:100%;border-radius:3px;transition:width .4s}
+.pol-progress-ok{background:var(--green)}
+.pol-progress-warn{background:var(--amber)}
+.pol-progress-over{background:var(--red)}
+.pol-hist-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.pol-hist-toolbar label{font-size:11px;font-weight:700;color:var(--text-muted);white-space:nowrap}
+.pol-heatmap-wrap{overflow-x:auto}
+.pol-heatmap{width:100%;border-collapse:collapse;font-size:12px}
+.pol-heatmap th{padding:7px 10px;text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;border-bottom:2px solid var(--border);background:var(--surface-2);white-space:nowrap}
+.pol-heatmap th:first-child{text-align:left;min-width:150px}
+.pol-heatmap td{padding:8px 10px;border-bottom:1px solid var(--border-light);text-align:center}
+.pol-heatmap td:first-child{text-align:left;font-weight:600;color:var(--text-primary)}
+.pol-heatmap tr:last-child td{border-bottom:none}
+.pol-heatmap tr:hover td{background:var(--surface-2)}
+.pol-hm-cell{display:inline-block;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700}
+.pol-hm-ok{background:var(--green-bg);color:var(--green-text)}
+.pol-hm-fail{background:var(--red-bg);color:var(--red-text)}
+.pol-hm-today{background:var(--amber-bg);color:var(--amber-text)}
+.pol-hm-none{background:var(--surface-2);color:var(--text-muted);font-weight:400}
+.pol-mock-notice{background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;padding:10px 16px;font-size:12px;color:var(--amber-text);display:flex;align-items:center;gap:8px;margin-top:8px}
+.pol-mock-notice code{background:var(--amber-dot);color:#fff;padding:1px 5px;border-radius:3px;font-size:11px}
+/* Policy type badges */
+.pol-type-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.pol-type-lunch{background:var(--blue-bg);color:var(--blue-text)}
+.pol-type-arrival{background:var(--amber-bg);color:var(--amber-text)}
+.pol-type-task{background:var(--purple-bg);color:var(--purple-text)}
+.pol-type-vehicle{background:var(--sky-bg);color:var(--sky-text)}
+/* Policy editor modal */
+.pol-editor-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:none;align-items:center;justify-content:center}
+.pol-editor-overlay.open{display:flex}
+.pol-editor-box{background:var(--surface);border-radius:14px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;margin:16px}
+.pol-editor-hdr{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.pol-editor-hdr h3{font-size:15px;font-weight:800;color:var(--text-primary);margin:0}
+.pol-editor-body{padding:16px 22px}
+.pol-editor-field{margin-bottom:14px}
+.pol-editor-field label{display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.pol-editor-field input,.pol-editor-field select,.pol-editor-field textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;outline:none;background:var(--surface);color:var(--text-primary);box-sizing:border-box}
+.pol-editor-field input:focus,.pol-editor-field select:focus,.pol-editor-field textarea:focus{border-color:var(--accent)}
+.pol-editor-field textarea{resize:vertical;min-height:60px}
+.pol-editor-params{background:var(--surface-2);border:1px solid var(--border-light);border-radius:8px;padding:14px;margin-top:4px}
+.pol-editor-params label{font-size:11px;font-weight:700;color:var(--text-secondary)}
+.pol-editor-footer{padding:14px 22px 18px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border-light)}
+</style>
+</head>
+<body>
+<!-- ex historial.html 7907–7921 -->
+    <div id="tab-politicas" style="display:none">
+      <div class="pol-page-hdr" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <h2><i data-lucide="shield-check" class="tab-h2-icon"></i>Políticas de la Empresa</h2>
+          <p>Reglas operativas con medición de cumplimiento individual en tiempo real</p>
+        </div>
+        <button class="btn-primary" onclick="polOpenEditor(null)" style="font-size:12px;padding:8px 16px">+ Nueva Política</button>
+      </div>
+      <div id="pol-cards-container">
+        <div class="pol-empty-state" style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">Cargando políticas…</div>
+      </div>
+      <div class="pol-mock-notice" id="pol-mock-notice">
+        <i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i><strong>Modo demo:</strong> Datos de empleados simulados. Cambia <code>POL_USE_MOCK = false</code> para usar datos reales.
+      </div>
+    </div>
+<!-- ex historial.html 8539–8587 -->
+<div class="pol-editor-overlay" id="modal-politica">
+  <div class="pol-editor-box">
+    <div class="pol-editor-hdr">
+      <h3 id="pol-editor-title">Nueva Política</h3>
+      <button onclick="polCloseEditor()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+    </div>
+    <div class="pol-editor-body">
+      <div class="pol-editor-field">
+        <label>Nombre *</label>
+        <input type="text" id="pe-nombre" placeholder="Ej. Horario de Almuerzo" maxlength="80">
+      </div>
+      <div class="pol-editor-field">
+        <label>Descripción</label>
+        <textarea id="pe-descripcion" rows="2" placeholder="Describe la regla en lenguaje natural…"></textarea>
+      </div>
+      <div class="pol-editor-field">
+        <label>Tipo de política *</label>
+        <select id="pe-tipo" onchange="polEditorUpdateParams()">
+          <option value="">— Seleccionar tipo —</option>
+          <option value="lunch_duration">Duración de almuerzo</option>
+          <option value="arrival_time">Hora de llegada</option>
+          <option value="task_completion">Completitud de tareas</option>
+          <option value="vehicle_inspection">Inspección vehicular diaria</option>
+        </select>
+      </div>
+      <div class="pol-editor-field">
+        <label>Aplica a</label>
+        <select id="pe-aplicaa">
+          <option value="all">Todos los empleados</option>
+          <option value="manager">Solo encargados (managers)</option>
+          <option value="assistant">Solo auxiliares (assistants)</option>
+        </select>
+      </div>
+      <!-- Parámetros dinámicos por tipo -->
+      <div id="pe-params-container"></div>
+      <div class="pol-editor-field">
+        <label>Estado</label>
+        <select id="pe-activa">
+          <option value="true">● Activa</option>
+          <option value="false">○ Pausada</option>
+        </select>
+      </div>
+    </div>
+    <div class="pol-editor-footer">
+      <button class="btn-cancel" onclick="polCloseEditor()">Cancelar</button>
+      <button class="btn-primary" onclick="polSaveEditor()">Guardar Política</button>
+    </div>
+  </div>
+</div>
+<script src="/lucide.min.js?v=a65241b6" defer></script>
+<script src="/core-isla.js?v=f7b1b597"></script>
+<script>
+// ── Adaptador de entorno: globals que el módulo espera del shell ──
+var authFetch = islaFetch;
+var _user = islaUser() || {};
+var escH = esc;   // escH del shell = misma implementación que esc (duplicado histórico)
+
+// ── MOCK DATA — cambiar POL_USE_MOCK = false para usar datos reales ──────────
+var POL_USE_MOCK = false;  // ✅ PRODUCCIÓN: desactivado
+
+var _POL_MOCK_EMPLOYEES = [
+  { id:'m1', name:'Carlos Méndez',    lunchTimeAllowed:30 },
+  { id:'m2', name:'Ana Rodríguez',    lunchTimeAllowed:60 },
+  { id:'m3', name:'Luis Pérez',       lunchTimeAllowed:45 },
+  { id:'m4', name:'María González',   lunchTimeAllowed:30 },
+  { id:'m5', name:'Roberto Díaz',     lunchTimeAllowed:60 },
+  { id:'m6', name:'Patricia Vargas',  lunchTimeAllowed:45 },
+];
+
+function _polMockLiveData() {
+  var now = new Date();
+  function todayAt(h, m) { return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m); }
+  // Escenario: Carlos en almuerzo (dentro del tiempo), Roberto excediendo,
+  //            Ana y Patricia cumplieron, Luis incumplió, María sin registrar
+  return [
+    { id:'m1', name:'Carlos Méndez',   lunchTimeAllowed:30, status:'lunch',     start:new Date(now.getTime()-18*60000), end:null },
+    { id:'m2', name:'Ana Rodríguez',   lunchTimeAllowed:60, status:'complied',  start:todayAt(12,0),  end:todayAt(12,55) },
+    { id:'m3', name:'Luis Pérez',      lunchTimeAllowed:45, status:'violated',  start:todayAt(13,0),  end:todayAt(13,50) },
+    { id:'m4', name:'María González',  lunchTimeAllowed:30, status:'none',      start:null,           end:null },
+    { id:'m5', name:'Roberto Díaz',    lunchTimeAllowed:60, status:'exceeding', start:new Date(now.getTime()-78*60000), end:null },
+    { id:'m6', name:'Patricia Vargas', lunchTimeAllowed:45, status:'complied',  start:todayAt(12,15), end:todayAt(12,58) },
+  ];
+}
+
+// Semilla cumplimiento mock (0=incumplió, 1=cumplió) — 31 días por empleado
+var _POL_MOCK_SEED = {
+  m1:[1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,0,1],
+  m2:[1,1,1,1,0,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1,1,1,0,1],
+  m3:[0,1,0,0,1,1,0,1,0,0,1,1,0,0,0,1,0,0,1,1,0,1,0,0,1,1,0,0,0,1,0],
+  m4:[1,0,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1,1,1,0,1,1,0,1,0,1,1,0,1,0,1],
+  m5:[1,1,1,0,1,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,1],
+  m6:[1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,1,0],
+};
+// ── FIN MOCK DATA ─────────────────────────────────────────────────────────────
+var _authUsers = [];
+if (_user.role === 'admin') {
+  islaFetch('/api/wwp/auth/users').then(function(r){ return r.ok ? r.json() : []; })
+    .then(function(d){ _authUsers = d || []; }).catch(function(){});
+}
+
+// ex historial.html 28550–29001
+var _polPolicies      = [];
+var _polRefreshTimers = {}; // { polId: timer }
+var _polCtxData       = {}; // { breaks, tasks, inspecciones } – cache del día
+var _polEditorTarget  = null; // política siendo editada
+
+// ════════ CARGA Y CRUD DE POLÍTICAS ══════════════════════════════════════════
+
+function polLoadAll() {
+  authFetch('/api/politicas').then(function(r){ return r.json(); })
+    .then(function(list) {
+      _polPolicies = Array.isArray(list) ? list : [];
+      polRenderAllCards();
+      _polFetchCtxData().then(function(){ polRefreshAllLive(); });
+    })
+    .catch(function() {
+      // Si el servidor no responde, usar política por defecto en memoria
+      if (!_polPolicies.length) _polPolicies = [{
+        id:'POL-LOCAL-001', nombre:'Horario de Almuerzo', tipo:'lunch_duration',
+        descripcion:'Los empleados solo pueden tomar el tiempo de almuerzo asignado en su perfil.',
+        activa:true, parametros:{ toleranciaMinutos:5, aplicaA:'all' }, creadaEn:new Date().toISOString()
+      }];
+      polRenderAllCards();
+      _polFetchCtxData().then(function(){ polRefreshAllLive(); });
+    });
+}
+
+function _polFetchCtxData() {
+  var today = new Date().toISOString().slice(0,10);
+  if (POL_USE_MOCK) {
+    _polCtxData = { breaks:[], tasks:[], inspecciones:[], mockEmps: _polMockLiveData() };
+    return Promise.resolve();
+  }
+  return Promise.allSettled([
+    authFetch('/api/wwp/lunch/breaks?date='+today).then(function(r){ return r.json(); }),
+    authFetch('/api/wwp/tasks').then(function(r){ return r.json(); }),
+    authFetch('/api/vehiculos/inspecciones?fecha='+today).then(function(r){ return r.json(); })
+  ]).then(function(results) {
+    var brRes = results[0]; var tRes = results[1]; var iRes = results[2];
+    _polCtxData.breaks      = (brRes.status==='fulfilled' && brRes.value.ok) ? (brRes.value.breaks||[]) : [];
+    _polCtxData.tasks       = (tRes.status==='fulfilled'  && Array.isArray(tRes.value))  ? tRes.value  : [];
+    _polCtxData.inspecciones= (iRes.status==='fulfilled'  && Array.isArray(iRes.value))  ? iRes.value  : [];
+  });
+}
+
+function polStopRefresh() {
+  Object.keys(_polRefreshTimers).forEach((id) => {
+    clearInterval(_polRefreshTimers[id]); delete _polRefreshTimers[id];
+  });
+}
+
+function polRefreshAllLive() {
+  _polPolicies.filter((p) => { return p.activa; }).forEach((p) => { polRefreshCard(p); });
+}
+
+// ════════ RENDER DE CARDS ════════════════════════════════════════════════════
+
+var POL_TYPE_META = {
+  lunch_duration:     { label:'Duración de almuerzo',   badge:'pol-type-lunch',   icon:'utensils' },
+  arrival_time:       { label:'Hora de llegada',         badge:'pol-type-arrival', icon:'clock' },
+  task_completion:    { label:'Completitud de tareas',   badge:'pol-type-task',    icon:'clipboard-check' },
+  vehicle_inspection: { label:'Inspección vehicular',    badge:'pol-type-vehicle', icon:'car' },
+};
+function _polIcon(name){ return '<i data-lucide="'+name+'" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'; }
+
+function polRenderAllCards() {
+  var container = document.getElementById('pol-cards-container');
+  if (!container) return;
+  if (!_polPolicies.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px">No hay políticas definidas. Crea una con el botón "Nueva Política".</div>';
+    return;
+  }
+  container.innerHTML = _polPolicies.map((pol) => {
+    var meta = POL_TYPE_META[pol.tipo] || { label:pol.tipo, badge:'pol-type-lunch', icon:'clipboard-list' };
+    var mIcon = _polIcon(meta.icon);
+    return '<div class="pol-card" id="pol-card-'+escH(pol.id)+'">'
+      + '<div class="pol-card-hdr">'
+      + '<div class="pol-card-meta">'
+      + (pol.activa ? '<span class="pol-badge-active">● Activa</span>' : '<span style="background:#f3f4f6;color:#6b7280;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700">○ Pausada</span>')
+      + '<span class="pol-num">'+escH(pol.id)+'</span>'
+      + '<span class="pol-type-badge '+meta.badge+'">'+mIcon+meta.label+'</span>'
+      + '<span style="margin-left:auto;display:flex;gap:6px">'
+      + '<button class="btn-sm" onclick="polOpenEditor(\''+escH(pol.id)+'\')">Editar</button>'
+      + '<button class="btn-sm" onclick="polToggleActive(\''+escH(pol.id)+'\')" style="'+(pol.activa?'color:#92400e':'color:#059669')+'">'+( pol.activa?'Pausar':'Activar')+'</button>'
+      + '<button class="btn-sm" onclick="polDeletePolicy(\''+escH(pol.id)+'\')" style="color:var(--red-text)">✕</button>'
+      + '</span></div>'
+      + '<h3>'+mIcon+escH(pol.nombre)+'</h3>'
+      + (pol.descripcion ? '<div class="pol-rule">'+escH(pol.descripcion)+'</div>' : '')
+      + '</div>'
+      + (pol.activa ? _polBuildLiveSection(pol) : '<div style="padding:18px 22px;color:var(--text-muted);font-size:13px;font-style:italic">Esta política está pausada.</div>')
+      + _polBuildHistSection(pol)
+      + '</div>';
+  }).join('');
+  if(window.lucide) lucide.createIcons();
+}
+
+function _polBuildLiveSection(pol) {
+  var pid = escH(pol.id).replace(/[^a-z0-9]/gi,'_');
+  return '<div class="pol-section">'
+    + '<div class="pol-section-hdr"><h4><span class="pol-live-dot"></span> Cumplimiento en Vivo — hoy</h4>'
+    + '<span class="pol-refresh-info" id="pol-ri-'+pid+'">—</span>'
+    + '<button class="btn-sm" onclick="polRefreshCard(_polPolicies.find((p) => {return p.id===\''+escH(pol.id)+'\'}))">↻</button></div>'
+    + '<div class="pol-kpi-row">'
+    + '<div class="pol-kpi k-lunch"><div class="pol-kpi-val" id="pol-kl-'+pid+'">—</div><div class="pol-kpi-label">En proceso</div></div>'
+    + '<div class="pol-kpi k-ok">   <div class="pol-kpi-val" id="pol-ko-'+pid+'">—</div><div class="pol-kpi-label">Cumplieron</div></div>'
+    + '<div class="pol-kpi k-fail"> <div class="pol-kpi-val" id="pol-kf-'+pid+'">—</div><div class="pol-kpi-label">Incumplieron</div></div>'
+    + '<div class="pol-kpi k-none"> <div class="pol-kpi-val" id="pol-kn-'+pid+'">—</div><div class="pol-kpi-label">Sin datos</div></div>'
+    + '</div>'
+    + '<div style="overflow-x:auto"><table class="pol-emp-table">'
+    + '<thead><tr><th>Empleado</th><th>Estado</th><th>Detalle</th><th>Impacto</th><th>Progreso</th></tr></thead>'
+    + '<tbody id="pol-tb-'+pid+'"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Cargando…</td></tr></tbody>'
+    + '</table></div></div>';
+}
+
+function _polBuildHistSection(pol) {
+  var pid = escH(pol.id).replace(/[^a-z0-9]/gi,'_');
+  var today   = new Date().toISOString().slice(0,10);
+  var weekAgo = new Date(Date.now()-6*24*60*60*1000).toISOString().slice(0,10);
+  return '<div class="pol-section">'
+    + '<div class="pol-section-hdr"><h4><i data-lucide="calendar" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Historial de Cumplimiento</h4>'
+    + '<button class="btn-sm" onclick="polExportCSV(\''+escH(pol.id)+'\')"><i data-lucide="download" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>CSV</button></div>'
+    + '<div class="pol-hist-toolbar">'
+    + '<label>DESDE</label><input type="date" id="pol-hf-'+pid+'" class="veh-filter-select" style="font-size:12px" value="'+weekAgo+'">'
+    + '<label>HASTA</label><input type="date" id="pol-ht-'+pid+'" class="veh-filter-select" style="font-size:12px" value="'+today+'">'
+    + '<button class="btn-sm" onclick="polLoadHistory(\''+escH(pol.id)+'\')">Consultar</button></div>'
+    + '<div class="pol-heatmap-wrap" id="pol-hw-'+pid+'">'
+    + '<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">Selecciona un rango y presiona Consultar</div>'
+    + '</div></div>';
+}
+
+// ════════ EVALUADORES POR TIPO ════════════════════════════════════════════════
+
+function _polGetEmployees() {
+  if (POL_USE_MOCK) return _POL_MOCK_EMPLOYEES.map((e) => {
+    return Object.assign({}, e, { scheduleStart: e.scheduleStart || '08:00' });
+  });
+  return (_authUsers||[]).filter((u) => { return u.active!==false; });
+}
+
+function _polEval(policy, emp) {
+  switch(policy.tipo) {
+    case 'lunch_duration':     return _evalLunch(policy, emp);
+    case 'arrival_time':       return _evalArrival(policy, emp);
+    case 'task_completion':    return _evalTasks(policy, emp);
+    case 'vehicle_inspection': return _evalVehicle(policy, emp);
+    default: return { status:'none', minImpacto:0, detalle:'—', pct:0 };
+  }
+}
+
+function _evalLunch(policy, emp) {
+  var tol = (policy.parametros && policy.parametros.toleranciaMinutos) || 0;
+  if (POL_USE_MOCK) {
+    var mockEmp = (_polCtxData.mockEmps||[]).find((e) => { return e.id===emp.id; });
+    if (!mockEmp) return { status:'none', minImpacto:0, detalle:'Sin datos', pct:0 };
+    var allowed = emp.lunchTimeAllowed || 60;
+    if (mockEmp.status === 'lunch') {
+      var elapsed = Math.round((Date.now() - mockEmp.start.getTime()) / 60000);
+      var pctL = Math.min(100, Math.round(elapsed/allowed*100));
+      return { status:'lunch', minImpacto:0, detalle:'En almuerzo '+elapsed+' min', pct:pctL };
+    }
+    if (mockEmp.status === 'exceeding') {
+      var elEx = Math.round((Date.now() - mockEmp.start.getTime()) / 60000);
+      return { status:'violated', minImpacto:Math.max(0,elEx-allowed-tol), detalle:'+' +(elEx-allowed)+' min', pct:100 };
+    }
+    if (mockEmp.status === 'complied') return { status:'complied', minImpacto:0, detalle:'Cumplió', pct: Math.round(43/allowed*100) };
+    if (mockEmp.status === 'violated') {
+      var t = (mockEmp.end && mockEmp.start) ? Math.round((mockEmp.end-mockEmp.start)/60000) : 0;
+      var over = Math.max(0, t - allowed - tol);
+      return { status:'violated', minImpacto:over, detalle:'+'+over+' min excedidos', pct:100 };
+    }
+    return { status:'none', minImpacto:0, detalle:'Sin registro', pct:0 };
+  }
+  // Datos reales
+  var brk = (_polCtxData.breaks||[]).find((b) => { return b.userId===emp.id; });
+  if (!brk) {
+    if ((emp.presenceStatus||'active')==='lunch') {
+      var el2 = Math.round((Date.now()-new Date(emp.presenceAt).getTime())/60000);
+      var al2 = emp.lunchTimeAllowed||60;
+      var over2 = el2-al2-tol;
+      return over2>0 ? { status:'violated', minImpacto:over2, detalle:'+'+over2+' min', pct:100 }
+                     : { status:'lunch', minImpacto:0, detalle:'En almuerzo '+el2+' min', pct:Math.min(100,Math.round(el2/al2*100)) };
+    }
+    return { status:'none', minImpacto:0, detalle:'Sin registro', pct:0 };
+  }
+  if (brk.isOpen) return { status:'lunch', minImpacto:0, detalle:'En almuerzo '+(brk.currentMinutes||0)+' min', pct:Math.min(100,Math.round((brk.currentMinutes||0)/(brk.allowedMinutes||60)*100)) };
+  var exc = Math.max(0, (brk.exceededMinutes||0) - tol);
+  if (exc > 0) return { status:'violated', minImpacto:exc, detalle:'+'+exc+' min excedidos', pct:100 };
+  return { status:'complied', minImpacto:0, detalle:'Cumplió', pct:Math.min(100,Math.round((brk.totalMinutes||0)/(brk.allowedMinutes||60)*100)) };
+}
+
+function _evalArrival(policy, emp) {
+  // Mock: simular llegadas con distintos minutos de retraso
+  var tol = (policy.parametros && policy.parametros.toleranciaMinutos) || 5;
+  var mockDelays = { m1:0, m2:30, m3:0, m4:15, m5:60, m6:0 };
+  var delay = POL_USE_MOCK ? (mockDelays[emp.id] || 0)
+    : 0; // sin historial real de llegada aún
+  if (delay === 0) return { status:'complied', minImpacto:0, detalle:'A tiempo', pct:0 };
+  var over = Math.max(0, delay - tol);
+  return { status: over > 0 ? 'violated' : 'complied',
+           minImpacto: over,
+           detalle: over > 0 ? '+'+over+' min tarde' : 'Dentro de tolerancia',
+           pct: Math.min(100, Math.round(over / 60 * 100)) };
+}
+
+function _evalTasks(policy, emp) {
+  var grace  = (policy.parametros && policy.parametros.diasGracia) || 0;
+  var today  = new Date().toISOString().slice(0,10);
+  var tasks  = _polCtxData.tasks || [];
+  var aplicaA = (policy.parametros && policy.parametros.aplicaA) || 'all';
+  if (aplicaA !== 'all' && emp.role && emp.role !== aplicaA) return { status:'none', minImpacto:0, detalle:'No aplica', pct:0 };
+
+  if (POL_USE_MOCK) {
+    // Mock: m3 y m5 tienen tareas vencidas
+    var vencidas = ({ m3:2, m5:1 }[emp.id] || 0);
+    if (!vencidas) return { status:'complied', minImpacto:0, detalle:'Sin tareas vencidas', pct:0 };
+    return { status:'violated', minImpacto:0, detalle:vencidas+' tarea(s) vencida(s)', pct:100 };
+  }
+  var overdue = tasks.filter((t) => {
+    var isAssigned = t.managerId === emp.id || (t.auxiliaryAssignees||[]).includes(emp.id);
+    if (!isAssigned || !t.dueDate) return false;
+    var dueWithGrace = new Date(t.dueDate+'T23:59:59');
+    dueWithGrace.setDate(dueWithGrace.getDate()+grace);
+    return dueWithGrace < new Date() && !['completed','validated'].includes(t.status);
+  });
+  if (!overdue.length) return { status:'complied', minImpacto:0, detalle:'Sin tareas vencidas', pct:0 };
+  return { status:'violated', minImpacto:0, detalle:overdue.length+' tarea(s) vencida(s)', pct:100 };
+}
+
+function _evalVehicle(policy, emp) {
+  var today = new Date().toISOString().slice(0,10);
+  if (POL_USE_MOCK) {
+    var did = ({ m1:true, m2:false, m3:true, m4:false, m5:true, m6:true }[emp.id]);
+    if (did === undefined) return { status:'none', minImpacto:0, detalle:'No aplica', pct:0 };
+    return did ? { status:'complied', minImpacto:0, detalle:'Inspección completada', pct:100 }
+               : { status:'violated', minImpacto:0, detalle:'Sin inspección hoy', pct:0 };
+  }
+  var insp = (_polCtxData.inspecciones||[]).find((i) => { return i.fecha===today && i.conductor===emp.name; });
+  if (!insp) return { status:'none', minImpacto:0, detalle:'Sin inspección', pct:0 };
+  return insp.apto==='no' ? { status:'violated', minImpacto:0, detalle:'Vehículo no apto', pct:100 }
+                          : { status:'complied', minImpacto:0, detalle:'Vehículo apto', pct:100 };
+}
+
+// ════════ REFRESH DE CARD INDIVIDUAL ═════════════════════════════════════════
+
+function polRefreshCard(policy) {
+  if (!policy || !policy.activa) return;
+  var pid = policy.id.replace(/[^a-z0-9]/gi,'_');
+  var emps = _polGetEmployees();
+  var kL=0,kO=0,kF=0,kN=0;
+
+  var rows = emps.map((emp) => {
+    if ((policy.parametros && policy.parametros.aplicaA) !== 'all') {
+      if (policy.parametros.aplicaA === 'manager'   && emp.role !== 'manager')   return null;
+      if (policy.parametros.aplicaA === 'assistant' && emp.role !== 'assistant') return null;
+    }
+    var res = _polEval(policy, emp);
+    if (res.status==='lunch')    kL++;
+    else if (res.status==='complied') kO++;
+    else if (res.status==='violated') kF++;
+    else kN++;
+
+    var pillClass = res.status==='complied' ? 'pol-s-ok'
+      : res.status==='violated'  ? 'pol-s-fail'
+      : res.status==='lunch'     ? 'pol-s-lunch'
+      : 'pol-s-none';
+    var pillLabel = res.status==='complied' ? '<i data-lucide="check-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Cumplió'
+      : res.status==='violated' ? '<i data-lucide="x-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Incumplió'
+      : res.status==='lunch'    ? '<i data-lucide="refresh-cw" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>En proceso'
+      : '<i data-lucide="minus-circle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Sin datos';
+    var bar = res.pct > 0
+      ? '<div class="pol-progress-wrap"><div class="pol-progress-bar '+(res.pct>=100?'pol-progress-over':res.pct>=80?'pol-progress-warn':'pol-progress-ok')+'" style="width:'+res.pct+'%"></div></div>'
+      : '<span style="color:var(--text-muted);font-size:11px">—</span>';
+    var impTxt = res.minImpacto > 0 ? '<span style="color:#dc2626;font-weight:700">-'+res.minImpacto+' min</span>' : '<span style="color:#059669">0</span>';
+
+    return '<tr>'
+      + '<td><strong>'+escH(emp.name||emp.id)+'</strong></td>'
+      + '<td><span class="pol-status-pill '+pillClass+'">'+pillLabel+'</span></td>'
+      + '<td>'+escH(res.detalle)+'</td>'
+      + '<td>'+impTxt+'</td>'
+      + '<td style="min-width:100px">'+bar+'</td>'
+      + '</tr>';
+  }).filter(Boolean).join('');
+
+  var tbody = document.getElementById('pol-tb-'+pid);
+  if (tbody) { tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Sin datos para esta política</td></tr>'; if(window.lucide) lucide.createIcons(); }
+  var s = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; };
+  s('pol-kl-'+pid, kL); s('pol-ko-'+pid, kO); s('pol-kf-'+pid, kF); s('pol-kn-'+pid, kN);
+  var ri = document.getElementById('pol-ri-'+pid);
+  if (ri) ri.textContent = 'Act. ' + new Date().toLocaleTimeString('es-DO',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ════════ HISTORIAL POR POLÍTICA ═════════════════════════════════════════════
+
+function _polDateRange(from, to) {
+  var dates=[], d=new Date(from+'T00:00:00'), end=new Date(to+'T00:00:00');
+  while(d<=end){ dates.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  return dates;
+}
+
+async function polLoadHistory(polId) {
+  var pol = _polPolicies.find((p) => { return p.id===polId; });
+  if (!pol) return;
+  var pid = polId.replace(/[^a-z0-9]/gi,'_');
+  var from = (document.getElementById('pol-hf-'+pid)||{}).value;
+  var to   = (document.getElementById('pol-ht-'+pid)||{}).value;
+  if (!from || !to) { await _iosAlert('Selecciona un rango de fechas.'); return; }
+  if (from > to)    { await _iosAlert('La fecha inicio debe ser anterior.'); return; }
+  var dates = _polDateRange(from, to);
+  if (dates.length > 31) { await _iosAlert('Máximo 31 días.'); return; }
+  var emps  = _polGetEmployees();
+  var today = new Date().toISOString().slice(0,10);
+  var data  = emps.map((emp) => {
+    var seed = _POL_MOCK_SEED[emp.id] || _POL_MOCK_SEED.m1;
+    var days = {};
+    dates.forEach((date, i) => {
+      if (date > today)        days[date] = 'none';
+      else if (date === today) days[date] = 'active';
+      else days[date] = seed[i % seed.length] ? 'complied' : 'violated';
+    });
+    return { id:emp.id, name:emp.name||emp.id, days:days };
+  });
+  _polRenderHeatmap('pol-hw-'+pid, data, dates);
+}
+
+function _polRenderHeatmap(wrapperId, employees, dates) {
+  var today = new Date().toISOString().slice(0,10);
+  var thDates = dates.map((d) => {
+    var dt = new Date(d+'T00:00:00');
+    var lbl = dt.toLocaleDateString('es-DO',{weekday:'short',day:'numeric',month:'short'});
+    return '<th style="'+(d===today?'color:var(--accent);font-weight:800':'')+'">'+escH(lbl)+'</th>';
+  }).join('');
+  var rows = employees.map((emp) => {
+    var cells = dates.map((d) => {
+      var s = emp.days[d]||'none';
+      if(s==='complied') return '<td><span class="pol-hm-cell pol-hm-ok">✓</span></td>';
+      if(s==='violated') return '<td><span class="pol-hm-cell pol-hm-fail">✗</span></td>';
+      if(s==='active')   return '<td><span class="pol-hm-cell pol-hm-today">•</span></td>';
+      return '<td><span class="pol-hm-cell pol-hm-none">—</span></td>';
+    }).join('');
+    return '<tr><td>'+escH(emp.name)+'</td>'+cells+'</tr>';
+  }).join('');
+  var totRow = '<tr style="border-top:2px solid var(--border)"><td style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase">Cumplimiento</td>'
+    + dates.map((d) => {
+        var ok=0,fail=0;
+        employees.forEach((e) => { if(e.days[d]==='complied')ok++; else if(e.days[d]==='violated')fail++; });
+        var total=ok+fail; if(!total) return '<td>—</td>';
+        var pct=Math.round(ok/total*100);
+        var col=pct>=80?'var(--green-text)':pct>=60?'var(--amber-text)':'var(--red-text)';
+        return '<td><span style="font-size:11px;font-weight:700;color:'+col+'">'+pct+'%</span></td>';
+      }).join('')+'</tr>';
+  var wrap = document.getElementById(wrapperId);
+  if (wrap) wrap.innerHTML = '<div style="overflow-x:auto"><table class="pol-heatmap"><thead><tr><th>Empleado</th>'+thDates+'</tr></thead><tbody>'+rows+totRow+'</tbody></table></div>';
+}
+
+// ════════ EXPORT CSV ═════════════════════════════════════════════════════════
+
+function polExportCSV(polId) {
+  var pol = _polPolicies.find((p) => { return p.id===polId; }); if(!pol) return;
+  var pid = polId.replace(/[^a-z0-9]/gi,'_');
+  var from = (document.getElementById('pol-hf-'+pid)||{}).value || new Date(Date.now()-6*864e5).toISOString().slice(0,10);
+  var to   = (document.getElementById('pol-ht-'+pid)||{}).value || new Date().toISOString().slice(0,10);
+  var dates = _polDateRange(from, to);
+  var emps  = _polGetEmployees();
+  var today = new Date().toISOString().slice(0,10);
+  var slabel = function(s){ return s==='complied'?'Cumplió':s==='violated'?'Incumplió':s==='active'?'En proceso':'Sin registro'; };
+  var headers = ['"Empleado"'].concat(dates.map((d) => { return '"'+d+'"'; })).join(',');
+  var rows = emps.map((emp) => {
+    var seed = _POL_MOCK_SEED[emp.id]||_POL_MOCK_SEED.m1;
+    var cols = ['"'+String(emp.name||emp.id).replace(/"/g,'""')+'"'].concat(dates.map((d,i) => {
+      var s = d>today?'none': d===today?'active': (seed[i%seed.length]?'complied':'violated');
+      return '"'+slabel(s)+'"';
+    }));
+    return cols.join(',');
+  });
+  var csv = '﻿'+headers+'\n'+rows.join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='politica_'+pol.nombre.replace(/\s+/g,'_')+'_'+from+'_'+to+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ════════ EDITOR DE POLÍTICAS ═════════════════════════════════════════════════
+
+var POL_PARAMS_HTML = {
+  lunch_duration: '<div class="pol-editor-params"><div class="pol-editor-field"><label>Tolerancia (minutos de gracia)</label><input type="number" id="pe-tol" min="0" max="30" value="5" style="width:100px"></div></div>',
+  arrival_time:   '<div class="pol-editor-params"><div class="pol-editor-field"><label>Tolerancia (minutos de gracia)</label><input type="number" id="pe-tol" min="0" max="30" value="5" style="width:100px"></div><p style="font-size:11px;color:var(--text-muted);margin:8px 0 0">La hora de entrada asignada se toma del perfil de cada usuario.</p></div>',
+  task_completion:'<div class="pol-editor-params"><div class="pol-editor-field"><label>Días de gracia después del vencimiento</label><input type="number" id="pe-tol" min="0" max="7" value="0" style="width:100px"></div></div>',
+  vehicle_inspection:'<div class="pol-editor-params"><p style="font-size:12px;color:var(--text-secondary);margin:0">Verifica si el conductor registró la inspección vehicular del día antes de la primera salida.</p></div>',
+};
+
+function polEditorUpdateParams() {
+  var tipo = document.getElementById('pe-tipo').value;
+  document.getElementById('pe-params-container').innerHTML = POL_PARAMS_HTML[tipo] || '';
+}
+
+function polOpenEditor(polId) {
+  _polEditorTarget = polId ? _polPolicies.find((p) => { return p.id===polId; }) : null;
+  document.getElementById('pol-editor-title').textContent = _polEditorTarget ? 'Editar Política' : 'Nueva Política';
+  document.getElementById('pe-nombre').value      = _polEditorTarget ? _polEditorTarget.nombre      : '';
+  document.getElementById('pe-descripcion').value = _polEditorTarget ? _polEditorTarget.descripcion  : '';
+  document.getElementById('pe-tipo').value        = _polEditorTarget ? _polEditorTarget.tipo         : '';
+  document.getElementById('pe-aplicaa').value     = (_polEditorTarget && _polEditorTarget.parametros && _polEditorTarget.parametros.aplicaA) || 'all';
+  document.getElementById('pe-activa').value      = _polEditorTarget ? String(_polEditorTarget.activa !== false) : 'true';
+  polEditorUpdateParams();
+  if (_polEditorTarget) {
+    var tol = _polEditorTarget.parametros && _polEditorTarget.parametros.toleranciaMinutos;
+    var grace = _polEditorTarget.parametros && _polEditorTarget.parametros.diasGracia;
+    var tolEl = document.getElementById('pe-tol');
+    if (tolEl && tol !== undefined)   tolEl.value = tol;
+    if (tolEl && grace !== undefined) tolEl.value = grace;
+  }
+  document.getElementById('modal-politica').classList.add('open');
+}
+
+function polCloseEditor() { document.getElementById('modal-politica').classList.remove('open'); _polEditorTarget=null; }
+
+async function polSaveEditor() {
+  var nombre = document.getElementById('pe-nombre').value.trim();
+  var tipo   = document.getElementById('pe-tipo').value;
+  if (!nombre) { await _iosAlert('El nombre es requerido.'); return; }
+  if (!tipo)   { await _iosAlert('Selecciona el tipo de política.'); return; }
+  var tolEl = document.getElementById('pe-tol');
+  var tol   = tolEl ? (parseInt(tolEl.value)||0) : 0;
+  var params = { aplicaA: document.getElementById('pe-aplicaa').value };
+  if (tipo==='lunch_duration' || tipo==='arrival_time') params.toleranciaMinutos = tol;
+  if (tipo==='task_completion') params.diasGracia = tol;
+  var body = {
+    nombre:      nombre,
+    tipo:        tipo,
+    descripcion: document.getElementById('pe-descripcion').value.trim(),
+    activa:      document.getElementById('pe-activa').value === 'true',
+    parametros:  params
+  };
+  var url    = _polEditorTarget ? '/api/politicas/'+encodeURIComponent(_polEditorTarget.id) : '/api/politicas';
+  var method = _polEditorTarget ? 'PATCH' : 'POST';
+  authFetch(url, { method:method, body:JSON.stringify(body) })
+    .then(function(r){ return r.json(); })
+    .then(function() { polCloseEditor(); polLoadAll(); })
+    .catch(function(e) { _iosAlert('Error al guardar: '+(e.message||'desconocido')); });
+}
+
+function polToggleActive(polId) {
+  var pol = _polPolicies.find((p) => { return p.id===polId; }); if(!pol) return;
+  authFetch('/api/politicas/'+encodeURIComponent(polId), { method:'PATCH', body:JSON.stringify({ activa:!pol.activa }) })
+    .then(function(){ polLoadAll(); });
+}
+
+async function polDeletePolicy(polId) {
+  if (!await _iosConfirm('¿Eliminar esta política? Esta acción no se puede deshacer.')) return;
+  authFetch('/api/politicas/'+encodeURIComponent(polId), { method:'DELETE' })
+    .then(function(){ polLoadAll(); });
+}
+
+window.addEventListener('DOMContentLoaded', function(){
+  var raiz = document.getElementById('tab-politicas');
+  if (raiz) raiz.style.display = 'block';   // en la isla, el bloque ES la página
+  if (window.lucide) lucide.createIcons();
+  polLoadAll();
+  islaAnunciarReady('politicas');
+});
+// El shell avisa cuando el tab se muestra/oculta: al ocultarse se paran los
+// timers de refresco (comportamiento previo del monolito); al volver, recarga.
+islaOnVista('politicas', function(v){
+  if (v === 'off') { polStopRefresh(); } else { polLoadAll(); }
+});
+</script>
+</body>
+</html>

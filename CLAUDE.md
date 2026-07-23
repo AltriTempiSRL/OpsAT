@@ -8,11 +8,15 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 | Archivo | Descripción |
 |---------|-------------|
 | `historial.html` | App principal (historial + WWP embebido) |
+| `core.js` | Núcleo compartido del shell (auth+red, RBAC, sesión, notif+SSE/WS, esc/toast) — extraído del monolito (Ola 1, plan 08). Su `<script src>` vive en la posición exacta del código original: NO moverlo ni hacerlo defer. SIN `'use strict'` (globals implícitos) |
+| `theme.css` | Design tokens `--*` (claro + `[data-theme=dark]`) compartidos shell + islas (Ola 1) |
 | `index.html` | Dashboard de despachos |
 | `proxy.js` | Servidor Node.js (API + archivos estáticos) |
 | `lucide.min.js` | Librería de íconos (LOCAL, no CDN) |
 | `chart.min.js` / `xlsx.min.js` / `three.min.js` + `OrbitControls.js` | Gráficos, export Excel, mapa 3D del almacén (LOCAL, no CDN) |
 | `almacen-mapa.html` | Mapa 3D del almacén (canvas 2.5D + Three.js) |
+| _(visor "Base de datos": ELIMINADO jul-2026 — las tablas reales `t_*` del cutover Fase 3B se consultan por SQL directo)_ | |
+| `core-isla.js` | Núcleo compartido de las ISLAS (esc, islaFetch/Bearer, islaUser, tema, toast, helpers postMessage). Al editarlo: re-estampar su `?v=` en TODAS las islas |
 | `MEMORIA-PROYECTO.md` | Historial de features y decisiones (leer para contexto completo) |
 
 ## Carpetas de organización (reorg 2026-07-08)
@@ -44,6 +48,7 @@ Todos los archivos editables están en la **carpeta raíz** del proyecto:
 
 ## Convenciones de código
 
+- **`core.js` / `theme.css` versionados**: historial.html los referencia con `?v=<hash md5-8>` (caché immutable 1 año). Al editar cualquiera de los dos, re-estampar su hash en historial.html (`md5 -q core.js | cut -c1-8` en Mac; `certutil -hashfile core.js MD5` en Windows) — y el deploy bumpea `APP_BUILD` como siempre. La suite `tests/e2e` (smoke-05) verifica el contrato.
 - **Lucide icons**: `<script src="/lucide.min.js"></script>` — nunca CDN
 - Después de inyectar `data-lucide` via innerHTML: `if(window.lucide) lucide.createIcons();`
 - **Colores**: variables CSS semánticas (`--green-bg`, `--amber-text`, etc.), nunca hex hardcodeados

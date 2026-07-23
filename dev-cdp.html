@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEV → CDP — Ops AT</title>
+<!-- ISLA devcdp (Ola 3, plan docs/auditoria-arquitectura/08). Generada con
+     scratchpad/build-isla.mjs desde segmentos verbatim del monolito; el módulo
+     se edita AQUÍ desde ahora. Sesión: wwp_auth del storage (core-isla.js).
+     Al editar theme/ui-isla/core-isla: re-estampar sus ?v= aquí. -->
+<link rel="stylesheet" href="/theme.css?v=f232ab1b">
+<link rel="stylesheet" href="/ui-isla.css?v=0135f0d7">
+<style>*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--text);font-family:var(--font,system-ui,sans-serif);font-size:13px}</style>
+</head>
+<body>
+<!-- ex historial.html 6193–6268 -->
+    <div id="section-dev-cdp" class="page-section" style="display:none">
+
+    <div>
+
+      <!-- Header + controles -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+        <div>
+          <h2 style="margin:0 0 4px;font-size:18px;font-weight:700;color:var(--text)">
+            <i data-lucide="arrow-left-right" style="width:16px;height:16px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:6px"></i>
+            Devoluciones de tiendas recibidas en almacén (CDP)
+          </h2>
+          <p style="margin:0;font-size:12px;color:var(--text-3)">
+            Artículos que salieron por <strong>OUT</strong> desde cualquier tienda (PTN, STI, OUTLET, OUT27…) y cuya devolución fue registrada en <strong>A-CDP/DEVOLUCION</strong> en vez de regresar a su tienda de origen
+          </p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:12px;color:var(--text-3)">Desde:</label>
+          <input type="date" id="devcdp-since" class="form-select" style="width:140px;font-size:12px"
+            onchange="loadDevCdpReport()">
+          <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="loadDevCdpReport()">
+            <i data-lucide="refresh-cw" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Actualizar
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div id="devcdp-kpis" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+      <!-- Filtros de tabla -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <input type="text" id="devcdp-filter" class="form-input" placeholder="Filtrar por artículo, ref, orden…"
+          style="max-width:260px;font-size:12px;padding:6px 10px"
+          oninput="renderDevCdpTable()">
+        <select id="devcdp-origin-filter" class="form-select" style="font-size:12px;padding:6px 10px" onchange="renderDevCdpTable()">
+          <option value="all">Todas las tiendas</option>
+          <option value="PTN">PTN</option>
+          <option value="STI">STI</option>
+          <option value="OUTLET">OUTLET</option>
+          <option value="OUT27">OUT27</option>
+          <option value="ALVEN">ALVEN</option>
+          <option value="none">Sin origen identificado</option>
+        </select>
+        <span id="devcdp-count" style="font-size:12px;color:var(--text-3);margin-left:4px"></span>
+      </div>
+
+      <!-- Tabla -->
+      <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:var(--surface-2);border-bottom:2px solid var(--border)">
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Devolución CDP</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Origen (salida PTN)</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2)">Artículo</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2)">Ref.</th>
+              <th style="padding:10px 8px;text-align:center;font-weight:600;color:var(--text-2)">Qty</th>
+              <th style="padding:10px 12px;text-align:left;font-weight:600;color:var(--text-2);white-space:nowrap">Fecha</th>
+              <th style="padding:10px 12px;text-align:center;font-weight:600;color:var(--text-2)">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="devcdp-tbody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Selección múltiple + crear tarea -->
+      <div id="devcdp-bulk-bar" style="display:none;margin-top:14px;padding:12px 16px;background:var(--surface-2);border-radius:10px;border:1px solid var(--border);align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="devcdp-sel-count" style="font-size:13px;font-weight:600;color:var(--text)"></span>
+        <button class="btn-primary" style="font-size:12px;padding:7px 14px;background:var(--accent)" onclick="devCdpCrearTareaSeleccion()">
+          <i data-lucide="plus-circle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Crear tarea WWP con selección
+        </button>
+        <button onclick="devCdpClearSel()" style="font-size:12px;color:var(--text-3);background:none;border:none;cursor:pointer;text-decoration:underline">Limpiar selección</button>
+      </div>
+
+    </div>
+    </div><!-- /section-dev-cdp -->
+<script src="/lucide.min.js?v=a65241b6" defer></script>
+<script src="/core-isla.js?v=f7b1b597"></script>
+<script>
+// ── Adaptador de entorno: globals que el módulo espera del shell ──
+var authFetch = islaFetch;
+var _user = islaUser() || {};
+
+// ex historial.html 23329–23531
+var _devCdpRows    = [];   // todos los rows del reporte
+var _devCdpSel     = new Set(); // pickingId+productId seleccionados
+
+async function loadDevCdpReport() {
+  const tbody   = document.getElementById('devcdp-tbody');
+  const kpiZone = document.getElementById('devcdp-kpis');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)"><div class="spinner" style="margin:0 auto 8px"></div>Consultando Odoo…</td></tr>';
+  kpiZone.innerHTML = '';
+  _devCdpRows = [];
+  _devCdpSel.clear();
+  document.getElementById('devcdp-bulk-bar').style.display = 'none';
+
+  const since = document.getElementById('devcdp-since').value || '';
+  try {
+    const r = await authFetch('/api/report/dev-cdp' + (since ? '?since=' + since : ''));
+    const d = await r.json();
+    if (!d.ok) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">' + esc(d.error||'Error al cargar') + '</td></tr>'; return; }
+
+    _devCdpRows = d.rows || [];
+
+    // KPIs — total + desglose por tienda
+    const totalQty  = _devCdpRows.reduce(function(s,r){ return s + (r.qty||0); }, 0);
+    const byStore   = d.byStore || {};
+    const storeKeys = Object.keys(byStore).sort();
+
+    // Chip total
+    var kpiHtml =
+      '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--amber-bg);border:1px solid var(--amber-dot);border-radius:10px;min-width:130px">' +
+        '<i data-lucide="alert-triangle" style="width:16px;height:16px;stroke:var(--amber-text);flex-shrink:0"></i>' +
+        '<div><div style="font-size:20px;font-weight:800;color:var(--amber-text)">' + _devCdpRows.length + '</div>' +
+        '<div style="font-size:11px;color:var(--amber-text);font-weight:600">artículos en CDP</div></div>' +
+      '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:110px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + totalQty.toFixed(0) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">unidades totales</div>' +
+      '</div>' +
+      '<div style="padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:110px">' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text)">' + (d.retCount||0) + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">devol. recibidas CDP</div>' +
+      '</div>';
+
+    // Un chip por tienda identificada
+    storeKeys.forEach(function(k) {
+      var isNone = (k === 'Sin origen');
+      kpiHtml +=
+        '<div style="padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;min-width:90px;cursor:pointer" ' +
+          'onclick="document.getElementById(\'devcdp-origin-filter\').value=\'' + (isNone?'none':k) + '\';renderDevCdpTable()" ' +
+          'title="Filtrar por ' + k + '">' +
+          '<div style="font-size:18px;font-weight:800;color:var(--text)">' + byStore[k] + '</div>' +
+          '<div style="font-size:11px;color:var(--text-3)">' + k + '</div>' +
+        '</div>';
+    });
+
+    kpiZone.innerHTML = kpiHtml;
+    if (window.lucide) lucide.createIcons();
+
+    // Actualizar opciones del select con tiendas reales detectadas
+    var sel = document.getElementById('devcdp-origin-filter');
+    var currentVal = sel.value;
+    sel.innerHTML = '<option value="all">Todas las tiendas</option>';
+    storeKeys.forEach(function(k) {
+      var opt = document.createElement('option');
+      opt.value = k === 'Sin origen' ? 'none' : k;
+      opt.textContent = k;
+      sel.appendChild(opt);
+    });
+    if ([...sel.options].some(function(o){ return o.value===currentVal; })) sel.value = currentVal;
+
+    renderDevCdpTable();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red-text)">' + esc(e.message) + '</td></tr>';
+  }
+}
+
+function renderDevCdpTable() {
+  const tbody     = document.getElementById('devcdp-tbody');
+  const filterTxt = (document.getElementById('devcdp-filter').value || '').toLowerCase().trim();
+  const originF   = document.getElementById('devcdp-origin-filter').value;
+  const countEl   = document.getElementById('devcdp-count');
+
+  var rows = _devCdpRows.filter(function(r) {
+    if (originF === 'all')  { /* sin filtro */ }
+    else if (originF === 'none') { if (r.store) return false; }
+    else { if (r.store !== originF) return false; }
+    if (filterTxt) {
+      var hay = (r.productName + r.productRef + r.outRef + r.retRef + r.partner + (r.store||'')).toLowerCase();
+      if (!hay.includes(filterTxt)) return false;
+    }
+    return true;
+  });
+
+  countEl.textContent = rows.length + ' fila' + (rows.length!==1?'s':'');
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-3)">Sin resultados para este filtro.</td></tr>';
+    return;
+  }
+
+  var html = '';
+  rows.forEach(function(r, idx) {
+    var selKey  = String(idx);
+    var checked = _devCdpSel.has(selKey);
+    var storeBadge = r.store
+      ? '<span style="font-size:10px;font-weight:700;color:var(--amber-text);background:var(--amber-bg);padding:2px 7px;border-radius:4px;margin-right:5px">' + esc(r.store) + '</span>'
+      : '';
+    var outBadge = storeBadge + (r.outRef
+      ? '<span style="font-size:11px;color:var(--text-2)">' + esc(r.outRef) + '</span>'
+      : '');
+    var fecha = r.dateDone ? r.dateDone.slice(0,10) : '—';
+    html +=
+      '<tr style="border-bottom:1px solid var(--border)" data-sel-key="' + esc(selKey) + '">' +
+        '<td style="padding:9px 12px;white-space:nowrap">' +
+          '<label style="display:flex;align-items:center;gap:7px;cursor:pointer">' +
+            '<input type="checkbox" ' + (checked?'checked':'') + ' onchange="devCdpToggleSel(\'' + selKey + '\',this.checked)" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">' +
+            '<span style="font-size:12px;font-weight:600;color:var(--accent)">' + esc(r.retRef) + '</span>' +
+          '</label>' +
+        '</td>' +
+        '<td style="padding:9px 12px">' + outBadge + '</td>' +
+        '<td style="padding:9px 12px;max-width:220px">' +
+          '<div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.productName) + '">' + esc(r.productName) + '</div>' +
+        '</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--text-2);white-space:nowrap">' + esc(r.productRef || '—') + '</td>' +
+        '<td style="padding:9px 8px;text-align:center;font-size:13px;font-weight:700;color:var(--text)">' + (r.qty||0).toFixed(0) + '</td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:var(--text-3);white-space:nowrap">' + fecha + '</td>' +
+        '<td style="padding:9px 12px;text-align:center">' +
+          '<button onclick="devCdpCrearTarea(\'' + esc(selKey) + '\')" title="Crear tarea WWP" ' +
+            'style="padding:5px 10px;font-size:11px;font-weight:600;border:1.5px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap">' +
+            '<i data-lucide="plus-circle" style="width:11px;height:11px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>Tarea' +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  });
+  tbody.innerHTML = html;
+  if (window.lucide) lucide.createIcons();
+}
+
+function devCdpToggleSel(key, checked) {
+  if (checked) _devCdpSel.add(key); else _devCdpSel.delete(key);
+  var bar  = document.getElementById('devcdp-bulk-bar');
+  var span = document.getElementById('devcdp-sel-count');
+  if (_devCdpSel.size > 0) {
+    bar.style.display = 'flex';
+    span.textContent  = _devCdpSel.size + ' artículo' + (_devCdpSel.size!==1?'s':'') + ' seleccionado' + (_devCdpSel.size!==1?'s':'');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function devCdpClearSel() {
+  _devCdpSel.clear();
+  document.getElementById('devcdp-bulk-bar').style.display = 'none';
+  document.querySelectorAll('#devcdp-tbody input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+}
+
+function _devCdpRowByKey(key) {
+  // Clave = índice numérico en _devCdpRows
+  return _devCdpRows[parseInt(key, 10)] || null;
+}
+
+function devCdpCrearTarea(selKey) {
+  var row = _devCdpRowByKey(selKey);
+  if (!row) return;
+  var dest   = row.store || 'Tienda';
+  var titulo = 'Devolver a ' + dest + ': ' + (row.productRef || row.productName.slice(0,40));
+  var desc   = 'Artículo devuelto en CDP en vez de ' + dest + '.\n' +
+               'Devolución: ' + row.retRef + (row.outRef ? ' (venta original: ' + row.outRef + ')' : '') + '\n' +
+               'Artículo: ' + row.productName + '\n' +
+               'Cantidad: ' + (row.qty||0).toFixed(0);
+  // Isla: el wizard de tareas vive en el shell — se pide por postMessage.
+  islaPedirTarea({
+    odooRef: row.outRef||'',
+    title:   titulo,
+    type:    'warehouse_move',
+    description: desc,
+    actionNote: 'Trasladar de A-CDP/DEVOLUCION a ' + dest + '/DEVOLUCION'
+  });
+}
+
+function devCdpCrearTareaSeleccion() {
+  if (!_devCdpSel.size) return;
+  var rows  = Array.from(_devCdpSel).map(_devCdpRowByKey).filter(Boolean);
+  var refs  = [...new Set(rows.map(function(r){ return r.retRef||r.outRef; }))].slice(0,5).join(', ');
+  var items = rows.map(function(r){ return (r.productRef||'') + ' ' + r.productName + ' ×' + (r.qty||0).toFixed(0); }).join('\n');
+  var stores = [...new Set(rows.map(function(r){ return r.store; }).filter(Boolean))];
+  var destLabel = stores.length === 1 ? stores[0] : (stores.length ? stores.join('/') : 'Tienda');
+  var titulo = 'Devolver a ' + destLabel + ' (' + rows.length + ' artículo' + (rows.length!==1?'s':'') + ')';
+  var desc   = 'Artículos devueltos en CDP que deben trasladarse a ' + destLabel + '.\n' +
+               'Tiendas: ' + (stores.join(', ')||'—') + '\n' +
+               'Referencias: ' + refs + '\n\n' + items;
+  // Isla: el wizard de tareas vive en el shell — se pide por postMessage.
+  islaPedirTarea({
+    odooRef: refs,
+    title:   titulo,
+    type:    'warehouse_move',
+    description: desc,
+    actionNote: 'Trasladar artículos de A-CDP/DEVOLUCION a ' + destLabel + '/DEVOLUCION'
+  });
+}
+
+window.addEventListener('DOMContentLoaded', function(){
+  var raiz = document.getElementById('section-dev-cdp');
+  if (raiz) raiz.style.display = 'block';   // en la isla, el bloque ES la página
+  if (window.lucide) lucide.createIcons();
+  loadDevCdpReport();
+  islaAnunciarReady('devcdp');
+});
+</script>
+</body>
+</html>

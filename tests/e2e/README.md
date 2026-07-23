@@ -35,6 +35,9 @@ Reporte HTML: `npx playwright show-report .report`
 | `smoke-03-secciones` | deep-link de las 15 secciones Despachos → sección visible + sin errores JS |
 | `smoke-04-wwp-tabs` | deep-link de los 9 tabs WWP → panel visible + sin errores JS |
 | `flujos-criticos` | vistas de tareas por URL (real) + esqueletos `fixme` que **el equipo debe definir** |
+| `smoke-05-core` | contrato Ola 1: core.js servido+immutable, núcleo definido en window, `APP_BUILD` dentro del HTML (= `/api/app-version`), tokens de theme.css en claro y oscuro |
+| `smoke-06-isla-basedatos` | contrato Ola 2 (isla piloto): iframe con 13 vistas, subvista por handshake postMessage, la isla actualiza el path real, standalone con sesión del storage, mismo hash de theme.css en shell e isla |
+| `smoke-07-islas-ola3` | islas dev-cdp/formacion/politicas/impacto: deep-link embebido renderiza contenido real de cada isla, standalone con sesión del storage, y el badge de formacion llega al shell por postMessage |
 
 ## Notas
 

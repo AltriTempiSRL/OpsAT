@@ -612,7 +612,6 @@ async function init(opts = {}) {
     'CREATE TABLE IF NOT EXISTS rejected_writes(id BIGSERIAL PRIMARY KEY, collection TEXT,' +
     ' attempted_len INT, prev_len INT, at TIMESTAMPTZ NOT NULL DEFAULT now())');
 
-  await _createViews();
   // Fase 3B: las tablas tipadas se crean ANTES del preload/import — así los flush
   // de la cola pueden dual-escribir desde el primer save sin carrera con el DDL.
   await _createTypedTables();
@@ -786,129 +785,14 @@ async function shutdown() {
   state.active = false;
 }
 
-// ── Vistas SQL tipadas (Fase 3, incremento 1) ────────────────────────────────
-// Proyectan collection_rows (JSONB) como TABLAS legibles/consultables, SIN cambiar
-// cómo la app lee o escribe (fuente de verdad sigue siendo la colección en memoria).
-// Best-effort: un fallo aquí NO debe tumbar el arranque (las vistas son accesorias).
-const READABLE_VIEWS = new Set(['v_usuarios', 'v_roles', 'v_tareas', 'v_averias', 'v_inventario', 'v_sdv', 'v_inspecciones', 'v_vehiculos',
-  'v_solicitudes_showroom', 'v_materiales', 'v_reglas_empaque', 'v_despachos_obsoleto', 'v_cursos']);
-async function _createViews() {
-  const ddls = [
-    // Usuarios — EXCLUYE campos sensibles (passwordHash, resetToken*). Todo TEXT
-    // (data->>'x') para que ningún cast falle en runtime.
-    "CREATE OR REPLACE VIEW v_usuarios AS SELECT " +
-    "data->>'id' AS id, data->>'name' AS nombre, data->>'email' AS email, " +
-    "data->>'role' AS rol, data->>'odooId' AS odoo_id, data->>'active' AS activo, " +
-    "data->>'lastLogin' AS ultimo_login, data->>'mustChangePassword' AS debe_cambiar_pw, " +
-    "data->>'createdAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'wwp-users-auth' ORDER BY ord",
-    // Roles (wwp-role-defs) — id, nombre y si es rol integrado del sistema.
-    "CREATE OR REPLACE VIEW v_roles AS SELECT " +
-    "data->>'id' AS id, data->>'name' AS nombre, data->>'isBuiltin' AS es_builtin " +
-    "FROM collection_rows WHERE collection = 'wwp-role-defs' ORDER BY ord",
-    // Tareas (wwp-tasks) — SOLO la cabecera (sin items/fotos/historial, que son
-    // arrays anidados). Campos verificados contra datos reales de producción.
-    "CREATE OR REPLACE VIEW v_tareas AS SELECT " +
-    "data->>'id' AS id, data->>'seq' AS seq, data->>'type' AS tipo, " +
-    "data->>'title' AS titulo, data->>'client' AS cliente, data->>'status' AS estado, " +
-    "data->>'dueDate' AS vence, data->>'odooRef' AS odoo_ref, " +
-    "data->>'managerId' AS encargado_id, data->>'sdvId' AS sdv_id, " +
-    "data->>'createdAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'wwp-tasks' ORDER BY ord",
-    // Averías (averias) — cabecera; sin statusHistory (array) ni image (base64/url).
-    "CREATE OR REPLACE VIEW v_averias AS SELECT " +
-    "data->>'id' AS id, data->>'ref' AS ref, data->>'name' AS producto, " +
-    "data->>'barcode' AS barcode, data->>'location' AS ubicacion, " +
-    "data->>'qty' AS cantidad, data->>'status' AS estado, " +
-    "data->>'comentario' AS comentario, data->>'createdAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'averias' ORDER BY ord",
-    // Casos de inventario (wwp-inventario-casos) — seguimiento de negativos Odoo.
-    "CREATE OR REPLACE VIEW v_inventario AS SELECT " +
-    "data->>'id' AS id, data->>'sku' AS sku, data->>'estado' AS estado, " +
-    "data->>'tipo' AS tipo, data->>'causa' AS causa, data->>'qty' AS cantidad, " +
-    "data->>'responsable' AS responsable, data->>'nota' AS nota " +
-    "FROM collection_rows WHERE collection = 'wwp-inventario-casos' ORDER BY ord",
-    // SDV (sdv-solicitudes) — cabecera de la solicitud de despacho/devolución.
-    // Campos VERIFICADOS contra prod 22-jul-2026 (jsonb_object_keys): tipoSolicitud/
-    // clienteNombre/creadoNombre/odooOrderRef (no tipo/cliente/vendedora/odooRef).
-    "CREATE OR REPLACE VIEW v_sdv AS SELECT " +
-    "data->>'id' AS id, data->>'folio' AS folio, data->>'estado' AS estado, " +
-    "data->>'tipoSolicitud' AS tipo, data->>'clienteNombre' AS cliente, " +
-    "data->>'creadoNombre' AS creado_por, data->>'ciudadEntrega' AS ciudad, " +
-    "data->>'fechaSolicitud' AS fecha_solicitud, data->>'fechaEntrega' AS fecha_entrega, " +
-    "data->>'odooOrderRef' AS odoo_ref, data->>'retRef' AS ret_ref, " +
-    "data->>'wwpTaskId' AS tarea_wwp, data->>'creadoAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'sdv-solicitudes' ORDER BY ord",
-    // Inspecciones de vehículos (wwp-inspecciones). Campos verificados contra prod.
-    // EXCLUYE fotos_condicion (17 MB de base64 — el 99% del peso de la colección),
-    // items (array anidado) y firmaConductor: una vista con esos campos colgaría
-    // el visor y cualquier SELECT *.
-    "CREATE OR REPLACE VIEW v_inspecciones AS SELECT " +
-    "data->>'id' AS id, data->>'placa' AS placa, data->>'vehiculo' AS vehiculo, " +
-    "data->>'conductor' AS conductor, data->>'fecha' AS fecha, data->>'hora' AS hora, " +
-    "data->>'km' AS km, data->>'combustible' AS combustible, data->>'apto' AS apto, " +
-    "data->>'createdByName' AS registrado_por, data->>'createdAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'wwp-inspecciones' ORDER BY ord",
-    // Vehículos / flota (wwp-vehicles). Campos reales: name/fuelType/isBuiltin
-    // (no existen nombre/tipo/modelo/activo).
-    "CREATE OR REPLACE VIEW v_vehiculos AS SELECT " +
-    "data->>'id' AS id, data->>'name' AS nombre, data->>'placa' AS placa, " +
-    "data->>'fuelType' AS combustible, data->>'isBuiltin' AS es_builtin " +
-    "FROM collection_rows WHERE collection = 'wwp-vehicles' ORDER BY ord",
-    // Solicitudes showroom (wwp-solicitudes-showroom). EXCLUYE imageBase64 (123 KB).
-    "CREATE OR REPLACE VIEW v_solicitudes_showroom AS SELECT " +
-    "data->>'id' AS id, data->>'ref' AS ref, data->>'name' AS producto, " +
-    "data->>'barcode' AS barcode, data->>'ubicacion' AS ubicacion, data->>'almacen' AS almacen, " +
-    "data->>'status' AS estado, " +
-    "COALESCE(data->'solicitadoPor'->>'name', data->>'solicitadoPor') AS solicitado_por, " +
-    "data->>'source' AS origen, data->>'fechaSolicitud' AS fecha_solicitud, data->>'nota' AS nota " +
-    "FROM collection_rows WHERE collection = 'wwp-solicitudes-showroom' ORDER BY ord",
-    // Materiales de empaque (emp-materiales).
-    "CREATE OR REPLACE VIEW v_materiales AS SELECT " +
-    "data->>'id' AS id, data->>'nombre' AS nombre, data->>'descripcion' AS descripcion, " +
-    "data->>'foto_url' AS foto_url " +
-    "FROM collection_rows WHERE collection = 'emp-materiales' ORDER BY ord",
-    // Reglas de empaque por categoría (emp-reglas). materiales es un array → solo conteo.
-    "CREATE OR REPLACE VIEW v_reglas_empaque AS SELECT " +
-    "data->>'id' AS id, data->>'categ_id' AS categ_id, data->>'categ_nombre' AS categoria, " +
-    "CASE WHEN jsonb_typeof(data->'materiales')='array' THEN jsonb_array_length(data->'materiales') END AS num_materiales " +
-    "FROM collection_rows WHERE collection = 'emp-reglas' ORDER BY ord",
-    // Despachos módulo obsoleto (despachos-obsoleto) — histórico consultable.
-    "CREATE OR REPLACE VIEW v_despachos_obsoleto AS SELECT " +
-    "data->>'id' AS id, data->>'folio' AS folio, data->>'seq' AS seq, data->>'estado' AS estado, " +
-    "data->>'transportista' AS transportista, data->>'vehiculo' AS vehiculo, " +
-    "data->>'receptor' AS receptor, data->>'creadoPor' AS creado_por, " +
-    "CASE WHEN jsonb_typeof(data->'lineas')='array' THEN jsonb_array_length(data->'lineas') END AS num_lineas, " +
-    "data->>'createdAt' AS creado, data->>'entregadoAt' AS entregado " +
-    "FROM collection_rows WHERE collection = 'despachos-obsoleto' ORDER BY ord",
-    // Cursos de formación (wwp-training-courses). EXCLUYE lessons/exam (anidados).
-    "CREATE OR REPLACE VIEW v_cursos AS SELECT " +
-    "data->>'id' AS id, data->>'title' AS titulo, data->>'category' AS categoria, " +
-    "data->>'competency' AS competencia, data->>'active' AS activo, " +
-    "data->>'passingScore' AS puntaje_minimo, data->>'validityDays' AS vigencia_dias, " +
-    "CASE WHEN jsonb_typeof(data->'lessons')='array' THEN jsonb_array_length(data->'lessons') END AS num_lecciones, " +
-    "data->>'version' AS version, data->>'createdAt' AS creado " +
-    "FROM collection_rows WHERE collection = 'wwp-training-courses' ORDER BY ord",
-  ];
-  for (const ddl of ddls) {
-    try { await state.pool.query(ddl); }
-    catch (e) { console.warn('[storage-pg] creación de vista falló (no crítico): ' + e.message); }
-  }
-  console.log('[storage-pg] vistas SQL listas: ' + [...READABLE_VIEWS].join(', '));
-}
-// Lectura de una vista whitelisteada (para el visor admin). Solo lectura.
-async function readView(name) {
-  if (!state.active) throw new Error('storage-pg no activo');
-  if (!READABLE_VIEWS.has(name)) throw new Error('vista no permitida: ' + name);
-  const res = await state.pool.query('SELECT * FROM ' + name);  // name whitelisteado arriba
-  return res.rows;
-}
+// (Las 13 vistas SQL v_* y readView se ELIMINARON en jul-2026 junto con el
+//  visor "Base de datos" — pedido Gabriel. Las consultas van por SQL directo
+//  sobre las tablas tipadas t_* del cutover Fase 3B.)
 
 module.exports = {
   init, isActive, isEnabled,
   loadCollection, saveCollection,
   exportAllToFiles, flushAll, health, shutdown, snapshotAll,
-  readView,
   typedParity, // Fase 3B: paridad memoria ↔ tablas tipadas (endpoint admin + tests)
   _internals: state, // solo para tests
 };

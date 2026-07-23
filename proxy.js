@@ -288,7 +288,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v227';
+const APP_BUILD = 'v228';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -20582,19 +20582,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── GET /api/admin/db/:view — visor de solo lectura de las vistas tipadas (Fase 3) ──
-  // Devuelve una colección como TABLA (columnas), no como JSON opaco. Solo admin.
-  if (reqPath.match(/^\/api\/admin\/db\/[a-z_]+$/) && req.method === 'GET') {
-    const _jpDb = requireJwt(req, res); if (!_jpDb) return;
-    if (!requireRole(_jpDb, res, ['admin'])) return;
-    if (!pgStorage.isActive()) { sendJson(res, 503, { ok:false, error:'Las vistas SQL requieren PostgreSQL activo (producción).' }); return; }
-    const _view = 'v_' + reqPath.split('/').pop();
-    try {
-      const rows = await pgStorage.readView(_view);
-      sendJson(res, 200, { ok:true, view:_view, count:rows.length, rows });
-    } catch (e) { sendJson(res, 400, { ok:false, error: e.message }); }
-    return;
-  }
+  // (El visor "Base de datos" y su GET /api/admin/db/:view se ELIMINARON en
+  //  jul-2026 — pedido Gabriel. Consultas: SQL directo sobre las tablas t_* del
+  //  cutover Fase 3B. typed-parity de arriba sigue vivo como verificación.)
 
   // ── Media (fotos/videos): lectura por la capa media.js (disco o R2) ──────────
   // Punto ÚNICO de lectura de las carpetas de evidencia. En modo disco lee de

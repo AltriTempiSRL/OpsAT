@@ -17,7 +17,6 @@ const SECCIONES = [
   ['despacho-obsoleto', 'section-despacho-obsoleto'],
   ['inventario', 'section-inventario'],
   ['averias', 'section-averias'],
-  ['basedatos', 'section-basedatos'],
   ['estado-ordenes', 'section-estado-ordenes'],
   ['sdv-portal', 'section-sdv-portal'],
   ['sdv-bandeja', 'section-sdv-bandeja'],

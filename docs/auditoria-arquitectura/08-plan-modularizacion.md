@@ -48,8 +48,8 @@ isla duplicaría auth/tema/escape.
 | Módulo | HTML (id / líneas) | JS clave | Acoplamiento | Extracción |
 |---|---|---|---|---|
 | almacen-mapa | iframe :6217 | (ya externa) | postMessage | **HECHA** (precedente) |
-| basedatos | `section-basedatos` :6489 | `dbViewerLoad`/`dbvShow` :25909+ (2 fns) | solo core | **FÁCIL — piloto ideal** |
-| dev-cdp | :6310 | `loadDevCdpReport`+3 :25960+ | solo core | FÁCIL |
+| basedatos | `section-basedatos` :6489 | `dbViewerLoad`/`dbvShow` :25909+ (2 fns) | solo core | **HECHA** (piloto Ola 2 → `basedatos.html`) |
+| dev-cdp | :6310 | `loadDevCdpReport`+3 :25960+ | solo core | **HECHA** (Ola 3 → `dev-cdp.html`) |
 | estado-ordenes | :7253 | `eo*` (80 fns) 35479–37534 | core + cache `_eoMetrics` + Odoo | MEDIA (cohesivo pero entrelazado con sdv — separar regiones primero) |
 | buscar | :5807 | `buscar*` 24072–25214 | core + drawer de tasks | MEDIA |
 | solicitudes | :6151 | `sol*` 22137–23341 | core | MEDIA |
@@ -64,10 +64,10 @@ isla duplicaría auth/tema/escape.
 
 | Tab | HTML | JS clave | Acoplamiento | Extracción |
 |---|---|---|---|---|
-| formacion | :8187 | `tr*` (18 fns) 11431–11740 | solo core | FÁCIL |
-| politicas | :8032 | `pol*` (13 fns) 31182–31622 | solo core | FÁCIL-MEDIA |
-| impacto | :8050 | `imp*` :20693+ | solo core | FÁCIL-MEDIA |
-| empaque | :8112 | `emp*` (25 fns) 32235–32855 | core + fotos | FÁCIL-MEDIA |
+| formacion | :8187 | `tr*` (18 fns) 11431–11740 | solo core | **HECHA** (Ola 3 → `formacion.html`, badge por postMessage) |
+| politicas | :8032 | `pol*` (13 fns) 31182–31622 | solo core | **HECHA** (Ola 3 → `politicas.html`, on/off de timers por postMessage) |
+| impacto | :8050 | `imp*` :20693+ | solo core | **HECHA** (Ola 3 → `impacto.html`, incluye `eqp*`) |
+| empaque | :8112 | `emp*` (25 fns) 32235–32855 | core + fotos | FÁCIL-MEDIA — **siguiente candidata** (quedó en el shell; será la 1ª isla con upload de fotos) |
 | dashboard | :7735 | `loadDashboard`, charts :13413 | core + chart.min.js | MEDIA |
 | users | :7825 | `loadUsers`, `showUserRoute` :20951 | core + roles + GMap | MEDIA |
 | vehiculos | :7842 | `veh*` + gate `_vehGate` en `switchTab` | gate acoplado al router de tabs | MEDIA |
@@ -94,13 +94,72 @@ permite ruido ambiental 502/503 de Odoo/PG ausentes en local). Correr:
 (las funciones pasan de inline a archivo — mismo scope global, cero riesgo de semántica).
 Beneficio inmediato: 2 sesiones pueden editar core y módulos sin colisionar, y el
 navegador cachea el núcleo.
+→ **HECHA (22-jul-2026, build v228):** `core.js` (2.509 líneas — auth+red con el patch
+de fetch, RBAC `can`/`canSection`, sesión `doLogin`/`checkStoredSession`, notificaciones
++ SSE/WS, y utilities `esc`/autofill/`showErr`/`togglePw`/`fmtDate`/`toast`; ex líneas
+8826–11242 + 21001–21073) y `theme.css` (design tokens `--*` claro + `[data-theme=dark]`;
+ex 34–151), ambos con `?v=<hash md5-8>` (immutable 1 año). Decisiones clave: (1) el tag
+`<script src="/core.js">` vive en la POSICIÓN exacta del código original — mismo orden de
+ejecución; no moverlo ni hacerlo defer/async; (2) `APP_BUILD` se quedó en el HTML a
+propósito (`getHtmlBuild` de proxy.js lo parsea con regex del archivo); (3) sin
+`'use strict'` en core.js (los globals implícitos `_token`/`_user`/`_tasks` requieren
+sloppy mode); (4) el bloque iOS-PWA + APP_BUILD (8716–8825) quedó inline como preámbulo.
+Contrato protegido por `tests/e2e/smoke-05-core.spec.js` (6 tests); suite completa 66
+verdes. Disciplina al editar core/theme: re-estampar su `?v=` en historial.html.
+El monolito bajó de 39.128 a 36.524 líneas.
 
 **Ola 2 — piloto isla: `basedatos`.** 2 funciones, solo-lectura, admin-only, cero estado
 compartido: el módulo perfecto para validar el mecanismo iframe + postMessage (token,
 tema, subrutas `/basedatos/<vista>`). Éxito = patrón documentado y repetible.
+→ **HECHA (22-jul-2026, mismo build v228):** isla `basedatos.html` en la raíz; la sección
+del shell quedó en iframe lazy (patrón almacen-mapa: `src` al navegar) + puente
+`_dbvIsla*` de ~35 líneas. **El patrón repetible quedó así:**
+- *Subrutas*: handshake `dbv-ready` (isla→shell al cargar) → `dbv-view` (shell→isla; el
+  shell es la fuente de verdad de la vista inicial — elimina el doble-fetch en
+  deep-links) → `dbv-route` (isla→shell al mostrar; el shell escribe el path real con
+  `_routeSet`, filtrando ecos por igualdad con `_dbvLastView`). Origen validado en ambos
+  lados; fallback a default si el puente no contesta en 1500 ms.
+- *Token*: la isla lee `wwp_auth` (sessionStorage||localStorage) EN CADA fetch — patrón
+  ya probado de almacen-mapa; hereda los refresh del shell sin contrato extra. (El
+  postMessage de token del plan original solo hará falta si las islas cambian de origen.)
+- *Tema*: `theme.css?v=` compartido + `wwp_theme` aplicado al cargar + evento `storage`
+  para cambio en vivo. ⚠ Disciplina: editar theme.css ⇒ re-estampar `?v=` en el shell Y
+  en cada isla (test `smoke-06` lo vigila).
+- *Deep-link server-side*: `/basedatos` sigue sirviendo el SHELL (login/RBAC intactos) —
+  a diferencia de `/almacen-mapa` que sirve la isla standalone; `/basedatos.html`
+  standalone también funciona (lee la sesión del storage).
+Verificado: suite 71 verdes (5 nuevos en `tests/e2e/smoke-06-isla-basedatos.spec.js`).
+El monolito ya no contiene el visor: −44 líneas netas más.
 
 **Ola 3 — islas fáciles.** dev-cdp, formacion, politicas, impacto, empaque. Una por PR,
 verificada con la suite de Ola 0.
+→ **HECHA 4 de 5 (22-jul-2026, noche):** islas `dev-cdp.html`, `formacion.html`,
+`politicas.html`, `impacto.html` (esta última incluye el subsistema `eqp*` de equipo).
+Novedades del patrón al pasar de 1 isla a 4:
+- **`core-isla.js` versionado** (`?v=<hash md5-8>`, cargado por las 5 islas): `esc`,
+  `islaFetch`/`_authHeaders` (Bearer desde `wwp_auth` en cada request), `islaUser`,
+  tema + evento `storage`, `toast` idéntico al del shell, y helpers del contrato:
+  `islaAnunciarReady`/`islaOnVista`/`islaReportarRuta` + `islaBadge` (badge del tab en
+  el shell, p.ej. cursos pendientes de formacion) + `islaPedirTarea` (la isla PIDE crear
+  tarea; el wizard vive en el shell y no se duplica). Disciplina: editarlo ⇒ re-estampar
+  su `?v=` en TODAS las islas.
+- **Canal on/off** (politicas): el shell avisa `politicas-view on|off` al entrar/salir
+  del tab para que la isla reanude/pare sus timers de refresco — reemplaza el
+  `polStopRefresh()` que el shell llamaba en `switchTab`.
+- **Aprendizajes que ahora son checklist de extracción** (los tres mordieron):
+  (1) el barrido de llamadas cruzadas debe incluir `core.js`, no solo historial.html —
+  un `polStopRefresh` residual en `switchTab` tumbaba el boot de TODOS los deep-links
+  `/wwp/*` (el catch de auth borraba la sesión); (2) ojo con helpers compartidos al
+  filo del cluster: el corte de impacto se llevó `apiFetch`, que empaque (aún en el
+  shell) usa — hubo que devolverlo; (3) los duplicados históricos (`escH` ≡ `esc`) y
+  los bloques MOCK pueden vivir lejos del cluster (`POL_USE_MOCK` estaba 400 líneas
+  antes) — grep por TODOS los identificadores del módulo, no por prefijo.
+- **empaque se difirió a propósito**: es la primera isla con upload de fotos
+  (multipart + lightbox); mejor PR propio con el patrón ya maduro. `apiFetch` quedó
+  restaurado en el shell para ella.
+Verificado: suite 80 verdes (smoke-07-islas-ola3 cubre deep-link embebido, standalone
+con sesión del storage, y el badge por postMessage). Hashes coherentes: `core-isla.js`
+y `theme.css` con el mismo `?v=` en shell + 5 islas.
 
 **Ola 4 — separar regiones entrelazadas.** Reordenar los clusters `eo*` vs `sdv*` en
 bloques contiguos (solo mover texto, sin cambiar lógica, con la suite verde) y extraer

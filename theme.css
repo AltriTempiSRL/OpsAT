@@ -1,0 +1,125 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   theme.css — design tokens compartidos shell + islas (Ola 1, plan 08)
+   Extraído de historial.html (ex líneas 34–151) el 2026-07-22 sin cambios.
+   Contiene SOLO variables (--*): :root claro + [data-theme=dark].
+   Los overrides de componentes dark siguen en el <style> del shell.
+   Al editar: re-estampar el ?v= del <link> en historial.html (hash md5-8).
+   ═══════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS (merged: historial + wwp)
+═══════════════════════════════════════════════ */
+:root{
+  color-scheme:light;
+  /* ── Escala tipográfica ── */
+  --fs-xs:11px;--fs-sm:12px;--fs-base:13px;--fs-md:14px;--fs-lg:15px;
+  --fs-xl:17px;--fs-2xl:20px;--fs-3xl:24px;
+  /* ── Escala de spacing ── */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  /* ── Superficies modo claro ── */
+  --bg:#f4f3f1;
+  --surface:#f4f3f1;
+  --surface-2:#eeece9;
+  --surface-3:#e8e7e4;
+  --border:#d6d4cf;
+  --border-light:#dedad5;
+  --border-focus:#2b6ad4;
+  /* ── Scrollbars (finos, disimulados con la ventana) ── */
+  --scrollbar-thumb:rgba(28,36,48,.22);
+  --scrollbar-thumb-hover:rgba(28,36,48,.42);
+  /* ── Textos modo claro ── */
+  --text-primary:#1c2430;
+  --text-secondary:#45556a;
+  --text-muted:#7a8c9e;
+  --text:#1c2430;
+  --text-2:#45556a;
+  --text-3:#a8b5c2;
+  /* Aliases usados en la CSS de Estado de Órdenes que faltaban en :root (resolvían a vacío) */
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
+  /* ── Brand / acento ── */
+  --accent:#1b3b6f;
+  --accent-hover:#142d56;
+  --accent-light:#e5edf7;
+  --tier-overdue-bg:#fcf4f3;
+  --tier-soon-bg:#fdfaf1;
+  --link:#1a5ab8;
+  --brand:#0f2340;
+  --brand-primary:#062465;
+  --brand-light:var(--brand-primary);
+  --brand-dark:#071a2e;
+  /* ── Header / sidebar ── */
+  --header-bg:#2c4a6e;
+  --sidebar-bg:#0f1c2e;
+  --sidebar-item-active:rgba(255,255,255,0.12);
+  --sidebar-item-hover:rgba(255,255,255,0.08);
+  --sidebar-accent:#5ba3ff;
+  /* ── Semánticos ── */
+  --green:#059669;
+  --amber:#d97706;
+  --red:#dc2626;
+  --purple:#7c3aed;
+  --green-bg:#e2f0e8;--green-text:#16643a;--green-dot:#1e9855;
+  --amber-bg:#fdf4e3;--amber-text:#7a4f0d;--amber-dot:#cc8500;
+  --red-bg:#f9e8e8;--red-text:#8b1a1a;--red-dot:#c42020;
+  --blue-bg:#e8f0fb;--blue-text:#184080;--blue-dot:#2a68b0;
+  --purple-bg:#f0ecf8;--purple-text:#522d7a;--purple-dot:#7c3aed;
+  --sky-bg:#e6f2fc;--sky-text:#0e5282;--sky-dot:#0284c7;
+  --orange-bg:#fceee2;--orange-text:#7c3410;--orange-dot:#c4510d;
+  /* ── Inventario · rediseño 4b (panel de control) ── */
+  --inv-navy:#1e4685; --inv-chip:#eef0ee;
+  --inv-red:#7f1616;   --inv-redbg:#f9e2e2;  --inv-reddot:#c01d1d;
+  --inv-amber:#6d4708; --inv-amberbg:#fbf1da; --inv-amberdot:#b97a00;
+  --inv-green:#0e5330; --inv-greenbg:#ddefe4; --inv-greendot:#188a4c;
+  --inv-gc:#f4c9c9; --inv-ga:#f3e2b4; --inv-gs:#c7e6d2;
+  /* ── Radios ── */
+  --radius-sm:4px;--radius:6px;--radius-md:8px;--radius-lg:12px;--radius-full:9999px;
+  --shadow:0 0 0 1px var(--border);
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+  /* ── Tooltip (data-tip) ── */
+  --tip-bg:#1c2430;--tip-fg:#ffffff;
+}
+/* ── Dark Mode — Night Ops ──────────────────────────────────────────────── */
+[data-theme='dark']{
+  color-scheme:dark;
+  --bg:#14171e;
+  --surface:#14171e;
+  --surface-2:#1e2229;
+  --surface-3:#272c36;
+  --border:#2e333d;
+  --border-light:#252a33;
+  --border-focus:#4a9eff;
+  --text-primary:#e8eaed;
+  --text-secondary:#9aa5b4;
+  --text-muted:#6b7a8d;
+  --text:#e8eaed;
+  --text-2:#9aa5b4;
+  --text-3:#4a5568;
+  --text-1:var(--text-primary);--surface-1:var(--surface-2);
+  --scrollbar-thumb:rgba(232,234,237,.20);
+  --scrollbar-thumb-hover:rgba(232,234,237,.40);
+  --accent:#2a5f9e;
+  --accent-hover:#3370b5;
+  --accent-light:#1e3252;
+  --tier-overdue-bg:#241213;
+  --tier-soon-bg:#221c10;
+  --link:#5ba3f5;
+  --brand:#0e1e38;
+  --brand-primary:#1a2e50;
+  --brand-light:var(--brand-primary);
+  --brand-dark:#080f1c;
+  --green:#2ecc6e;--amber:#e8a020;--red:#e84040;--purple:#9f6ef0;
+  --green-bg:#162a1e;--green-text:#5dd894;--green-dot:#2ecc6e;
+  --amber-bg:#2e2208;--amber-text:#f5b942;--amber-dot:#e8a020;
+  --red-bg:#2e1010;--red-text:#fc7272;--red-dot:#e84040;
+  --blue-bg:#112036;--blue-text:#7ab8f5;--blue-dot:#3a9eff;
+  --purple-bg:#1e1230;--purple-text:#b28af5;--purple-dot:#9f6ef0;
+  --sky-bg:#0e1e30;--sky-text:#62c4f5;--sky-dot:#0ea5e9;
+  --orange-bg:#2a1408;--orange-text:#f5a25a;--orange-dot:#e87020;
+  /* ── Inventario · rediseño 4b (panel de control) ── */
+  --inv-navy:#5a94e0; --inv-chip:#232a35;
+  --inv-red:#ff9096;   --inv-redbg:#31191c;  --inv-reddot:#ff5a5f;
+  --inv-amber:#e8bb6a; --inv-amberbg:#332711; --inv-amberdot:#cf9b2a;
+  --inv-green:#7fd7a4; --inv-greenbg:#12301f; --inv-greendot:#2ea365;
+  --inv-gc:#4a2626; --inv-ga:#4a3d1e; --inv-gs:#234634;
+  --shadow:0 0 0 1px var(--border-light);
+  --tip-bg:#f4f4f6;--tip-fg:#1a1d24;
+}
