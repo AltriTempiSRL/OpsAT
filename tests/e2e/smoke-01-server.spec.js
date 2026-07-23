@@ -69,6 +69,31 @@ test.describe('server: salud y contratos HTTP', () => {
     const res = await request.get('/.jwt-secret');
     expect([403, 404]).toContain(res.status());
   });
+
+  // F2.2 (ARQ-03): allowlist de .js — los módulos del SERVER (presentes y
+  // futuros) son 403; solo los .js de cliente pasan.
+  for (const mod of ['/proxy.js', '/storage-pg.js', '/write-queue.js', '/typed-schemas.js', '/media.js', '/boot.js']) {
+    test(`allowlist JS: ${mod} (módulo del server) NO se sirve`, async ({ request }) => {
+      expect((await request.get(mod)).status()).toBe(403);
+    });
+  }
+  for (const mod of ['/core.js', '/core-isla.js', '/sw.js']) {
+    test(`allowlist JS: ${mod} (cliente) SÍ se sirve`, async ({ request }) => {
+      expect((await request.get(mod)).status()).toBe(200);
+    });
+  }
+
+  // F2.6 (GAP-08): el endpoint de suscripción push rechaza endpoints que no
+  // sean de un servicio de push conocido (anti-SSRF).
+  test('push: endpoint SSRF (host arbitrario) es rechazado', async ({ request }) => {
+    const login = await request.post('/api/wwp/auth/login', { data: ADMIN });
+    const token = (await login.json()).accessToken;
+    const res = await request.post('/api/wwp/push/subscribe', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { subscription: { endpoint: 'https://169.254.169.254/latest/meta-data', keys: {} } },
+    });
+    expect(res.status()).toBe(400);
+  });
 });
 
 test.describe('server: auth API', () => {

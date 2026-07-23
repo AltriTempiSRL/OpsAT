@@ -190,9 +190,49 @@ async function mediaDelete(kind, name) {
   return removed;
 }
 
+// ── Inventario para el respaldo (F1.2 / INF-02, DB-02) ───────────────────────
+// El manifest de respaldo leía solo 6 carpetas del DISCO; tras el flip a R2 las
+// fotos nuevas viven SOLO en el bucket y no aparecían. Esto enumera los 8 kinds
+// desde donde estén realmente (R2 o disco), para que el respaldo nunca quede
+// ciego a evidencia nueva.
+async function mediaListAll() {
+  const out = {}; // kind → [{ name, size, mtimeMs }]
+  if (isR2Enabled()) {
+    const { lib, client } = _r2();
+    for (const kind of KINDS) {
+      const items = [];
+      let token;
+      do {
+        const r = await client.send(new lib.ListObjectsV2Command({
+          Bucket: process.env.R2_BUCKET, Prefix: kind + '/', ContinuationToken: token,
+        }));
+        for (const o of (r.Contents || [])) {
+          const name = o.Key.slice(kind.length + 1);
+          if (name) items.push({ name, size: o.Size, mtimeMs: o.LastModified ? +new Date(o.LastModified) : null });
+        }
+        token = r.IsTruncated ? r.NextContinuationToken : null;
+      } while (token);
+      out[kind] = items;
+    }
+  } else {
+    for (const kind of KINDS) {
+      const items = [];
+      for (const k of [kind, ...(LEGACY_READ_ALIASES[kind] || [])]) {
+        let files = []; try { files = fs.readdirSync(path.join(DATA_DIR, k)); } catch { continue; }
+        for (const name of files) {
+          try { const st = fs.statSync(path.join(DATA_DIR, k, name));
+            if (st.isFile()) items.push({ name, size: st.size, mtimeMs: Math.round(st.mtimeMs) }); } catch { /* desapareció */ }
+        }
+      }
+      out[kind] = items;
+    }
+  }
+  return out;
+}
+
 module.exports = {
   isR2Enabled, mode, contentTypeFor,
-  mediaPut, mediaGet, mediaExists, mediaDelete,
+  mediaPut, mediaGet, mediaExists, mediaDelete, mediaListAll,
   KINDS, DATA_DIR,
 };
 

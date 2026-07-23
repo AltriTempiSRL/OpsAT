@@ -7788,11 +7788,26 @@ const MIME = {
   '.m4v':  'video/x-m4v',
 };
 
+// ── Política de contraseñas (F2.5 / OW-01) ──────────────────────────────────
+// Las semillas del código se detectan en login (mustChangePassword) y se
+// RECHAZAN como contraseña nueva en reset/cambio. Mínimo 8 — solo aplica a
+// contraseñas NUEVAS (el login compara hash, los usuarios viejos no se rompen).
+const SEED_PWS = ['WWP2026!', 'Admin2026!'];
+function pwPolicyError(pw) {
+  const s = String(pw || '');
+  if (s.length < 8) return 'La contraseña debe tener al menos 8 caracteres';
+  if (SEED_PWS.includes(s)) return 'Esa contraseña es una semilla conocida del sistema — elige otra distinta';
+  return null;
+}
+
 // ── Leer body JSON de una request (con límite de tamaño) ────────────────────
 const MAX_BODY_SIZE = 50 * 1024 * 1024; // 50 MB máximo por request
 function readBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
+    // F2.6 (BE-02): acumular Buffers y decodificar UNA vez — `data += chunk`
+    // convertía cada chunk por separado y un carácter multibyte (á/ñ/é) partido
+    // en una frontera TCP se corrompía a U+FFFD en silencio.
+    const chunks = [];
     let size = 0;
     req.on('data', chunk => {
       size += chunk.length;
@@ -7800,9 +7815,10 @@ function readBody(req) {
         req.destroy();
         return reject(new Error('Solicitud demasiado grande (máx 50 MB)'));
       }
-      data += chunk;
+      chunks.push(chunk);
     });
     req.on('end', () => {
+      const data = Buffer.concat(chunks).toString('utf8');
       try { resolve(data ? JSON.parse(data) : {}); }
       catch (e) { reject(e); }
     });
@@ -11399,6 +11415,14 @@ const server = http.createServer(async (req, res) => {
       if (!subscription || !subscription.endpoint) {
         res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'subscription requerida'})); return;
       }
+      // F2.6 (GAP-08, SSRF): el server hace POST al endpoint que manda el
+      // cliente — solo servicios de push reales, siempre https.
+      let _pushHost = '';
+      try { const _u = new URL(subscription.endpoint); if (_u.protocol === 'https:') _pushHost = _u.hostname; } catch { /* inválido */ }
+      const _PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|webpush\.googleapis\.com|updates\.push\.services\.mozilla\.com|push\.services\.mozilla\.com|notify\.windows\.com|push\.apple\.com)$/i;
+      if (!_pushHost || !_PUSH_HOSTS.test(_pushHost)) {
+        res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'endpoint de push no reconocido'})); return;
+      }
       let subs = loadPushSubs();
       if (oldEndpoint && oldEndpoint !== subscription.endpoint) {
         subs = subs.filter(s => s?.subscription?.endpoint !== oldEndpoint);
@@ -11588,8 +11612,7 @@ const server = http.createServer(async (req, res) => {
       // en el código). mustChangePassword → el cliente muestra el cambio de
       // contraseña; con WWP_FORCE_PW_CHANGE=1 el modal es BLOQUEANTE (activar
       // cuando Gabriel avise al equipo — no sorprender a la operación un lunes).
-      const _seedPws = ['WWP2026!', 'Admin2026!'];
-      const mustChangePassword = _seedPws.includes(String(password || ''));
+      const mustChangePassword = SEED_PWS.includes(String(password || ''));
       const forcePwChange = mustChangePassword && process.env.WWP_FORCE_PW_CHANGE === '1';
       if (mustChangePassword) appendAuditLog('login_seed_password', { userId: user.id, email, forced: forcePwChange });
 
@@ -11727,7 +11750,8 @@ const server = http.createServer(async (req, res) => {
       const users = loadAuthUsers();
       const user  = users.find(u => u.resetToken === token && u.resetTokenExpiry && new Date(u.resetTokenExpiry) > new Date());
       if (!user) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Token inválido o expirado'})); return; }
-      if (!password || password.length < 6) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La contraseña debe tener al menos 6 caracteres'})); return; }
+      const _pwErr = pwPolicyError(password); // F2.5: mínimo 8 + rechazo de semillas
+      if (_pwErr) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_pwErr})); return; }
       user.passwordHash     = hashPassword(password);
       user.resetToken       = null;
       user.resetTokenExpiry = null;
@@ -12282,17 +12306,13 @@ const server = http.createServer(async (req, res) => {
   if (reqPath === '/api/backup/manifest' && req.method === 'GET') {
     if (!requireBackupToken(req, res)) return;
     try {
-      const dirs = { 'wwp-fotos': WWP_FOTOS_DIR, 'av-fotos': AV_FOTOS_DIR, 'desp-fotos': DESP_FOTOS_DIR,
-                     'emp-fotos': EMP_FOTOS_DIR, 'sdv-adjuntos': SDV_ADJ_DIR, 'prod-img': PROD_IMG_DIR };
+      // F1.2 (INF-02/DB-02): inventario de los 8 kinds desde donde estén (R2 o
+      // disco). Antes leía solo 6 carpetas de disco → ciego a 'inspection',
+      // 'showroom-fotos' y a TODA foto nueva tras el flip a R2.
       const fotos = [];
-      for (const [dname, dpath] of Object.entries(dirs)) {
-        let files = []; try { files = fs.readdirSync(dpath); } catch { continue; }
-        for (const f of files) {
-          try {
-            const st = fs.statSync(path.join(dpath, f));
-            if (st.isFile()) fotos.push({ dir: dname, name: f, size: st.size, mtimeMs: Math.round(st.mtimeMs) });
-          } catch (e) { /* archivo desapareció entre readdir y stat */ }
-        }
+      const byKind = await media.mediaListAll();
+      for (const [kind, items] of Object.entries(byKind)) {
+        for (const it of items) fotos.push({ dir: kind, name: it.name, size: it.size, mtimeMs: it.mtimeMs });
       }
       const collections = {};
       if (pgStorage.isActive()) {
@@ -12540,7 +12560,8 @@ const server = http.createServer(async (req, res) => {
         const allowedKeys = new Set(['currentPassword','password']);
         const extraKeys = Object.keys(d).filter(k => !allowedKeys.has(k));
         if (extraKeys.length) { res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Solo puedes cambiar tu contraseña'})); return; }
-        if (!d.password || d.password.length < 6) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'La contraseña debe tener al menos 6 caracteres'})); return; }
+        const _pwErr2 = pwPolicyError(d.password); // F2.5: mínimo 8 + rechazo de semillas
+        if (_pwErr2) { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:_pwErr2})); return; }
         if (!d.currentPassword || !verifyPassword(d.currentPassword, users[idx].passwordHash)) {
           recordSelfPwAttempt(userId);
           res.writeHead(403,{'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Contraseña actual incorrecta'})); return;
@@ -20676,8 +20697,11 @@ const server = http.createServer(async (req, res) => {
   const _realPath = path.resolve(filePath);
   const _basePath = path.resolve(__dirname);
   const _dataPath = path.resolve(DATA_DIR);
-  // Permitir archivos bajo __dirname O bajo DATA_DIR (fotos persistentes en Render /data)
-  if (!_realPath.startsWith(_basePath) && !_realPath.startsWith(_dataPath)) {
+  // Permitir archivos bajo __dirname O bajo DATA_DIR (fotos persistentes en Render /data).
+  // F2.6 (GAP-10): con separador — sin él, un directorio hermano con prefijo común
+  // (/data-x vs /data) pasaría el guard.
+  const _bajo = (p, base) => p === base || p.startsWith(base + path.sep);
+  if (!_bajo(_realPath, _basePath) && !_bajo(_realPath, _dataPath)) {
     res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
   }
   const _FORBIDDEN = new Set([
@@ -20697,6 +20721,17 @@ const server = http.createServer(async (req, res) => {
   ]);
   const _fname = path.basename(_realPath);
   const _fext  = path.extname(_realPath).toLowerCase();
+  // F2.2 (ARQ-03): los .js se sirven por ALLOWLIST — la denylist por nombre se
+  // desincronizaba con cada módulo nuevo del server (write-queue.js y
+  // typed-schemas.js nacieron servibles). Solo los .js de CLIENTE pasan; todo
+  // otro .js (módulos del server presentes y FUTUROS) es 403 por defecto.
+  const _ALLOWED_JS = new Set([
+    'core.js', 'core-isla.js', 'sw.js',
+    'lucide.min.js', 'chart.min.js', 'xlsx.min.js', 'three.min.js', 'OrbitControls.js',
+  ]);
+  if (_fext === '.js' && !_ALLOWED_JS.has(_fname)) {
+    res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
+  }
   // Datos de negocio/respaldo en .json NO deben servirse como estático (fuga de PII):
   // se bloquean por patrón aunque .json esté en la allowlist de extensiones. La
   // denylist por nombre exacto se desincronizaba al aparecer archivos nuevos (p.ej.
