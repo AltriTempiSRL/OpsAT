@@ -288,7 +288,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v230';
+const APP_BUILD = 'v231';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -20694,7 +20694,8 @@ const _dispatch = async (req, res) => {
   const _MODULE_ROUTES = new Set(['buscar','reposicion','solicitudes-reposicion',
     'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario',
     'averias','estado-ordenes','sdv-portal','sdv-bandeja',
-    'sdv-reactivations','inventario-salud','validacion','wwp','admin']);
+    'sdv-reactivations','inventario-salud','validacion','wwp',
+    'configuracion','supervision','admin']);
   // UX-08 (plan 10): rutas de módulos retirados (visor BD, dashboard Sheets,
   // contenedores) — 302 al home en vez de servir el shell a una sección muerta.
   const _RETIRED_ROUTES = new Set(['basedatos','dashboard-ventas','contenedores']);

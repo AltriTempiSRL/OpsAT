@@ -299,13 +299,14 @@ body.app-shell #app{padding-left:210px}
 body.app-shell #screen-app{padding-left:210px}
 .sidebar-brand{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
 .sidebar-brand-text{display:flex;flex-direction:column;gap:4px}
-/* Logo "Ops AT" (plan 10, UX-14): mismo lockup que el login — wordmark "Ops" +
-   avatar cuadrado "AT" en serif. Login e interfaz comparten marca. */
+/* Logo "Ops AT" (plan 10, UX-14): wordmark "Ops" + avatar cuadrado "AT".
+   El avatar .at-avatar es reutilizable en TODOS los sitios del logo (login,
+   sidebar, móvil) — "AT" en SANS-SERIF, tamaño por instancia. */
+.at-avatar{display:inline-flex;align-items:center;justify-content:center;background:#696969;color:#fff;
+  border-radius:7px;font-family:var(--font,system-ui,-apple-system,sans-serif);
+  font-weight:800;letter-spacing:.5px;flex-shrink:0;line-height:1}
 .sidebar-brand-logo{display:flex;align-items:center;gap:8px}
 .sidebar-brand-word{font-size:19px;font-weight:800;color:#fff;letter-spacing:.2px;line-height:1}
-.sidebar-brand-avatar{width:30px;height:30px;border-radius:7px;background:#696969;color:#fff;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-family:Georgia,'Times New Roman',serif;font-size:13px;font-weight:700;letter-spacing:1px;flex-shrink:0}
 .sidebar-brand-name{font-size:13px;font-weight:700;color:#fff;letter-spacing:.5px;font-family:Georgia,'Times New Roman',serif;line-height:1}
 .sidebar-brand-sub{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px}
 .sidebar-brand-conn{display:flex;align-items:center;gap:6px}
@@ -5369,12 +5370,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 <div id="screen-login">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-logo-icon" style="background:#696969;overflow:hidden;padding:0">
-        <svg viewBox="0 0 48 48" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
-          <rect width="48" height="48" fill="#696969"/>
-          <text x="24" y="30" font-family="Georgia,'Times New Roman',serif" font-size="18" font-weight="700" fill="#fff" text-anchor="middle" letter-spacing="2">AT</text>
-        </svg>
-      </div>
+      <span class="at-avatar" style="width:48px;height:48px;font-size:19px;letter-spacing:1.5px;border-radius:12px" aria-hidden="true">AT</span>
       <div class="login-logo-text">
         <h1>Ops AT</h1>
         <p>Altritempi · Operaciones</p>
@@ -5456,7 +5452,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <div class="sidebar-brand-text">
         <span class="sidebar-brand-logo">
           <span class="sidebar-brand-word">Ops</span>
-          <span class="sidebar-brand-avatar" aria-hidden="true">AT</span>
+          <span class="at-avatar" style="width:30px;height:30px;font-size:13px;letter-spacing:1px" aria-hidden="true">AT</span>
         </span>
         <span class="sidebar-brand-sub" id="app-build-badge" style="color:rgba(91,163,255,.7);letter-spacing:.4px"></span>
       </div>
@@ -5520,29 +5516,18 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <span class="nav-icon"><i data-lucide="warehouse"></i></span>Mapa del Almacén
     </a>
 
-    <!-- Supervisión (admin+encargado) y Administración (solo admin): atajos a los
-         tabs de gestión que antes solo se descubrían dentro de Workforce (UX-01/02).
-         applyNavPerms (core.js) gobierna su visibilidad por rol. -->
+    <!-- Supervisión y Configuración: UN item por área (plan 10). El sub-menú
+         (Panel/Evidencias/Adopción · Usuarios/Reglas/Empaque) vive en la barra
+         contextual DENTRO de la pantalla — no se duplica en el sidebar.
+         applyNavPerms (core.js) gobierna la visibilidad por rol. -->
     <div class="sidebar-group" id="navg-supervision" style="display:none">Supervisión</div>
-    <a class="nav-item" id="nav-wwp-panel" href="#" onclick="goToWwpTab('dashboard');return false;" style="display:none">
+    <a class="nav-item" id="nav-supervision" href="#" onclick="goToWwpTab('dashboard');return false;" style="display:none">
       <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>Panel del Equipo
     </a>
-    <a class="nav-item" id="nav-wwp-evidencias" href="#" onclick="goToWwpTab('archivo');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="image"></i></span>Evidencias
-    </a>
-    <a class="nav-item" id="nav-wwp-impacto" href="#" onclick="goToWwpTab('impacto');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="zap"></i></span>Adopción (Impacto)
-    </a>
 
-    <div class="sidebar-group" id="navg-admin" style="display:none">Administración</div>
-    <a class="nav-item" id="nav-admin-usuarios" href="#" onclick="goToWwpTab('users');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="users"></i></span>Usuarios y Permisos
-    </a>
-    <a class="nav-item" id="nav-admin-politicas" href="#" onclick="goToWwpTab('politicas');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="shield-check"></i></span>Reglas de Cumplimiento
-    </a>
-    <a class="nav-item" id="nav-admin-empaque" href="#" onclick="goToWwpTab('empaque');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="package"></i></span>Materiales de Empaque
+    <div class="sidebar-group" id="navg-config" style="display:none">Configuración</div>
+    <a class="nav-item" id="nav-config" href="#" onclick="goToWwpTab('users');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="settings"></i></span>Usuarios y ajustes
     </a>
 
     <div class="sidebar-spacer"></div>
@@ -5580,7 +5565,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   <!-- ══ BARRA SUPERIOR MÓVIL (visible solo en móvil ≤767px) ══════════════ -->
   <div class="mob-nav" id="mob-nav">
     <button class="nav-hamburger" onclick="toggleSidebar(true)" aria-label="Abrir menú"><i data-lucide="menu"></i></button>
-    <span class="mob-brand"><img src="/descarga.png" alt="Altri Tempi">Altri Tempi</span>
+    <span class="mob-brand"><span class="at-avatar" style="width:26px;height:26px;font-size:11px;letter-spacing:.8px;border-radius:6px" aria-hidden="true">AT</span>Ops AT</span>
     <!-- Labels espejados 1:1 con el sidebar (UX-16: una función = un nombre) -->
     <button class="mob-nav-btn active" id="mob-nav-buscar"        onclick="navTo('buscar')"><i data-lucide="search"></i>Buscador</button>
     <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Equipo y Tareas</button>
@@ -8357,10 +8342,10 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v230';
+var APP_BUILD = 'v231';
 var _versionReloading = false;
 </script>
-<script src="/core.js?v=cf30df97"></script>
+<script src="/core.js?v=5ec6f9ec"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // APP INIT
@@ -8865,11 +8850,21 @@ var _NAV_GROUPS = {
     {tab:'archivo',   label:'Evidencias',       icon:'image',       can:function(){ return !!_user && (_user.role==='admin'||_user.role==='manager'); }},
     {tab:'impacto',   label:'Adopción',         icon:'zap',         can:function(){ return !!_user && _user.role==='admin'; }},
   ]},
-  administracion: { label:'Administración', tabs:[
+  administracion: { label:'Configuración', tabs:[
     {tab:'users',     label:'Usuarios y Permisos',    icon:'users',        can:function(){ return !!_user && _user.role==='admin'; }},
     {tab:'politicas', label:'Reglas de Cumplimiento', icon:'shield-check', can:function(){ return !!_user && _user.role==='admin'; }},
     {tab:'empaque',   label:'Materiales de Empaque',  icon:'package',      can:function(){ return !!_user && _user.role==='admin'; }},
   ]},
+};
+// Rutas limpias por tab de gestión (plan 10): la URL refleja el ÁREA, no /wwp/.
+// El primer tab de cada área es la ruta base; los demás llevan sub-segmento.
+var _GESTION_ROUTE = {
+  users:'configuracion', politicas:'configuracion/reglas', empaque:'configuracion/empaque',
+  dashboard:'supervision', archivo:'supervision/evidencias', impacto:'supervision/adopcion'
+};
+var _GESTION_ROUTE_REV = {
+  'configuracion':'users', 'configuracion/reglas':'politicas', 'configuracion/empaque':'empaque',
+  'supervision':'dashboard', 'supervision/evidencias':'archivo', 'supervision/adopcion':'impacto'
 };
 var _TAB_GROUP = {dashboard:'supervision', archivo:'supervision', impacto:'supervision',
                   users:'administracion', politicas:'administracion', empaque:'administracion'};
@@ -8930,7 +8925,7 @@ function switchTab(tab) {
   if (tab==='formacion')  { var fTr = document.getElementById('formacion-iframe'); if (fTr && !fTr.src) fTr.src = '/formacion.html'; }
   // Router: reflejar el tab en la URL solo si Workforce está al frente (enterApp
   // puede llamar switchTab durante el boot con la pantalla de historial activa)
-  if (_routeAppScreenActive()) _routeSet(tab === 'tasks' ? _routeTasksHash() : 'wwp/' + tab);
+  if (_routeAppScreenActive()) _routeSet(tab === 'tasks' ? _routeTasksHash() : (_GESTION_ROUTE[tab] || ('wwp/' + tab)));
   closeProfileMenu();
 }
 
@@ -24129,7 +24124,8 @@ function goToWwpTab(tab, navId) {
   showScreen('screen-app');
   if (!_wwpEntered && _token) { _wwpEntered = true; enterApp(); }
   switchTab(tab);
-  setNavActive(navId || ({dashboard:'wwp-panel', archivo:'wwp-evidencias', impacto:'wwp-impacto', users:'admin-usuarios', politicas:'admin-politicas', empaque:'admin-empaque'})[tab] || 'wwp');
+  // Un item por área: todos los tabs de gestión resaltan su único item del sidebar.
+  setNavActive(navId || ({dashboard:'supervision', archivo:'supervision', impacto:'supervision', users:'config', politicas:'config', empaque:'config'})[tab] || 'wwp');
 }
 function goBackToHistorial() {
   showScreen('screen-historial');
@@ -24313,8 +24309,16 @@ function _routeApplyFromHash(rawOpt){
       if ((tab || _currentTab) === 'tasks') _routeApplyTasksExtra(parts.slice(2).join('/'));
       return true;
     }
-    // /admin/<x> (plan 10 Fase 2): alias de entrada a los tabs de Administración.
-    // La URL canónica sigue siendo /wwp/<tab>; guardTab aplica el RBAC real.
+    // Áreas de gestión con URL propia (plan 10): /configuracion[/reglas|/empaque]
+    // y /supervision[/evidencias|/adopcion]. guardTab aplica el RBAC real.
+    if (parts[0] === 'configuracion' || parts[0] === 'supervision') {
+      if (!hasWwpAccess(_user)) return false;
+      var gTab = _GESTION_ROUTE_REV[parts.slice(0,2).join('/')] || _GESTION_ROUTE_REV[parts[0]];
+      if (!gTab) return false;
+      goToWwpTab(gTab);
+      return true;
+    }
+    // /admin/<x> — alias legado (compat con enlaces ya compartidos).
     if (parts[0] === 'admin') {
       if (!hasWwpAccess(_user)) return false;
       var admTab = ({usuarios:'users', politicas:'politicas', empaque:'empaque', panel:'dashboard', evidencias:'archivo', impacto:'impacto'})[parts[1] || 'usuarios'];

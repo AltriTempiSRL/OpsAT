@@ -14,7 +14,8 @@ const MODULE_ROUTES = [
   'buscar', 'reposicion', 'solicitudes-reposicion', 'solicitudes',
   'sin-adjuntos', 'dev-cdp', 'despacho-obsoleto', 'inventario',
   'averias', 'estado-ordenes', 'sdv-portal',
-  'sdv-bandeja', 'sdv-reactivations', 'inventario-salud', 'validacion', 'wwp', 'admin',
+  'sdv-bandeja', 'sdv-reactivations', 'inventario-salud', 'validacion', 'wwp',
+  'configuracion', 'supervision', 'admin',
 ];
 const RETIRED_ROUTES = ['basedatos', 'dashboard-ventas', 'contenedores'];
 

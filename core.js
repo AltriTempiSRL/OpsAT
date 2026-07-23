@@ -174,13 +174,12 @@ function applyNavPerms() {
   // contenido sigue en guardTab + backend.
   var _isAdm = !!_user && _user.role === 'admin';
   var _isMgr = !!_user && _user.role === 'manager';
+  // UN item por área (plan 10): Supervisión (admin+encargado) entra al Panel del
+  // Equipo; Configuración (solo admin) entra a Usuarios. El sub-menú vive en la
+  // barra contextual de la pantalla, no duplicado en el sidebar.
   var TAB_SHORTCUTS = {
-    'nav-wwp-panel':      _isAdm || _isMgr,
-    'nav-wwp-evidencias': _isAdm || _isMgr,
-    'nav-wwp-impacto':    _isAdm,
-    'nav-admin-usuarios': _isAdm,
-    'nav-admin-politicas':_isAdm,
-    'nav-admin-empaque':  _isAdm
+    'nav-supervision': _isAdm || _isMgr,
+    'nav-config':      _isAdm
   };
   Object.keys(TAB_SHORTCUTS).forEach(function(id) {
     var el = document.getElementById(id);
@@ -200,8 +199,8 @@ function applyNavPerms() {
   });
   var _grpSup = document.getElementById('navg-supervision');
   if (_grpSup) _grpSup.style.display = (_isAdm || _isMgr) ? '' : 'none';
-  var _grpAdm = document.getElementById('navg-admin');
-  if (_grpAdm) _grpAdm.style.display = _isAdm ? '' : 'none';
+  var _grpCfg = document.getElementById('navg-config');
+  if (_grpCfg) _grpCfg.style.display = _isAdm ? '' : 'none';
 }
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
 function guardTab(tab) {
