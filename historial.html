@@ -298,7 +298,14 @@ body:not(.app-shell) .sidebar{display:none}
 body.app-shell #app{padding-left:210px}
 body.app-shell #screen-app{padding-left:210px}
 .sidebar-brand{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:6px}
-.sidebar-brand-text{display:flex;flex-direction:column;gap:3px}
+.sidebar-brand-text{display:flex;flex-direction:column;gap:4px}
+/* Logo "Ops AT" (plan 10, UX-14): mismo lockup que el login — wordmark "Ops" +
+   avatar cuadrado "AT" en serif. Login e interfaz comparten marca. */
+.sidebar-brand-logo{display:flex;align-items:center;gap:8px}
+.sidebar-brand-word{font-size:19px;font-weight:800;color:#fff;letter-spacing:.2px;line-height:1}
+.sidebar-brand-avatar{width:30px;height:30px;border-radius:7px;background:#696969;color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:Georgia,'Times New Roman',serif;font-size:13px;font-weight:700;letter-spacing:1px;flex-shrink:0}
 .sidebar-brand-name{font-size:13px;font-weight:700;color:#fff;letter-spacing:.5px;font-family:Georgia,'Times New Roman',serif;line-height:1}
 .sidebar-brand-sub{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.7px}
 .sidebar-brand-conn{display:flex;align-items:center;gap:6px}
@@ -2304,6 +2311,14 @@ body{font-family:var(--font);min-height:100dvh}
 }
 .nav-tab.active{color:var(--brand-light);border-bottom-color:var(--brand-light)}
 .nav-tab:hover:not(.active){color:var(--text-2)}
+/* Barra contextual de Supervisión/Administración (plan 10 Fase 2): reemplaza a
+   la barra operativa en esas pantallas para que NO se mezclen con Tareas/Vehículos/Formación. */
+.app-nav-gestion{display:flex;background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 24px;overflow-x:auto;gap:0;align-items:center;scrollbar-width:none;position:sticky;top:49px;z-index:99}
+.app-nav-gestion::-webkit-scrollbar{display:none}
+.app-nav-gestion-label{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);padding:12px 14px 12px 0;
+  margin-right:8px;border-right:1px solid var(--border);white-space:nowrap;flex-shrink:0}
 
 /* Main content */
 .app-body{flex:1;padding:16px 28px;width:100%}
@@ -5439,8 +5454,10 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
     <div class="sidebar-brand">
       <div class="sidebar-brand-text">
-        <span class="sidebar-brand-name">ALTRI TEMPI</span>
-        <span class="sidebar-brand-sub">Dashboard Operativo</span>
+        <span class="sidebar-brand-logo">
+          <span class="sidebar-brand-word">Ops</span>
+          <span class="sidebar-brand-avatar" aria-hidden="true">AT</span>
+        </span>
         <span class="sidebar-brand-sub" id="app-build-badge" style="color:rgba(91,163,255,.7);letter-spacing:.4px"></span>
       </div>
       <div class="sidebar-brand-conn">
@@ -7339,8 +7356,12 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 
   <nav class="app-nav" id="app-nav">
     <button class="nav-tab active" data-tab="tasks" onclick="switchTab('tasks')" style="position:relative"><span class="nav-tab-icon"><i data-lucide="clipboard-list"></i></span> Tareas<span id="tasks-overdue-badge" style="display:none;position:absolute;top:4px;right:4px;background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:20px;line-height:1.4;pointer-events:none"></span></button>
-    <!-- Dashboard y Usuarios se añaden dinámicamente en enterApp() según el rol -->
+    <!-- Solo OPERACIÓN: Vehículos y Formación se añaden en enterApp(). Los tabs de
+         gestión (Supervisión/Administración) viven en #app-nav-gestion, no aquí. -->
   </nav>
+  <!-- Barra contextual: se rellena por _renderContextNav() al entrar a un tab de
+       Supervisión o Administración; oculta en las pantallas operativas. -->
+  <nav class="app-nav-gestion" id="app-nav-gestion" style="display:none"></nav>
 
   <div class="app-body">
     <!-- TASKS TAB -->
@@ -8336,7 +8357,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v229';
+var APP_BUILD = 'v230';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=cf30df97"></script>
@@ -8836,12 +8857,53 @@ function vehHideGate() {
   if (b) b.style.display = 'none';
 }
 
+// ── Áreas del módulo (plan 10 Fase 2): la OPERACIÓN (Tareas·Vehículos·Formación)
+// y las áreas de gestión son espacios SEPARADOS — cada una con su propia barra.
+var _NAV_GROUPS = {
+  supervision: { label:'Supervisión', tabs:[
+    {tab:'dashboard', label:'Panel del Equipo', icon:'bar-chart-2', can:function(){ return can('dashboard'); }},
+    {tab:'archivo',   label:'Evidencias',       icon:'image',       can:function(){ return !!_user && (_user.role==='admin'||_user.role==='manager'); }},
+    {tab:'impacto',   label:'Adopción',         icon:'zap',         can:function(){ return !!_user && _user.role==='admin'; }},
+  ]},
+  administracion: { label:'Administración', tabs:[
+    {tab:'users',     label:'Usuarios y Permisos',    icon:'users',        can:function(){ return !!_user && _user.role==='admin'; }},
+    {tab:'politicas', label:'Reglas de Cumplimiento', icon:'shield-check', can:function(){ return !!_user && _user.role==='admin'; }},
+    {tab:'empaque',   label:'Materiales de Empaque',  icon:'package',      can:function(){ return !!_user && _user.role==='admin'; }},
+  ]},
+};
+var _TAB_GROUP = {dashboard:'supervision', archivo:'supervision', impacto:'supervision',
+                  users:'administracion', politicas:'administracion', empaque:'administracion'};
+/** Muestra la barra correcta según el área del tab: la operativa (#app-nav) para
+ *  Tareas/Vehículos/Formación, o la contextual (#app-nav-gestion) con los tabs de
+ *  Supervisión/Administración. Nunca las dos a la vez → áreas separadas. */
+function _renderContextNav(tab) {
+  var grp = _TAB_GROUP[tab];
+  var opNav = document.getElementById('app-nav');
+  var gsNav = document.getElementById('app-nav-gestion');
+  if (!grp) {                                   // pantalla operativa
+    if (opNav) opNav.style.display = '';
+    if (gsNav) gsNav.style.display = 'none';
+    return;
+  }
+  if (opNav) opNav.style.display = 'none';       // pantalla de gestión: ocultar la operativa
+  if (!gsNav) return;
+  var g = _NAV_GROUPS[grp];
+  var items = g.tabs.filter(function(t){ return t.can(); });
+  gsNav.innerHTML = '<span class="app-nav-gestion-label"><i data-lucide="'+(grp==='administracion'?'settings':'bar-chart-2')+'" style="width:13px;height:13px;stroke:currentColor"></i>'+g.label+'</span>'
+    + items.map(function(t){
+        return '<button class="nav-tab'+(t.tab===tab?' active':'')+'" data-tab="'+t.tab+'" onclick="switchTab(\''+t.tab+'\')"><span class="nav-tab-icon"><i data-lucide="'+t.icon+'"></i></span> '+t.label+'</button>';
+      }).join('');
+  gsNav.style.display = '';
+  if (window.lucide) lucide.createIcons();
+}
+
 function switchTab(tab) {
   // Gate de inspección: si está bloqueado, no puede salir de Vehículos hasta completarla.
   if (_vehGate.blocked && tab !== 'vehiculos') { toast('Completa tu inspección de vehículo primero'); tab = 'vehiculos'; }
   // RBAC: bloquear acceso a módulos no permitidos para el rol actual
   if (!guardTab(tab)) return;
   _currentTab = tab;
+  _renderContextNav(tab);   // arma la barra del área (operación vs gestión) ANTES de marcar activos
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
   ['tasks','dashboard','users','vehiculos','politicas','impacto','empaque','formacion','archivo'].forEach(function(id) {
     uiSetVisible(document.getElementById('tab-' + id), tab === id, '', 'ui-view-enter');
@@ -24050,6 +24112,9 @@ function goToWWP() {
     _wwpEntered = true;
     enterApp();
   } else if (_token) {
+    // Si venías de una pantalla de gestión (Admin/Supervisión), vuelve a la
+    // operación — restaura la barra operativa y muestra Tareas.
+    if (_TAB_GROUP[_currentTab]) switchTab('tasks');
     loadTasks();
   }
   // Marcar "Equipo y Tareas" como activo en el sidebar persistente
