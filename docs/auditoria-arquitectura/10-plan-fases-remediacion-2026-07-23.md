@@ -46,7 +46,12 @@ Eres el dueño de todas las decisiones pendientes del sistema. Diez decisiones d
 | D-9 | **`WWP_FORCE_PW_CHANGE=1`**: ¿qué día se avisa al equipo? | Esta semana; el modal bloqueante ya está programado (proxy.js:11559 + core.js:593) | F2.5 |
 | D-10 | **Retención de evidencia**: ¿cuántos años se guardan fotos y colecciones cerradas? | Definir número (p.ej. fotos 2 años, audit 1 año) — sin él no se puede diseñar purga ni dimensionar respaldo | F1, F6.5 |
 
-**Criterio de salida:** las 10 decisiones anotadas en MEMORIA-PROYECTO.md con fecha. (Las preguntas 1–10 de §11 del informe quedan respondidas de paso.)
+**Criterio de salida:** las 10 decisiones anotadas con fecha. (Las preguntas 1–10 de §11 del informe quedan respondidas de paso.)
+
+**Resueltas 23-jul (ejecución):**
+- **D-1 ✅ EJECUTADA** — Filippo confirmó que la API key de Odoo YA fue rotada. Los 5 scripts de `_archivo/` quedaron con placeholder (commit `ae53f4b`). Pendiente opcional: purgar el historial de git si el repo se comparte con terceros.
+- **D-6, D-7, D-8, D-9, D-10** — adoptadas las recomendaciones del plan como default (D-8 single-instance ya sellado en código, `ae53f4b`; D-9 el modal ya está listo, falta solo encender `WWP_FORCE_PW_CHANGE=1` el día del aviso).
+- **D-2, D-3, D-4, D-5** — requieren una acción/confirmación externa de Filippo (Render, ¿los MOCK eran reales?, tab Políticas, qué usa Ventas). D-3 se ejecutó de forma conservadora igual (PII anonimizada, commit `e2adf29`) sin esperar la confirmación, porque el riesgo de dejarla era mayor que el de anonimizar datos que quizá eran de prueba.
 
 ---
 
