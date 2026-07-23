@@ -288,7 +288,7 @@ try { setTimeout(checkDiskSpace, 5 * 60 * 1000); setInterval(checkDiskSpace, 6 *
 // Versión de build — fuente única de verdad. El cliente compara su APP_BUILD
 // contra esto y se recarga solo si difieren (auto-update independiente del SW).
 // SUBIR este número en CADA deploy que cambie historial.html, junto al de sw.js.
-const APP_BUILD = 'v228';
+const APP_BUILD = 'v229';
 
 // Build del historial.html EN DISCO (cache por mtime; 1 stat por consulta).
 // /api/app-version responde ESTO y no la constante: si el proceso quedó desfasado
@@ -4816,7 +4816,9 @@ function validatePhoto(f) {
 
 // Mapa de permisos por módulo (única fuente de verdad)
 const ROLE_PERMISSIONS = {
-  dashboard:    ['admin'],
+  // UX-18 (plan 10): manager ve el Panel del Equipo — el tab ya era visible para
+  // él (wwp.dashboard) pero estos endpoints le respondían 403.
+  dashboard:    ['admin','manager'],
   users_manage: ['admin'],
   users_view:   ['admin','manager'],   // para dropdown de asignación
   create_task:  ['admin','manager'],
@@ -20689,11 +20691,18 @@ const _dispatch = async (req, res) => {
   // PRIMER segmento (no por extensión: los subpaths llevan términos con puntos,
   // ej. /averias/JC.ARTEMIS.RUG.300X400.BG.P) y se sirve la app — el router
   // client-side de historial.html aterriza en esa sección/subruta.
-  const _MODULE_ROUTES = new Set(['buscar','contenedores','reposicion','solicitudes-reposicion',
+  const _MODULE_ROUTES = new Set(['buscar','reposicion','solicitudes-reposicion',
     'solicitudes','almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto','inventario',
-    'averias','basedatos','dashboard-ventas','estado-ordenes','sdv-portal','sdv-bandeja',
-    'sdv-reactivations','inventario-salud','validacion','wwp']);
-  if (req.method === 'GET' && _MODULE_ROUTES.has((reqPath.split('/')[1] || ''))) {
+    'averias','estado-ordenes','sdv-portal','sdv-bandeja',
+    'sdv-reactivations','inventario-salud','validacion','wwp','admin']);
+  // UX-08 (plan 10): rutas de módulos retirados (visor BD, dashboard Sheets,
+  // contenedores) — 302 al home en vez de servir el shell a una sección muerta.
+  const _RETIRED_ROUTES = new Set(['basedatos','dashboard-ventas','contenedores']);
+  const _seg1 = reqPath.split('/')[1] || '';
+  if (req.method === 'GET' && _RETIRED_ROUTES.has(_seg1)) {
+    res.writeHead(302, {'Location': '/historial.html'}); res.end(); return;
+  }
+  if (req.method === 'GET' && _MODULE_ROUTES.has(_seg1)) {
     filePath = path.join(__dirname, 'historial.html');
   }
   if (reqPath.startsWith('/av-fotos/'))  filePath = path.join(AV_FOTOS_DIR,  path.basename(reqPath));
@@ -20701,6 +20710,13 @@ const _dispatch = async (req, res) => {
   if (reqPath.startsWith('/wwp-fotos/')) filePath = path.join(WWP_FOTOS_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/sdv-adjuntos/')) filePath = path.join(SDV_ADJ_DIR, path.basename(reqPath));
   if (reqPath.startsWith('/prod-img/')) filePath = path.join(PROD_IMG_DIR, path.basename(reqPath));
+
+  // UX-09 (plan 10): carpetas internas jamás se sirven como estático — 21 HTML
+  // archivados (_archivo/, tests/) eran alcanzables por URL directa en prod.
+  // 404 (no 403) para no revelar su existencia.
+  if (/^\/(_archivo|tests|docs|scripts|data-local|node_modules|\.github|\.claude)(\/|$)/.test(reqPath)) {
+    res.writeHead(404, {'Content-Type': 'text/plain'}); res.end('Not Found'); return;
+  }
 
   // ── Protección: path traversal + archivos sensibles ──────────────────────
   const _realPath = path.resolve(filePath);

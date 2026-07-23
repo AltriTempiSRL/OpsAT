@@ -65,12 +65,13 @@ function mediaUrl(u) {
 
 // Mapa de sectionPerms → clave interna can()
 // validate_task ya NO está en el mapa — solo admin puede validar (hardcoded en can())
+// 'users_tab'/'wwp.usuarios' retirado (UX-19): el tab Usuarios es admin-only
+// hardcoded y ese permiso configurable nunca tuvo efecto.
 const _PERM_SP_MAP = {
   'create_task':  'wwp.crear_tarea',
   'edit_task':    'wwp.editar_tarea',
   'delete_task':  'wwp.eliminar_tarea',
   'dashboard':    'wwp.dashboard',
-  'users_tab':    'wwp.usuarios',
 };
 // Permisos que siempre son por rol (sin granularidad por usuario)
 const PERMISSIONS = {
@@ -94,7 +95,9 @@ function can(perm) {
 
 // Secciones operativas habilitadas por defecto para manager. Una clave `false`
 // explícita en sectionPerms siempre prevalece sobre este valor por defecto.
-var _MANAGER_AUTO_GRANT_SECTIONS = ['sdv-bandeja', 'sdv-portal', 'estado-ordenes', 'inventario', 'sdv-reactivations'];
+// UX-04 (plan 10): 'solicitudes-reposicion' entra al auto-grant — el flujo formal
+// de reposición (con aprobación) estaba oculto para el Encargado que lo gestiona.
+var _MANAGER_AUTO_GRANT_SECTIONS = ['sdv-bandeja', 'sdv-portal', 'estado-ordenes', 'inventario', 'sdv-reactivations', 'solicitudes-reposicion'];
 
 /** Devuelve true si el usuario puede ver la sección del historial indicada */
 function canSection(key) {
@@ -153,7 +156,7 @@ function applyNavPerms() {
   var sections = [
     'estado-ordenes','buscar','reposicion','solicitudes-reposicion','solicitudes',
     'almacen-mapa','sin-adjuntos','dev-cdp','despacho-obsoleto',
-    'inventario','averias','basedatos','wwp',
+    'inventario','averias','wwp',
     'sdv-portal','sdv-bandeja','sdv-reactivations'
   ];
   sections.forEach(function(s) {
@@ -166,21 +169,39 @@ function applyNavPerms() {
     var mob = document.getElementById('mob-nav-' + s);
     if (mob) mob.style.display = show ? '' : 'none';
   });
+  // Atajos del sidebar a tabs WWP (plan 10 Fase 2): Supervisión (admin+manager)
+  // y Administración (solo admin). Son accesos de navegación — el guard real del
+  // contenido sigue en guardTab + backend.
+  var _isAdm = !!_user && _user.role === 'admin';
+  var _isMgr = !!_user && _user.role === 'manager';
+  var TAB_SHORTCUTS = {
+    'nav-wwp-panel':      _isAdm || _isMgr,
+    'nav-wwp-evidencias': _isAdm || _isMgr,
+    'nav-wwp-impacto':    _isAdm,
+    'nav-admin-usuarios': _isAdm,
+    'nav-admin-politicas':_isAdm,
+    'nav-admin-empaque':  _isAdm
+  };
+  Object.keys(TAB_SHORTCUTS).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = TAB_SHORTCUTS[id] ? '' : 'none';
+  });
   // Ocultar cabeceras de grupo cuando todos sus ítems están ocultos
   var GROUPS = {
-    'navg-consultar':   ['buscar'],
-    'navg-analisis':    ['inventario','averias','basedatos'],
-    'navg-plataforma':  ['wwp'],
-    'navg-compras':     ['reposicion','solicitudes-reposicion','solicitudes','almacen-mapa'],
-    'navg-despachos':   ['sin-adjuntos','dev-cdp','despacho-obsoleto'],
-    'navg-ventas':      ['sdv-portal','sdv-bandeja','sdv-reactivations','estado-ordenes']
+    'navg-equipo':      ['wwp'],
+    'navg-vd':          ['estado-ordenes','sdv-portal','sdv-bandeja','sdv-reactivations','sin-adjuntos','despacho-obsoleto'],
+    'navg-almacen':     ['buscar','inventario','averias','dev-cdp','reposicion','solicitudes-reposicion','solicitudes','almacen-mapa']
   };
   Object.keys(GROUPS).forEach(function(gid) {
-    // Mismo criterio que arriba: 'wwp' (Workforce Labor) no aplica a ventas.
+    // Mismo criterio que arriba: 'wwp' (Equipo y Tareas) no aplica a ventas.
     var anyVisible = GROUPS[gid].some(function(s){ return s === 'wwp' ? (!!_user && _user.role !== 'ventas') : canSection(s); });
     var el = document.getElementById(gid);
     if (el) el.style.display = anyVisible ? '' : 'none';
   });
+  var _grpSup = document.getElementById('navg-supervision');
+  if (_grpSup) _grpSup.style.display = (_isAdm || _isMgr) ? '' : 'none';
+  var _grpAdm = document.getElementById('navg-admin');
+  if (_grpAdm) _grpAdm.style.display = _isAdm ? '' : 'none';
 }
 /** Redirige a tasks si intenta acceder a un módulo sin permiso */
 function guardTab(tab) {
@@ -189,7 +210,7 @@ function guardTab(tab) {
   if (tab === 'users'      && _user?.role !== 'admin') { switchTab('tasks'); return false; }
   if (tab === 'politicas'  && _user?.role !== 'admin') { switchTab('tasks'); return false; }
   if (tab === 'impacto'    && _user?.role !== 'admin') { switchTab('tasks'); return false; }
-  if (tab === 'empaque'    && !can('dashboard')) { switchTab('tasks'); return false; }
+  if (tab === 'empaque'    && _user?.role !== 'admin') { switchTab('tasks'); return false; } // UX-19: igualado al build (admin-only)
   if (tab === 'archivo'    && !(_user && (_user.role==='admin'||_user.role==='manager'))) { switchTab('tasks'); return false; }
   return true;
 }
@@ -409,10 +430,16 @@ async function applyOdooAvatarPreview(userId) {
   el.dataset.odooPhoto = '1';
   el.innerHTML = '<img alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block" src="' + dataUrl + '">';
 }
-const TYPE_LABELS = {dispatch_order:'Orden de Despacho',packaging:'Embalaje',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General',staffing:'Solicitud de Personal'};
-const STATUS_LABELS = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado',cancelled:'Cancelado'};
+// ── FUENTE ÚNICA de labels de tipo/estado de tarea (UX-15, plan 10) ──
+// Glosario oficial: la tarea es femenino ("Asignada"), el estado en curso es
+// "En curso" (antes convivían "En Progreso"/"En progreso"/"En Proceso"), y el
+// tipo packaging es "Empaque" (antes también "Embalaje"). Los mapas locales del
+// shell son referencias a estos — NO redeclarar copias.
+const TYPE_LABELS = {dispatch_order:'Orden de Despacho',packaging:'Empaque',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General',staffing:'Solicitud de Personal',free:'Tarea Libre'};
+const TYPE_LABELS_SHORT = {dispatch_order:'Despacho',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',warehouse_move:'Almacén',general:'General',staffing:'Personal',free:'Libre'};
+const STATUS_LABELS = {pending:'Pendiente',assigned:'Asignada',in_progress:'En curso',completed:'Completada',validated:'Validada',cancelled:'Cancelada'};
 const STATUS_CSS = {pending:'b-pending',assigned:'b-assigned',in_progress:'b-inprogress',completed:'b-completed',validated:'b-validated',cancelled:'b-cancelled'};
-const ROLE_LABELS = {admin:'Admin',manager:'Encargado',assistant:'Auxiliar'};
+const ROLE_LABELS = {admin:'Admin',manager:'Encargado',assistant:'Auxiliar',ventas:'Ventas'};
 
 function uiMotionReduced() {
   return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2521,3 +2548,49 @@ function toast(msg, opt){
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>t.classList.remove('show'), duration);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// FOCUS-TRAP GLOBAL para modales (UX-29, plan 10)
+// Mantiene Tab dentro del modal visible con aria-modal y devuelve el foco al
+// disparador al cerrarse. Sin registro por modal: observa el DOM al vuelo.
+// ═══════════════════════════════════════════════════════════════════════
+var _ftLastTrigger = null;
+document.addEventListener('mousedown', function(e){
+  // Recordar el último control activado fuera de un modal (candidato a recibir
+  // el foco de vuelta cuando el modal que abra se cierre).
+  if (!e.target.closest('[aria-modal="true"]')) _ftLastTrigger = e.target.closest('button,a,[tabindex]');
+}, true);
+function _ftVisibleModal(){
+  var mods = document.querySelectorAll('[aria-modal="true"]');
+  for (var i = mods.length - 1; i >= 0; i--) {
+    var m = mods[i];
+    if (m.offsetParent !== null || m.getClientRects().length) return m;
+  }
+  return null;
+}
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Tab') return;
+  var modal = _ftVisibleModal();
+  if (!modal) return;
+  var f = modal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+  var vis = [];
+  for (var i = 0; i < f.length; i++) { if (f[i].offsetParent !== null) vis.push(f[i]); }
+  if (!vis.length) return;
+  var first = vis[0], last = vis[vis.length - 1];
+  if (!modal.contains(document.activeElement)) { first.focus(); e.preventDefault(); return; }
+  if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+  else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+});
+// Retorno de foco: cuando el modal visible desaparece, devolver el foco al disparador.
+(function(){
+  var _ftHadModal = false;
+  var mo = new MutationObserver(function(){
+    var has = !!_ftVisibleModal();
+    if (_ftHadModal && !has && _ftLastTrigger && _ftLastTrigger.isConnected) {
+      try { _ftLastTrigger.focus(); } catch(e) {}
+    }
+    _ftHadModal = has;
+  });
+  if (document.body) mo.observe(document.body, {attributes:true, subtree:true, attributeFilter:['style','class','hidden']});
+  else document.addEventListener('DOMContentLoaded', function(){ mo.observe(document.body, {attributes:true, subtree:true, attributeFilter:['style','class','hidden']}); });
+})();

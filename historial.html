@@ -30,7 +30,7 @@ function _loadXlsx(cb){
   document.head.appendChild(s);
 }
 </script>
-<link rel="stylesheet" href="/theme.css?v=f232ab1b">
+<link rel="stylesheet" href="/theme.css?v=df4ca9ce">
 <style>
 /* Sidebar y header: mantienen los mismos oscuros en ambos temas (ya son oscuros)
    --header-bg y --sidebar-bg NO se redefinen en dark mode */
@@ -5449,62 +5449,83 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
 
+    <!-- Sidebar reagrupado por dominios del negocio (plan 10 §18): Operación del
+         Equipo / Ventas→Despacho / Almacén / Supervisión / Administración.
+         Los ids nav-* y las rutas NO cambian — solo agrupación y labels. -->
+    <div class="sidebar-group" id="navg-equipo">Operación del Equipo</div>
+    <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
+      <span class="nav-icon"><i data-lucide="factory"></i></span>Equipo y Tareas
+    </a>
+
+    <div class="sidebar-group" id="navg-vd">Ventas → Despacho</div>
     <a class="nav-item" id="nav-estado-ordenes" href="#" onclick="navTo('estado-ordenes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>Estado de Órdenes
     </a>
+    <a class="nav-item" id="nav-sdv-portal" href="#" onclick="navTo('sdv-portal');return false;">
+      <span class="nav-icon"><i data-lucide="send"></i></span>Solicitud de Despacho
+    </a>
+    <a class="nav-item" id="nav-sdv-bandeja" href="#" onclick="navTo('sdv-bandeja');return false;">
+      <span class="nav-icon"><i data-lucide="inbox"></i></span>Bandeja SDV
+    </a>
+    <a class="nav-item" id="nav-sdv-reactivations" href="#" onclick="navTo('sdv-reactivations');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="refresh-cw"></i></span>Reactivaciones SDV
+    </a>
+    <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
+      <span class="nav-icon"><i data-lucide="paperclip"></i></span>Despachos sin Comprobante
+    </a>
+    <a class="nav-item" id="nav-despacho-obsoleto" href="#sec-despacho-obsoleto" onclick="navTo('despacho-obsoleto');return false;">
+      <span class="nav-icon"><i data-lucide="package-minus"></i></span>Conduces Outlet
+    </a>
 
-    <div class="sidebar-group" id="navg-consultar">Consultar</div>
+    <div class="sidebar-group" id="navg-almacen">Almacén</div>
     <a class="nav-item active" id="nav-buscar" href="#sec-buscar" onclick="navTo('buscar');return false;">
       <span class="nav-icon"><i data-lucide="search"></i></span>Buscador
     </a>
-
-    <div class="sidebar-group" id="navg-analisis">Análisis Operacional</div>
     <a class="nav-item" id="nav-inventario" href="#sec-inventario" onclick="navTo('inventario');return false;">
       <span class="nav-icon"><i data-lucide="package-search"></i></span>Inventario
     </a>
     <a class="nav-item" id="nav-averias" href="#sec-averias" onclick="navTo('averias');return false;">
-      <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Artículos Averiados
+      <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>Averías
     </a>
-
-    <div class="sidebar-group" id="navg-plataforma">Plataforma</div>
-    <a class="nav-item" id="nav-wwp" href="#" onclick="goToWWP();return false;">
-      <span class="nav-icon"><i data-lucide="factory"></i></span>Workforce Labor
+    <a class="nav-item" id="nav-dev-cdp" href="#sec-dev-cdp" onclick="navTo('dev-cdp');return false;">
+      <span class="nav-icon"><i data-lucide="arrow-left-right"></i></span>Devoluciones a CDP
     </a>
-
-    <div class="sidebar-group" id="navg-compras">Compras</div>
     <a class="nav-item" id="nav-reposicion" href="#sec-reposicion" onclick="navTo('reposicion');return false;">
       <span class="nav-icon"><i data-lucide="store"></i></span>Reposición Showroom
     </a>
     <a class="nav-item" id="nav-solicitudes-reposicion" href="#" onclick="navTo('solicitudes-reposicion');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="package-plus"></i></span>Solicitudes Repos.
+      <span class="nav-icon"><i data-lucide="package-plus"></i></span>Solicitudes de Reposición
     </a>
     <a class="nav-item" id="nav-solicitudes" href="#sec-solicitudes" onclick="navTo('solicitudes');return false;">
       <span class="nav-icon"><i data-lucide="clipboard-check"></i></span>Solicitudes Showroom
     </a>
     <a class="nav-item" id="nav-almacen-mapa" href="#sec-almacen-mapa" onclick="navTo('almacen-mapa');return false;">
-      <span class="nav-icon"><i data-lucide="warehouse"></i></span>Mapa Almacén
+      <span class="nav-icon"><i data-lucide="warehouse"></i></span>Mapa del Almacén
     </a>
 
-    <div class="sidebar-group" id="navg-despachos">Despachos</div>
-    <a class="nav-item" id="nav-sin-adjuntos" href="#sec-sin-adjuntos" onclick="navTo('sin-adjuntos');return false;">
-      <span class="nav-icon"><i data-lucide="paperclip"></i></span>Sin Comprobante
+    <!-- Supervisión (admin+encargado) y Administración (solo admin): atajos a los
+         tabs de gestión que antes solo se descubrían dentro de Workforce (UX-01/02).
+         applyNavPerms (core.js) gobierna su visibilidad por rol. -->
+    <div class="sidebar-group" id="navg-supervision" style="display:none">Supervisión</div>
+    <a class="nav-item" id="nav-wwp-panel" href="#" onclick="goToWwpTab('dashboard');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>Panel del Equipo
     </a>
-    <a class="nav-item" id="nav-dev-cdp" href="#sec-dev-cdp" onclick="navTo('dev-cdp');return false;">
-      <span class="nav-icon"><i data-lucide="arrow-left-right"></i></span>Dev→CDP
+    <a class="nav-item" id="nav-wwp-evidencias" href="#" onclick="goToWwpTab('archivo');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="image"></i></span>Evidencias
     </a>
-    <a class="nav-item" id="nav-despacho-obsoleto" href="#sec-despacho-obsoleto" onclick="navTo('despacho-obsoleto');return false;">
-      <span class="nav-icon"><i data-lucide="package-minus"></i></span>Despacho de Obsoleto
+    <a class="nav-item" id="nav-wwp-impacto" href="#" onclick="goToWwpTab('impacto');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="zap"></i></span>Adopción (Impacto)
     </a>
 
-    <div class="sidebar-group" id="navg-ventas">Ventas</div>
-    <a class="nav-item" id="nav-sdv-portal" href="#" onclick="navTo('sdv-portal');return false;">
-      <span class="nav-icon"><i data-lucide="send"></i></span>Solicitud de Despacho
+    <div class="sidebar-group" id="navg-admin" style="display:none">Administración</div>
+    <a class="nav-item" id="nav-admin-usuarios" href="#" onclick="goToWwpTab('users');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="users"></i></span>Usuarios y Permisos
     </a>
-    <a class="nav-item" id="nav-sdv-bandeja" href="#" onclick="navTo('sdv-bandeja');return false;">
-      <span class="nav-icon"><i data-lucide="inbox"></i></span>Bandeja Solicitudes
+    <a class="nav-item" id="nav-admin-politicas" href="#" onclick="goToWwpTab('politicas');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="shield-check"></i></span>Reglas de Cumplimiento
     </a>
-    <a class="nav-item" id="nav-sdv-reactivations" href="#" onclick="navTo('sdv-reactivations');return false;" style="display:none">
-      <span class="nav-icon"><i data-lucide="refresh-cw"></i></span>Reactivaciones
+    <a class="nav-item" id="nav-admin-empaque" href="#" onclick="goToWwpTab('empaque');return false;" style="display:none">
+      <span class="nav-icon"><i data-lucide="package"></i></span>Materiales de Empaque
     </a>
 
     <div class="sidebar-spacer"></div>
@@ -5543,18 +5564,19 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
   <div class="mob-nav" id="mob-nav">
     <button class="nav-hamburger" onclick="toggleSidebar(true)" aria-label="Abrir menú"><i data-lucide="menu"></i></button>
     <span class="mob-brand"><img src="/descarga.png" alt="Altri Tempi">Altri Tempi</span>
-    <button class="mob-nav-btn active" id="mob-nav-buscar"        onclick="navTo('buscar')"><i data-lucide="search"></i>Buscar</button>
-    <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Workforce</button>
+    <!-- Labels espejados 1:1 con el sidebar (UX-16: una función = un nombre) -->
+    <button class="mob-nav-btn active" id="mob-nav-buscar"        onclick="navTo('buscar')"><i data-lucide="search"></i>Buscador</button>
+    <button class="mob-nav-btn"        id="mob-nav-wwp"           onclick="goToWWP()"><i data-lucide="factory"></i>Equipo y Tareas</button>
     <button class="mob-nav-btn"        id="mob-nav-averias"       onclick="navTo('averias')"><i data-lucide="alert-triangle"></i>Averías</button>
     <button class="mob-nav-btn"        id="mob-nav-inventario"    onclick="navTo('inventario')"><i data-lucide="package-search"></i>Inventario</button>
-    <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición</button>
-    <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes</button>
-    <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa Almacén</button>
-    <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Sin Comprobante</button>
-    <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Dev→CDP</button>
-    <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Despacho Obsoleto</button>
-    <button class="mob-nav-btn"        id="mob-nav-sdv-portal"  onclick="navTo('sdv-portal')"><i data-lucide="send"></i>Sol. Despacho</button>
-    <button class="mob-nav-btn"        id="mob-nav-sdv-bandeja" onclick="navTo('sdv-bandeja')"><i data-lucide="inbox"></i>Bandeja Solicitudes</button>
+    <button class="mob-nav-btn"        id="mob-nav-reposicion"    onclick="navTo('reposicion')"><i data-lucide="store"></i>Reposición Showroom</button>
+    <button class="mob-nav-btn"        id="mob-nav-solicitudes"   onclick="navTo('solicitudes')"><i data-lucide="clipboard-check"></i>Solicitudes Showroom</button>
+    <button class="mob-nav-btn"        id="mob-nav-almacen-mapa"  onclick="navTo('almacen-mapa')"><i data-lucide="warehouse"></i>Mapa del Almacén</button>
+    <button class="mob-nav-btn"        id="mob-nav-sin-adjuntos"  onclick="navTo('sin-adjuntos')"><i data-lucide="paperclip"></i>Despachos sin Comprobante</button>
+    <button class="mob-nav-btn"        id="mob-nav-dev-cdp"        onclick="navTo('dev-cdp')"><i data-lucide="arrow-left-right"></i>Devoluciones a CDP</button>
+    <button class="mob-nav-btn"        id="mob-nav-despacho-obsoleto" onclick="navTo('despacho-obsoleto')"><i data-lucide="package-minus"></i>Conduces Outlet</button>
+    <button class="mob-nav-btn"        id="mob-nav-sdv-portal"  onclick="navTo('sdv-portal')"><i data-lucide="send"></i>Solicitud de Despacho</button>
+    <button class="mob-nav-btn"        id="mob-nav-sdv-bandeja" onclick="navTo('sdv-bandeja')"><i data-lucide="inbox"></i>Bandeja SDV</button>
   </div>
 
   <main>
@@ -6884,11 +6906,18 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
          ══════════════════════════════════════════════════ -->
     <div id="section-sdv-bandeja" class="page-section" style="display:none">
       <div class="sdv-wrap" style="max-width:900px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap">
           <h2 style="margin:0;font-size:var(--fs-xl)">Solicitudes de Despacho</h2>
-          <button class="btn btn-sm btn-secondary" onclick="sdvBandejaCargar()">
-            <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i> Actualizar
-          </button>
+          <div style="display:flex;gap:8px">
+            <!-- Acceso contextual al flujo excepcional (UX-05): las reactivaciones se
+                 procesan aquí mismo en la bandeja, sin item propio de primer nivel -->
+            <button class="btn btn-sm btn-secondary" onclick="navTo('sdv-reactivations')">
+              <i data-lucide="refresh-cw" style="width:13px;height:13px;vertical-align:-1px"></i> Reactivaciones
+            </button>
+            <button class="btn btn-sm btn-secondary" onclick="sdvBandejaCargar()">
+              <i data-lucide="rotate-cw" style="width:13px;height:13px;vertical-align:-1px"></i> Actualizar
+            </button>
+          </div>
         </div>
         <div class="sdv-bandeja-filters" id="sdv-bandeja-filters" style="margin-bottom:16px">
           <button class="sdv-bandeja-filter active" onclick="sdvBandejaFilter(this,'')">Todas</button>
@@ -7166,7 +7195,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <div style="background:var(--surface);border-radius:18px;max-width:460px;width:100%;max-height:92dvh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35)">
       <div style="text-align:center;padding:26px 24px 14px;background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:18px 18px 0 0;color:#fff">
         <div style="font-size:34px;line-height:1">👋</div>
-        <div style="font-size:19px;font-weight:800;margin-top:6px">Bienvenido a Workforce</div>
+        <div style="font-size:19px;font-weight:800;margin-top:6px">Bienvenido a Ops AT</div>
         <div style="font-size:12px;opacity:.85;margin-top:2px">Altritempi · Operaciones</div>
       </div>
       <div style="padding:18px 22px 8px">
@@ -7318,7 +7347,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     <div id="tab-tasks">
       <div class="tasks-kpi-strip" id="tasks-kpi-strip">
         <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--text-3)"></span>Pendientes</div><div class="tks-val" id="tks-pend">—</div></div>
-        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--amber-dot)"></span>En progreso</div><div class="tks-val" id="tks-prog" style="color:var(--amber-text)">—</div></div>
+        <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--amber-dot)"></span>En curso</div><div class="tks-val" id="tks-prog" style="color:var(--amber-text)">—</div></div>
         <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--red-dot)"></span>Vencidas</div><div class="tks-val" id="tks-venc" style="color:var(--red-text)">—</div></div>
         <div class="tks-cell"><div class="tks-label"><span class="tks-dot" style="background:var(--green-dot)"></span>Completadas</div><div class="tks-val" id="tks-comp" style="color:var(--green-text)">—</div></div>
       </div>
@@ -7350,16 +7379,16 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <select class="filter-sel" id="filter-status" onchange="filterTasks()">
             <option value="">Todos los estados</option>
             <option value="pending">Pendiente</option>
-            <option value="assigned">Asignado</option>
-            <option value="in_progress">En progreso</option>
-            <option value="completed">Completado</option>
-            <option value="validated">Validado</option>
+            <option value="assigned">Asignada</option>
+            <option value="in_progress">En curso</option>
+            <option value="completed">Completada</option>
+            <option value="validated">Validada</option>
           </select>
           <select class="filter-sel" id="filter-type" onchange="filterTasks()">
             <option value="">Todos los tipos</option>
             <option value="dispatch_order">Orden de Despacho</option>
             <option value="warehouse_move">Movimiento de Almacén</option>
-            <option value="packaging">Embalaje</option>
+            <option value="packaging">Empaque</option>
             <option value="item_pickup">Recogida de Artículos</option>
             <option value="truck_loading">Carga en Camión</option>
             <option value="staffing">Solicitud de Personal</option>
@@ -8167,17 +8196,17 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <label class="perm-check"><input type="checkbox" data-perm="almacen-mapa"> Mapa Almacén</label>
           <label class="perm-check"><input type="checkbox" data-perm="estado-ordenes"> Estado de Órdenes</label>
         </div>
-        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — pestañas</p>
+        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Equipo y Tareas — pestañas</p>
         <div class="perm-grid">
-          <label class="perm-check"><input type="checkbox" data-perm="wwp.dashboard"> Dashboard</label>
-          <label class="perm-check"><input type="checkbox" data-perm="wwp.usuarios"> Usuarios</label>
+          <label class="perm-check"><input type="checkbox" data-perm="wwp.dashboard"> Panel del Equipo</label>
+          <!-- UX-19: 'wwp.usuarios' retirado — el tab Usuarios es solo-admin (hardcoded) y este interruptor nunca tuvo efecto -->
         </div>
-        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Workforce — acciones</p>
+        <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Equipo y Tareas — acciones</p>
         <div class="perm-grid">
           <label class="perm-check"><input type="checkbox" data-perm="wwp.crear_tarea"> Crear tarea</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp.editar_tarea"> Editar tarea</label>
           <label class="perm-check"><input type="checkbox" data-perm="wwp.eliminar_tarea"> Eliminar tarea</label>
-          <label class="perm-check"><input type="checkbox" data-perm="wwp.validar_tarea"> Validar tarea</label>
+          <!-- UX-19: 'wwp.validar_tarea' retirado — validar es solo-admin (hardcoded en can()) y este interruptor nunca tuvo efecto -->
         </div>
         <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:12px 0 6px">Campo</p>
         <div class="perm-grid">
@@ -8307,10 +8336,10 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v228';
+var APP_BUILD = 'v229';
 var _versionReloading = false;
 </script>
-<script src="/core.js?v=89c7d8c8"></script>
+<script src="/core.js?v=cf30df97"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // APP INIT
@@ -8335,44 +8364,24 @@ function enterApp() {
   }
 
   // ── Construir nav dinámicamente según rol (RBAC) ──────────────────────
+  // Plan 10 Fase 2 (UX-02): la barra de tabs del módulo queda SOLO con la
+  // operación diaria (Tareas · Vehículos · Formación). Los tabs de gestión
+  // (dashboard/archivo → Supervisión; users/politicas/impacto/empaque →
+  // Administración) se alcanzan desde el sidebar global vía goToWwpTab() —
+  // switchTab/guardTab los siguen sirviendo, solo desaparece su botón aquí.
   const nav = document.getElementById('app-nav');
 
-  // Dashboard tab — solo admin
-  let dashTab = nav.querySelector('[data-tab="dashboard"]');
-  if (can('dashboard')) {
-    if (!dashTab) {
-      dashTab = document.createElement('button');
-      dashTab.className = 'nav-tab'; dashTab.dataset.tab = 'dashboard';
-      dashTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="bar-chart-2"></i></span> Dashboard';
-      dashTab.onclick = () => switchTab('dashboard');
-      // Insertar después de Tareas (primer tab)
-      const tasksTab = nav.querySelector('[data-tab="tasks"]');
-      tasksTab ? tasksTab.after(dashTab) : nav.appendChild(dashTab);
-    }
-  } else {
-    if (dashTab) dashTab.remove();
-    if (_currentTab === 'dashboard') switchTab('tasks');
-  }
-
-  // Auditor de Procesos removido como seccion independiente: vive dentro de la Mesa de Agentes.
-  let auditorTab = nav.querySelector('[data-tab="auditor"]');
-  if (auditorTab) auditorTab.remove();
-  if (_currentTab === 'auditor') switchTab('dashboard');
-
-  // Users tab — solo admin
-  let usersTab = nav.querySelector('[data-tab="users"]');
-  if (_user.role === 'admin') {
-    if (!usersTab) {
-      usersTab = document.createElement('button');
-      usersTab.className = 'nav-tab'; usersTab.dataset.tab = 'users';
-      usersTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="users"></i></span> Usuarios';
-      usersTab.onclick = () => switchTab('users');
-      nav.appendChild(usersTab);
-    }
-  } else {
-    if (usersTab) usersTab.remove();
-    if (_currentTab === 'users') switchTab('tasks');
-  }
+  // Tabs de gestión: retirar el botón si quedó de una sesión previa y sacar al
+  // usuario del tab si su rol ya no lo permite.
+  ['dashboard','auditor','users','archivo','politicas','impacto','empaque'].forEach((k) => {
+    const b = nav.querySelector('[data-tab="'+k+'"]');
+    if (b) b.remove();
+  });
+  if (_currentTab === 'auditor') switchTab('tasks');
+  if (_currentTab === 'dashboard' && !can('dashboard')) switchTab('tasks');
+  if (_currentTab === 'users' && _user.role !== 'admin') switchTab('tasks');
+  if (_currentTab === 'archivo' && !(_user.role === 'admin' || _user.role === 'manager')) switchTab('tasks');
+  if (['politicas','impacto','empaque'].includes(_currentTab) && _user.role !== 'admin') switchTab('tasks');
 
   // Vehículos tab — todos los roles
   let vehTab = nav.querySelector('[data-tab="vehiculos"]');
@@ -8393,33 +8402,9 @@ function enterApp() {
     trainTab.onclick = () => switchTab('formacion');
     nav.appendChild(trainTab);
   }
-  // Archivo de Evidencias — admin + manager
-  let archTab = nav.querySelector('[data-tab="archivo"]');
-  if (_user.role === 'admin' || _user.role === 'manager') {
-    if (!archTab) {
-      archTab = document.createElement('button');
-      archTab.className = 'nav-tab'; archTab.dataset.tab = 'archivo';
-      archTab.innerHTML = '<span class="nav-tab-icon"><i data-lucide="image"></i></span> Evidencias';
-      archTab.onclick = () => switchTab('archivo');
-      nav.appendChild(archTab);
-    }
-    loadPhotoArchiveData();  // precarga el índice → badges en las tareas
-  } else {
-    if (archTab) archTab.remove();
-    if (_currentTab === 'archivo') switchTab('tasks');
-  }
-  // Políticas + Impacto + Empaque tabs — solo admin
-  if (_user.role === 'admin') {
-    [{key:'politicas',icon:'shield-check',label:'Políticas'},{key:'impacto',icon:'zap',label:'Impacto'},{key:'empaque',icon:'package',label:'Empaque'}].forEach((t) => {
-      if (!nav.querySelector('[data-tab="'+t.key+'"]')) {
-        const btn = document.createElement('button');
-        btn.className = 'nav-tab'; btn.dataset.tab = t.key;
-        btn.innerHTML = '<span class="nav-tab-icon"><i data-lucide="'+t.icon+'"></i></span> '+t.label;
-        btn.onclick = () => switchTab(t.key);
-        nav.appendChild(btn);
-      }
-    });
-  }
+  // Evidencias (admin+manager): sin botón en la barra, pero la precarga del
+  // índice fotográfico sigue — alimenta los badges de evidencia en las tareas.
+  if (_user.role === 'admin' || _user.role === 'manager') loadPhotoArchiveData();
   // Módulo vehículos: construir checklist y pre-llenar campos
   vehBuildForm();
   vehLoadVehiclesList();
@@ -8500,7 +8485,7 @@ var _currentTab = 'tasks';
 // RESUMEN DEL DÍA — valida lo que hiciste (individual/equipo) + explica pendientes
 // ═══════════════════════════════════════════════════════════════════════
 var _dcState = null;
-var _DC_TYPE = {dispatch_order:'Despacho',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',warehouse_move:'Almacén',general:'General',staffing:'Personal',free:'Libre'};
+var _DC_TYPE = TYPE_LABELS_SHORT;          // fuente única en core.js (UX-15; core.js ya cargó — su tag va antes)
 var _DC_PEND = [{v:'fin_turno',l:'Fin de turno'},{v:'manana',l:'Continúa mañana'},{v:'multi_dia',l:'Proceso de varios días'},{v:'continua_extra',l:'Continúa (horas extra)'},{v:'otro',l:'Otro'}];
 
 // Tira de miniaturas de fotos de una tarea + visor a tamaño completo. Reusado en las 3 vistas.
@@ -9212,7 +9197,7 @@ function filterTasks() {
     return;
   }
 
-  if (!visible.length) { el.innerHTML='<div class="task-empty">No hay tareas que mostrar</div>'; return; }
+  if (!visible.length) { el.innerHTML='<div class="task-empty">No hay tareas que mostrar'+(can('create_task')?'<br><button class="btn btn-sm btn-primary" style="margin-top:10px;display:inline-flex" onclick="openNewTaskModal()">+ Nueva Tarea</button>':'')+'</div>'; return; } // UX-31: vacío con acción
   switch (_taskView) {
     case 'cards':  el.innerHTML = renderGroupedByType(visible, renderTaskCard); break;
     case 'kanban': el.innerHTML = renderKanbanView(visible); break;
@@ -9334,8 +9319,8 @@ function _updateOverdueBadge() {
 /** Exporta las tareas actualmente filtradas como CSV */
 function exportTasksCSV() {
   var tasks = _filteredTasks.length ? _filteredTasks : _tasks.filter(function(t){ return !t.parentId; });
-  var STATUS_LABEL = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado'};
-  var TYPE_LABEL   = {dispatch_order:'Orden de Despacho',warehouse_move:'Movimiento Almacén',packaging:'Embalaje',item_pickup:'Recogida',truck_loading:'Carga Camión',general:'General'};
+  var STATUS_LABEL = STATUS_LABELS;        // fuente única en core.js (UX-15)
+  var TYPE_LABEL   = TYPE_LABELS;
   var PRIORITY_LABEL = {high:'Alta',medium:'Media',low:'Baja'};
   var cols = ['ID','Título','Tipo','Estado','Prioridad','Responsable','Referencia Odoo','Ubicación','Fecha Vencimiento','Fecha Creación','Artículos'];
   var rows = tasks.map(function(t) {
@@ -10456,7 +10441,7 @@ function isOverdueTask(t) {
 function overdueBadgeHtml(t) {
   if (!isOverdueTask(t)) return '';
   const days = t.overdueDays || 1;
-  return `<span class="badge b-high" style="font-size:9px"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${days}d</span>`;
+  return `<span class="badge b-high" style="font-size:9px"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Vencida ${days}d</span>`;
 }
 
 function overdueReassignButtonHtml(t, opts) {
@@ -10639,7 +10624,7 @@ function renderKanbanView(tasks) {
   const cols = [
     {key:'pending',    label:'Pendiente',  css:'b-pending'},
     {key:'assigned',   label:'Asignado',   css:'b-assigned'},
-    {key:'in_progress',label:'En Progreso',css:'b-inprogress'},
+    {key:'in_progress',label:STATUS_LABELS.in_progress,css:'b-inprogress'},
     {key:'completed',  label:'Completado', css:'b-completed'},
     {key:'validated',  label:'Validado',   css:'b-validated'},
   ];
@@ -10685,8 +10670,8 @@ async function kanbanDrop(event, newStatus) {
   if (!taskId) return;
   var task = (_tasks||[]).find(function(t){ return t.id===taskId; });
   if (!task || task.status===newStatus) return;
-  var STATUS_LABEL = {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado'};
-  if (!can('tasks_edit')) { toast('Sin permiso para mover tareas'); return; }
+  var STATUS_LABEL = STATUS_LABELS;        // fuente única en core.js (UX-15)
+  if (!can('edit_task')) { toast('Sin permiso para mover tareas'); return; } // FE-04: la clave era 'tasks_edit' (inexistente) — solo admin podía arrastrar
   // H3-5: no cerrar una tarea de DESPACHO por arrastre — el drag salta el checklist de
   // entrega por artículo. Se obliga a completarla desde el detalle (donde está la evidencia).
   if (newStatus==='completed' && task.type==='dispatch_order') {
@@ -10792,7 +10777,7 @@ function renderTaskCard(t) {
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
         ${_demoChipCard}
         ${(()=>{const ob=wwpOutBadge(t);return ob.code==='pending'?`<span class="wwp-out-chip" title="Falta validar el OUT${ob.outRef?' '+esc(ob.outRef):''} en Odoo"><i data-lucide="package-x"></i>OUT pendiente</span>`:'';})()}
-        ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Overdue ${t.overdueDays || 1}d</span>` : ''}
+        ${overdue ? `<span class="tc-overdue-pill"><i data-lucide="alert-triangle" style="width:10px;height:10px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Vencida ${t.overdueDays || 1}d</span>` : ''}
         ${photoArchiveBadgeHtml(t)}
       </div>
     </div>
@@ -11868,7 +11853,7 @@ function renderDrawer(t) {
     const canSplitSede = _user.role==='admin' && items.length>0 && !['validated','cancelled'].includes(t.status);
     const ordered = subs.slice().sort((a,b)=>(a.subIndex||0)-(b.subIndex||0));
     const doneN = ordered.filter(s=>['completed','validated'].includes(s.status)).length;
-    const TYPE_LBL = {dispatch_order:'Despacho',warehouse_move:'Movimiento',packaging:'Empaque',item_pickup:'Recogida',truck_loading:'Carga',general:'General'};
+    const TYPE_LBL = TYPE_LABELS_SHORT;    // fuente única en core.js (UX-15)
     const stepsHtml = ordered.map((s,i)=>{
       const team = [s.managerName, ...taskAuxiliaryIds(s).map(id=>{const u=(_authUsers||[]).find(x=>x.id===id);return u?u.name.split(' ')[0]:null;})].filter(Boolean).join(', ')||'Sin asignar';
       const sSel = (s.items||[]).filter(x=>x.selected);
@@ -15479,7 +15464,7 @@ function _wizCheckOrderConflicts(){
   // Conceptos compuestos bloquean entre sí en la misma orden
   const COMPOUND=['pack_dispatch','pack_store'];
   const CONCEPT_LABEL={'pack':'Empaque','pack_dispatch':'Empaque y Despacho','pack_store':'Empaque y Almacenamiento','free':'Tarea Libre'};
-  const STATUS_L={'pending':'Pendiente','assigned':'Asignado','in_progress':'En Progreso','completed':'Completado'};
+  const STATUS_L=STATUS_LABELS; // fuente única (UX-15)
   const STATUS_C={'pending':'var(--text-3)','assigned':'var(--accent)','in_progress':'var(--amber-text)','completed':'var(--green-text)'};
 
   const isCurrentCompound=COMPOUND.includes(_wizState.concept);
@@ -15960,8 +15945,8 @@ async function loadDashboard() {
     const overdueCount = (d.overdueTasks || []).length;
     document.getElementById('kpi-grid').innerHTML = `
       <div class="kpi-card"><div class="kpi-val">${bs.pending||0}</div><div class="kpi-label">Pendientes</div></div>
-      <div class="kpi-card"><div class="kpi-val">${bs.in_progress||0}</div><div class="kpi-label">En Progreso</div></div>
-      <div class="kpi-card" style="${overdueCount?'border-color:#fecaca;background:#fef2f2':''}"><div class="kpi-val" style="color:${overdueCount?'#dc2626':'var(--brand)'}">${overdueCount}</div><div class="kpi-label">Overdue</div></div>
+      <div class="kpi-card"><div class="kpi-val">${bs.in_progress||0}</div><div class="kpi-label">En curso</div></div>
+      <div class="kpi-card" style="${overdueCount?'border-color:#fecaca;background:#fef2f2':''}"><div class="kpi-val" style="color:${overdueCount?'#dc2626':'var(--brand)'}">${overdueCount}</div><div class="kpi-label">Vencidas</div></div>
       <div class="kpi-card"><div class="kpi-val">${bs.completed||0}</div><div class="kpi-label">Completadas</div></div>
       <div class="kpi-card"><div class="kpi-val">${bs.validated||0}</div><div class="kpi-label">Validadas</div></div>
       <div class="kpi-card"><div class="kpi-val">${d.total||0}</div><div class="kpi-label">Total tareas</div></div>
@@ -16024,7 +16009,7 @@ async function loadOpsAgent() {
     const decisions = d.decisions || [];
     const workload = d.workload || [];
     const sevLabel = {critical:'Critico', high:'Alto', medium:'Medio', low:'Bajo'};
-    const typeLabel = {dispatch_order:'Despacho', warehouse_move:'Almacen', packaging:'Empaque', item_pickup:'Recogida', truck_loading:'Carga', general:'General', staffing:'Personal'};
+    const typeLabel = TYPE_LABELS_SHORT;   // fuente única en core.js (UX-15)
     const metricsHtml = `
       <div class="ops-agent-top">
         <div class="ops-agent-metric"><div class="ops-agent-val">${s.active||0}</div><div class="ops-agent-label">Activas</div></div>
@@ -18409,14 +18394,14 @@ function normalizeKey(num){
 // ════════════════════════════════════════════════════
 //  PENDIENTES — LIVE desde API WWP
 // ════════════════════════════════════════════════════
-var _WWP_TYPE_LABELS  = {dispatch_order:'Orden de Despacho',packaging:'Embalaje',item_pickup:'Recogida de Artículos',truck_loading:'Carga en Camión',warehouse_move:'Movimiento de Almacén',general:'General',staffing:'Solicitud de Personal'};
+var _WWP_TYPE_LABELS  = TYPE_LABELS;       // fuente única en core.js (UX-15)
 var _WWP_TYPE_COLORS  = {dispatch_order:'#2563eb',packaging:'#7c3aed',item_pickup:'#0891b2',truck_loading:'#d97706',warehouse_move:'#059669',general:'#6b7280'};
 var _WWP_TYPE_ICON_NAMES = {dispatch_order:'truck',packaging:'package',item_pickup:'scan-line',truck_loading:'truck',warehouse_move:'arrow-left-right',general:'circle-dot'};
 function _wwpTypeIcon(type,sz){ var n=_WWP_TYPE_ICON_NAMES[type]||'circle-dot'; sz=sz||12; return '<i data-lucide="'+n+'" style="width:'+sz+'px;height:'+sz+'px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:3px"></i>'; }
 var _WWP_TYPE_ICONS   = _WWP_TYPE_ICON_NAMES; // alias kept for compatibility
 var _WWP_TYPE_BG      = {dispatch_order:'#eff6ff',packaging:'#f3eff8',item_pickup:'#e8f4fd',truck_loading:'#fffbeb',warehouse_move:'#f0fdf4',general:'#f3f4f6'};
 var _WWP_STATUS_COLORS= {pending:'#6b7280',assigned:'#2563eb',in_progress:'#d97706',completed:'#059669',validated:'#7c3aed'};
-var _WWP_STATUS_LABELS= {pending:'Pendiente',assigned:'Asignado',in_progress:'En Progreso',completed:'Completado',validated:'Validado'};
+var _WWP_STATUS_LABELS= STATUS_LABELS;     // fuente única en core.js (UX-15)
 
 function wwpAuthHeaders(){
   if(_token)return{'Authorization':'Bearer '+_token};
@@ -20906,7 +20891,7 @@ function renderTransferReport(p, moves, allPicks, wwpTasksTrans){
   var wwpTransEvs=wwpTasksToEvents(wwpTasksTrans);
   if(wwpTransEvs.length){
     html+='<div style="padding:8px 16px 0;border-top:1px solid var(--border-light)">';
-    html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Tareas Workforce Labor ('+wwpTransEvs.length+')</div>';
+    html+='<div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Tareas del Equipo ('+wwpTransEvs.length+')</div>';
     html+='</div>';
     html+='<div class="rpt-tl-hdr"><span>Fecha</span><span>Evento · Usuario · Detalle</span><span>Fuente · Estado</span></div>';
     wwpTransEvs.forEach((ev) => {html+=rptEventHtml(ev);});
@@ -20964,7 +20949,7 @@ function wwpTasksToEvents(tasks){
 function wwpTasksBlockHtml(tasks){
   if(!tasks||!tasks.length) return '';
   var html='<div class="wwp-tasks-block">'
-    +'<div class="wwp-tasks-hdr"><i data-lucide="wrench" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Tareas Workforce Labor <span style="font-size:10px;font-weight:500;opacity:.7;margin-left:5px">('+tasks.length+' tarea'+(tasks.length>1?'s':'')+' en vivo)</span></div>';
+    +'<div class="wwp-tasks-hdr"><i data-lucide="wrench" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Tareas del Equipo <span style="font-size:10px;font-weight:500;opacity:.7;margin-left:5px">('+tasks.length+' tarea'+(tasks.length>1?'s':'')+' en vivo)</span></div>';
   tasks.forEach((t) => {
     var sc=_WWP_STATUS_COLORS[t.status]||'#6b7280';
     var sl=_WWP_STATUS_LABELS[t.status]||t.status;
@@ -24058,7 +24043,7 @@ function goToBuscar(){
 // ═══════════════════════════════════════════════════════════════════════
 var _wwpEntered = false;
 function goToWWP() {
-  if (_user && _user.role === 'ventas') { toast('Workforce Labor no aplica a tu rol.'); return; }
+  if (_user && _user.role === 'ventas') { toast('Equipo y Tareas no aplica a tu rol.'); return; }
   toggleSidebar(false);
   showScreen('screen-app');
   if (!_wwpEntered && _token) {
@@ -24067,9 +24052,19 @@ function goToWWP() {
   } else if (_token) {
     loadTasks();
   }
-  // Marcar "Workforce Labor" como activo en el sidebar persistente
+  // Marcar "Equipo y Tareas" como activo en el sidebar persistente
   setNavActive('wwp');
   _routeSet(_currentTab === 'tasks' ? _routeTasksHash() : 'wwp/' + _currentTab);
+}
+/** Atajo del sidebar a un tab de gestión de WWP (Supervisión/Administración, plan 10).
+ *  Entra al módulo si hace falta y conmuta al tab pedido; guardTab manda. */
+function goToWwpTab(tab, navId) {
+  if (_user && _user.role === 'ventas') { toast('No aplica a tu rol.'); return; }
+  toggleSidebar(false);
+  showScreen('screen-app');
+  if (!_wwpEntered && _token) { _wwpEntered = true; enterApp(); }
+  switchTab(tab);
+  setNavActive(navId || ({dashboard:'wwp-panel', archivo:'wwp-evidencias', impacto:'wwp-impacto', users:'admin-usuarios', politicas:'admin-politicas', empaque:'admin-empaque'})[tab] || 'wwp');
 }
 function goBackToHistorial() {
   showScreen('screen-historial');
@@ -24253,6 +24248,15 @@ function _routeApplyFromHash(rawOpt){
       if ((tab || _currentTab) === 'tasks') _routeApplyTasksExtra(parts.slice(2).join('/'));
       return true;
     }
+    // /admin/<x> (plan 10 Fase 2): alias de entrada a los tabs de Administración.
+    // La URL canónica sigue siendo /wwp/<tab>; guardTab aplica el RBAC real.
+    if (parts[0] === 'admin') {
+      if (!hasWwpAccess(_user)) return false;
+      var admTab = ({usuarios:'users', politicas:'politicas', empaque:'empaque', panel:'dashboard', evidencias:'archivo', impacto:'impacto'})[parts[1] || 'usuarios'];
+      if (!admTab) return false;
+      goToWwpTab(admTab);
+      return true;
+    }
     var section = parts[0];
     if (section === 'inventario-salud' || section === 'validacion') section = 'inventario';
     if (!_routeSectionValida(section)) return false;
@@ -24383,6 +24387,11 @@ var _avFilter = '';            // filtro de estatus activo
 /* Colores y clases por estatus */
 function avBadgeClass(s){
   return s==='Recibido'?'avb-recibido':s==='En Taller'?'avb-taller':s==='Reparado'?'avb-reparado':s==='Descartado'?'avb-descartado':'avb-recibido';
+}
+/** UX-31: nunca pintar un estado desconocido como si fuera "Recibido" — se
+ *  muestra etiquetado explícitamente para que el dato raro sea visible. */
+function avStatusLabel(s){
+  return ['Recibido','En Taller','Reparado','Descartado'].indexOf(s)>=0 ? s : ('Estado: '+(s||'—'));
 }
 function avDotClass(s){
   return s==='Recibido'?'recibido':s==='En Taller'?'taller':s==='Reparado'?'reparado':s==='Descartado'?'descartado':'recibido';
@@ -24803,7 +24812,7 @@ function avItemHtml(a){
         +'</div>'
       +'</div>'
       +'<div class="av-item-right">'
-        +'<span class="av-badge '+avBadgeClass(a.status)+'">'+a.status+'</span>'
+        +'<span class="av-badge '+avBadgeClass(a.status)+'">'+esc(avStatusLabel(a.status))+'</span>'
         +'<span class="av-item-qty">Cant: '+a.qty+'</span>'
         +'<span class="av-item-date">'+dateStr+'</span>'
       +'</div>'
@@ -26090,14 +26099,14 @@ function avSearchBlock(averias){
     var dur=avCalcDurations(a.statusHistory||[]);
     var totalDays=Object.values(dur).reduce(function(x,y){return x+y;},0);
     return '<div class="av-search-entry">'
-      +'<span class="av-search-status"><span class="av-badge '+avBadgeClass(a.status)+'">'+a.status+'</span></span>'
+      +'<span class="av-search-status"><span class="av-badge '+avBadgeClass(a.status)+'">'+esc(avStatusLabel(a.status))+'</span></span>'
       +'<div style="flex:1;min-width:0">'
         +'<div style="font-size:11px;font-weight:600;color:var(--text-primary)">'+(a.comentario||'Sin descripción')+'</div>'
         +'<div style="font-size:10px;color:var(--text-muted)">Cant: '+a.qty+' · Registrado: '+dateStr+' · Último cambio: '+lastDate+' · Total: '+Math.round(totalDays)+'d</div>'
       +'</div></div>';
   }).join('');
   return '<div class="av-search-block">'
-    +'<div class="av-search-block-title"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Artículos Averiados ('+averias.length+')</div>'
+    +'<div class="av-search-block-title"><i data-lucide="alert-triangle" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-1px;margin-right:4px"></i>Averías ('+averias.length+')</div>'
     +rows+'</div>';
 }
 
@@ -30105,7 +30114,8 @@ function sdvBandejaRender() {
   var q = (document.getElementById('sdv-bandeja-search')||{}).value||'';
   var sols = _sdvAllSols.filter(function(s){ return sdvMatchSol(s, q); });
   if (!sols.length) {
-    list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">'+(q?'Sin resultados para «'+esc(q)+'»':'Sin solicitudes')+'</div>';
+    // UX-31: vacío con siguiente paso — desde la bandeja se puede ir directo a crear
+    list.innerHTML = '<div style="color:var(--text-2);padding:20px;text-align:center">'+(q?'Sin resultados para «'+esc(q)+'»':'Sin solicitudes en este filtro.'+(canSection('sdv-portal')?'<br><button class="btn btn-sm btn-secondary" style="margin-top:10px;display:inline-flex" onclick="navTo(\'sdv-portal\')">+ Nueva Solicitud de Despacho</button>':''))+'</div>';
     return;
   }
   list.innerHTML = sols.map(function(s){ return sdvCardHtml(s,'bandeja'); }).join('');
@@ -31685,7 +31695,7 @@ async function eoAbrirDetalle(sdvId) {
     // Estado operativo
     var opsInner = '';
     if (mainTask) {
-      var stLbl = {pending:'Pendiente',assigned:'Asignado',in_progress:'En progreso',completed:'Completado',validated:'Validado'}[mainTask.status]||mainTask.status;
+      var stLbl = STATUS_LABELS[mainTask.status]||mainTask.status; // fuente única (UX-15)
       var stCls = (mainTask.status==='completed'||mainTask.status==='validated')?'green':(mainTask.status==='in_progress'||mainTask.status==='assigned')?'blue':'';
       var tyLbl = {packaging:'Empaque',dispatch_order:'Despacho',item_pickup:'Recogida'}[mainTask.type]||mainTask.type;
       opsInner += '<div class="eo-det-row"><dt>Tarea</dt><dd><span class="eo-ops-chip '+stCls+'">'+esc(tyLbl)+' · '+esc(stLbl)+'</span></dd></div>' +
@@ -33260,7 +33270,7 @@ async function loadCancelacionesKPIs() {
     </div>
     <div class="op-modal-body">
       <p class="op-modal-copy">
-        Esta tarea regresará a <strong>En Progreso</strong>. Indica el motivo de la devolución. Quedará registrado en el historial.
+        Esta tarea regresará a <strong>En curso</strong>. Indica el motivo de la devolución. Quedará registrado en el historial.
       </p>
       <label class="rep-lbl" for="devolver-razon">Motivo de devolución <span style="color:var(--red-text)">*</span></label>
       <textarea id="devolver-razon"

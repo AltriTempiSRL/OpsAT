@@ -29,10 +29,11 @@
   /* ── Textos modo claro ── */
   --text-primary:#1c2430;
   --text-secondary:#45556a;
-  --text-muted:#7a8c9e;
+  /* UX-29 (plan 10): muted/terciario subidos a contraste AA ≥4.5:1 sobre --bg */
+  --text-muted:#4d5e73;
   --text:#1c2430;
   --text-2:#45556a;
-  --text-3:#a8b5c2;
+  --text-3:#5b6b80;
   /* Aliases usados en la CSS de Estado de Órdenes que faltaban en :root (resolvían a vacío) */
   --text-1:var(--text-primary);--surface-1:var(--surface-2);
   /* ── Brand / acento ── */
@@ -89,10 +90,11 @@
   --border-focus:#4a9eff;
   --text-primary:#e8eaed;
   --text-secondary:#9aa5b4;
-  --text-muted:#6b7a8d;
+  /* UX-29 (plan 10): muted/terciario subidos a contraste AA ≥4.5:1 sobre --bg */
+  --text-muted:#8b99ad;
   --text:#e8eaed;
   --text-2:#9aa5b4;
-  --text-3:#4a5568;
+  --text-3:#77879b;
   --text-1:var(--text-primary);--surface-1:var(--surface-2);
   --scrollbar-thumb:rgba(232,234,237,.20);
   --scrollbar-thumb-hover:rgba(232,234,237,.40);

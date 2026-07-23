@@ -5,15 +5,18 @@
 const { test, expect } = require('@playwright/test');
 const { ADMIN } = require('./helpers/session');
 
-// _MODULE_ROUTES en proxy.js (~20387): primer segmento del path → historial.html.
+// _MODULE_ROUTES en proxy.js: primer segmento del path → historial.html.
 // Excepción: /almacen-mapa se sirve como página propia (proxy.js:20165) — es la
 // isla precedente del plan 08 y tiene su propio test abajo.
+// Plan 10 (UX-08): basedatos/dashboard-ventas/contenedores RETIRADAS (302 al
+// home, test abajo) y 'admin' NUEVA (alias de Administración).
 const MODULE_ROUTES = [
-  'buscar', 'contenedores', 'reposicion', 'solicitudes-reposicion', 'solicitudes',
+  'buscar', 'reposicion', 'solicitudes-reposicion', 'solicitudes',
   'sin-adjuntos', 'dev-cdp', 'despacho-obsoleto', 'inventario',
-  'averias', 'basedatos', 'dashboard-ventas', 'estado-ordenes', 'sdv-portal',
-  'sdv-bandeja', 'sdv-reactivations', 'inventario-salud', 'validacion', 'wwp',
+  'averias', 'estado-ordenes', 'sdv-portal',
+  'sdv-bandeja', 'sdv-reactivations', 'inventario-salud', 'validacion', 'wwp', 'admin',
 ];
+const RETIRED_ROUTES = ['basedatos', 'dashboard-ventas', 'contenedores'];
 
 test.describe('server: salud y contratos HTTP', () => {
   test('GET /api/health responde ok', async ({ request }) => {
@@ -49,6 +52,22 @@ test.describe('server: salud y contratos HTTP', () => {
       expect(res.headers()['content-type'] || '').toContain('text/html');
       const html = await res.text();
       expect(html).toContain('screen-login');
+    });
+  }
+
+  for (const route of RETIRED_ROUTES) {
+    test(`ruta retirada: /${route} responde 302 al home (UX-08)`, async ({ request }) => {
+      const res = await request.get('/' + route, { maxRedirects: 0 });
+      expect(res.status()).toBe(302);
+      expect(res.headers()['location']).toContain('/historial.html');
+    });
+  }
+
+  // UX-09 (plan 10): carpetas internas jamás se sirven como estático — los HTML
+  // archivados eran alcanzables por URL directa en producción.
+  for (const p of ['/_archivo/README.md', '/_archivo/versions-artifact-original/wwp.html', '/tests/test-mobile-usuarios.html', '/scripts/stamp.mjs', '/docs/auditoria-arquitectura/00-resumen-ejecutivo.md']) {
+    test(`prefijo bloqueado: ${p} responde 404`, async ({ request }) => {
+      expect((await request.get(p)).status()).toBe(404);
     });
   }
 
