@@ -18239,244 +18239,91 @@ window.addEventListener('DOMContentLoaded',function(){
 //  DATOS MOCK
 // ════════════════════════════════════════════════════
 
-/* ── SharePoint ── */
+/* ── SharePoint (DEMO — datos ficticios; el HTML se sirve sin sesión) ── */
 var SP={
-  '8949':{cliente:'Lissette Polanco',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[
-      {fecha:'13/04/2026',tipo:'Traslado interno de mercancía',lugar:'Altri Tempi',telefono:'(809) 224-0409',persona:'Melvin Grullon',estado:'Entregado',desc:'DB.LIORA.CONS.RED.MARB.TOP.K2 — esa es la consola que necesito'},
-      {fecha:'13/04/2026',tipo:'Entrega',lugar:'Av. Anacaona Torre Logroval XVIII Apt 9B',telefono:'(809) 224-0409',persona:'Lissette Polanco',estado:'Entregado',desc:''},
-      {fecha:'15/04/2026',tipo:'Entrega',lugar:'Av. Anacaona Torre Logroval XVIII Apt 9B',telefono:'(809) 224-0409',persona:'Lissette Polanco',estado:'Entregado',desc:'Cambio del tope — al cliente le gustó el que estaba en despacho, el entregado es más opaco.'}
-    ]},
-  '9115':{cliente:'Andrea Hormazabal',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[
-      {fecha:'30/04/2026',tipo:'Traslado interno de mercancía',lugar:'Altri Tempi',telefono:'8292221371',persona:'Melvin Grullon',estado:'Entregado',desc:'JC.ARTEMIS.RUG.300X400.BG.P — traer alfombra para que el cliente la vea en físico'},
-      {fecha:'05/05/2026',tipo:'Entrega',lugar:'Av. Anacaona #46, Torre Juan Antonio XIV Apt 1001',telefono:'+1 (809) 961-0202',persona:'ANDREA HORMAZABAL',estado:'Recibido',desc:'DEMOSTRACIÓN APROBADO POR AMELIA FERNANDEZ'}
-    ]},
-  '9003':{cliente:'Carlos Matamoros',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[
-      {fecha:'06/05/2026',tipo:'Entrega',lugar:'Av. Anacaona, Torre Sixth Tower Piso 19 Oeste',telefono:'+1 (809) 855-6969',persona:'Niccole Baez',estado:'',desc:'Solamente enviar dos personas para colocar la alfombra en una habitación.'}
-    ]},
-  '8946':{cliente:'Dianne Bisono',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[
-      {fecha:'10/04/2026',tipo:'Entrega',lugar:'Calle Manuel de Jesus Troncoso, Torre Copey',telefono:'(809) 756-4281',persona:'Amelia Fernandez',estado:'Entregado',desc:'YH.ROSAINE.SOFA.RIGHT.BG.K5 — NO llevar pieza del brazo ni ottoman. (Autorizado por Amelia)'},
-      {fecha:'22/04/2026',tipo:'Entrega',lugar:'Calle Manuel de Jesus Troncoso, Torre Copey',telefono:'+1 (809) 756-4774',persona:'Dianne Bisono',estado:'Entregado',desc:'Se necesita instalador para colocar 2 lámparas.'}
-    ]},
-  'S09059':{cliente:'CBELL EVENT MEDIA',vendedor:'Jhonathan Martinez',ciudad:'Santiago',
-    eventos:[{fecha:'28/04/2026',tipo:'Entrega',lugar:'Canopy Living Casa 1',telefono:'80975467996',persona:'Rossy Belliard',estado:'Recibido',desc:'Confirmar que sea altura counter'}]},
-  '9114':{cliente:'CLAUDETTE COCHON',vendedor:'Heidy Nuñez',ciudad:'Santo Domingo',
-    eventos:[{fecha:'06/05/2026',tipo:'Entrega',lugar:'Paseo de los Flamboyanes 12, Los Pinos, Arroyo Hondo',telefono:'829 962 5772',persona:'CLAUDETTE COCHON',estado:'',desc:''}]},
-  '8867':{cliente:'ZUNIFLOR',vendedor:'Heidy Nuñez',ciudad:'La Cuaba, Pedro Brand',
-    eventos:[{fecha:'08/04/2026',tipo:'Entrega',lugar:'La Cuaba, Pedro Brand',telefono:'829-521-9711',persona:'ZUNILDA FERMIN / FRANCINELLY REYNOSO',estado:'Entregado',desc:''}]},
-  '9120':{cliente:'Geremia Jimenez',vendedor:'Daniela Castillo',ciudad:'Santo Domingo Este',
-    eventos:[{fecha:'01/05/2026',tipo:'Entrega',lugar:'C/ Cabuya #28, Residencial Mirador del Este',telefono:'+1 (829) 713-3203',persona:'GEREMIA JIMENEZ',estado:'Entregado',desc:''}]},
+  'DEMO-1':{cliente:'Cliente Demo Uno',vendedor:'Vendedor Demo',ciudad:'Ciudad Demo',
+    eventos:[{fecha:'01/05/2026',tipo:'Entrega',lugar:'Dirección de ejemplo 1',telefono:'(809) 000-0001',persona:'Cliente Demo Uno',estado:'Entregado',desc:'Registro de demostración — sin datos reales'}]},
+  'DEMO-2':{cliente:'Cliente Demo Dos',vendedor:'Vendedor Demo',ciudad:'Ciudad Demo',
+    eventos:[{fecha:'02/05/2026',tipo:'Entrega',lugar:'Dirección de ejemplo 2',telefono:'(809) 000-0002',persona:'Cliente Demo Dos',estado:'Preparando',desc:''}]},
 
   // ── Órdenes de prueba (alertas de flujo) ──────────────────
-  // T-SIN-GS: SP + OD pero sin Sheets → "Sin procesamiento en Operaciones"
-  'T-SIN-GS':{cliente:'PRUEBA Cliente A',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[{fecha:'02/05/2026',tipo:'Entrega',lugar:'Av. Abraham Lincoln 123, Torre Acropolis',telefono:'809-555-0001',persona:'Cliente A',estado:'Preparando',desc:'Solicitud registrada sin pasar por Operaciones'}]},
-
-  // T-SIN-OD: SP + GS pero sin Odoo → "Sin Orden de Venta en Odoo"
-  'T-SIN-OD':{cliente:'PRUEBA Cliente B',vendedor:'Heidy Nuñez',ciudad:'Santo Domingo',
-    eventos:[{fecha:'03/05/2026',tipo:'Entrega',lugar:'C/ El Recodo 45, Piantini',telefono:'809-555-0002',persona:'Cliente B',estado:'Pendiente',desc:'Solicitud sin OV creada en Odoo'}]},
-
-  // T-SIN-DEL: SP + GS + OD (sin despacho) → "Despacho no registrado en Odoo"
-  'T-SIN-DEL':{cliente:'PRUEBA Cliente C',vendedor:'Daniela Castillo',ciudad:'Santo Domingo',
-    eventos:[{fecha:'04/05/2026',tipo:'Entrega',lugar:'C/ Fantino Falco 8, Naco',telefono:'809-555-0003',persona:'Cliente C',estado:'Preparando',desc:'Mercancía lista — despacho ejecutado físicamente pero no registrado en Odoo'}]}
+  'T-SIN-GS':{cliente:'PRUEBA Cliente A',vendedor:'Vendedor Demo',ciudad:'Ciudad Demo',
+    eventos:[{fecha:'02/05/2026',tipo:'Entrega',lugar:'Dirección de ejemplo A',telefono:'(809) 000-0010',persona:'Cliente A',estado:'Preparando',desc:'Solicitud registrada sin pasar por Operaciones'}]},
+  'T-SIN-OD':{cliente:'PRUEBA Cliente B',vendedor:'Vendedor Demo',ciudad:'Ciudad Demo',
+    eventos:[{fecha:'03/05/2026',tipo:'Entrega',lugar:'Dirección de ejemplo B',telefono:'(809) 000-0011',persona:'Cliente B',estado:'Pendiente',desc:'Solicitud sin OV creada en Odoo'}]},
+  'T-SIN-DEL':{cliente:'PRUEBA Cliente C',vendedor:'Vendedor Demo',ciudad:'Ciudad Demo',
+    eventos:[{fecha:'04/05/2026',tipo:'Entrega',lugar:'Dirección de ejemplo C',telefono:'(809) 000-0012',persona:'Cliente C',estado:'Preparando',desc:'Mercancía lista — despacho ejecutado físicamente pero no registrado en Odoo'}]}
 };
 
-/* ── Google Sheets ── */
+/* ── Operaciones / Google Sheets (DEMO) ── */
 var GS={
-  '8949':{tipoMov:'Entrega a Cliente',vendedor:'DANIELA',estatus:'Entregado',prioridad:'Mediano',vehiculo:'Camión Hyundai',transporte:'Propio',fSolicitada:'13/04/2026',fEntrega:'15/04/2026',horario:'AM',instalacion:'SI',origen:'CDP',articulos:3,diasPrep:2,diasRest:-20,comentario:'Cambio de tope aprobado por cliente. Múltiples visitas realizadas.',artAdicionales:0},
-  '9115':{tipoMov:'Entrega a Cliente',vendedor:'HEIDY',estatus:'Recibida',prioridad:'Alta',vehiculo:'Furgoneta Citroem',transporte:'Propio',fSolicitada:'30/04/2026',fEntrega:'05/05/2026',horario:'AM',instalacion:'NO',origen:'PTN',articulos:1,diasPrep:5,diasRest:0,comentario:'Demo aprobada por Amelia Fernandez.',artAdicionales:1},
-  '9003':{tipoMov:'Entrega a Cliente',vendedor:'DANIELA',estatus:'Preparando',prioridad:'Mediano',vehiculo:'Camión Hyundai',transporte:'Propio',fSolicitada:'06/05/2026',fEntrega:'08/05/2026',horario:'AM',instalacion:'SI',origen:'CDP',articulos:1,diasPrep:1,diasRest:3,comentario:'Solo 2 operarios para colocar alfombra en habitación.',artAdicionales:0},
-  '8946':{tipoMov:'Entrega a Cliente',vendedor:'DANIELA',estatus:'Entregado',prioridad:'Mediano',vehiculo:'Furgoneta Ducato',transporte:'Propio',fSolicitada:'10/04/2026',fEntrega:'22/04/2026',horario:'AM',instalacion:'SI',origen:'PTN',articulos:4,diasPrep:4,diasRest:-13,comentario:'Instalador requerido para 2 lámparas. Sofá entregado sin brazo ni ottoman (autorizado).',artAdicionales:2},
-  'S09059':{tipoMov:'Entrega a Cliente',vendedor:'JONATHAN',estatus:'Pendiente Confirmacion',prioridad:'Alta',vehiculo:'Furgoneta Citroem',transporte:'Propio',fSolicitada:'28/04/2026',fEntrega:'02/05/2026',horario:'AM',instalacion:'NO',origen:'CDP',articulos:1,diasPrep:3,diasRest:-3,comentario:'Pendiente confirmar altura de counter con cliente.',artAdicionales:0},
-  '9114':{tipoMov:'Entrega a Cliente',vendedor:'HEIDY',estatus:'Preparando',prioridad:'Mediano',vehiculo:'Furgoneta Citroem',transporte:'Propio',fSolicitada:'06/05/2026',fEntrega:'09/05/2026',horario:'AM',instalacion:'NO',origen:'PTN',articulos:4,diasPrep:2,diasRest:4,comentario:'',artAdicionales:0},
-  '8867':{tipoMov:'Entrega a Cliente',vendedor:'HEIDY',estatus:'Entregado',prioridad:'Mediano',vehiculo:'Camión Externo',transporte:'Alquilado',fSolicitada:'08/04/2026',fEntrega:'08/04/2026',horario:'AM',instalacion:'NO',origen:'PTN',articulos:6,diasPrep:1,diasRest:-27,comentario:'',artAdicionales:0},
-  '9120':{tipoMov:'Entrega a Cliente',vendedor:'DANIELA',estatus:'Entregado',prioridad:'Mediano',vehiculo:'Furgoneta Ducato',transporte:'Propio',fSolicitada:'01/05/2026',fEntrega:'01/05/2026',horario:'AM',instalacion:'NO',origen:'CDP',articulos:3,diasPrep:1,diasRest:-4,comentario:'',artAdicionales:0},
+  'DEMO-1':{tipoMov:'Entrega a Cliente',vendedor:'DEMO',estatus:'Entregado',prioridad:'Mediano',vehiculo:'Vehículo Demo',transporte:'Propio',fSolicitada:'01/05/2026',fEntrega:'01/05/2026',horario:'AM',instalacion:'NO',origen:'CDP',articulos:1,diasPrep:1,diasRest:0,comentario:'Registro de demostración',artAdicionales:0},
+  'DEMO-2':{tipoMov:'Entrega a Cliente',vendedor:'DEMO',estatus:'Preparando',prioridad:'Alta',vehiculo:'Vehículo Demo',transporte:'Propio',fSolicitada:'02/05/2026',fEntrega:'05/05/2026',horario:'AM',instalacion:'SI',origen:'PTN',articulos:2,diasPrep:2,diasRest:3,comentario:'',artAdicionales:0},
 
   // ── Órdenes de prueba (alertas de flujo) ──────────────────
-  // T-SIN-SP: GS + OD sin SP → "Sin solicitud en SharePoint"
-  'T-SIN-SP':{tipoMov:'Entrega a Cliente',vendedor:'JONATHAN',estatus:'Entregado',prioridad:'Alta',vehiculo:'Camión Hyundai',transporte:'Propio',fSolicitada:'01/05/2026',fEntrega:'02/05/2026',horario:'AM',instalacion:'NO',origen:'CDP',articulos:2,diasPrep:1,diasRest:-4,comentario:'Operaciones procesó la orden sin recibir solicitud formal en SharePoint.',artAdicionales:0},
-  // T-SIN-OD: SP + GS sin OD → "Sin Orden de Venta en Odoo"
-  'T-SIN-OD':{tipoMov:'Entrega a Cliente',vendedor:'HEIDY',estatus:'Preparando',prioridad:'Alta',vehiculo:'Furgoneta Citroem',transporte:'Propio',fSolicitada:'03/05/2026',fEntrega:'06/05/2026',horario:'AM',instalacion:'NO',origen:'PTN',articulos:1,diasPrep:2,diasRest:0,comentario:'Solicitud procesada en Operaciones pero sin OV creada en Odoo.',artAdicionales:0},
-  // T-SIN-DEL: SP + GS + OD (sin movimiento despacho) → "Despacho no registrado en Odoo"
-  'T-SIN-DEL':{tipoMov:'Entrega a Cliente',vendedor:'DANIELA',estatus:'Preparando',prioridad:'Mediano',vehiculo:'Furgoneta Ducato',transporte:'Propio',fSolicitada:'04/05/2026',fEntrega:'07/05/2026',horario:'AM',instalacion:'SI',origen:'CDP',articulos:3,diasPrep:1,diasRest:1,comentario:'La mercancía salió del almacén pero nadie registró el despacho en Odoo.',artAdicionales:0}
+  'T-SIN-SP':{tipoMov:'Entrega a Cliente',vendedor:'DEMO',estatus:'Entregado',prioridad:'Alta',vehiculo:'Vehículo Demo',transporte:'Propio',fSolicitada:'01/05/2026',fEntrega:'02/05/2026',horario:'AM',instalacion:'NO',origen:'CDP',articulos:2,diasPrep:1,diasRest:-4,comentario:'Operaciones procesó la orden sin recibir solicitud formal en SharePoint.',artAdicionales:0},
+  'T-SIN-OD':{tipoMov:'Entrega a Cliente',vendedor:'DEMO',estatus:'Preparando',prioridad:'Alta',vehiculo:'Vehículo Demo',transporte:'Propio',fSolicitada:'03/05/2026',fEntrega:'06/05/2026',horario:'AM',instalacion:'NO',origen:'PTN',articulos:1,diasPrep:2,diasRest:0,comentario:'Solicitud procesada en Operaciones pero sin OV creada en Odoo.',artAdicionales:0},
+  'T-SIN-DEL':{tipoMov:'Entrega a Cliente',vendedor:'DEMO',estatus:'Preparando',prioridad:'Mediano',vehiculo:'Vehículo Demo',transporte:'Propio',fSolicitada:'04/05/2026',fEntrega:'07/05/2026',horario:'AM',instalacion:'SI',origen:'CDP',articulos:3,diasPrep:1,diasRest:1,comentario:'La mercancía salió del almacén pero nadie registró el despacho en Odoo.',artAdicionales:0}
 };
 
-/* ── Odoo ── */
+/* ── Odoo (DEMO) ── */
 var OD={
-  '8949':{ovNum:'OV-2026-8949',estado:'Entregado',fConfirmacion:'05/03/2026',fEntregaProm:'20/04/2026',
-    monto:'RD$ 148,500.00',responsable:'Daniela Castillo',
-    productos:[{ref:'DB.LIORA.CONS.RED.MARB.TOP.K2',nombre:'Consola Liora Roja Mármol',qty:1,precio:'RD$ 52,000'},{ref:'YH.ROSAINE.SOFA.RIGHT.BG.K5',nombre:'Sofá Rosaine Derecho Beige',qty:1,precio:'RD$ 96,500'}],
+  'DEMO-1':{ovNum:'OV-DEMO-0001',estado:'Entregado',fConfirmacion:'20/04/2026',fEntregaProm:'01/05/2026',
+    monto:'RD$ 00,000.00',responsable:'Responsable Demo',
+    productos:[{ref:'DEMO.PROD.001',nombre:'Producto Demostración 1',qty:1,precio:'RD$ 00,000'}],
     movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1248',fecha:'15/01/2026',usuario:'María Santos · Compras',estado:'Recibida',detalle:'Proveedor: Muebles Internacionales SA · 2 referencias'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-0842',fecha:'28/01/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén CDP — 2 artículos inspeccionados OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-8949',fecha:'05/03/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: Lissette Polanco · RD$ 148,500'},
-      {tipo:'Traslado Interno',ref:'INT-8949-A',fecha:'13/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Realizado',detalle:'CDP → Tienda Altri Tempi — DB.LIORA.CONS.RED'},
-      {tipo:'Despacho',ref:'DEL-2026-8949A',fecha:'13/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Av. Anacaona Torre Logroval XVIII Apt 9B — Lissette Polanco'},
-      {tipo:'Despacho (Cambio tope)',ref:'DEL-2026-8949B',fecha:'15/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Cliente prefirió tope exhibido — reemplazo aprobado'}
+      {tipo:'Orden de Venta',ref:'OV-DEMO-0001',fecha:'20/04/2026',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: Cliente Demo Uno · registro ficticio'},
+      {tipo:'Despacho',ref:'DEL-DEMO-0001',fecha:'01/05/2026',usuario:'Operaciones Demo',estado:'Entregado',detalle:'Dirección de ejemplo 1 — entrega de demostración'}
     ]},
-  '9115':{ovNum:'OV-2026-9115',estado:'En entrega',fConfirmacion:'18/04/2026',fEntregaProm:'05/05/2026',
-    monto:'RD$ 85,200.00',responsable:'Daniela Castillo',
-    productos:[{ref:'JC.ARTEMIS.RUG.300X400.BG.P',nombre:'Alfombra Artemis 300×400 Beige',qty:1,precio:'RD$ 85,200'}],
+  'DEMO-2':{ovNum:'OV-DEMO-0002',estado:'Confirmado',fConfirmacion:'24/04/2026',fEntregaProm:'05/05/2026',
+    monto:'RD$ 00,000.00',responsable:'Responsable Demo',
+    productos:[{ref:'DEMO.PROD.002',nombre:'Producto Demostración 2',qty:2,precio:'RD$ 00,000'}],
     movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1589',fecha:'10/03/2026',usuario:'María Santos · Compras',estado:'Recibida',detalle:'Proveedor: Textiles Premium SA · 1 referencia'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-1103',fecha:'22/03/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén PTN — alfombra inspeccionada OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-9115',fecha:'18/04/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: Andrea Hormazabal · RD$ 85,200'},
-      {tipo:'Traslado Interno (Demo)',ref:'INT-9115-DEMO',fecha:'30/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Realizado',detalle:'PTN → Tienda Altri Tempi — demo aprobada por Amelia Fernandez'},
-      {tipo:'Despacho Demo',ref:'DEL-2026-9115',fecha:'05/05/2026',usuario:'Melvin Grullón · Operaciones',estado:'En entrega',detalle:'Av. Anacaona #46 Torre Juan Antonio XIV Apt 1001'}
-    ]},
-  '9003':{ovNum:'OV-2026-9003',estado:'Confirmado',fConfirmacion:'24/04/2026',fEntregaProm:'08/05/2026',
-    monto:'RD$ 38,000.00',responsable:'Daniela Castillo',
-    productos:[{ref:'ALFOMBRA-HABIT-PREM',nombre:'Alfombra Habitación Premium',qty:1,precio:'RD$ 38,000'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1612',fecha:'01/04/2026',usuario:'María Santos · Compras',estado:'Recibida',detalle:'Proveedor: Textiles Premium SA · 1 referencia'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-1198',fecha:'14/04/2026',usuario:'Luis Peña · Almacén',estado:'Validada',detalle:'Almacén CDP — alfombra premium recibida OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-9003',fecha:'24/04/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: Carlos Matamoros · RD$ 38,000'},
-      {tipo:'Despacho',ref:'DEL-2026-9003',fecha:'06/05/2026',usuario:'Melvin Grullón · Operaciones',estado:'Preparando',detalle:'Av. Anacaona Torre Sixth Tower P19 Oeste — 2 operarios colocación'}
-    ]},
-  '8946':{ovNum:'OV-2026-8946',estado:'Entregado',fConfirmacion:'01/04/2026',fEntregaProm:'22/04/2026',
-    monto:'RD$ 288,950.00',responsable:'Daniela Castillo',
-    productos:[{ref:'YH.ROSAINE.SOFA.RIGHT.BG.K5',nombre:'Sofá Rosaine Derecho Beige',qty:1,precio:'RD$ 96,500'},{ref:'LAMPARA-COLGANTE-K2',nombre:'Lámpara Colgante Decorativa',qty:2,precio:'RD$ 64,150 c/u'},{ref:'MESA-LATERAL-VPF',nombre:'Mesa Lateral VPF Lacada',qty:1,precio:'RD$ 64,150'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1180',fecha:'05/02/2026',usuario:'Carlos Reyes · Compras',estado:'Recibida',detalle:'Proveedor: Muebles YH / VPF · 4 referencias'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-0798',fecha:'18/02/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén PTN — 4 artículos verificados OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-8946',fecha:'01/04/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: Dianne Bisono · RD$ 288,950'},
-      {tipo:'Despacho Parcial',ref:'DEL-2026-8946A',fecha:'10/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Torre Copey — Sofá sin brazo/ottoman (Amelia autoriza)'},
-      {tipo:'Despacho c/Instalación',ref:'DEL-2026-8946B',fecha:'22/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Torre Copey — instalación 2 lámparas'}
-    ]},
-  'S09059':{ovNum:'OV-2026-9059',estado:'Confirmado',fConfirmacion:'22/04/2026',fEntregaProm:'02/05/2026',
-    monto:'RD$ 67,500.00',responsable:'Jhonathan Martinez',
-    productos:[{ref:'COUNTER-BAR-MADERA',nombre:'Counter Bar de Madera',qty:1,precio:'RD$ 67,500'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1598',fecha:'08/04/2026',usuario:'Carlos Reyes · Compras',estado:'Recibida',detalle:'Proveedor: Carpintería Artesanal RD · 1 pieza especial'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-1148',fecha:'19/04/2026',usuario:'Luis Peña · Almacén',estado:'Validada',detalle:'Almacén CDP — counter inspeccionado OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-9059',fecha:'22/04/2026',usuario:'Jhonathan Martinez · Ventas',estado:'Confirmada',detalle:'Cliente: Cbell Event Media · RD$ 67,500'},
-      {tipo:'Despacho',ref:'DEL-2026-9059',fecha:'28/04/2026',usuario:'Operaciones',estado:'Pendiente Confirmacion',detalle:'Santiago — Canopy Living Casa 1 — pendiente confirmar altura counter'}
-    ]},
-  '9114':{ovNum:'OV-2026-9114',estado:'Confirmado',fConfirmacion:'28/04/2026',fEntregaProm:'09/05/2026',
-    monto:'RD$ 112,000.00',responsable:'Heidy Nuñez',
-    productos:[{ref:'SET-SALA-MOD-4P',nombre:'Set Sala Moderno 4 piezas',qty:1,precio:'RD$ 112,000'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1621',fecha:'12/04/2026',usuario:'María Santos · Compras',estado:'Recibida',detalle:'Proveedor: Muebles Modernos SRL · 4 piezas'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-1210',fecha:'25/04/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén PTN — set sala verificado OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-9114',fecha:'28/04/2026',usuario:'Heidy Nuñez · Ventas',estado:'Confirmada',detalle:'Cliente: Claudette Cochon · RD$ 112,000'},
-      {tipo:'Despacho',ref:'DEL-2026-9114',fecha:'06/05/2026',usuario:'Operaciones',estado:'Preparando',detalle:'Los Pinos, Arroyo Hondo — Claudette Cochon · 4 artículos'}
-    ]},
-  '8867':{ovNum:'OV-2026-8867',estado:'Entregado',fConfirmacion:'15/03/2026',fEntregaProm:'08/04/2026',
-    monto:'RD$ 345,200.00',responsable:'Heidy Nuñez',
-    productos:[{ref:'SET-JARDIN-COMP-6P',nombre:'Set Jardín Completo 6 piezas',qty:1,precio:'RD$ 345,200'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1042',fecha:'20/01/2026',usuario:'Carlos Reyes · Compras',estado:'Recibida',detalle:'Proveedor: Outdoor Furniture Int. · 6 piezas set jardín'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-0622',fecha:'10/02/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén PTN — set jardín inspeccionado OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-8867',fecha:'15/03/2026',usuario:'Heidy Nuñez · Ventas',estado:'Confirmada',detalle:'Cliente: ZUNIFLOR · RD$ 345,200'},
-      {tipo:'Despacho',ref:'DEL-2026-8867',fecha:'08/04/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'La Cuaba, Pedro Brand — Zunilda Fermin / Francinelly Reynoso'}
-    ]},
-  '9120':{ovNum:'OV-2026-9120',estado:'Entregado',fConfirmacion:'20/04/2026',fEntregaProm:'01/05/2026',
-    monto:'RD$ 95,800.00',responsable:'Daniela Castillo',
-    productos:[{ref:'SET-DORM-PREM-3P',nombre:'Set Dormitorio Premium 3 piezas',qty:1,precio:'RD$ 95,800'}],
-    movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-1582',fecha:'25/03/2026',usuario:'Carlos Reyes · Compras',estado:'Recibida',detalle:'Proveedor: Dormitorios Premium SRL · 3 piezas'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-1088',fecha:'08/04/2026',usuario:'Luis Peña · Almacén',estado:'Validada',detalle:'Almacén CDP — set dormitorio verificado OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-9120',fecha:'20/04/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: Geremia Jimenez · RD$ 95,800'},
-      {tipo:'Despacho',ref:'DEL-2026-9120',fecha:'01/05/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'C/ Cabuya #28 Mirador del Este — Geremia Jimenez'}
+      {tipo:'Orden de Compra',ref:'OC-DEMO-0002',fecha:'01/04/2026',usuario:'Compras Demo',estado:'Recibida',detalle:'Proveedor Demo · 1 referencia'},
+      {tipo:'Recepción Almacén',ref:'REC-DEMO-0002',fecha:'14/04/2026',usuario:'Almacén Demo',estado:'Validada',detalle:'Almacén CDP — recibido OK'},
+      {tipo:'Orden de Venta',ref:'OV-DEMO-0002',fecha:'24/04/2026',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: Cliente Demo Dos · registro ficticio'}
     ]},
 
   // ── Órdenes de prueba (alertas de flujo) ──────────────────
-  // T-SIN-SP: OD + GS, sin SP → alerta "Sin solicitud en SharePoint"
-  'T-SIN-SP':{ovNum:'OV-2026-T001',estado:'Entregado',fConfirmacion:'30/04/2026',fEntregaProm:'02/05/2026',
-    monto:'RD$ 24,000.00',responsable:'Jhonathan Martinez',
-    productos:[{ref:'MESA-AUX-ROB-T01',nombre:'Mesa Auxiliar Roble',qty:1,precio:'RD$ 24,000'}],
+  'T-SIN-SP':{ovNum:'OV-DEMO-T001',estado:'Entregado',fConfirmacion:'30/04/2026',fEntregaProm:'02/05/2026',
+    monto:'RD$ 00,000.00',responsable:'Responsable Demo',
+    productos:[{ref:'DEMO.PROD.T01',nombre:'Producto Prueba 1',qty:1,precio:'RD$ 00,000'}],
     movimientos:[
-      {tipo:'Orden de Venta',ref:'OV-2026-T001',fecha:'30/04/2026',usuario:'Jhonathan Martinez · Ventas',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente D · RD$ 24,000'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-T001',fecha:'30/04/2026',usuario:'Luis Peña · Almacén',estado:'Validada',detalle:'Almacén CDP — artículo listo'},
-      {tipo:'Despacho',ref:'DEL-2026-T001',fecha:'02/05/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Av. Abraham Lincoln 123 — despacho ejecutado sin solicitud formal en SharePoint'}
+      {tipo:'Orden de Venta',ref:'OV-DEMO-T001',fecha:'30/04/2026',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente D'},
+      {tipo:'Despacho',ref:'DEL-DEMO-T001',fecha:'02/05/2026',usuario:'Operaciones Demo',estado:'Entregado',detalle:'Despacho ejecutado sin solicitud formal en SharePoint'}
     ]},
-
-  // T-SIN-GS: SP + OD, sin GS → alerta "Sin procesamiento en Operaciones"
-  'T-SIN-GS':{ovNum:'OV-2026-T002',estado:'Entregado',fConfirmacion:'01/05/2026',fEntregaProm:'03/05/2026',
-    monto:'RD$ 38,500.00',responsable:'Daniela Castillo',
-    productos:[{ref:'SILLA-COMEDOR-T02',nombre:'Silla Comedor Tapizada ×4',qty:4,precio:'RD$ 9,625 c/u'}],
+  'T-SIN-GS':{ovNum:'OV-DEMO-T002',estado:'Entregado',fConfirmacion:'01/05/2026',fEntregaProm:'03/05/2026',
+    monto:'RD$ 00,000.00',responsable:'Responsable Demo',
+    productos:[{ref:'DEMO.PROD.T02',nombre:'Producto Prueba 2',qty:4,precio:'RD$ 00,000'}],
     movimientos:[
-      {tipo:'Orden de Venta',ref:'OV-2026-T002',fecha:'01/05/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente A · RD$ 38,500'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-T002',fecha:'01/05/2026',usuario:'Pedro García · Almacén',estado:'Validada',detalle:'Almacén CDP — 4 sillas verificadas OK'},
-      {tipo:'Despacho',ref:'DEL-2026-T002',fecha:'02/05/2026',usuario:'Melvin Grullón · Operaciones',estado:'Entregado',detalle:'Torre Acropolis, Av. Abraham Lincoln — entrega sin registro en dashboard de Operaciones'}
+      {tipo:'Orden de Venta',ref:'OV-DEMO-T002',fecha:'01/05/2026',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente A'},
+      {tipo:'Despacho',ref:'DEL-DEMO-T002',fecha:'02/05/2026',usuario:'Operaciones Demo',estado:'Entregado',detalle:'Entrega sin registro en dashboard de Operaciones'}
     ]},
-
-  // T-SIN-DEL: SP + GS + OD sin evento Despacho → alerta "Despacho no registrado en Odoo"
-  'T-SIN-DEL':{ovNum:'OV-2026-T003',estado:'Confirmado',fConfirmacion:'03/05/2026',fEntregaProm:'07/05/2026',
-    monto:'RD$ 61,200.00',responsable:'Daniela Castillo',
-    productos:[{ref:'APARA-MOD-T03',nombre:'Aparador Moderno 3 puertas',qty:1,precio:'RD$ 61,200'}],
+  'T-SIN-DEL':{ovNum:'OV-DEMO-T003',estado:'Confirmado',fConfirmacion:'03/05/2026',fEntregaProm:'07/05/2026',
+    monto:'RD$ 00,000.00',responsable:'Responsable Demo',
+    productos:[{ref:'DEMO.PROD.T03',nombre:'Producto Prueba 3',qty:1,precio:'RD$ 00,000'}],
     movimientos:[
-      {tipo:'Orden de Compra',ref:'OC-2026-T003',fecha:'15/04/2026',usuario:'María Santos · Compras',estado:'Recibida',detalle:'Proveedor: Muebles Internacionales SA · 1 referencia'},
-      {tipo:'Recepción Almacén',ref:'REC-2026-T003',fecha:'28/04/2026',usuario:'Luis Peña · Almacén',estado:'Validada',detalle:'Almacén CDP — aparador inspeccionado OK'},
-      {tipo:'Orden de Venta',ref:'OV-2026-T003',fecha:'03/05/2026',usuario:'Daniela Castillo · Ventas',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente C · RD$ 61,200'}
+      {tipo:'Orden de Compra',ref:'OC-DEMO-T003',fecha:'15/04/2026',usuario:'Compras Demo',estado:'Recibida',detalle:'Proveedor Demo · 1 referencia'},
+      {tipo:'Recepción Almacén',ref:'REC-DEMO-T003',fecha:'28/04/2026',usuario:'Almacén Demo',estado:'Validada',detalle:'Almacén CDP — inspeccionado OK'},
+      {tipo:'Orden de Venta',ref:'OV-DEMO-T003',fecha:'03/05/2026',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: PRUEBA Cliente C'}
       // ← Sin evento de Despacho — simula que salió físicamente pero no se registró en Odoo
     ]}
 };
 
-/* ── Artículos (búsqueda por código de referencia) ── */
+/* ── Artículos (búsqueda por código de referencia) — DEMO ── */
 var ARTICULOS={
-  'YH.PALERMO.SOFA.3P.GRY.K1':{
-    nombre:'Sofá Palermo 3 Plazas Gris',
-    categoria:'Salas',
-    proveedor:'Muebles YH International',
+  'DEMO.PROD.001':{
+    nombre:'Producto Demostración 1',
+    categoria:'Categoría Demo',
+    proveedor:'Proveedor Demo',
     unidad:'Unidad',
-    precio:'RD$ 89,500',
-    odooRef:'YH.PALERMO.SOFA.3P.GRY.K1',
-    stock:{almacen:'PTN',cantidad:0,ubicacion:'En cliente / devuelto'},
-    ordenes:['OV-2026-8820'],
+    precio:'RD$ 00,000',
+    odooRef:'DEMO.PROD.001',
+    stock:{almacen:'PTN',cantidad:0,ubicacion:'Demostración'},
+    ordenes:['OV-DEMO-0001'],
     movimientos:[
-      {tipo:'Orden de Compra',       ref:'OC-2025-0891',       fecha:'05/11/2025',orden:'OC-2025-0891',  fuente:'odoo',  usuario:'María Santos · Compras',           estado:'Recibida',  detalle:'Proveedor: Muebles YH International · 2 unidades solicitadas (lote inicial temporada)'},
-      {tipo:'Recepción Almacén',     ref:'REC-2025-0401',      fecha:'20/11/2025',orden:'REC-2025-0401', fuente:'odoo',  usuario:'Pedro García · Almacén PTN',       estado:'Validada',  detalle:'2 unidades inspeccionadas OK · Almacén Piantini — sin daños visibles'},
-      {tipo:'Traslado Interno',      ref:'INT-PTN-CDP-001',    fecha:'15/01/2026',orden:'INT-PTN-CDP-001',fuente:'odoo', usuario:'Melvin Grullón · Operaciones',     estado:'Realizado', detalle:'PTN → Showroom CDP — exhibición de temporada, unidad en piso de ventas'},
-      {tipo:'Orden de Venta',        ref:'OV-2026-8820',       fecha:'10/02/2026',orden:'8820',          fuente:'odoo',  usuario:'Heidy Nuñez · Ventas',             estado:'Confirmada',detalle:'Cliente: Rosa Morales · RD$ 89,500 · 1 unidad'},
-      {tipo:'Solicitud Despacho',    ref:'SP-8820',            fecha:'18/03/2026',orden:'8820',          fuente:'sp',    usuario:'Heidy Nuñez · SharePoint',         estado:'Entregado', detalle:'Entrega a domicilio — Av. Lope de Vega Torre Brisa Apt 12B · Rosa Morales'},
-      {tipo:'Procesado Operaciones', ref:'GS-8820',            fecha:'18/03/2026',orden:'8820',          fuente:'sheets',usuario:'HEIDY · Google Sheets',           estado:'Entregado', detalle:'Furgoneta Citroën · Origen CDP · 1 artículo · AM · instalación NO'},
-      {tipo:'Despacho a Cliente',    ref:'DEL-2026-8820',      fecha:'22/03/2026',orden:'8820',          fuente:'odoo',  usuario:'Melvin Grullón · Operaciones',     estado:'Entregado', detalle:'Rosa Morales — Av. Lope de Vega Torre Brisa Apt 12B · entregado conforme'},
-      {tipo:'Solicitud Devolución',  ref:'SP-DEV-8820',        fecha:'05/04/2026',orden:'8820',          fuente:'sp',    usuario:'Heidy Nuñez · SharePoint',         estado:'Devolucion',detalle:'Defecto en costuras del respaldo izquierdo — cliente solicita reemplazo'},
-      {tipo:'Devolución Recibida',   ref:'REC-DEV-2026-0102',  fecha:'10/04/2026',orden:'8820',          fuente:'odoo',  usuario:'Pedro García · Almacén PTN',       estado:'Recibida',  detalle:'Unidad devuelta recibida en almacén — en revisión con proveedor YH'},
-      {tipo:'Nota de Crédito Odoo',  ref:'RFND-2026-0102',     fecha:'12/04/2026',orden:'8820',          fuente:'odoo',  usuario:'Ana Guerrero · Administración',    estado:'Pendiente', detalle:'Nota de crédito en proceso — pendiente aprobación gerencia para reemplazo o reembolso'}
-    ]
-  },
-
-  'DB.LIORA.CONS.RED.MARB.TOP.K2':{
-    nombre:'Consola Liora Roja Mármol',
-    categoria:'Consolas y Aparadores',
-    proveedor:'Dining Bros International',
-    unidad:'Unidad',
-    precio:'RD$ 52,000',
-    odooRef:'DB.LIORA.CONS.RED.MARB.TOP.K2',
-    stock:{almacen:'PTN',cantidad:0,ubicacion:'Entregado a cliente'},
-    movimientos:[
-      {tipo:'Orden de Compra',       ref:'OC-2026-0124',      fecha:'10/01/2026',orden:'OC-2026-0124',  fuente:'odoo',   usuario:'María Santos · Compras',         estado:'Recibida',   detalle:'Proveedor: Dining Bros International · Contenedor BTC · 3 unidades pedidas'},
-      {tipo:'Recepción Almacén',     ref:'REC-2026-0198',     fecha:'08/04/2026',orden:'REC-2026-0198', fuente:'odoo',   usuario:'Pedro García · Almacén PTN',     estado:'Validada',   detalle:'3 unidades recibidas de contenedor BTC · inspeccionadas sin daños · ingresadas a stock PTN'},
-      {tipo:'Orden de Venta',        ref:'OV-2026-8949',      fecha:'05/03/2026',orden:'8949',          fuente:'odoo',   usuario:'Daniela Castillo · Ventas',      estado:'Confirmada', detalle:'Cliente: Lissette Polanco · incluida en OV junto con Sofá Rosaine · RD$ 52,000'},
-      {tipo:'Traslado Interno',      ref:'INT-8949-A',        fecha:'13/04/2026',orden:'8949',          fuente:'odoo',   usuario:'Melvin Grullón · Operaciones',   estado:'Realizado',  detalle:'PTN → Altri Tempi · cliente quiere verla en físico antes de confirmar tope definitivo'},
-      {tipo:'Solicitud Despacho',    ref:'SP-8949-CONS',      fecha:'13/04/2026',orden:'8949',          fuente:'sp',     usuario:'Daniela Castillo → Melvin Grullón · SharePoint', estado:'Entregado', detalle:'Traslado interno a Altri Tempi · "DB.LIORA.CONS.RED.MARB.TOP.K2 esa es la consola que necesito"'},
-      {tipo:'Procesado Operaciones', ref:'GS-8949',           fecha:'13/04/2026',orden:'8949',          fuente:'sheets', usuario:'DANIELA · Google Sheets',        estado:'Entregado',  detalle:'Camión Hyundai · Origen CDP · 3 artículos · AM · instalación SÍ'},
-      {tipo:'Despacho',              ref:'DEL-2026-8949A',    fecha:'13/04/2026',orden:'8949',          fuente:'odoo',   usuario:'Melvin Grullón · Operaciones',   estado:'Entregado',  detalle:'Entregado en Altri Tempi para revisión por cliente · tope original — pendiente cambio'},
-      {tipo:'Despacho (Cambio tope)',ref:'DEL-2026-8949B',    fecha:'15/04/2026',orden:'8949',          fuente:'odoo',   usuario:'Melvin Grullón · Operaciones',   estado:'Entregado',  detalle:'Cambio de tope aprobado por cliente — al cliente le gustó el que estaba en despacho · el anterior era más opaco · entregado en Av. Anacaona Torre Logroval XVIII Apt 9B'}
-    ]
-  },
-
-  'YH.ROSAINE.SOFA.RIGHT.BG.K5':{
-    nombre:'Sofá Rosaine Derecho Beige',
-    categoria:'Salas',
-    proveedor:'Muebles YH International',
-    unidad:'Unidad',
-    precio:'RD$ 96,500',
-    odooRef:'YH.ROSAINE.SOFA.RIGHT.BG.K5',
-    stock:{almacen:'CDP',cantidad:0,ubicacion:'Entregado a cliente'},
-    movimientos:[
-      {tipo:'Orden de Compra',       ref:'OC-2026-0125',      fecha:'10/01/2026',orden:'OC-2026-0125',  fuente:'odoo',   usuario:'María Santos · Compras',         estado:'Recibida',   detalle:'Proveedor: Muebles YH International · Contenedor BTC · módulo derecho + ottomán + brazo incluidos'},
-      {tipo:'Recepción Almacén',     ref:'REC-2026-0199',     fecha:'08/04/2026',orden:'REC-2026-0199', fuente:'odoo',   usuario:'Pedro García · Almacén CDP',     estado:'Validada',   detalle:'Unidad recibida de contenedor BTC · 3 piezas (cuerpo derecho + brazo + ottomán) · ingresadas a stock CDP'},
-      {tipo:'Orden de Venta',        ref:'OV-2026-8949',      fecha:'05/03/2026',orden:'8949',          fuente:'odoo',   usuario:'Daniela Castillo · Ventas',      estado:'Confirmada', detalle:'Cliente: Lissette Polanco · parte del set OV-8949 · RD$ 96,500 · módulo derecho únicamente'},
-      {tipo:'Solicitud Despacho',    ref:'SP-8949-SOFA',      fecha:'10/04/2026',orden:'8949',          fuente:'sp',     usuario:'Daniela Castillo → Melvin Grullón · SharePoint', estado:'Entregado', detalle:'"YH.ROSAINE.SOFA.RIGHT.BG.K5 de ese sofá NO llevar la pieza del brazo ni el ottoman. (Autorizado por Amelia)"'},
-      {tipo:'Procesado Operaciones', ref:'GS-8949',           fecha:'13/04/2026',orden:'8949',          fuente:'sheets', usuario:'DANIELA · Google Sheets',        estado:'Entregado',  detalle:'Camión Hyundai · Origen CDP · 3 artículos · AM · instalación SÍ'},
-      {tipo:'Despacho',              ref:'DEL-2026-8949A',    fecha:'13/04/2026',orden:'8949',          fuente:'odoo',   usuario:'Melvin Grullón · Operaciones',   estado:'Entregado',  detalle:'Entregado sin brazo ni ottomán (autorizado) · Av. Anacaona Torre Logroval XVIII Apt 9B · Lissette Polanco'},
-      {tipo:'Despacho (Cambio tope)',ref:'DEL-2026-8949B',    fecha:'15/04/2026',orden:'8949',          fuente:'odoo',   usuario:'Melvin Grullón · Operaciones',   estado:'Entregado',  detalle:'Segunda visita para cambio de tope de consola — sofá ya instalado y conforme · sin incidencias adicionales'}
+      {tipo:'Orden de Venta',ref:'OV-DEMO-0001',fecha:'20/04/2026',orden:'DEMO-1',fuente:'odoo',usuario:'Ventas Demo',estado:'Confirmada',detalle:'Cliente: Cliente Demo Uno · registro ficticio'},
+      {tipo:'Despacho a Cliente',ref:'DEL-DEMO-0001',fecha:'01/05/2026',orden:'DEMO-1',fuente:'odoo',usuario:'Operaciones Demo',estado:'Entregado',detalle:'Dirección de ejemplo 1 — entregado conforme'}
     ]
   }
 };
@@ -18486,14 +18333,10 @@ var ARTICULOS={
 var DEVOLUCIONES=[];
 
 
-/* ── Órdenes activas ── */
+/* ── Órdenes activas (DEMO) ── */
 var ORDENES_ACTIVAS=[
-  {orden:'9003', cliente:'Carlos Matamoros',    vendedor:'Daniela', estadoOps:'Preparando',            proxAccion:'Ejecutar despacho con 2 operarios',          dept:'Operaciones',    dias:3},
-  {orden:'9114', cliente:'CLAUDETTE COCHON',     vendedor:'Heidy',   estadoOps:'Preparando',            proxAccion:'Completar recepción + programar entrega',     dept:'Almacén / Ops.', dias:4},
-  {orden:'S09059',cliente:'CBELL EVENT MEDIA',   vendedor:'Jhonathan',estadoOps:'Pendiente Confirmacion',proxAccion:'Confirmar altura counter con cliente',        dept:'Ventas',         dias:-7},
-  {orden:'9115', cliente:'Andrea Hormazabal',    vendedor:'Daniela', estadoOps:'Recibida',              proxAccion:'Seguimiento post-demo — decisión de compra',  dept:'Ventas',         dias:0},
-  {orden:'8820', cliente:'Rosa Morales',         vendedor:'Heidy',   estadoOps:'Devolucion',            proxAccion:'Aprobar nota de crédito o reemplazo',         dept:'Administración', dias:-23},
-  {orden:'8951', cliente:'MARI PILY DE MONTES',  vendedor:'Heidy',   estadoOps:'Devolucion',            proxAccion:'Registrar devolución en Odoo + recibir físico',dept:'Almacén / Admin.',dias:-13},
+  {orden:'DEMO-1', cliente:'Cliente Demo Uno', vendedor:'Demo', estadoOps:'Preparando', proxAccion:'Acción de ejemplo', dept:'Operaciones', dias:3},
+  {orden:'DEMO-2', cliente:'Cliente Demo Dos', vendedor:'Demo', estadoOps:'Recibida', proxAccion:'Acción de ejemplo', dept:'Ventas', dias:0}
 ];
 
 /* ── Control de Contenedores — datos live desde Google Sheets ── */
