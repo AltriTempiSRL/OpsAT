@@ -50,7 +50,10 @@ self.addEventListener('fetch', e => {
   // (/inventario, /buscar/S09115, /wwp/tasks/…) es la app → misma entrada de caché.
   // Los .html reales (almacen-mapa.html, wwp-guide.html) llevan punto y NO entran.
   // Subpaths con puntos (/averias/JC.ART….P) van a red directa — funcionan sin SWR.
-  if (e.request.method === 'GET' && (url.pathname === '/historial.html' || url.pathname === '/historial' ||
+  // /v2 (shell nuevo sobre Astryx) es OTRA app: si el SWR lo tratara como
+  // navegación de la app, serviría historial.html cacheado y /v2 nunca cargaría.
+  const esV2 = url.pathname === '/v2' || url.pathname.startsWith('/v2/');
+  if (e.request.method === 'GET' && !esV2 && (url.pathname === '/historial.html' || url.pathname === '/historial' ||
       (e.request.mode === 'navigate' && !url.pathname.includes('.')))) {
     e.respondWith(
       caches.open(CACHE).then(c =>

@@ -37,7 +37,7 @@ import {
   PaperClipIcon, ArchiveBoxIcon, MagnifyingGlassIcon, CubeIcon,
   ExclamationTriangleIcon, ArrowsRightLeftIcon, BuildingStorefrontIcon,
   MapIcon, ChartBarIcon, PhotoIcon, Cog6ToothIcon, UserCircleIcon,
-  AcademicCapIcon, WrenchScrewdriverIcon,
+  AcademicCapIcon, WrenchScrewdriverIcon, ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 // ════════ Vocabulario compartido con core.js (una sola fuente de verdad) ════
@@ -170,7 +170,37 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio}) {
   );
 }
 
-// ════════ Pantallas ════════
+// ════════ Pantalla embebida (patrón strangler-fig) ═══════════════════════
+// Las pantallas con flujos complejos (formularios con Odoo, mapa 3D, escaneo)
+// se sirven DENTRO del shell Astryx embebiendo la implementación actual. La app
+// queda completa y usable hoy; cada una se reconstruye nativa cuando toque.
+function Embebida({titulo, subtitulo, src, alto = 'calc(100dvh - 240px)'}) {
+  return (
+    <VStack gap={3}>
+      <VStack gap={1}>
+        <Heading level={2}>{titulo}</Heading>
+        {subtitulo && <Text color="secondary">{subtitulo}</Text>}
+      </VStack>
+      {/* Honestidad al revisar: se ve distinto porque AÚN no es nativa. */}
+      <Banner
+        status="info"
+        title="Interfaz anterior"
+        description="Esta pantalla funciona, pero todavía usa el diseño previo. Falta reconstruirla con el sistema nuevo."
+        isDismissable
+      />
+      <Card padding={0} width="100%">
+        <iframe
+          src={src}
+          title={titulo}
+          style={{width: '100%', height: alto, border: 'none', display: 'block',
+                  borderRadius: 'var(--radius-container)'}}
+        />
+      </Card>
+    </VStack>
+  );
+}
+
+// ════════ Pantallas de datos ═════════════════════════════════════════════
 function PanelTareas() {
   const api = useApi('/api/wwp/tasks?all=1', j => Array.isArray(j) ? j : (j.tasks || []));
   const hoy = new Date().toISOString().slice(0, 10);
@@ -197,6 +227,35 @@ function PanelTareas() {
          renderCell: r => r.priority ? <Badge label={PRIORIDAD[r.priority] || r.priority} /> : <Text color="secondary">—</Text>},
         {key: 'client', header: 'Cliente', width: proportional(1),
          renderCell: r => <Text size="sm">{r.client || '—'}</Text>},
+      ]}
+    />
+  );
+}
+
+function PanelEstadoOrdenes() {
+  const api = useApi('/api/sdv', j => j.solicitudes || []);
+  return (
+    <Pantalla
+      titulo="Estado de Órdenes"
+      subtitulo="Avance de las órdenes de venta hacia la entrega."
+      api={api}
+      vacio="Sin órdenes en este período."
+      kpis={d => [
+        {etiqueta: 'Activas',     valor: d.filter(s => !['despachada','cancelada','rechazada'].includes(s.estado)).length},
+        {etiqueta: 'En proceso',  valor: d.filter(s => s.estado === 'en_proceso').length},
+        {etiqueta: 'Despachadas', valor: d.filter(s => s.estado === 'despachada').length},
+        {etiqueta: 'Total',       valor: d.length},
+      ]}
+      columnas={[
+        {key: 'folio', header: 'Orden', width: pixel(140)},
+        {key: 'clienteNombre', header: 'Cliente', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
+        {key: 'salesperson', header: 'Vendedora', width: proportional(1),
+         renderCell: r => <Text size="sm">{r.salesperson || r.vendedor || '—'}</Text>},
+        {key: 'estado', header: 'Estado', width: pixel(180),
+         renderCell: r => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
+        {key: 'fechaDeseada', header: 'Promesa', width: pixel(130),
+         renderCell: r => <Text size="sm">{(r.fechaDeseada || '').slice(0, 10) || '—'}</Text>},
       ]}
     />
   );
@@ -229,6 +288,61 @@ function PanelSDV() {
   );
 }
 
+function PanelReactivaciones() {
+  const api = useApi('/api/sdv/reactivation', j => j.reactivaciones || []);
+  return (
+    <Pantalla
+      titulo="Reactivaciones SDV"
+      subtitulo="Solicitudes canceladas que piden volver a la operación."
+      api={api}
+      vacio="No hay reactivaciones pendientes."
+      kpis={d => [
+        {etiqueta: 'Pendientes', valor: d.filter(r => r.estado === 'pendiente').length},
+        {etiqueta: 'Aprobadas',  valor: d.filter(r => r.estado === 'aprobada').length},
+        {etiqueta: 'Total',      valor: d.length},
+      ]}
+      columnas={[
+        {key: 'sdvFolio', header: 'Folio SDV', width: pixel(150),
+         renderCell: r => <Text size="sm">{r.sdvFolio || r.folio || '—'}</Text>},
+        {key: 'motivo', header: 'Motivo', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.motivo || r.razon || '—'}</Text>},
+        {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
+         renderCell: r => <Text size="sm">{r.solicitadoPor || r.creadoNombre || '—'}</Text>},
+        {key: 'estado', header: 'Estado', width: pixel(150),
+         renderCell: r => <Estado mapa={{pendiente:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
+      ]}
+    />
+  );
+}
+
+function PanelConduces() {
+  const api = useApi('/api/despacho-obsoleto', j => j.despachos || []);
+  return (
+    <Pantalla
+      titulo="Conduces Outlet"
+      subtitulo="Conduces de salida de mercancía en Obsoleto y Nave 2."
+      acciones={<Button label="+ Nuevo conduce" variant="primary" />}
+      api={api}
+      vacio="No hay conduces registrados."
+      kpis={d => [
+        {etiqueta: 'Borradores', valor: d.filter(c => c.estado === 'borrador').length},
+        {etiqueta: 'Entregados', valor: d.filter(c => c.estado === 'entregado').length},
+        {etiqueta: 'Anulados',   valor: d.filter(c => c.estado === 'anulado').length},
+        {etiqueta: 'Total',      valor: d.length},
+      ]}
+      columnas={[
+        {key: 'folio', header: 'Conduce', width: pixel(130)},
+        {key: 'receptorNombre', header: 'Recibe', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.receptorNombre || r.receptor || '—'}</Text>},
+        {key: 'empresa', header: 'Empresa', width: proportional(1),
+         renderCell: r => <Text size="sm">{r.empresa || '—'}</Text>},
+        {key: 'estado', header: 'Estado', width: pixel(150),
+         renderCell: r => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, entregado:{label:'Entregado',dot:'success'}, anulado:{label:'Anulado',dot:'error'}}} valor={r.estado} />},
+      ]}
+    />
+  );
+}
+
 function PanelAverias() {
   const api = useApi('/api/averias', j => j.averias || []);
   return (
@@ -239,10 +353,10 @@ function PanelAverias() {
       api={api}
       vacio="No hay averías registradas."
       kpis={d => [
-        {etiqueta: 'Recibidos',  valor: d.filter(a => a.status === 'Recibido').length},
-        {etiqueta: 'En taller',  valor: d.filter(a => a.status === 'En Taller').length},
-        {etiqueta: 'Reparados',  valor: d.filter(a => a.status === 'Reparado').length},
-        {etiqueta: 'Total',      valor: d.length},
+        {etiqueta: 'Recibidos', valor: d.filter(a => a.status === 'Recibido').length},
+        {etiqueta: 'En taller', valor: d.filter(a => a.status === 'En Taller').length},
+        {etiqueta: 'Reparados', valor: d.filter(a => a.status === 'Reparado').length},
+        {etiqueta: 'Total',     valor: d.length},
       ]}
       columnas={[
         {key: 'ref', header: 'Referencia', width: pixel(140)},
@@ -254,6 +368,173 @@ function PanelAverias() {
          renderCell: r => <Estado mapa={ESTADO_AVERIA} valor={r.status} />},
         {key: 'comentario', header: 'Comentario', width: proportional(2),
          renderCell: r => <Text size="sm">{r.comentario || '—'}</Text>},
+      ]}
+    />
+  );
+}
+
+function PanelReposicion() {
+  const api = useApi('/api/reposicion', j => j.reposiciones || []);
+  return (
+    <Pantalla
+      titulo="Reposición Showroom"
+      subtitulo="Solicitudes de reposición de artículos al showroom."
+      acciones={<Button label="+ Nueva solicitud" variant="primary" />}
+      api={api}
+      vacio="No hay solicitudes de reposición."
+      kpis={d => [
+        {etiqueta: 'Pendientes',  valor: d.filter(r => r.estado === 'pendiente_aprobacion').length},
+        {etiqueta: 'Aprobadas',   valor: d.filter(r => r.estado === 'aprobada').length},
+        {etiqueta: 'Completadas', valor: d.filter(r => r.estado === 'completada').length},
+        {etiqueta: 'Total',       valor: d.length},
+      ]}
+      columnas={[
+        {key: 'ref', header: 'Referencia', width: pixel(140),
+         renderCell: r => <Text size="sm">{r.ref || r.referencia || '—'}</Text>},
+        {key: 'nombre', header: 'Artículo', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.nombre || '—'}</Text>},
+        {key: 'cantidad', header: 'Cant.', width: pixel(80),
+         renderCell: r => <Text size="sm">{r.cantidad ?? '—'}</Text>},
+        {key: 'urgencia', header: 'Urgencia', width: pixel(110),
+         renderCell: r => r.urgencia ? <Badge label={r.urgencia} /> : <Text color="secondary">—</Text>},
+        {key: 'estado', header: 'Estado', width: pixel(180),
+         renderCell: r => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, pendiente_aprobacion:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'accent'}, en_proceso:{label:'En proceso',dot:'accent'}, completada:{label:'Completada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
+      ]}
+    />
+  );
+}
+
+function PanelSolicitudesShowroom() {
+  const api = useApi('/api/solicitudes-showroom', j => j.solicitudes || []);
+  return (
+    <Pantalla
+      titulo="Solicitudes Showroom"
+      subtitulo="Artículos pedidos para reponer en el showroom."
+      api={api}
+      vacio="Sin solicitudes activas."
+      kpis={d => [
+        {etiqueta: 'Activas',     valor: d.filter(s => s.status === 'activo').length},
+        {etiqueta: 'Completadas', valor: d.filter(s => s.status === 'completado').length},
+        {etiqueta: 'Total',       valor: d.length},
+      ]}
+      columnas={[
+        {key: 'name', header: 'Artículo', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.name || r.nombre || '—'}</Text>},
+        {key: 'barcode', header: 'Cód. barras', width: pixel(150),
+         renderCell: r => <Text size="sm">{r.barcode || '—'}</Text>},
+        {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
+         renderCell: r => <Text size="sm">{r.solicitadoPor || r.usuario || '—'}</Text>},
+        {key: 'status', header: 'Estado', width: pixel(150),
+         renderCell: r => <Estado mapa={{activo:{label:'Activa',dot:'accent'}, completado:{label:'Completada',dot:'success'}, cancelado:{label:'Cancelada',dot:'neutral'}}} valor={r.status} />},
+      ]}
+    />
+  );
+}
+
+function PanelFlota() {
+  const api = useApi('/api/wwp/vehicles', j => j.vehicles || []);
+  return (
+    <Pantalla
+      titulo="Inspección de vehículo"
+      subtitulo="Flota registrada y su configuración de inspección diaria."
+      acciones={<Button label="Nueva inspección" variant="primary" />}
+      api={api}
+      vacio="No hay vehículos registrados."
+      kpis={d => [
+        {etiqueta: 'Vehículos', valor: d.length},
+        {etiqueta: 'Medidor detallado', valor: d.filter(v => v.fuelType === 'detallado').length},
+        {etiqueta: 'Medidor estándar',  valor: d.filter(v => v.fuelType !== 'detallado').length},
+      ]}
+      columnas={[
+        {key: 'name', header: 'Vehículo', width: proportional(2)},
+        {key: 'placa', header: 'Placa', width: pixel(140),
+         renderCell: r => <Text size="sm">{r.placa || '—'}</Text>},
+        {key: 'fuelType', header: 'Medidor', width: pixel(160),
+         renderCell: r => <Badge label={r.fuelType === 'detallado' ? 'Detallado' : 'Estándar'} />},
+      ]}
+    />
+  );
+}
+
+function PanelFormacion() {
+  const api = useApi('/api/wwp/training/courses', j => j.courses || []);
+  return (
+    <Pantalla
+      titulo="Formación"
+      subtitulo="Cursos y certificaciones del equipo."
+      acciones={<Button label="+ Nuevo curso" variant="primary" />}
+      api={api}
+      vacio="No hay cursos publicados."
+      kpis={d => [
+        {etiqueta: 'Cursos',    valor: d.length},
+        {etiqueta: 'Activos',   valor: d.filter(c => c.active !== false).length},
+        {etiqueta: 'Con gate',  valor: d.filter(c => c.enforceGate).length},
+      ]}
+      columnas={[
+        {key: 'title', header: 'Curso', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.title || r.nombre || r.id || '—'}</Text>},
+        {key: 'passingScore', header: 'Nota mínima', width: pixel(130),
+         renderCell: r => <Text size="sm">{r.passingScore != null ? r.passingScore + '%' : '—'}</Text>},
+        {key: 'validityDays', header: 'Vigencia', width: pixel(120),
+         renderCell: r => <Text size="sm">{r.validityDays ? r.validityDays + ' días' : '—'}</Text>},
+        {key: 'enforceGate', header: 'Bloquea tareas', width: pixel(150),
+         renderCell: r => r.enforceGate ? <Badge label="Sí" /> : <Text color="secondary">No</Text>},
+        {key: 'active', header: 'Estado', width: pixel(140),
+         renderCell: r => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
+      ]}
+    />
+  );
+}
+
+function PanelEquipo() {
+  const api = useApi('/api/wwp/metrics/equipo', j => j.usuarios || []);
+  return (
+    <Pantalla
+      titulo="Panel del Equipo"
+      subtitulo="Adopción y actividad por persona en los últimos 14 días."
+      api={api}
+      vacio="Sin datos de actividad en el período."
+      kpis={d => [
+        {etiqueta: 'Activos',   valor: d.filter(u => u.semaforo === 'activo').length},
+        {etiqueta: 'Tibios',    valor: d.filter(u => u.semaforo === 'tibio').length},
+        {etiqueta: 'Inactivos', valor: d.filter(u => u.semaforo === 'inactivo').length},
+        {etiqueta: 'Personas',  valor: d.length},
+      ]}
+      columnas={[
+        {key: 'name', header: 'Persona', width: proportional(2)},
+        {key: 'role', header: 'Rol', width: pixel(130),
+         renderCell: r => <Badge label={ROL[r.role] || r.role || '—'} />},
+        {key: 'semaforo', header: 'Adopción', width: pixel(160),
+         renderCell: r => <Estado mapa={{activo:{label:'Activo',dot:'success'}, tibio:{label:'Tibio',dot:'warning'}, inactivo:{label:'Inactivo',dot:'error'}, nunca:{label:'Nunca entró',dot:'neutral'}}} valor={r.semaforo} />},
+        {key: 'nivel', header: 'Nivel', width: pixel(100),
+         renderCell: r => <Text size="sm">{r.nivel ?? '—'}</Text>},
+      ]}
+    />
+  );
+}
+
+function PanelPoliticas() {
+  const api = useApi('/api/politicas', j => Array.isArray(j) ? j : (j.politicas || []));
+  return (
+    <Pantalla
+      titulo="Reglas de Cumplimiento"
+      subtitulo="Políticas medidas sobre la operación del equipo."
+      acciones={<Button label="+ Nueva política" variant="primary" />}
+      api={api}
+      vacio="No hay políticas definidas."
+      kpis={d => [
+        {etiqueta: 'Políticas', valor: d.length},
+        {etiqueta: 'Activas',   valor: d.filter(p => p.activa !== false).length},
+        {etiqueta: 'Pausadas',  valor: d.filter(p => p.activa === false).length},
+      ]}
+      columnas={[
+        {key: 'nombre', header: 'Política', width: proportional(2)},
+        {key: 'tipo', header: 'Tipo', width: proportional(1),
+         renderCell: r => <Text size="sm">{({lunch_duration:'Duración de almuerzo', arrival_time:'Hora de llegada', task_completion:'Completitud de tareas', vehicle_inspection:'Inspección vehicular'})[r.tipo] || r.tipo || '—'}</Text>},
+        {key: 'descripcion', header: 'Descripción', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.descripcion || '—'}</Text>},
+        {key: 'activa', header: 'Estado', width: pixel(140),
+         renderCell: r => <Estado mapa={{true:{label:'Activa',dot:'success'}, false:{label:'Pausada',dot:'neutral'}}} valor={String(r.activa !== false)} />},
       ]}
     />
   );
@@ -281,62 +562,74 @@ function PanelUsuarios() {
         {key: 'role', header: 'Rol', width: pixel(130),
          renderCell: r => <Badge label={ROL[r.role] || r.role || '—'} />},
         {key: 'active', header: 'Estado', width: pixel(140),
-         renderCell: r => (
-           <HStack gap={2} vAlign="center">
-             <StatusDot variant={r.active === false ? 'neutral' : 'success'}
-                        label={r.active === false ? 'Inactivo' : 'Activo'} />
-             <Text size="sm">{r.active === false ? 'Inactivo' : 'Activo'}</Text>
-           </HStack>
-         )},
+         renderCell: r => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
       ]}
     />
   );
 }
 
-function PantallaPendiente({nombre}) {
+function PanelEvidencias() {
+  const api = useApi('/api/wwp/photo-archive', j => Array.isArray(j) ? j : (j.items || j.fotos || []));
   return (
-    <VStack gap={3}>
-      <Heading level={2}>{nombre}</Heading>
-      <Banner
-        status="info"
-        title="Pantalla aún no migrada"
-        description={'«' + nombre + '» todavía vive en el shell actual. Esta versión (/v2) se está migrando pantalla por pantalla.'}
-        endContent={<Button label="Abrir en el shell actual" variant="secondary"
-                            clickAction={() => { location.href = '/historial.html'; }} />}
-      />
-    </VStack>
+    <Pantalla
+      titulo="Evidencias"
+      subtitulo="Archivo fotográfico de la operación, por orden y tarea."
+      api={api}
+      vacio="No hay evidencias registradas."
+      kpis={d => [{etiqueta: 'Registros', valor: d.length}]}
+      columnas={[
+        {key: 'odooRef', header: 'Orden', width: pixel(150),
+         renderCell: r => <Text size="sm">{r.odooRef || r.ref || '—'}</Text>},
+        {key: 'title', header: 'Tarea', width: proportional(2),
+         renderCell: r => <Text size="sm">{r.title || '—'}</Text>},
+        {key: 'count', header: 'Fotos', width: pixel(100),
+         renderCell: r => <Text size="sm">{r.count ?? (r.fotos ? r.fotos.length : '—')}</Text>},
+      ]}
+    />
   );
 }
 
-// ════════ Navegación y routing ════════
+// ── Pantallas embebidas (implementación actual dentro del shell nuevo) ──────
+const PanelSdvPortal   = () => <Embebida titulo="Solicitud de Despacho" subtitulo="Formulario de Ventas con búsqueda en Odoo." src="/sdv-portal" />;
+const PanelBuscador    = () => <Embebida titulo="Buscador" subtitulo="Orden, transferencia o artículo en Odoo." src="/buscar" />;
+const PanelInventario  = () => <Embebida titulo="Inventario" subtitulo="Salud de inventario: fiabilidad, tránsitos y cuadre." src="/inventario" />;
+const PanelSinComp     = () => <Embebida titulo="Despachos sin Comprobante" subtitulo="Transferencias sin evidencia documental." src="/sin-adjuntos" />;
+const PanelDevCdp      = () => <Embebida titulo="Devoluciones a CDP" subtitulo="Devoluciones de tiendas recibidas en el almacén CDP." src="/dev-cdp.html" />;
+const PanelMapa        = () => <Embebida titulo="Mapa del Almacén" subtitulo="Vista 3D de ubicaciones y racks." src="/almacen-mapa.html" alto="calc(100dvh - 170px)" />;
+const PanelEmpaque     = () => <Embebida titulo="Materiales de Empaque" subtitulo="Catálogo y reglas por familia de artículos." src="/empaque.html" />;
+
+// ════════ Navegación: los 5 dominios del plan UX (doc 10) ════════════════
 const DOMINIOS = [
   {titulo: 'Operación del equipo', items: [
     {label: 'Tareas', icon: ClipboardDocumentListIcon, ruta: '/v2/tareas', panel: PanelTareas},
-    {label: 'Inspección de vehículo', icon: WrenchScrewdriverIcon, ruta: '/v2/inspeccion'},
-    {label: 'Formación', icon: AcademicCapIcon, ruta: '/v2/formacion'},
+    {label: 'Inspección de vehículo', icon: WrenchScrewdriverIcon, ruta: '/v2/inspeccion', panel: PanelFlota},
+    {label: 'Formación', icon: AcademicCapIcon, ruta: '/v2/formacion', panel: PanelFormacion},
   ]},
   {titulo: 'Ventas → Despacho', items: [
-    {label: 'Estado de Órdenes', icon: ClipboardDocumentListIcon, ruta: '/v2/estado-ordenes'},
-    {label: 'Solicitud de Despacho', icon: TruckIcon, ruta: '/v2/sdv-portal'},
+    {label: 'Estado de Órdenes', icon: ClipboardDocumentListIcon, ruta: '/v2/estado-ordenes', panel: PanelEstadoOrdenes},
+    {label: 'Solicitud de Despacho', icon: TruckIcon, ruta: '/v2/sdv-portal', panel: PanelSdvPortal},
     {label: 'Bandeja SDV', icon: InboxIcon, ruta: '/v2/sdv-bandeja', panel: PanelSDV},
-    {label: 'Reactivaciones SDV', icon: ArrowPathIcon, ruta: '/v2/sdv-reactivations'},
-    {label: 'Despachos sin Comprobante', icon: PaperClipIcon, ruta: '/v2/sin-adjuntos'},
-    {label: 'Conduces Outlet', icon: ArchiveBoxIcon, ruta: '/v2/conduces'},
+    {label: 'Reactivaciones SDV', icon: ArrowPathIcon, ruta: '/v2/sdv-reactivations', panel: PanelReactivaciones},
+    {label: 'Despachos sin Comprobante', icon: PaperClipIcon, ruta: '/v2/sin-adjuntos', panel: PanelSinComp},
+    {label: 'Conduces Outlet', icon: ArchiveBoxIcon, ruta: '/v2/conduces', panel: PanelConduces},
   ]},
   {titulo: 'Almacén', items: [
-    {label: 'Buscador', icon: MagnifyingGlassIcon, ruta: '/v2/buscar'},
-    {label: 'Inventario', icon: CubeIcon, ruta: '/v2/inventario'},
+    {label: 'Buscador', icon: MagnifyingGlassIcon, ruta: '/v2/buscar', panel: PanelBuscador},
+    {label: 'Inventario', icon: CubeIcon, ruta: '/v2/inventario', panel: PanelInventario},
     {label: 'Averías', icon: ExclamationTriangleIcon, ruta: '/v2/averias', panel: PanelAverias},
-    {label: 'Devoluciones a CDP', icon: ArrowsRightLeftIcon, ruta: '/v2/dev-cdp'},
-    {label: 'Reposición Showroom', icon: BuildingStorefrontIcon, ruta: '/v2/reposicion'},
-    {label: 'Mapa del Almacén', icon: MapIcon, ruta: '/v2/almacen-mapa'},
+    {label: 'Devoluciones a CDP', icon: ArrowsRightLeftIcon, ruta: '/v2/dev-cdp', panel: PanelDevCdp},
+    {label: 'Reposición Showroom', icon: BuildingStorefrontIcon, ruta: '/v2/reposicion', panel: PanelReposicion},
+    {label: 'Solicitudes Showroom', icon: BuildingStorefrontIcon, ruta: '/v2/solicitudes-showroom', panel: PanelSolicitudesShowroom},
+    {label: 'Mapa del Almacén', icon: MapIcon, ruta: '/v2/almacen-mapa', panel: PanelMapa},
   ]},
   {titulo: 'Supervisión', items: [
-    {label: 'Panel del Equipo', icon: ChartBarIcon, ruta: '/v2/supervision'},
-    {label: 'Evidencias', icon: PhotoIcon, ruta: '/v2/evidencias'},
+    {label: 'Panel del Equipo', icon: ChartBarIcon, ruta: '/v2/supervision', panel: PanelEquipo},
+    {label: 'Evidencias', icon: PhotoIcon, ruta: '/v2/evidencias', panel: PanelEvidencias},
   ]},
   {titulo: 'Configuración', items: [
     {label: 'Usuarios y ajustes', icon: Cog6ToothIcon, ruta: '/v2/configuracion', panel: PanelUsuarios},
+    {label: 'Reglas de Cumplimiento', icon: ShieldCheckIcon, ruta: '/v2/reglas', panel: PanelPoliticas},
+    {label: 'Materiales de Empaque', icon: CubeIcon, ruta: '/v2/empaque', panel: PanelEmpaque},
   ]},
 ];
 const TODOS = DOMINIOS.flatMap(d => d.items);
@@ -421,7 +714,7 @@ export default function ShellOpsAT() {
         content={
           <LayoutContent padding={6}>
             <LimiteDeError clave={actual.ruta}>
-              {Panel ? <Panel /> : <PantallaPendiente nombre={actual.label} />}
+              <Panel />
             </LimiteDeError>
           </LayoutContent>
         }
