@@ -24,6 +24,8 @@
   --border-light:#dedad5;
   --border-focus:#2b6ad4;
   --focus-ring:rgba(43,106,212,.18);   /* anillo de foco compartido (plan 11 C3) */
+  --excel:#217346;                     /* verde de marca Excel (export), plan 11 C7 */
+  --excel-dark:#1a5c38;
   /* ── Scrollbars (finos, disimulados con la ventana) ── */
   --scrollbar-thumb:rgba(28,36,48,.22);
   --scrollbar-thumb-hover:rgba(28,36,48,.42);

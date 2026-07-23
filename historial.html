@@ -30,7 +30,7 @@ function _loadXlsx(cb){
   document.head.appendChild(s);
 }
 </script>
-<link rel="stylesheet" href="/theme.css?v=7e54a63f">
+<link rel="stylesheet" href="/theme.css?v=f127389e">
 <style>
 /* Sidebar y header: mantienen los mismos oscuros en ambos temas (ya son oscuros)
    --header-bg y --sidebar-bg NO se redefinen en dark mode */
@@ -5398,7 +5398,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <label class="form-label">Contraseña</label>
       <div class="pw-wrap">
         <input id="f-password" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password">
-        <button class="pw-toggle" onclick="togglePw('f-password',this)" type="button"><i data-lucide="eye"></i></button>
+        <button class="pw-toggle" onclick="togglePw('f-password',this)" type="button" aria-label="Mostrar u ocultar contraseña"><i data-lucide="eye"></i></button>
       </div>
     </div>
     <div class="login-options">
@@ -5440,7 +5440,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <label class="form-label">Nueva contraseña</label>
       <div class="pw-wrap">
         <input id="f-new-pw" type="password" class="form-input" placeholder="Mínimo 6 caracteres">
-        <button class="pw-toggle" onclick="togglePw('f-new-pw',this)" type="button"><i data-lucide="eye"></i></button>
+        <button class="pw-toggle" onclick="togglePw('f-new-pw',this)" type="button" aria-label="Mostrar u ocultar contraseña"><i data-lucide="eye"></i></button>
       </div>
     </div>
     <div class="form-group">
@@ -5959,7 +5959,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
           <button class="rs-btn-refresh" onclick="printSolicitudes()" title="Imprimir PDF" style="width:auto;padding:0 12px;white-space:nowrap;gap:5px;background:var(--accent);color:#fff;border-color:var(--accent)">
             <i data-lucide="printer" style="width:13px;height:13px;flex-shrink:0"></i> Imprimir PDF
           </button>
-          <button class="rs-btn-refresh" onclick="exportSolicitudesExcel()" title="Descargar Excel" style="width:auto;padding:0 12px;white-space:nowrap;gap:5px;background:#217346;color:#fff;border-color:#1a5c38">
+          <button class="rs-btn-refresh" onclick="exportSolicitudesExcel()" title="Descargar Excel" style="width:auto;padding:0 12px;white-space:nowrap;gap:5px;background:var(--excel);color:#fff;border-color:var(--excel-dark)">
             <i data-lucide="file-spreadsheet" style="width:13px;height:13px;flex-shrink:0"></i> Excel
           </button>
         </div>
@@ -6329,7 +6329,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
             <div style="position:relative">
               <i data-lucide="search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-3);pointer-events:none"></i>
               <input id="do-list-search" type="text" placeholder="Buscar artículo por nombre o referencia…" oninput="doListSearchChange(this.value)" style="width:100%;box-sizing:border-box;padding:7px 28px 7px 28px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--text);font-size:13px">
-              <button id="do-list-search-clear" onclick="doListSearchClear()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-3);padding:2px"><i data-lucide="x" style="width:14px;height:14px"></i></button>
+              <button id="do-list-search-clear" onclick="doListSearchClear()" aria-label="Limpiar búsqueda" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-3);padding:2px"><i data-lucide="x" style="width:14px;height:14px"></i></button>
             </div>
           </div>
           <div id="do-list-body"></div>
@@ -7481,7 +7481,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <div class="kpi-lunch-grid" id="lunch-kpi-grid">
         <div class="kpi-lunch-card"><div class="kpi-lunch-val" id="lk-total">—</div><div class="kpi-lunch-label">Registros hoy</div></div>
         <div class="kpi-lunch-card"><div class="kpi-lunch-val" id="lk-compliant" style="color:#059669">—</div><div class="kpi-lunch-label">Cumplieron</div></div>
-        <div class="kpi-lunch-card"><div class="kpi-lunch-val" id="lk-exceeded" style="color:#dc2626">—</div><div class="kpi-lunch-label">Excedieron</div></div>
+        <div class="kpi-lunch-card"><div class="kpi-lunch-val" id="lk-exceeded" style="color:var(--red-text)">—</div><div class="kpi-lunch-label">Excedieron</div></div>
         <div class="kpi-lunch-card"><div class="kpi-lunch-val" id="lk-avg">—</div><div class="kpi-lunch-label">Promedio (min)</div></div>
       </div>
       <!-- Tabla de registros -->
@@ -8010,7 +8010,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" style="background:#6b7280" onclick="closeTaskModal()">Cancelar</button>
+      <button class="btn btn-secondary" onclick="closeTaskModal()">Cancelar</button>
       <button class="btn-primary" onclick="saveTask()">Guardar</button>
     </div>
   </div>
@@ -8025,7 +8025,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
     </div>
     <div class="wiz-body" id="wiz-body"></div>
     <div class="modal-footer wiz-footer">
-      <button class="btn-primary" id="wiz-btn-back" style="background:#6b7280;min-width:80px;visibility:hidden" onclick="wizBack()">Atrás</button>
+      <button class="btn btn-secondary" id="wiz-btn-back" style="min-width:80px;visibility:hidden" onclick="wizBack()">Atrás</button>
       <span class="wiz-slabel" id="wiz-step-label">Paso 1 de 4</span>
       <button class="btn-primary" id="wiz-btn-next" style="min-width:100px;display:none" onclick="wizNext()">Siguiente</button>
     </div>
@@ -8043,11 +8043,11 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       <div class="login-error" id="pw-modal-error"></div>
       <div class="form-group">
         <label class="form-label">Contraseña actual</label>
-        <div class="pw-wrap"><input id="pm-current" type="password" class="form-input" placeholder="Contraseña actual"><button class="pw-toggle" onclick="togglePw('pm-current',this)" type="button"><i data-lucide="eye"></i></button></div>
+        <div class="pw-wrap"><input id="pm-current" type="password" class="form-input" placeholder="Contraseña actual"><button class="pw-toggle" onclick="togglePw('pm-current',this)" type="button" aria-label="Mostrar u ocultar contraseña"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-group">
         <label class="form-label">Nueva contraseña</label>
-        <div class="pw-wrap"><input id="pm-new" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('pm-new',this)" type="button"><i data-lucide="eye"></i></button></div>
+        <div class="pw-wrap"><input id="pm-new" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('pm-new',this)" type="button" aria-label="Mostrar u ocultar contraseña"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-group">
         <label class="form-label">Confirmar nueva contraseña</label>
@@ -8055,7 +8055,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" style="background:#6b7280" onclick="closePasswordModal()">Cancelar</button>
+      <button class="btn btn-secondary" onclick="closePasswordModal()">Cancelar</button>
       <button class="btn-primary" onclick="doChangePassword()">Guardar</button>
     </div>
   </div>
@@ -8090,7 +8090,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
       <div class="form-group" id="uf-pw-wrap">
         <label class="form-label">Contraseña</label>
-        <div class="pw-wrap"><input id="uf-password" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('uf-password',this)" type="button"><i data-lucide="eye"></i></button></div>
+        <div class="pw-wrap"><input id="uf-password" type="password" class="form-input" placeholder="Mínimo 6 caracteres"><button class="pw-toggle" onclick="togglePw('uf-password',this)" type="button" aria-label="Mostrar u ocultar contraseña"><i data-lucide="eye"></i></button></div>
       </div>
       <div class="form-group">
         <label class="form-label">⏱ Tiempo de almuerzo permitido</label>
@@ -8174,7 +8174,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" style="background:#6b7280" onclick="closeUserModal()">Cancelar</button>
+      <button class="btn btn-secondary" onclick="closeUserModal()">Cancelar</button>
       <button class="btn-primary" onclick="saveUser()">Guardar</button>
     </div>
   </div>
@@ -8235,7 +8235,7 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn-primary" style="background:#6b7280" onclick="closeRoleModal()">Cancelar</button>
+      <button class="btn btn-secondary" onclick="closeRoleModal()">Cancelar</button>
       <button id="btn-save-role" class="btn-primary" onclick="saveRole()">Guardar</button>
     </div>
   </div>
@@ -8355,10 +8355,10 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v234';
+var APP_BUILD = 'v235';
 var _versionReloading = false;
 </script>
-<script src="/core.js?v=5ec6f9ec"></script>
+<script src="/core.js?v=80377dce"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // APP INIT
@@ -16710,7 +16710,7 @@ async function loadProcessAuditor() {
           : (rec.status==='rechazada'
             ? `<span class="auditor-badge rechazada">Rechazada ${rec.rejectedAt ? new Date(rec.rejectedAt).toLocaleString('es-DO') : ''}</span>`
             : `<button class="btn-sm primary" onclick="approveProcessRecommendation('${rec.id}')"><i data-lucide="check" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Aprobar</button>
-               <button class="btn-sm" onclick="rejectProcessRecommendation('${rec.id}')" style="color:#6b7280"><i data-lucide="x" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Rechazar</button>`)}
+               <button class="btn-sm" onclick="rejectProcessRecommendation('${rec.id}')" style="color:var(--text-muted)"><i data-lucide="x" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Rechazar</button>`)}
       </div>
     </div>`).join('');
     const docList = processDocs.length ? processDocs : manuals.map(m => ({
@@ -16779,7 +16779,7 @@ async function loadProcessAuditor() {
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
           ${overdueReassignButtonHtml(t, {primary:true})}
-          <button class="btn-sm" onclick="openDrawer('${t.id}')"><i data-lucide="external-link" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
+          <button class="btn-sm" onclick="openDrawer('${t.id}')" aria-label="Abrir detalle de la tarea"><i data-lucide="external-link" style="width:12px;height:12px;stroke:currentColor;display:inline-block;vertical-align:-2px"></i></button>
         </div>
       </div>
     </div>`).join('') : '<div class="auditor-flow">No hay tareas overdue activas.</div>';
@@ -16978,7 +16978,7 @@ async function loadLunchReport() {
       const diffTxt    = b.isOpen
         ? `<span style="color:#92400e">${mins} min</span>`
         : exceeded > 0
-          ? `<span style="color:#dc2626">+${exceeded} min</span>`
+          ? `<span style="color:var(--red-text)">+${exceeded} min</span>`
           : `<span style="color:#059669">-${b.allowedMinutes - (b.totalMinutes||0)} min</span>`;
       const badge = b.isOpen
         ? `<span class="c-open">En almuerzo</span>`
@@ -27044,7 +27044,7 @@ function vehAdminPanelHtml() {
       + '<div style="font-size:12px;color:var(--text-muted)">Placa ' + escH(v.placa || '—') + ' · Medidor: ' + (v.fuelType === 'detailed' ? 'Detallado' : 'Estándar') + (v.isBuiltin ? ' · Predeterminado' : '') + '</div>'
       + '</div>'
       + '<button class="btn-sm" onclick="vehAdminShowEditForm(\'' + v.id + '\')" title="Editar"><i data-lucide="pencil" style="width:13px;height:13px;stroke:currentColor"></i></button>'
-      + (v.isBuiltin ? '' : '<button class="btn-sm" style="color:#dc2626" onclick="vehAdminDelete(\'' + v.id + '\')" title="Eliminar"><i data-lucide="trash-2" style="width:13px;height:13px;stroke:currentColor"></i></button>')
+      + (v.isBuiltin ? '' : '<button class="btn-sm" style="color:var(--red-text)" onclick="vehAdminDelete(\'' + v.id + '\')" title="Eliminar"><i data-lucide="trash-2" style="width:13px;height:13px;stroke:currentColor"></i></button>')
       + '</div>';
   }).join('');
 
@@ -27375,7 +27375,7 @@ function vehLoadList() {
       var fotoCount = Object.values(i.fotos_condicion || {}).filter(Boolean).length;
       var accionCell = '<td style="display:flex;gap:6px">' +
         '<button onclick="vehShowPhotos(\''+escH(i.id)+'\','+fotoCount+')" class="btn-sm" style="border-color:var(--border);color:var(--text-2);flex:1" title="Ver '+(fotoCount)+' foto(s)"><i data-lucide="image" style="width:13px;height:13px;stroke:currentColor;display:inline-block;vertical-align:-2px;margin-right:2px"></i>'+(fotoCount?fotoCount:'Sin fotos')+'</button>' +
-        '<button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:#dc2626;background:#fee2e2;border:none;cursor:pointer" title="Eliminar">✕</button>' +
+        '<button onclick="vehDelete(\''+escH(i.id)+'\')" class="btn-sm" style="color:var(--red-text);background:var(--red-bg);border:none;cursor:pointer" title="Eliminar">✕</button>' +
         '</td>';
       return '<tr>'
         + '<td><strong>' + escH(i.fecha) + '</strong>'
@@ -34116,6 +34116,27 @@ async function loadCancelacionesKPIs() {
 .sdv-process-reactivation-modal-overlay,.sdv-map-modal-overlay{z-index:1000}
 .emp-lightbox,.av-lightbox,#photo-lightbox,#rs-lb-overlay{z-index:2000}
 .cam-overlay,.pss-overlay{z-index:3000}
+
+/* ── C8a · ESTADO DE CARGA en botones (contrato Astryx isLoading) ──────────
+   Uso: btnLoading(btnEl, true) antes de la llamada, false al terminar.    */
+.btn.is-loading{position:relative;pointer-events:none;color:transparent}
+.btn.is-loading::after{
+  content:'';position:absolute;inset:0;margin:auto;width:14px;height:14px;
+  border:2px solid var(--text-secondary);border-right-color:transparent;
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+.btn-primary.is-loading::after,.btn-destructive.is-loading::after{
+  border-color:#fff;border-right-color:transparent;
+}
+
+/* ── C8b · ESTADO DE ERROR compartido (no existía: se disfrazaba de loading) */
+.error-state{
+  display:flex;flex-direction:column;align-items:center;gap:var(--sp-3);
+  padding:var(--sp-8) var(--sp-4);text-align:center;
+  color:var(--text-muted);font-size:var(--fs-base);
+}
+.error-state .error-icon{color:var(--red-text);width:26px;height:26px}
+.error-state .error-msg{color:var(--text-secondary);max-width:38ch;line-height:1.5}
 </style>
 
 </body>

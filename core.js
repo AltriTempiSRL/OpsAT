@@ -2593,3 +2593,41 @@ document.addEventListener('keydown', function(e){
   if (document.body) mo.observe(document.body, {attributes:true, subtree:true, attributeFilter:['style','class','hidden']});
   else document.addEventListener('DOMContentLoaded', function(){ mo.observe(document.body, {attributes:true, subtree:true, attributeFilter:['style','class','hidden']}); });
 })();
+
+/* ═══ Helpers de estado de UI — plan docs/auditoria-arquitectura/11 (C8) ═══
+   Fuente única para "cargando", "vacío" y "error". Antes cada sección los
+   fabricaba a mano: ~15 spinners inline, ≥10 clases de vacío y NINGÚN estado
+   de error (se disfrazaba de loading). Contrato inspirado en Astryx.        */
+
+/** Marca/desmarca un botón como "cargando" (spinner + no clickeable). */
+function btnLoading(el, on) {
+  if (!el) return;
+  el.classList.toggle('is-loading', on !== false);
+  if (on !== false) el.setAttribute('aria-busy', 'true');
+  else el.removeAttribute('aria-busy');
+}
+
+/** HTML de estado "cargando". Fraseo unificado con puntos suspensivos unicode. */
+function loadingHtml(msg) {
+  return '<div class="loading"><div class="spinner"></div><br>' +
+         esc(msg || 'Cargando…') + '</div>';
+}
+
+/** HTML de estado vacío, con acción opcional (onAction = nombre de función global). */
+function emptyHtml(msg, actionLabel, onAction) {
+  var btn = (actionLabel && onAction)
+    ? '<button class="btn btn-secondary" onclick="' + esc(onAction) + '">' + esc(actionLabel) + '</button>'
+    : '';
+  return '<div class="empty-state"><div>' + esc(msg || 'Sin datos') + '</div>' + btn + '</div>';
+}
+
+/** HTML de estado de error, con botón Reintentar opcional. */
+function errorHtml(msg, onRetry) {
+  var btn = onRetry
+    ? '<button class="btn btn-secondary" onclick="' + esc(onRetry) + '">↻ Reintentar</button>'
+    : '';
+  return '<div class="error-state">' +
+         '<i data-lucide="alert-triangle" class="error-icon"></i>' +
+         '<div class="error-msg">' + esc(msg || 'No se pudo cargar la información.') + '</div>' +
+         btn + '</div>';
+}
