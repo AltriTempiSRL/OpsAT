@@ -7626,6 +7626,10 @@ setInterval(() => { queueWrite('gate:inventario', () => invSnapshotRun(false)).c
 
 // ── Estado de sesión Odoo ────────────────────────────────────────────────────
 let odooUid  = null;
+// F4.2 (API-03): timestamp del último RPC de Odoo EXITOSO. El health shallow lo
+// expone para que un monitor externo simple detecte que el ERP lleva rato caído
+// (odooUid queda 'ok' por estar cacheado del boot aunque Odoo esté muerto).
+let lastOdooOkAt = null;
 let authBusy = false;
 const authQueue = [];
 const ODOO_RPC_TIMEOUT_MS = Math.max(500, Math.min(120000,
@@ -7661,7 +7665,7 @@ function odooRpc(endpoint, params) {
         try {
           const json = JSON.parse(data);
           if (json.error) finish(reject, new Error(json.error.data?.message || JSON.stringify(json.error)));
-          else finish(resolve, json.result);
+          else { lastOdooOkAt = new Date().toISOString(); finish(resolve, json.result); } // F4.2
         } catch (e) { finish(reject, e); }
       });
       res.on('error', e => finish(reject, e));
@@ -7833,7 +7837,12 @@ function stripAccents(s) {
 
 
 // ── Servidor HTTP ────────────────────────────────────────────────────────────
-const server = http.createServer(async (req, res) => {
+// F2.6 (BE-01): el cuerpo del dispatcher es `_dispatch`; `createServer` lo llama
+// con un catch-all. Antes, si un handler lanzaba ANTES de responder (readBody
+// con JSON malformado, 'Datos corruptos' de loadJson, un bug puntual), la
+// promesa rechazaba, se logueaba… y el cliente quedaba colgado para siempre —
+// y el gate del dominio retenido hasta el backstop de 60 s. Ahora: 500 limpio.
+const _dispatch = async (req, res) => {
   const parsed  = url.parse(req.url, true);
   const reqPath = parsed.pathname;
 
@@ -8488,7 +8497,7 @@ const server = http.createServer(async (req, res) => {
         build: APP_BUILD,
         tasksCount: tasksOnDisk.length,
         storage: pgStorage.isActive() ? pgStorage.health() : { mode: 'json' },
-        odoo: { ok: !!odooUid, uid: odooUid || null },
+        odoo: { ok: !!odooUid, uid: odooUid || null, lastOkAt: lastOdooOkAt }, // F4.2: lastOkAt para monitoreo externo de caídas
         media: { mode: media.isR2Enabled() ? 'r2' : 'disk',
                  migrated: (function(){ try { return fs.existsSync(path.join(DATA_DIR, '.media-r2-migrated')); } catch(e){ return false; } })() },
         note: 'shallow check — use ?deep=true for full Odoo verification'
@@ -20838,6 +20847,18 @@ const server = http.createServer(async (req, res) => {
         res.end(data);
       });
     }
+  });
+};
+
+const server = http.createServer((req, res) => {
+  _dispatch(req, res).catch((err) => {
+    silentCatch(err, 'dispatch ' + req.method + ' ' + (req.url || ''));
+    try {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Error interno del servidor' }));
+      } else { res.end(); }
+    } catch (_e) { /* socket ya muerto */ }
   });
 });
 

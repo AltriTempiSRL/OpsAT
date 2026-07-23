@@ -14,16 +14,18 @@
 
 **Mapa del plan:**
 
-| Fase | Nombre | Cuándo | Esfuerzo estimado |
-|---|---|---|---|
-| F0 | Decisiones de una sentada | Hoy | 1–2 h (solo decidir) |
-| F1 | Continuidad de datos | Semana 1 — **antes que todo** | 3 sesiones |
-| F2 | Cerrar exposición + gate del plan 08 | Semana 1–2 (solapa con F1) | 3–4 sesiones |
-| F3 | El sistema operable sin ti | Semanas 2–4 | 3–4 sesiones |
-| F4 | Resiliencia Odoo + concurrencia | Semanas 4–6 | 3–4 sesiones |
-| F5 | Preparación del dev + simplificación (kill-list) | Semanas 6–10 | 5–6 sesiones |
-| F6 | Módulos con integridad + cierre de lazos de proceso | Meses 2–4 | continuo |
-| F7 | Continuo opcional | Cuando duela | según señal |
+| Fase | Nombre | Cuándo | Esfuerzo estimado | Estado |
+|---|---|---|---|---|
+| F0 | Decisiones de una sentada | Hoy | 1–2 h (solo decidir) | ✅ resueltas con recomendación |
+| F1 | Continuidad de datos | Semana 1 — **antes que todo** | 3 sesiones | 🟡 código hecho; falta correr respaldo real + drill |
+| F2 | Cerrar exposición + gate del plan 08 | Semana 1–2 (solapa con F1) | 3–4 sesiones | ✅ código hecho, suite verde |
+| F3 | El sistema operable sin ti | Semanas 2–4 | 3–4 sesiones | 🟡 deploy.mjs/CI/RUNBOOK/advisory lock hechos; falta simulacro real |
+| F4 | Resiliencia Odoo + concurrencia | Semanas 4–6 | 3–4 sesiones | 🟡 F4.2 (health honesto) adelantado; resto pendiente |
+| F5 | Preparación del dev + simplificación (kill-list) | Semanas 6–10 | 5–6 sesiones | 🟡 F5.5 (stamp) hecho; resto pendiente |
+| F6 | Módulos con integridad + cierre de lazos de proceso | Meses 2–4 | continuo | ⬜ pendiente |
+| F7 | Continuo opcional | Cuando duela | según señal | ⬜ pendiente |
+
+> **Progreso 23-jul (esta ejecución):** commits `5f19c5f` → (esta línea). Todo el trabajo de CÓDIGO de F1/F2/F3 y varios adelantos (F4.2, F5.5) están en `master` con suite e2e verde (83+ tests). Lo que queda de F1/F3 NO es código: son acciones del dueño en consolas externas (correr el respaldo, el drill de restauración, el simulacro de deploy) — detalladas al pie de cada fase.
 
 ---
 
