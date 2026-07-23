@@ -572,6 +572,45 @@ async function flushAll(timeoutMs = 15000) {
   }
 }
 
+// ── TLS a Postgres (PGSSL) ───────────────────────────────────────────────────
+// En Railway la app llega a la DB por postgres.railway.internal: red privada
+// ya cifrada por WireGuard → SIN TLS (PGSSL sin definir). TLS solo aplica al
+// conectar desde FUERA (tooling local → proxy público *.proxy.rlwy.net). El
+// cert del template postgres-ssl es CN=localhost firmado por una CA propia
+// (root.crt en el volumen de la DB): verify-full es imposible por hostname,
+// el modo correcto es verify-ca. Ver RAILWAY.md § "TLS a PostgreSQL (PGSSL)".
+//  - PGSSL_CA_FILE=/ruta/root.crt (o PGSSL_CA=PEM inline) → verify-ca:
+//    cadena verificada contra la CA pinneada; hostname no (dice localhost).
+//  - PGSSL=insecure → cifra SIN autenticar el servidor (MITM posible) —
+//    solo para diagnóstico puntual, a sabiendas.
+//  - PGSSL=1 sin CA → error con instrucciones: la semántica vieja equivalía
+//    en silencio a insecure y eso es exactamente lo que se eliminó.
+function _pgSsl(env = process.env) {
+  const file = env.PGSSL_CA_FILE;
+  let ca = env.PGSSL_CA;
+  if (!ca && file) {
+    try { ca = fs.readFileSync(file, 'utf8'); }
+    catch (e) { throw new Error('PGSSL_CA_FILE ilegible (' + file + '): ' + e.message); }
+  }
+  if (ca) {
+    if (!/BEGIN CERTIFICATE/.test(ca)) throw new Error('PGSSL_CA(_FILE) no contiene un certificado PEM');
+    // checkServerIdentity no-op = verify-ca (equivale a sslmode=verify-ca de psql)
+    return { rejectUnauthorized: true, ca, checkServerIdentity: () => undefined };
+  }
+  if (env.PGSSL === 'insecure') {
+    console.warn('[storage-pg] ⚠ PGSSL=insecure: TLS sin verificar el servidor (MITM posible). ' +
+      'Para verify-ca: PGSSL_CA_FILE con el root.crt de la DB (ver RAILWAY.md).');
+    return { rejectUnauthorized: false };
+  }
+  if (env.PGSSL) {
+    throw new Error('PGSSL=' + env.PGSSL + ' sin CA cifraría sin autenticar el servidor (MITM). ' +
+      'Extrae la CA: railway ssh --service Postgres -- cat /var/lib/postgresql/data/certs/root.crt ' +
+      '> railway-pg-root.crt y define PGSSL_CA_FILE=railway-pg-root.crt — o PGSSL=insecure para ' +
+      'diagnóstico puntual a sabiendas. Ver RAILWAY.md § "TLS a PostgreSQL (PGSSL)".');
+  }
+  return undefined;
+}
+
 // ── Inicialización: conexión, DDL, precarga e importación ────────────────────
 async function init(opts = {}) {
   if (state.active) return;
@@ -579,6 +618,7 @@ async function init(opts = {}) {
   if (!url) throw new Error('DATABASE_URL no definida');
   state.dataDir = opts.dataDir || process.env.DATA_DIR || __dirname;
 
+  const ssl = _pgSsl(); // una sola vez — pool y lockClient comparten el mismo modo TLS
   const { Pool } = require('pg');
   state.pool = new Pool({
     connectionString: url,
@@ -589,7 +629,7 @@ async function init(opts = {}) {
     // la operación colgada PARA SIEMPRE y el reintento nunca despierta.
     query_timeout: 30000,
     keepAlive: true,
-    ssl: process.env.PGSSL === '1' ? { rejectUnauthorized: false } : undefined,
+    ssl,
   });
   state.pool.on('error', (e) => { state.lastError = '[pool] ' + e.message; console.error('[storage-pg] pool:', e.message); });
 
@@ -612,7 +652,7 @@ async function init(opts = {}) {
     const { Client } = require('pg');
     state.lockClient = new Client({
       connectionString: url, keepAlive: true,
-      ssl: process.env.PGSSL === '1' ? { rejectUnauthorized: false } : undefined,
+      ssl,
     });
     state.lockClient.on('error', (e) => {
       console.error('[storage-pg] conexión del advisory lock caída: ' + e.message +
@@ -857,4 +897,5 @@ module.exports = {
   exportAllToFiles, flushAll, health, shutdown, snapshotAll,
   typedParity, // Fase 3B: paridad memoria ↔ tablas tipadas (endpoint admin + tests)
   _internals: state, // solo para tests
+  _pgSsl, // solo para tests (matriz PGSSL sin red)
 };
