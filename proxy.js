@@ -7900,6 +7900,12 @@ function pwPolicyError(pw) {
 // ── Leer body JSON de una request (con límite de tamaño) ────────────────────
 const MAX_BODY_SIZE = 50 * 1024 * 1024; // 50 MB máximo por request
 function readBody(req) {
+  // F4.3 (BE-03): si el dispatcher ya leyó el body ANTES del gate de dominio
+  // (para que una subida lenta no serialice al equipo), el handler recibe el
+  // body ya en memoria en vez de leer un stream ya consumido. `_preBodyErr`
+  // propaga un cuerpo malformado/oversize al handler que lo maneja como siempre.
+  if (req._preBody !== undefined) return Promise.resolve(req._preBody);
+  if (req._preBodyErr !== undefined) return Promise.reject(req._preBodyErr);
   return new Promise((resolve, reject) => {
     // F2.6 (BE-02): acumular Buffers y decodificar UNA vez — `data += chunk`
     // convertía cada chunk por separado y un carácter multibyte (á/ñ/é) partido
@@ -8002,6 +8008,16 @@ const _dispatch = async (req, res) => {
       : reqPath.startsWith('/api/solicitudes-showroom') ? 'showroom'
       : null;
     if (_gateDomain) {
+      // F4.3 (BE-03): leer el body ANTES de adquirir el gate. Así la
+      // transferencia de red de una subida lenta (foto/video de hasta 50 MB en
+      // 3G) NO ocurre con el lock del dominio tomado — el equipo entero dejaba
+      // de crear/editar tareas mientras un chofer subía un video. El gate sigue
+      // envolviendo el load→mutar→save del handler (protección lost-update
+      // intacta). `readBody` en el handler recibe este body ya en memoria.
+      if (req.headers['content-length'] !== '0' && req.method !== 'DELETE') {
+        try { req._preBody = await readBody(req); }
+        catch (e) { req._preBodyErr = e; }
+      }
       await new Promise(turno => {
         queueWrite('gate:' + _gateDomain, () => new Promise(fin => {
           let _released = false;
@@ -20863,6 +20879,7 @@ const _dispatch = async (req, res) => {
     // Astryx (design system de Meta) vendorizado en vendor/: bundle UMD + React
     // como global. Compilados LOCALMENTE y commiteados — prod sigue sin build.
     'astryx.umd.js', 'react-globals.js',
+    'shell-astryx.js',
   ]);
   if (_fext === '.js' && !_ALLOWED_JS.has(_fname)) {
     res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
