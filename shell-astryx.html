@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ops AT — shell con Astryx</title>
+<!-- Shell de OpsAT sobre Astryx. Orden de carga obligatorio:
+     reset → theme → componentes → React global → Astryx UMD → isla compilada. -->
+<link rel="stylesheet" href="/vendor/astryx-reset.css">
+<link rel="stylesheet" href="/vendor/astryx-theme.css">
+<link rel="stylesheet" href="/vendor/astryx.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/vendor/react-globals.js"></script>
+  <script src="/vendor/astryx.umd.js"></script>
+  <script src="/vendor/islas/shell-astryx.js"></script>
+  <script>
+    (function () {
+      var Isla = window.Isla_shell_astryx && window.Isla_shell_astryx.default;
+      if (!Isla) { document.getElementById('root').textContent = 'No se pudo cargar la isla.'; return; }
+      ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Isla));
+    })();
+  </script>
+</body>
+</html>
