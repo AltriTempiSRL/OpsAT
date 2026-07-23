@@ -20573,6 +20573,18 @@ const _dispatch = async (req, res) => {
   }
 
   // ── Mapa de almacén (concepto) ────────────────────────────────────────────
+  // /v2 — shell nuevo sobre Astryx, EN PARALELO al actual (plan doc 13, paso 2).
+  // No toca historial.html: se puede comparar lado a lado y revertir quitando esta ruta.
+  if (reqPath === '/v2' || reqPath === '/shell-astryx.html') {
+    const f = path.join(__dirname, 'shell-astryx.html');
+    if (fs.existsSync(f)) {
+      res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store'});
+      res.end(fs.readFileSync(f));
+    } else {
+      res.writeHead(404); res.end('Not found');
+    }
+    return;
+  }
   if (reqPath === '/almacen-mapa' || reqPath === '/almacen-mapa.html') {
     const f = path.join(__dirname, 'almacen-mapa.html');
     if (fs.existsSync(f)) {

@@ -3,7 +3,8 @@
 // (vendor/react-globals.js + vendor/astryx.umd.js), así cada isla pesa poco.
 // Se corre LOCAL y el resultado se commitea — producción sigue sin build.
 import {build} from 'esbuild';
-import {readdirSync, mkdirSync} from 'node:fs';
+import {readdirSync, mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 
 const SRC = 'src/islas', OUT = 'vendor/islas';
 mkdirSync(OUT, {recursive: true});
@@ -38,5 +39,17 @@ for (const f of entries) {
     plugins: [globalsPlugin],
     outfile: `${OUT}/${name}.js`,
   });
-  console.log(`✓ ${f} → ${OUT}/${name}.js`);
+  // Estampar ?v=<md5-8> en el HTML que la carga — misma convención que core.js.
+  // Sin esto el navegador sirve el bundle viejo (Cache-Control: max-age=3600).
+  const hash = createHash('md5').update(readFileSync(`${OUT}/${name}.js`)).digest('hex').slice(0, 8);
+  const html = `${name}.html`;
+  if (existsSync(html)) {
+    const antes = readFileSync(html, 'utf8');
+    const re = new RegExp(`(/vendor/islas/${name}\\.js)(\\?v=[a-f0-9]+)?`, 'g');
+    const despues = antes.replace(re, `$1?v=${hash}`);
+    if (antes !== despues) writeFileSync(html, despues);
+    console.log(`✓ ${f} → ${OUT}/${name}.js  (?v=${hash} estampado en ${html})`);
+  } else {
+    console.log(`✓ ${f} → ${OUT}/${name}.js  (sin HTML que estampar)`);
+  }
 }
