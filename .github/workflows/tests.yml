@@ -1,0 +1,93 @@
+# F3.2+F5.1 (plan 10, QA-02/QA-03): CI de calidad en cada push.
+# No gatea el deploy (eso lo hace scripts/deploy.mjs en local) — da historial,
+# red para el dev futuro, y corre el modo PG real que localmente se SKIPea.
+name: tests
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: sintaxis + espejos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: node --check módulos del server y núcleos del front
+        run: |
+          for f in proxy.js boot.js storage-pg.js media.js write-queue.js typed-schemas.js core.js core-isla.js; do
+            node --check "$f" && echo "OK $f"
+          done
+      - name: espejos coherentes (?v= / APP_BUILD / CACHE)
+        run: node scripts/stamp.mjs --check
+
+  harnesses:
+    name: harnesses sin red
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - name: contratos unit-style (colas B1/B3, eo-metrics, out-cierre)
+        run: |
+          node tests/_test_b1b3_colas.mjs
+          node tests/_test_eometrics.mjs
+          node tests/_test_outcierre.mjs
+
+  e2e:
+    name: suite e2e (server real, modo archivos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm ci
+        working-directory: tests/e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests/e2e
+      - run: npx playwright test
+        working-directory: tests/e2e
+      - name: reporte al fallar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/.report
+          retention-days: 7
+
+  storage-pg:
+    name: capa PG real (tipadas + cutover)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      WWP_PG_TEST_URL: postgresql://postgres:ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - name: contrato storage-pg (limpia la DB de CI — desechable)
+        run: node tests/test-storage-pg.mjs
+      - name: cutover relacional (dual-write, backfill, modo read)
+        run: node tests/test-typed-cutover.mjs

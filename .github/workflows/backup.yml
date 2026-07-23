@@ -1,0 +1,60 @@
+# F3.3 (plan 10, INF-05): respaldo nocturno en infraestructura NEUTRAL — corre
+# aunque la laptop del dev esté apagada. La máquina personal queda como copia extra.
+#
+# Requiere el secret BACKUP_TOKEN (Settings → Secrets → Actions). Con
+# BACKUP_ENC_KEY configurada en el server, collections viaja CIFRADA (F1.2/DB-10)
+# — sin ella el paso avisa pero no publica el snapshot en claro como artefacto.
+# Bonus: esta descarga alimenta el timestamp de la alerta server-side de
+# "respaldo no visto en 48 h" (F1.4).
+name: backup-neutral
+on:
+  schedule:
+    - cron: '17 6 * * *'   # 02:17 AM República Dominicana (UTC-4)
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE: https://opsat.up.railway.app
+    steps:
+      - name: verificar secret
+        id: gate
+        env:
+          TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::BACKUP_TOKEN no configurado — respaldo neutral inactivo (F3.3 pendiente de custodia)"
+            echo "activo=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "activo=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: descargar manifest + colecciones
+        if: steps.gate.outputs.activo == 'true'
+        env:
+          TOKEN: ${{ secrets.BACKUP_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p snapshot
+          curl -sf -m 60 -H "Authorization: Bearer $TOKEN" "$BASE/api/backup/manifest" -o snapshot/manifest.json
+          curl -sf -m 300 -H "Authorization: Bearer $TOKEN" "$BASE/api/backup/collections.json.gz" -o snapshot/collections.bin
+          SIZE=$(wc -c < snapshot/collections.bin)
+          echo "colecciones: $SIZE bytes"
+          test "$SIZE" -gt 1024   # un snapshot real jamás es menor a 1 KB
+          # ¿Viene cifrado (F1.2)? El server marca encrypted en el manifest.
+          if grep -q '"encrypted"[[:space:]]*:[[:space:]]*true' snapshot/manifest.json; then
+            mv snapshot/collections.bin snapshot/collections.json.gz.enc
+          else
+            mv snapshot/collections.bin snapshot/collections.json.gz
+            echo "::warning::snapshot SIN cifrar (BACKUP_ENC_KEY no está en el server) — no se publica como artefacto (DB-10); configurar F1.2"
+            rm snapshot/collections.json.gz
+          fi
+      - name: publicar artefacto (30 días)
+        if: steps.gate.outputs.activo == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: snapshot/
+          retention-days: 30
+          if-no-files-found: warn
