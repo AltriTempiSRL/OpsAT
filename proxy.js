@@ -6773,6 +6773,57 @@ async function invWatchdog(forceRun) {
 }
 setInterval(() => { queueWrite('gate:inventario', () => invWatchdog(false)).catch(e => console.warn('[inv-watchdog]', e.message)); }, 60_000);
 
+// ── F4.5 (DB paridad): watchdog diario de paridad tipadas↔espejo ─────────────
+// Es el RELOJ del criterio D-7 (retirar el dual-write tras N semanas de paridad
+// limpia): corre typedParity() 1×/día a las 07:00 RD (distinto del inv-watchdog
+// de las 08:00). Si diverge → notifica a admin/manager y REINICIA el streak; si
+// está limpia → mantiene _typedParityCleanSince. El endpoint typed-parity expone
+// cleanSince para que el dueño lea "cuántas semanas van limpias" antes de F5.8.
+let _typedParityFiredDate = null;
+let _typedParityBusy = false;
+let _typedParityCleanSince = null; // ISO del inicio del streak limpio actual
+let _typedParityLast = null;       // { ok, at, diverged:[...] }
+async function typedParityWatchdog(forceRun) {
+  if (!pgStorage.isActive() || typeof pgStorage.typedParity !== 'function') return null;
+  if (!forceRun) {
+    const rdNow = nowRD();
+    const today = rdNow.toISOString().slice(0, 10);
+    if (rdNow.getUTCHours() !== 7 || rdNow.getUTCMinutes() > 5) return null;
+    if (_typedParityFiredDate === today) return null;
+  }
+  if (_typedParityBusy) return null;
+  _typedParityBusy = true;
+  try {
+    const par = await pgStorage.typedParity();
+    if (!forceRun) _typedParityFiredDate = nowRD().toISOString().slice(0, 10);
+    const diverged = Object.entries(par.collections || {})
+      .filter(([, c]) => !c.ok)
+      .map(([b, c]) => b + ' (mem ' + c.memoria + '↔tabla ' + c.tabla + ')');
+    _typedParityLast = { ok: !!par.ok, at: new Date().toISOString(), diverged };
+    if (par.ok) {
+      if (!_typedParityCleanSince) _typedParityCleanSince = new Date().toISOString();
+      console.log('[typed-parity] limpia — streak desde ' + _typedParityCleanSince);
+      return _typedParityLast;
+    }
+    _typedParityCleanSince = null; // divergencia: el reloj de D-7 vuelve a cero
+    const managers = loadAuthUsers()
+      .filter(u => u.active !== false && ['admin', 'manager'].includes(u.role)).map(u => u.id);
+    notifyMany(managers, {
+      type: 'system',
+      title: '⚠️ Paridad de datos: divergencia tipadas↔espejo',
+      message: diverged.slice(0, 5).join(' · ') + '. El dual-write divergió — NO retirarlo aún; revisar con GET /api/admin/db/typed-parity.',
+    });
+    console.warn('[typed-parity] DIVERGENCIA: ' + diverged.join(' | '));
+    return _typedParityLast;
+  } catch (e) {
+    console.warn('[typed-parity]', e.message);
+    return null;
+  } finally {
+    _typedParityBusy = false;
+  }
+}
+setInterval(() => { typedParityWatchdog(false).catch(e => console.warn('[typed-parity]', e.message)); }, 60_000);
+
 // ═══ Dashboard de Inventario consolidado (v187) — SOLO LECTURA contra Odoo ═══
 // Consolida en un panorama las señales hoy dispersas (Salud de Inventario, monitor
 // de tránsito, anomalías): dos puntajes (Fiabilidad / Higiene), las "manos" (líneas
@@ -20643,8 +20694,23 @@ const _dispatch = async (req, res) => {
     if (!requireRole(_jpTp, res, ['admin'])) return;
     if (!pgStorage.isActive()) { sendJson(res, 503, { ok:false, error:'Requiere PostgreSQL activo (producción).' }); return; }
     try {
-      sendJson(res, 200, await pgStorage.typedParity());
+      const par = await pgStorage.typedParity();
+      // F4.5: reloj de D-7 — desde cuándo la paridad va limpia sin interrupción.
+      const dias = _typedParityCleanSince
+        ? Math.floor((Date.now() - new Date(_typedParityCleanSince).getTime()) / 86400000) : null;
+      sendJson(res, 200, { ...par, d7Clock: { cleanSince: _typedParityCleanSince, diasLimpios: dias, ultimoChequeoJob: _typedParityLast } });
     } catch (e) { sendJson(res, 500, { ok:false, error: e.message }); }
+    return;
+  }
+
+  // POST /api/admin/db/typed-parity/check — fuerza el watchdog de paridad ahora
+  // (para verificar tras un deploy o un rollback de WWP_TYPED). Solo admin.
+  if (reqPath === '/api/admin/db/typed-parity/check' && req.method === 'POST') {
+    const _jpTpc = requireJwt(req, res); if (!_jpTpc) return;
+    if (!requireRole(_jpTpc, res, ['admin'])) return;
+    if (!pgStorage.isActive()) { sendJson(res, 503, { ok:false, error:'Requiere PostgreSQL activo (producción).' }); return; }
+    try { sendJson(res, 200, { ok:true, resultado: await typedParityWatchdog(true) }); }
+    catch (e) { sendJson(res, 500, { ok:false, error: e.message }); }
     return;
   }
 
