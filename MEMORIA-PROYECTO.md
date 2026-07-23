@@ -1,7 +1,23 @@
 # Memoria del proyecto — Workforce Platform (historial.html + proxy.js)
 
 > Documento de contexto para retomar el trabajo sin perder decisiones.
-> Última actualización: modularización por islas, Olas 0–3 del plan 08 (22-jul-2026).
+> Última actualización: ejecución del plan maestro de modernización, Fases 0–5 (23-jul-2026).
+
+## NORTE del producto (dueño, 23-jul-2026)
+OpsAT es **un software modular, multiusuario, para administrar la empresa en múltiples departamentos**. Regla dura (también en CLAUDE.md): el sistema **crece hacia afuera en módulos (islas + dominio backend + RBAC de sección + tests), nunca hacia adentro en el monolito**; `historial.html` y `proxy.js` solo encogen. Cada departamento/función futuro = una isla. RBAC (`ROLE_PERMISSIONS` + `sectionPerms`) es columna vertebral, no detalle. Rumbo en `docs/auditoria-arquitectura/10-plan-maestro-*`; ejecución en `10-plan-fases-*`; base en `09-auditoria-integral-*` (132 hallazgos). "Hacerlo bien ahora" porque los datos aún son casi de prueba → la Fase 2 (esquema v2 con integridad) es la ventana que se cierra al poblarse.
+
+## Ejecución plan maestro — Fases 0–5 (23-jul-2026, DOS sesiones en paralelo)
+Auditoría integral 09 (132 hallazgos, 41 agentes) + plan maestro 10. Ejecutado por dos sesiones Claude coordinadas por commits (evitando colisión en proxy.js/historial.html). Estado al cierre — TODO committeado local, **NADA deployado** (deploy = decisión + `scripts/deploy.mjs`):
+- **F2.1 (WS, API-01 P0)** ✅ `fc0296d`: WebSocket con ticket efímero de un solo uso (POST autenticado, no JWT en query), broadcast MUDO (solo `{action,taskId}`, cero objetos de negocio), notifs per-usuario (`socket._uid`). Cliente hace handshake de ticket. Test `smoke-08-realtime`.
+- **F1.1/F1.7/F3.5/F2.4** ✅ `ae53f4b`: backup URL a dominio vivo; rollback WWP_TYPED con backfill forzado tras `off` (DB-01); advisory lock single-instance (pg_try_advisory_lock, INF-04/D-8); key Odoo ROTADA (por Filippo) + placeholders en `_archivo`.
+- **F2.2/F2.5/F2.6/F2.7/F1.2** ✅ `c09ff75`: allowlist de `.js` del server (ARQ-03); política de contraseñas (min 8 + rechazo de semillas); robustez (readBodyBuf UTF-8, GAP-08 anti-SSRF push, GAP-10 path.sep); flujos críticos e2e reales (los 4, gate de Ola 4); manifest con R2+cifrado.
+- **F2.6(BE-01)/F4.2** ✅ `a7bba34`: catch-all 500 del dispatcher; health honesto con `lastOdooOkAt` (no uid cacheado).
+- **F2.3 (PII, ARQ-02)** ✅ `e2adf29`: anonimizado el bloque DATOS MOCK del HTML público (SP/GS/OD/ARTICULOS/ORDENES_ACTIVAS con nombres/teléfonos/direcciones REALES de clientes servidos sin sesión) → datos ficticios, preservando estructura y casos de prueba T-SIN-*. 256→99 líneas.
+- **F3.1/F5.5 (entrega)** ✅ `5f19c5f`: `scripts/deploy.mjs` (única vía: árbol limpio + stamp + node --check + suite + tag `deploy-vNNN` + railway up + verificación) y `scripts/stamp.mjs` (espejos `?v=`/APP_BUILD/CACHE mecánicos, `--check` para CI).
+- **F3.2/F3.3/F3.4 (operabilidad)** ✅ `fb1a536`: `.github/workflows/tests.yml` (node --check + harnesses + e2e + job PG real con services:postgres → QA-03), `backup.yml` (respaldo neutral nocturno gated por BACKUP_TOKEN, exige cifrado), `RUNBOOK.md` (10 escenarios de incidente).
+- **Docs** ✅ `6b473bd`+`88f9d9e`: norte de producto en CLAUDE.md + plan maestro; matriz de 43 env vars (`11-matriz-flags-*`); auditorías 09/10.
+- **PENDIENTE (cedido a la sesión que posee proxy.js, o siguiente sesión):** F1.4 (alerta server-side "respaldo no visto 48h"), F4.1 (breaker Odoo `odooDown`+timeout gates 8-10s), F4.3 (gate post-body para uploads), F4.4 (concurrencia updatedAt/idempotencia), F4.5 (job alerta de paridad), F4.6 (URLs firmadas de media + exclusión SW), F5.3 (unificar escapeHtml/isTaskParticipant), F5.6 (dead code), F5.8 (retiro dual-write cuando D-7). Todos en proxy.js — respetar la regla de una sesión por archivo.
+- **Suite e2e**: verde en cada hito (incluye `smoke-08-realtime` nuevo). Sin deploy tags aún (correcto).
 
 ## URLs y deploy
 - **Producción ACTUAL (Railway): `https://opsat.up.railway.app`** (desde jun 2026).
