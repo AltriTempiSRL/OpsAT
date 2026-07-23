@@ -7688,9 +7688,47 @@ const authQueue = [];
 const ODOO_RPC_TIMEOUT_MS = Math.max(500, Math.min(120000,
   parseInt(process.env.ODOO_RPC_TIMEOUT_MS, 10) || 20000));
 
+// ── Circuit breaker de Odoo (F4.1 / API-02) ─────────────────────────────────
+// Sin esto, con Odoo caído cada RPC espera el timeout COMPLETO (20 s) antes de
+// que el gate del dominio aplique su fail-open — y como el gate serializa las
+// mutaciones, el equipo entero espera en cola de 20 s en 20 s. El breaker
+// recuerda la caída y hace fail-fast (~0 ms) durante una ventana; al vencer deja
+// pasar UN probe (half-open): si responde, cierra; si no, reabre. Solo los
+// fallos de RED/timeout lo disparan — un error de aplicación de Odoo (responde
+// pero niega) significa que ESTÁ arriba, así que lo CIERRA.
+const ODOO_BREAKER_COOLDOWN_MS = Math.max(5000, Math.min(600000,
+  parseInt(process.env.ODOO_BREAKER_COOLDOWN_MS, 10) || 60000));
+let _odooBreakerUntil = 0;   // epoch ms hasta el que se hace fail-fast
+let _odooProbing = false;    // hay un probe half-open en curso
+function odooBreakerOpen() { return Date.now() < _odooBreakerUntil; }
+// Decide (con efecto) si esta llamada debe fail-fast. Deja pasar un único probe
+// cuando el cooldown venció; el resto espera a que el probe resuelva.
+function _odooGateFailFast() {
+  const now = Date.now();
+  if (now < _odooBreakerUntil) return true;              // ventana abierta
+  if (_odooBreakerUntil) {                               // half-open
+    if (_odooProbing) return true;                       // otro probe en curso
+    _odooProbing = true; return false;                  // este ES el probe
+  }
+  return false;                                          // cerrado
+}
+function _odooTrip(reason) {
+  _odooBreakerUntil = Date.now() + ODOO_BREAKER_COOLDOWN_MS;
+  _odooProbing = false;
+  console.warn('[odoo-breaker] ABIERTO ' + (ODOO_BREAKER_COOLDOWN_MS / 1000) + 's — ' + String(reason).slice(0, 120));
+}
+function _odooReset() {
+  if (_odooBreakerUntil || _odooProbing) console.log('[odoo-breaker] cerrado (Odoo respondió)');
+  _odooBreakerUntil = 0; _odooProbing = false;
+}
+
 // ── JSON-RPC helper ──────────────────────────────────────────────────────────
 function odooRpc(endpoint, params) {
   return new Promise((resolve, reject) => {
+    if (_odooGateFailFast()) {
+      return reject(new Error('Odoo no disponible (circuit breaker) — reintente en ~' +
+        Math.max(1, Math.ceil((_odooBreakerUntil - Date.now()) / 1000)) + 's'));
+    }
     let timeoutHandle = null;
     const finish = (fn, value) => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -7717,14 +7755,16 @@ function odooRpc(endpoint, params) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          if (json.error) finish(reject, new Error(json.error.data?.message || JSON.stringify(json.error)));
-          else { lastOdooOkAt = new Date().toISOString(); finish(resolve, json.result); } // F4.2
-        } catch (e) { finish(reject, e); }
+          // Odoo respondió (aunque sea con error de app) → está arriba: cerrar breaker.
+          if (json.error) { _odooReset(); finish(reject, new Error(json.error.data?.message || JSON.stringify(json.error))); }
+          else { lastOdooOkAt = new Date().toISOString(); _odooReset(); finish(resolve, json.result); } // F4.2
+        } catch (e) { _odooTrip('respuesta no-JSON'); finish(reject, e); } // proxy/error page → red mala
       });
-      res.on('error', e => finish(reject, e));
+      res.on('error', e => { _odooTrip(e.message); finish(reject, e); });
     });
-    req.on('error', e => finish(reject, e));
+    req.on('error', e => { _odooTrip(e.message); finish(reject, e); });
     timeoutHandle = setTimeout(() => {
+      _odooTrip('timeout ' + ODOO_RPC_TIMEOUT_MS + 'ms');
       req.destroy(new Error('Timeout Odoo RPC (' + ODOO_RPC_TIMEOUT_MS + ' ms)'));
     }, ODOO_RPC_TIMEOUT_MS);
     req.write(body);
@@ -8550,7 +8590,7 @@ const _dispatch = async (req, res) => {
         build: APP_BUILD,
         tasksCount: tasksOnDisk.length,
         storage: pgStorage.isActive() ? pgStorage.health() : { mode: 'json' },
-        odoo: { ok: !!odooUid, uid: odooUid || null, lastOkAt: lastOdooOkAt }, // F4.2: lastOkAt para monitoreo externo de caídas
+        odoo: { ok: !!odooUid, uid: odooUid || null, lastOkAt: lastOdooOkAt, breakerOpen: odooBreakerOpen() }, // F4.2/F4.1: monitoreo externo de caídas + estado del circuit breaker
         media: { mode: media.isR2Enabled() ? 'r2' : 'disk',
                  migrated: (function(){ try { return fs.existsSync(path.join(DATA_DIR, '.media-r2-migrated')); } catch(e){ return false; } })() },
         note: 'shallow check — use ?deep=true for full Odoo verification'
