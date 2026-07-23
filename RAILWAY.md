@@ -70,3 +70,41 @@ El script solo importa variables de la app. No sube `RAILWAY_API_TOKEN` ni
 
 Railway necesita un volumen montado en `/data`. Sin ese volumen, tareas,
 usuarios, sesiones, fotos y otros datos de runtime se perderian al redesplegar.
+
+## TLS a PostgreSQL (PGSSL) — verificado jul-2026
+
+La DB tiene dos rutas de acceso y cada una pide un modo TLS distinto
+(`storage-pg.js` → `_pgSsl()`):
+
+| Quién conecta | URL | Variables | Por qué |
+|---|---|---|---|
+| La app en Railway (producción) | `DATABASE_URL` → `postgres.railway.internal:5432` | **ninguna** (PGSSL sin definir) | Red privada del proyecto, ya cifrada por WireGuard. TLS aquí no aporta y el cert ni siquiera valida. **No definir PGSSL en el servicio.** |
+| Tooling desde fuera (scripts locales, tests contra un `wwp_dev` remoto) | `DATABASE_PUBLIC_URL` → `sakura.proxy.rlwy.net:15198` | `PGSSL_CA_FILE=railway-pg-root.crt` | ⚠️ El proxy público **acepta conexiones sin TLS** (verificado: llega hasta la autenticación con `sslmode=disable`). Sin TLS del lado cliente, la contraseña y los datos van EN CLARO por internet. |
+| Diagnóstico puntual sin la CA a mano | `DATABASE_PUBLIC_URL` | `PGSSL=insecure` | Cifra pero NO autentica el servidor (MITM posible). Solo a sabiendas; el boot lo avisa en el log. |
+
+`PGSSL=1` (la semántica vieja: cifrar sin verificar, en silencio) **ya no existe** —
+ahora corta el arranque con un error que trae estas mismas instrucciones.
+
+### Obtener la CA (una vez, y si rota)
+
+El Postgres de Railway (template `postgres-ssl`) genera su propia PKI en el
+volumen: CA `root-ca` + cert de servidor `CN=localhost`. Railway NO expone la CA
+en el dashboard, pero se extrae del volumen:
+
+```bash
+railway ssh --service Postgres -- cat /var/lib/postgresql/data/certs/root.crt > railway-pg-root.crt
+```
+
+Con eso, `PGSSL_CA_FILE=railway-pg-root.crt` da **verify-ca**: cadena verificada
+contra la CA pinneada (un MITM necesitaría `root.key`, que solo vive en el
+volumen). `verify-full` es imposible: el cert dice `localhost`, no
+`*.proxy.rlwy.net` — por eso `_pgSsl()` anula el chequeo de hostname, igual que
+`sslmode=verify-ca` de psql. Equivalente para psql directo:
+
+```bash
+psql "$DATABASE_PUBLIC_URL" --set=sslmode=verify-ca --set=sslrootcert=railway-pg-root.crt
+```
+
+El cert actual vence en **oct-2028** (`SSL_CERT_DAYS=820`). Si las conexiones con
+CA empiezan a fallar con errores de certificado, el template lo regeneró:
+re-extraer `root.crt` con el mismo comando.

@@ -41,13 +41,18 @@ function freshStorage() {
 }
 
 const { Client } = require('pg');
+// Mismo modo TLS que la capa bajo prueba (PGSSL_CA_FILE/PGSSL_CA/PGSSL): si el
+// wwp_dev remoto va por el proxy público, sin esto `q` mandaría la contraseña
+// EN CLARO — el proxy de Railway acepta conexiones sin TLS (verificado jul-2026).
+const { _pgSsl } = require(path.join(ROOT, 'storage-pg.js'));
+const Q_SSL = _pgSsl();
 async function q(sql, params) {
   // Timeouts explícitos + reintentos: el proxy público de Railway (usado solo
   // para pruebas locales) sufre flaps; sin esto el test cuelga o muere por red
   // ajena a la capa bajo prueba (que tiene sus propios reintentos).
   let lastErr;
   for (let i = 0; i < 4; i++) {
-    const c = new Client({ connectionString: PG_URL, connectionTimeoutMillis: 15000, query_timeout: 30000 });
+    const c = new Client({ connectionString: PG_URL, connectionTimeoutMillis: 15000, query_timeout: 30000, ssl: Q_SSL });
     try {
       await c.connect();
       try { return await c.query(sql, params); } finally { await c.end(); }
@@ -176,6 +181,35 @@ async function main() {
   check('truncado 30→10 borra filas', dbRows.rows[0].n === 10, dbRows.rows[0].n);
 
   await st.shutdown();
+
+  // ── 9. Matriz TLS (_pgSsl) — sin red, solo la forma del config ──
+  console.log('\n[9] TLS a Postgres (PGSSL / PGSSL_CA / PGSSL_CA_FILE)');
+  {
+    const ssl = st._pgSsl;
+    const PEM = '-----BEGIN CERTIFICATE-----\nMIIfake\n-----END CERTIFICATE-----\n';
+    check('sin PGSSL → sin TLS (red interna Railway)', ssl({}) === undefined);
+    check('PGSSL=insecure → cifra sin verificar (escape explícito)',
+      ssl({ PGSSL: 'insecure' }).rejectUnauthorized === false);
+    let threw = null;
+    try { ssl({ PGSSL: '1' }); } catch (e) { threw = e.message; }
+    check('PGSSL=1 sin CA → error con instrucciones (antes degradaba en silencio)',
+      !!threw && /PGSSL_CA_FILE/.test(threw), threw);
+    const ca = ssl({ PGSSL_CA: PEM });
+    check('PGSSL_CA inline → verify-ca (rejectUnauthorized:true + ca)',
+      ca.rejectUnauthorized === true && ca.ca === PEM && typeof ca.checkServerIdentity === 'function');
+    check('verify-ca ignora hostname (cert Railway dice localhost)',
+      ca.checkServerIdentity('sakura.proxy.rlwy.net', {}) === undefined);
+    const caPath = path.join(dataDir, 'root-test.crt');
+    fs.writeFileSync(caPath, PEM);
+    check('PGSSL_CA_FILE → lee el PEM del disco',
+      ssl({ PGSSL_CA_FILE: caPath }).ca === PEM);
+    threw = null;
+    try { ssl({ PGSSL_CA_FILE: path.join(dataDir, 'no-existe.crt') }); } catch (e) { threw = e.message; }
+    check('PGSSL_CA_FILE ilegible → error claro', !!threw && /ilegible/.test(threw), threw);
+    threw = null;
+    try { ssl({ PGSSL_CA: 'esto no es un PEM' }); } catch (e) { threw = e.message; }
+    check('PGSSL_CA sin PEM → error claro', !!threw && /PEM/.test(threw), threw);
+  }
 
   // ── Limpieza ──
   await q('DROP TABLE IF EXISTS collection_rows, kv_store, rejected_writes');
