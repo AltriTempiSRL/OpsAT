@@ -104,15 +104,27 @@ Todo sobre tokens existentes de `theme.css`. Lo que se define/consolida:
 
 > Regla: e2e verde + verificación visual por rol antes/después de cada fase. Los cambios de CSS compartida se revisan en las pantallas de mayor tráfico.
 
-| Fase | Contenido | Riesgo | Valor |
-|---|---|---|---|
-| **C1 — Fundación (bases que faltan)** | Definir `.btn` + `.btn-secondary` (+ mirror ui-isla) → arregla botones nativos; `.btn-sm` radio → token; `.count-badge`; `.empty-state`/`.loading`/`.error-state` compartidos | **Bajo** (añade lo que falta) | **Alto** |
-| **C2 — Tabs/segmented (lo que Gabriel señaló)** | `.seg` canónico; converger `.tasks-view-bar` y `.eo2-view-seg` al mismo aspecto (sin renombrar clases → handlers intactos); unificar `.chip-filter` | Medio | **Alto** (visible) |
-| **C3 — Inputs** | foco unificado `--border-focus` en input/select/textarea; `.form-check` + `.switch` canónicos; completar `ui-isla.css` | Medio | Alto |
-| **C4 — Badges/estados** | migrar `.wwp-s-*`/`.wwp-task-status` a `.b-*`; `.count-badge`; erradicar hex; consolidar rol-badge | Medio | Medio |
-| **C5 — Cards/tablas** | tokenizar radios (decidir `--radius-xl`), borde 1px, `.data-table`, resolver `.rpt-card`, propagar homologación a islas | Medio-Alto | Medio |
-| **C6 — Modales** | cabecera unificada, escala z-index, portar diálogos inline (`_iosConfirm`, reasignación), homogeneizar cierre, borrar CSS muerto | Alto | Medio |
-| **C7 — Barrido inline** | migrar los ~150 botones y ~70 inputs inline a clases; consolidar familias `*-btn` | Alto (volumen) | Alto (deuda) |
+> **ESTADO: C1–C8 IMPLEMENTADAS Y VERIFICADAS** (builds v232→v235). La convergencia se hizo
+> con una capa `<style id="componentes-canonicos">` al final del shell que agrupa las variantes
+> duplicadas bajo un mismo estilo **sin renombrar clases**, para que los handlers JS sigan
+> intactos. Contrato adoptado (Astryx, doc 12): *la geometría es propiedad del sistema*.
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| **C1 — Fundación** | Definir `.btn` + `.btn-secondary` (+ mirror ui-isla) → arregla botones nativos; `.btn-sm` radio → token | ✅ v232 — 16 botones secundarios pasaron de gris-nativo a `--surface-2`+borde |
+| **C1b — Taxonomía Astryx** | `.btn-lg`, `.btn-destructive` (primary/secondary/ghost/destructive) | ✅ v234 |
+| **C2 — Tabs/segmented** | Segmented canónico: `.tasks-view-bar` ≡ `.eo2-view-seg` ≡ `.eo2-cal-dim` ≡ `.eqp-subtabs`; chips de filtro unificados (5 familias); `.sdv-tab` → `.nav-tab` | ✅ v234 — verificado: segmented 8px y chips 9999px idénticos en 3 pantallas |
+| **C3 — Inputs** | Anillo de foco único en **29 selectores** con token nuevo `--focus-ring` (light+dark); borde homogéneo 1px; `.switch` | ✅ v234 — había 5 colores de foco y campos sin foco visible |
+| **C4 — Badges** | Una geometría de píldora para los 4 sistemas de estado; `.count-badge` (eran 5 con 3 rojos); rol unificado; hex `#0284c7` → `--sky-dot` | ✅ v234 |
+| **C5 — Cards/tablas** | Radio y borde propiedad del sistema (fin de 6 radios y del 1.5px); `.data-table` para las ~10 tablas | ✅ v234 |
+| **C6 — Modales** | Radio `--radius-lg`; **escala de z-index por capas** (drawer < modal < lightbox < cámara) reemplaza los 14 arbitrarios | ✅ v234 |
+| **C7 — Barrido inline** | Los 5 «Cancelar» dejan el hack `background:#6b7280` y usan `.btn-secondary`; hex puros → tokens; verde Excel tokenizado | ✅ v235 — los 3 hex restantes son fallbacks `var(--token,#hex)`, no rompen dark |
+| **C8 — Carga y accesibilidad** | `.btn.is-loading` (≡ `isLoading` de Astryx) + `.error-state` que **no existía**; helpers únicos `btnLoading/loadingHtml/emptyHtml/errorHtml` en `core.js`; `aria-label` en los 7 botones de icono sin nombre | ✅ v235 — 0 botones sin nombre accesible |
+
+**Pendiente (deuda de volumen, no de sistema):** migrar los ~145 botones y ~70 inputs que aún
+llevan `style=` inline cosmético a las clases canónicas, y consolidar las ~40 familias `*-btn`
+especializadas. El sistema ya existe; falta el barrido mecánico, que conviene hacer por pantalla
+a medida que se toquen, no en un big-bang.
 
 ---
 
