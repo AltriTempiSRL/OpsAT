@@ -2692,6 +2692,15 @@ body{font-family:var(--font);min-height:100dvh}
 
 /* Actions */
 .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+/* Base de botón canónica (plan 11 C1): .btn y .btn-secondary se usaban 342/76 veces
+   pero NUNCA estaban definidos globalmente → botón nativo del navegador. Esto los
+   fija sobre tokens. Los modificadores (.btn-primary/-danger/-success) ya existían. */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:var(--sp-2) var(--sp-4);border:1px solid transparent;border-radius:var(--radius);font-family:inherit;font-size:var(--fs-sm);font-weight:600;line-height:1.1;cursor:pointer;background:none;color:var(--text);transition:background .15s,border-color .15s,color .15s;white-space:nowrap;text-decoration:none}
+.btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed;pointer-events:none}
+.btn-secondary,.btn-cancel{background:var(--surface-2);border-color:var(--border);color:var(--text-secondary)}
+.btn-secondary:hover,.btn-cancel:hover{background:var(--surface-3)}
+.btn-ghost{background:var(--surface);border-color:var(--border);color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--surface-2)}
 .btn-primary{padding:var(--sp-2) var(--sp-4);background:var(--brand-light);color:white;border:none;border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:background 0.15s}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-primary:disabled,.btn-primary[disabled]{opacity:0.45;cursor:not-allowed;pointer-events:none}
@@ -3344,7 +3353,7 @@ body{font-family:var(--font);min-height:100dvh}
 .uf-sched-t{font-size:12px;padding:3px 6px;height:30px;min-width:0}
 .ur-divider{width:1px;height:40px;background:var(--border);flex-shrink:0}
 .user-row-actions{display:flex;flex-direction:column;gap:5px}
-.btn-sm{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.btn-sm{padding:5px 11px;border-radius:var(--radius);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
 .btn-sm:hover{background:var(--surface-2)}
 .btn-sm.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn-sm.primary:hover{opacity:.88}
@@ -8342,7 +8351,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v231';
+var APP_BUILD = 'v232';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=5ec6f9ec"></script>

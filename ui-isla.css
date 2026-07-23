@@ -29,6 +29,14 @@
 .search-icon svg{width:15px;height:15px;stroke:currentColor;display:block}
 .tab-h2-icon{display:inline-block;width:20px;height:20px;stroke:currentColor;vertical-align:-4px;margin-right:8px}
 .badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+/* Base de botón canónica (plan 11 C1) — espejo del shell para las islas.
+   politicas.html usaba .btn-cancel sin definir; queda cubierto. */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:var(--sp-2) var(--sp-4);border:1px solid transparent;border-radius:var(--radius);font-family:inherit;font-size:var(--fs-sm);font-weight:600;line-height:1.1;cursor:pointer;background:none;color:var(--text);transition:background .15s,border-color .15s,color .15s;white-space:nowrap;text-decoration:none}
+.btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed;pointer-events:none}
+.btn-secondary,.btn-cancel{background:var(--surface-2);border-color:var(--border);color:var(--text-secondary)}
+.btn-secondary:hover,.btn-cancel:hover{background:var(--surface-3)}
+.btn-ghost{background:var(--surface);border-color:var(--border);color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--surface-2)}
 .btn-primary{padding:var(--sp-2) var(--sp-4);background:var(--brand-light);color:white;border:none;border-radius:var(--radius);font-size:var(--fs-sm);font-weight:600;cursor:pointer;transition:background 0.15s}
 .btn-primary:hover{background:var(--accent-hover)}
 .btn-primary:disabled,.btn-primary[disabled]{opacity:0.45;cursor:not-allowed;pointer-events:none}
@@ -52,7 +60,7 @@
 .form-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(27,59,111,.15)}
 .btn-search{padding:10px 16px;background:var(--brand);color:white;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
 .sel-all-btn{font-size:12px;color:var(--brand-light);cursor:pointer;background:none;border:none;font-weight:600}
-.btn-sm{padding:5px 11px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.btn-sm{padding:5px 11px;border-radius:var(--radius);font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);display:flex;align-items:center;gap:4px;white-space:nowrap}
 .btn-sm:hover{background:var(--surface-2)}
 .btn-sm.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--brand-light);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px}
