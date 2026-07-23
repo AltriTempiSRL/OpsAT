@@ -1,5 +1,25 @@
 # Dashboard Despachos — Guía del proyecto
 
+## NORTE del producto (declaración del dueño, 23-jul-2026)
+
+OpsAT es **un software modular, multiusuario, para administrar la empresa en
+múltiples departamentos**. Regla dura que se deriva de eso y gobierna todo cambio:
+
+- **El sistema crece hacia AFUERA en módulos, nunca hacia adentro en el monolito.**
+  Cada departamento/función nuevo entra como **isla** (`<nombre>.html` en iframe +
+  su dominio en el backend + sus permisos de sección + sus tests), jamás como
+  código nuevo dentro de `historial.html` o del dispatcher en cascada de `proxy.js`.
+- **`historial.html` y `proxy.js` solo pueden ENCOGER.** Toda ruta/función nueva
+  nace en módulo propio (islas frontend, tabla de rutas por dominio en backend).
+- **RBAC = columna vertebral, no detalle.** Multi-departamento significa que cada
+  usuario ve/edita solo lo suyo, con auditoría. No debilitar `ROLE_PERMISSIONS` ni
+  `sectionPerms` al agregar módulos.
+- Plan maestro y ejecución: `docs/auditoria-arquitectura/10-plan-maestro-*` (rumbo)
+  y `10-plan-fases-*` (tareas). Auditoría base: `09-auditoria-integral-*` (132
+  hallazgos). **Deploy solo vía `node scripts/deploy.mjs`** (árbol limpio + suite
+  verde + tag); espejos con `node scripts/stamp.mjs`. **Single-instance por diseño**
+  (advisory lock en storage-pg.js). Runbook de incidentes: `RUNBOOK.md`.
+
 ## Fuente de verdad: carpeta raíz
 
 Todos los archivos editables están en la **carpeta raíz** del proyecto:

@@ -186,7 +186,62 @@ global elegida a propósito y una operación a la altura del código**. Eso es
 exactamente lo que este plan instala — sin tirar los meses de aprendizaje operativo
 que ya están pagados y funcionando en producción.
 
+## 7. NORTE del producto (declaración del dueño, 23-jul-2026)
+
+Cita textual de la intención de Filippo, que fija el rumbo de todo lo anterior:
+
+> *"Este es el momento para arreglar cualquier cosa que haya que arreglar, porque
+> el sistema recién se está haciendo y todavía no hay mucha información valiosa —
+> si hay que hacerlo bien, es ahora. Fue cambiando sobre la marcha, pero ahora es
+> el momento de convertirlo en lo que tiene que ser: **un software modular,
+> multiusuario, para administrar la empresa en múltiples departamentos.**"*
+
+Qué implica esto para el plan, y por qué NO lo cambia sino que lo confirma:
+
+- **"Modular" ya es la estrategia central, no solo pago de deuda.** Las islas del
+  plan 08 dejan de ser "cómo desacoplamos el monolito" y pasan a ser **la unidad de
+  producto**: cada departamento/función futura (compras, RRHH, finanzas, ventas,
+  logística…) entra como una isla nueva (su HTML + su dominio en el backend
+  modular F6.2 + sus permisos de sección) sin tocar a los demás. El costo marginal
+  por módulo, con `stamp.mjs` + CI + core-isla, ya tiende a cero.
+- **"Multiusuario / multi-departamento" eleva el RBAC de detalle a columna
+  vertebral.** El modelo dual actual (`ROLE_PERMISSIONS` rol→acción +
+  `sectionPerms` usuario→sección) es exactamente la base correcta para eso —
+  F5.4 (documentar y dar test de paridad) y F7 (MFA para roles poderosos) dejan de
+  ser "higiene" y pasan a ser **requisito de producto**: cada departamento ve y
+  edita solo lo suyo, con auditoría. La constitución (§2) es lo que impide que ese
+  RBAC se erosione módulo a módulo.
+- **"Ahora que los datos son casi de prueba" tiene fecha de caducidad.** Es la
+  razón por la que la **Fase 2 (esquema v2 con integridad) sube de prioridad**: una
+  plataforma multi-departamento con FKs/UNIQUE/CHECK correctos cuesta 10× menos de
+  instalar hoy que cuando cada departamento tenga meses de datos reales. La ventana
+  se cierra a medida que el sistema se puebla — de ahí "es ahora".
+- **Confirma el NO-rewrite (§0).** "Convertirlo en lo que tiene que ser" se logra
+  por estrangulamiento (islas + dominios backend + esquema v2), no tirando los
+  meses de reglas operativas ya pagadas. El destino ("software de administración
+  multi-departamento bien hecho") es el mismo al que este plan llega sin apagar la
+  operación.
+
+**Regla de producto derivada (va también a la constitución §2 y a CLAUDE.md):**
+todo departamento/función nuevo entra como **módulo aislado** (isla + dominio +
+RBAC de sección + tests), nunca como código nuevo dentro de `historial.html` o del
+dispatcher en cascada. El sistema solo crece hacia afuera en módulos, nunca hacia
+adentro en el monolito.
+
+---
+
+## 8. Relación con el plan de fases canónico
+
+Este documento es la **capa estratégica**: veredicto (§0), decisiones de dueño
+(§1), constitución (§2), fases macro (§3) y el norte de producto (§7). La
+**ejecución tarea-por-tarea con criterios de salida, dependencias y checkboxes**
+vive en [`10-plan-fases-remediacion-2026-07-23.md`](10-plan-fases-remediacion-2026-07-23.md)
+(pasó revisión adversarial contra el repo; es el que se marca al avanzar). Ambos
+derivan de la auditoría 09. Ante discrepancia de detalle, manda el plan de fases;
+ante discrepancia de rumbo, manda §7 de aquí.
+
 > Fuentes: [09-auditoria-integral](09-auditoria-integral-2026-07-23.md) (hallazgos y
 > plan §8 completo, IDs citados aquí) · [09-anexo](09-anexo-hallazgos-2026-07-23.md)
 > (los 132 hallazgos con evidencia archivo:línea) · [08-plan-modularizacion](08-plan-modularizacion.md)
-> (el carril frontend, Olas 0–3 hechas).
+> (el carril frontend, Olas 0–3 hechas) · [10-plan-fases](10-plan-fases-remediacion-2026-07-23.md)
+> (ejecución tarea-por-tarea).
