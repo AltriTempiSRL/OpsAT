@@ -20,7 +20,10 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const BASE = process.env.WWP_BACKUP_BASE_URL || 'https://dashboard-despachos-production.up.railway.app';
+// F1.1 (INF-01): el default anterior apuntaba al dominio Railway que murió el
+// 22-jul-2026 (dashboard-despachos-production.up.railway.app → 404) y el
+// respaldo fallaba en silencio. Producción real: opsat.up.railway.app.
+const BASE = process.env.WWP_BACKUP_BASE_URL || 'https://opsat.up.railway.app';
 const DEST = process.env.WWP_BACKUP_DEST || path.join(os.homedir(), 'OneDrive', 'Documentos', 'Respaldos-WWP');
 const KEEP_SNAPSHOTS = 30;
 

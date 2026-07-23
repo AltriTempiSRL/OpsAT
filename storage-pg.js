@@ -455,7 +455,10 @@ async function _typedApplyOps(client, base, op) {
 // Backfill idempotente al boot: si el conteo de la tabla difiere del snapshot en
 // memoria, se reconstruye entera (transaccional). Con dual-write activo esto solo
 // trabaja la primera vez (o tras un fallo); después los conteos coinciden.
-async function _typedBackfill() {
+// F1.7 (DB-01): con force=true reconstruye SIEMPRE, aunque los conteos coincidan —
+// necesario tras un periodo en WWP_TYPED=off, donde los updates dejan las tablas
+// tipadas con contenido viejo pero el MISMO número de filas.
+async function _typedBackfill(force = false) {
   if (TYPED_MODE === 'off') return;
   for (const base of Object.keys(TYPED_SCHEMAS)) {
     const snap = state.rowSnap.get(base);
@@ -464,7 +467,7 @@ async function _typedBackfill() {
     let n = -1;
     try { n = (await state.pool.query('SELECT count(*)::int AS n FROM ' + t)).rows[0].n; }
     catch (e) { console.error('[typed] conteo de ' + t + ' falló: ' + e.message); continue; }
-    if (n === memRows) continue;
+    if (!force && n === memRows) continue;
     const client = await state.pool.connect();
     try {
       await client.query('BEGIN');
@@ -598,6 +601,39 @@ async function init(opts = {}) {
   }
   if (lastErr) throw new Error('PostgreSQL inaccesible tras ' + CONNECT_RETRIES + ' intentos: ' + lastErr.message);
 
+  // F3.5 (INF-04, decisión D-8): OpsAT es SINGLE-INSTANCE POR DISEÑO — el estado
+  // vive en la RAM del proceso y una segunda instancia pisaría los diffs de la
+  // primera en silencio (last-writer-wins por colección completa). Advisory lock
+  // en una conexión DEDICADA que vive lo que el proceso (los locks de sesión se
+  // sueltan al cerrar la conexión; con el pool se perdería al reciclar). En los
+  // redeploys de Railway la instancia nueva espera hasta 90 s a que la vieja
+  // suelte el lock (SIGTERM → shutdown() → end) antes de rendirse con error claro.
+  {
+    const { Client } = require('pg');
+    state.lockClient = new Client({
+      connectionString: url, keepAlive: true,
+      ssl: process.env.PGSSL === '1' ? { rejectUnauthorized: false } : undefined,
+    });
+    state.lockClient.on('error', (e) => {
+      console.error('[storage-pg] conexión del advisory lock caída: ' + e.message +
+        ' — el guard single-instance queda inactivo hasta el próximo boot');
+    });
+    await state.lockClient.connect();
+    const LOCK_ID = 20260723; // constante arbitraria de la app, una por base de datos
+    let locked = false;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 90_000) {
+      const r = await state.lockClient.query('SELECT pg_try_advisory_lock($1) AS ok', [LOCK_ID]);
+      if (r.rows[0].ok) { locked = true; break; }
+      console.warn('[storage-pg] esperando el advisory lock single-instance (¿instancia anterior drenando?)…');
+      await new Promise(r2 => setTimeout(r2, 3000));
+    }
+    if (!locked) {
+      throw new Error('Otra instancia de OpsAT tiene el lock single-instance (B5/D-8): ' +
+        'este sistema NO admite réplicas — ver CLAUDE.md. Abortando para no corromper datos.');
+    }
+  }
+
   await state.pool.query(
     'CREATE TABLE IF NOT EXISTS collection_rows(' +
     ' collection TEXT NOT NULL, id TEXT NOT NULL, ord DOUBLE PRECISION NOT NULL,' +
@@ -617,8 +653,31 @@ async function init(opts = {}) {
   await _createTypedTables();
   await _preload();
   await _importFromFiles();
-  await _typedBackfill();
+  // F1.7 (DB-01): si el proceso anterior corrió con WWP_TYPED=off, las tablas
+  // tipadas quedaron CONGELADAS mientras collection_rows siguió recibiendo
+  // escrituras. Como los updates no cambian el número de filas, los conteos
+  // suelen coincidir y el backfill por conteo no repara nada — y el modo read
+  // arrancaría sirviendo (y re-propagando) datos viejos. Regla: cualquier
+  // transición cuyo modo anterior persistido no sea dual/read fuerza backfill
+  // TOTAL desde collection_rows antes de reconstruir la memoria.
+  let _prevTypedMode = null;
+  try {
+    const r = await state.pool.query("SELECT data FROM kv_store WHERE key = 'wwp-typed-mode'");
+    _prevTypedMode = r.rows.length ? r.rows[0].data : null;
+  } catch (e) { console.error('[typed] lectura de wwp-typed-mode falló: ' + e.message); }
+  const _forceBackfill = TYPED_MODE !== 'off' && _prevTypedMode !== 'dual' && _prevTypedMode !== 'read';
+  if (_forceBackfill) {
+    console.log('[typed] transición ' + (_prevTypedMode || 'desconocido') + ' → ' + TYPED_MODE +
+      ': backfill TOTAL forzado desde collection_rows (DB-01)');
+  }
+  await _typedBackfill(_forceBackfill);
   if (TYPED_MODE === 'read') await _typedRebuildMem();
+  try {
+    await state.pool.query(
+      "INSERT INTO kv_store(key, data, updated_at) VALUES ('wwp-typed-mode', $1::jsonb, now()) " +
+      'ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
+      [JSON.stringify(TYPED_MODE)]);
+  } catch (e) { console.error('[typed] persistencia de wwp-typed-mode falló: ' + e.message); }
   state.active = true;
   const cols = [...state.mem.keys()];
   console.log('[storage-pg] activo (typed=' + TYPED_MODE + ') — ' + cols.length + ' colecciones en memoria: ' +
@@ -782,6 +841,9 @@ async function shutdown() {
   try { exportAllToFiles(); } catch (e) { console.warn('[storage-pg] export final falló:', e.message); }
   state.closing = true; // a partir de aquí los reintentos se rinden (no sobrevivir a pool.end)
   try { await state.pool.end(); } catch { /* ya cerrado */ }
+  // Suelta el advisory lock single-instance (F3.5) — la instancia nueva del
+  // redeploy lo está esperando.
+  try { if (state.lockClient) await state.lockClient.end(); } catch { /* ya cerrado */ }
   state.active = false;
 }
 

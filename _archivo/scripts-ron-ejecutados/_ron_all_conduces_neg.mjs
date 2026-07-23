@@ -2,7 +2,7 @@
 const ODOO_URL = 'https://altritempi.odoo.com';
 const ODOO_DB  = 'marjorie82-altritempi-altritempi-5787837';
 const ODOO_USER = 'gsanchez@altritempi.com.do';
-const ODOO_KEY  = 'e3f2d0ca3b14858debbe2c336f09e9bb864ff717';
+const ODOO_KEY  = 'KEY-ROTADA-2026-07-23-usar-env-ODOO_API_KEY';
 
 async function jsonrpc(service, method, args) {
   const r = await fetch(`${ODOO_URL}/jsonrpc`, {
