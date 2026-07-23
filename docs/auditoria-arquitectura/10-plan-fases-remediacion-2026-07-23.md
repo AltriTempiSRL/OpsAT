@@ -25,7 +25,16 @@
 | F6 | Módulos con integridad + cierre de lazos de proceso | Meses 2–4 | continuo | ⬜ pendiente |
 | F7 | Continuo opcional | Cuando duela | según señal | ⬜ pendiente |
 
-> **Progreso 23-jul (esta ejecución):** commits `5f19c5f` → (esta línea). Todo el trabajo de CÓDIGO de F1/F2/F3 y varios adelantos (F4.2, F5.5) están en `master` con suite e2e verde (83+ tests). Lo que queda de F1/F3 NO es código: son acciones del dueño en consolas externas (correr el respaldo, el drill de restauración, el simulacro de deploy) — detalladas al pie de cada fase.
+> **Progreso 23-jul (dos tandas de ejecución):** commits `5f19c5f` → `02a5f38`. Todo el trabajo de CÓDIGO de F1/F2/F3 está en `master` con suite e2e verde (101 tests), MÁS: F4.1 (circuit breaker de Odoo), F4.2 (health honesto), F4.5 (watchdog de paridad = reloj de D-7), F5.1 (CI corre PG real: `test-storage-pg`+`test-typed-cutover`), F5.5 (stamp.mjs), F5.7 (matriz de flags, doc 13).
+>
+> **Lo que NO se hizo en código y por qué (honesto):**
+> - **F1/F3 restante = acción del dueño en consolas externas**: correr el respaldo real + verificar en OneDrive, el drill de restauración, el simulacro de deploy, y **DEPLOYAR** (`node scripts/deploy.mjs`). Nada de lo hecho protege nada hasta estar en prod (prod sigue en v233 sin estos cambios… salvo lo que la sesión UX ya haya deployado).
+> - **F4.3 (gate post-body)**: requiere auditar endpoint por endpoint que cada uploader se auto-protege con su `queueWrite` interno antes de eximirlo del gate — sesión dedicada (riesgo de reintroducir una race si se exime uno que no se auto-protege).
+> - **F4.4 (concurrencia updatedAt/idempotency)**: necesita cambio COORDINADO frontend+backend (el cliente debe enviar la versión que vio) — no se puede hacer solo en el server sin romper edits o no hacer nada.
+> - **F4.6 (URLs firmadas de media)**: toca proxy + core.js + sw.js + `empaque.html` — estos dos últimos los posee la sesión UX activa; alto riesgo de colisión.
+> - **F5.3/F5.6 (consolidar escapes/predicados, código muerto)**: viven en `historial.html`, que la sesión UX está editando y mergeando ahora mismo.
+> - **F5.2 (retirar SSE)** y **F5.8 (retirar dual-write)**: dependencias TEMPORALES (semanas de F2.1 verificado / 4 semanas del reloj D-7) — no completables hoy por definición.
+> - **F6**: lazos de proceso (acción de Operaciones) + integridad de datos (tras F5.8).
 
 ---
 
