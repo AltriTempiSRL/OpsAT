@@ -11,7 +11,8 @@
     "test:geo": "node tests/test-geo-contract.mjs",
     "test:smoke": "node tests/test-smoke.js",
     "test:e2e": "cd tests/e2e && npx playwright test",
-    "test:all": "npm run test:inventario && npm run test:geo && npm run test:smoke"
+    "test:all": "npm run test:inventario && npm run test:geo && npm run test:smoke",
+    "build:vendor": "esbuild scripts/vendor-src/react-globals.entry.js --bundle --minify --format=iife --define:process.env.NODE_ENV='\"production\"' --outfile=vendor/react-globals.js && cp node_modules/@astryxdesign/core/dist/astryx.umd.js vendor/astryx.umd.js && cp node_modules/@astryxdesign/core/dist/astryx.css vendor/astryx.css && cp node_modules/@astryxdesign/core/src/reset.css vendor/astryx-reset.css && cp node_modules/@astryxdesign/theme-neutral/dist/theme.css vendor/astryx-theme.css"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -29,5 +30,11 @@
     "setup": "1. Copia .env.example a .env con las credenciales de Odoo. 2. Ejecuta: npm start (node boot.js). 3. Abre http://localhost:3000/historial.html",
     "dataFiles": "Las colecciones viven en DATA_DIR (data-local/ en local, volumen montado en Railway): wwp-tasks.json, wwp-users-auth.json, wwp-sessions.json, wwp-notifications.json, emp-materiales.json, emp-reglas.json, averias.json, vehiculos-inspecciones.json, sdv-*, wwp-inventario-casos.json, entre otras. Inventario completo: docs/auditoria-arquitectura/",
     "env": "Ver .env.example: ODOO_URL, ODOO_DB, ODOO_USER, ODOO_API_KEY, COMPANY_NAME, DATA_DIR, etc."
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "@astryxdesign/core": "^0.1.8",
+    "@astryxdesign/theme-neutral": "^0.1.8",
+    "@astryxdesign/cli": "^0.1.8"
   }
 }

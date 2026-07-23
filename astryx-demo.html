@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astryx — prueba de integración · Ops AT</title>
+<!-- ISLA DE PRUEBA — valida que Astryx (design system de Meta) corre en OpsAT
+     SIN pipeline de build: React va como global vendorizado y Astryx como UMD.
+     Orden de carga obligatorio: reset → theme → componentes.
+     Si esta página funciona, el patrón sirve para construir módulos nuevos. -->
+<link rel="stylesheet" href="/vendor/astryx-reset.css">
+<link rel="stylesheet" href="/vendor/astryx-theme.css">
+<link rel="stylesheet" href="/vendor/astryx.css">
+<style>
+  body{padding:24px;max-width:900px;margin:0 auto}
+  .diag{font:13px/1.6 ui-monospace,monospace;background:#f5f5f5;border:1px solid #ddd;
+        border-radius:8px;padding:12px 14px;margin-bottom:20px;white-space:pre-wrap}
+  .ok{color:#137333}.bad{color:#c5221f}
+</style>
+</head>
+<body>
+  <div class="diag" id="diag">Cargando…</div>
+  <div id="root"></div>
+
+  <!-- React como global (compilado local con `npm run build:vendor`) -->
+  <script src="/vendor/react-globals.js"></script>
+  <!-- Astryx UMD: expone el global `Astryx`, requiere React/ReactDOM globales -->
+  <script src="/vendor/astryx.umd.js"></script>
+  <script>
+  (function () {
+    var diag = document.getElementById('diag');
+    var lines = [];
+    function log(ok, msg) { lines.push((ok ? '✅ ' : '❌ ') + msg); }
+
+    log(typeof React !== 'undefined', 'React global: ' + (typeof React !== 'undefined' ? React.version : 'AUSENTE'));
+    log(typeof ReactDOM !== 'undefined' && !!ReactDOM.createRoot, 'ReactDOM.createRoot disponible');
+    log(typeof Astryx !== 'undefined', 'Astryx global: ' + typeof Astryx);
+
+    if (typeof Astryx !== 'undefined') {
+      var comps = Object.keys(Astryx);
+      log(comps.length > 0, 'Componentes expuestos: ' + comps.length);
+      lines.push('   ' + comps.slice(0, 24).join(', ') + (comps.length > 24 ? '…' : ''));
+      log(!!Astryx.Card, 'Card presente');
+      log(!!Astryx.Button, 'Button presente');
+    }
+
+    diag.textContent = lines.join('\n');
+
+    // Render real con los componentes de Astryx
+    if (typeof Astryx !== 'undefined' && Astryx.Card && Astryx.Button && ReactDOM.createRoot) {
+      var h = React.createElement;
+      var Card = Astryx.Card, Button = Astryx.Button;
+      var Heading = Astryx.Heading, Text = Astryx.Text, VStack = Astryx.VStack;
+      var Badge = Astryx.Badge;
+
+      // OJO: la API de Astryx es estricta — Heading exige `level`, Button exige
+      // `label`. Omitir una prop obligatoria hace que el componente NO renderice.
+      function Demo() {
+        var s = React.useState(0), n = s[0], setN = s[1];
+        return h(VStack, {gap: 3},
+          h(Card, {padding: 4},
+            h(Heading, {level: 3}, 'Card de Astryx'),
+            h(Text, null, 'Renderizado con los componentes reales del design system, sin bundler ni pipeline de build.'),
+            h('div', {style: {marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap'}},
+              h(Button, {label: 'Primario', variant: 'primary', onClick: function () { setN(n + 1); }}),
+              h(Button, {label: 'Secundario', variant: 'secondary'}),
+              h(Button, {label: 'Destructivo', variant: 'destructive'}),
+              h(Button, {label: 'Fantasma', variant: 'ghost'})
+            ),
+            h('div', {style: {marginTop: 12}}, h(Text, null, 'Clics: ' + n))
+          ),
+          h(Card, {padding: 4, variant: 'muted'},
+            h(Text, null, 'Variante muted — fondo recesivo, para notas o paneles de ayuda.')
+          ),
+          h(Card, {padding: 4},
+            h(Heading, {level: 4}, 'Tamaños de botón'),
+            h('div', {style: {marginTop: 10, display: 'flex', gap: 8, alignItems: 'center'}},
+              h(Button, {label: 'sm', size: 'sm'}),
+              h(Button, {label: 'md', size: 'md'}),
+              h(Button, {label: 'lg', size: 'lg'})
+            )
+          )
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+      diag.textContent += '\n✅ Render de React montado sin errores';
+    } else {
+      diag.textContent += '\n❌ No se pudo montar el render';
+    }
+  })();
+  </script>
+</body>
+</html>

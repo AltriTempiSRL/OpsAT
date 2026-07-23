@@ -1,0 +1,17 @@
+# `railway up` empaqueta el DIRECTORIO, no el repo git. Sin esto subiría los
+# ~194 MB de node_modules en cada deploy (Railway instala las deps desde
+# package.json durante el build; no hacen falta en el paquete).
+node_modules/
+
+# Herramientas y fuentes de build — el resultado ya está vendorizado en vendor/
+# y ESE sí se sube (producción sirve estáticos, sin build en el deploy).
+scripts/vendor-src/
+
+# Nada de esto lo necesita producción
+.git/
+.claude/
+_archivo/
+tests/
+docs/
+data-local/
+*.log
