@@ -30,7 +30,7 @@ function _loadXlsx(cb){
   document.head.appendChild(s);
 }
 </script>
-<link rel="stylesheet" href="/theme.css?v=df4ca9ce">
+<link rel="stylesheet" href="/theme.css?v=7e54a63f">
 <style>
 /* Sidebar y header: mantienen los mismos oscuros en ambos temas (ya son oscuros)
    --header-bg y --sidebar-bg NO se redefinen en dark mode */
@@ -8355,7 +8355,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v233';
+var APP_BUILD = 'v234';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=5ec6f9ec"></script>
@@ -33922,6 +33922,200 @@ async function loadCancelacionesKPIs() {
 .tks-dot{width:7px;height:7px;flex-shrink:0}
 .tks-val{font-size:26px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--text)}
 @media(max-width:720px){.tasks-kpi-strip{grid-template-columns:1fr 1fr}.tks-cell:nth-child(2){border-right:none}.tks-cell{padding:11px 14px}.tks-val{font-size:22px}}
+</style>
+
+<style id="componentes-canonicos">
+/* ═══════════════════════════════════════════════════════════════════════════
+   SISTEMA DE COMPONENTES CANÓNICOS — plan docs/auditoria-arquitectura/11 + 12
+   Converge las variantes duplicadas al MISMO componente sin renombrar clases
+   (los handlers JS siguen intactos). Contrato estilo Astryx: la GEOMETRÍA es
+   propiedad del sistema — ninguna instancia define su propio radio/borde.
+   Va al final del <style> a propósito: gana por orden de cascada.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── C1b · BOTONES: tamaños Astryx (sm/md/lg). md es el default de .btn ────── */
+.btn-lg{padding:var(--sp-3) var(--sp-5);font-size:var(--fs-base)}
+.btn-destructive{background:var(--red-bg);border-color:transparent;color:var(--red-text)}
+.btn-destructive:hover{background:var(--red-dot);color:#fff}
+
+/* ── C2a · SEGMENTED CONTROL ────────────────────────────────────────────────
+   Pista embebida + activo elevado. Canónico: .eqp-subtab. Absorbe las 5
+   reimplementaciones (vista de Tareas, vista de Estado de Órdenes, dimensión
+   de calendario, tabs de solicitudes, prefs de notificaciones).            */
+.seg,
+.tasks-view-bar,
+.eo2-view-seg,
+.eo2-cal-dim,
+.eqp-subtabs{
+  display:inline-flex;align-items:center;gap:2px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius-md);padding:3px;flex-wrap:wrap;
+}
+.seg-btn,
+.tasks-view-bar .tv-btn,
+.eo2-view-seg .eo2-view-btn,
+.eo2-cal-dim button,
+.eqp-subtabs .eqp-subtab{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:6px 13px;min-height:32px;
+  background:transparent;border:1px solid transparent;border-radius:var(--radius);
+  font-family:inherit;font-size:var(--fs-sm);font-weight:600;line-height:1;
+  color:var(--text-secondary);cursor:pointer;white-space:nowrap;
+  transition:background .15s,color .15s,box-shadow .15s;
+}
+.seg-btn:hover,
+.tasks-view-bar .tv-btn:hover,
+.eo2-view-seg .eo2-view-btn:hover,
+.eo2-cal-dim button:hover,
+.eqp-subtabs .eqp-subtab:hover{ color:var(--text) }
+.seg-btn.active,
+.tasks-view-bar .tv-btn.active,
+.eo2-view-seg .eo2-view-btn.active,
+.eo2-cal-dim button.active,
+.eqp-subtabs .eqp-subtab.active{
+  background:var(--surface);color:var(--accent);
+  box-shadow:0 1px 2px rgba(0,0,0,.08);border-color:var(--border);
+}
+
+/* ── C2b · CHIPS DE FILTRO ──────────────────────────────────────────────────
+   Píldora con un activo. Unifica los 5 duplicados (averías = reposición eran
+   idénticos byte a byte) a un solo aspecto; el activo usa --accent.        */
+.chip-filter,
+.av-filter-btn,
+.rep-filter-btn,
+.sdv-bandeja-filter,
+.stype-btn,
+.invd-chip{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  padding:5px 13px;min-height:30px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--radius-full);
+  font-family:inherit;font-size:var(--fs-sm);font-weight:600;line-height:1;
+  color:var(--text-secondary);cursor:pointer;white-space:nowrap;
+  transition:background .15s,color .15s,border-color .15s;
+}
+.chip-filter:hover,
+.av-filter-btn:hover,
+.rep-filter-btn:hover,
+.sdv-bandeja-filter:hover,
+.stype-btn:hover,
+.invd-chip:hover{ background:var(--surface-3);color:var(--text) }
+.chip-filter.active,
+.av-filter-btn.active,
+.rep-filter-btn.active,
+.sdv-bandeja-filter.active,
+.stype-btn.active,
+.invd-chip.active{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+
+/* ── C2c · TABS DE SECCIÓN: .sdv-tab converge al canónico .nav-tab ────────── */
+.sdv-tabs .sdv-tab{
+  padding:12px 18px;font-size:13px;font-weight:600;color:var(--text-3);
+  border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.sdv-tabs .sdv-tab.active{color:var(--brand-light);border-bottom-color:var(--brand-light)}
+.sdv-tabs .sdv-tab:hover:not(.active){color:var(--text-2)}
+
+/* ── C3a · FOCO ÚNICO en TODOS los campos ───────────────────────────────────
+   El token --border-focus existía pero 5 estilos de foco convivían y muchos
+   campos no tenían foco visible (problema de accesibilidad real).         */
+.form-input:focus,.form-select:focus,.form-textarea:focus,
+.filter-sel:focus,.lunch-filter:focus,.av-qty-input:focus,.av-status-sel:focus,
+.av-barcode-input:focus,.av-textarea:focus,.veh-filter-select:focus,
+.rep-input:focus,.rep-select:focus,.rep-textarea:focus,
+.sdv-input:focus,.sdv-sel:focus,.sdv-ta:focus,
+.do-input:focus,.do-transfer-link-input:focus,.do-list-search:focus,
+.eo2-pop-sel:focus,.rs-select:focus,.rs-search-input:focus,
+.val-search-input:focus,.wiz-date-inp:focus,.task-emp-just-area:focus,
+.odoo-search-input:focus,.chat-input:focus,
+.search-box input:focus,.eo2-search input:focus{
+  outline:none;border-color:var(--border-focus);
+  box-shadow:0 0 0 3px var(--focus-ring);
+}
+/* Borde de campo homogéneo a 1px (input estaba a 1.5px, select a 1px) */
+.form-input,.av-barcode-input,.av-qty-input,.av-status-sel,.av-textarea,
+.rep-input,.rep-select,.rep-textarea,.val-search-input,.filter-sel,
+.wiz-date-inp,.chat-input,.odoo-search-input,.do-input,.do-transfer-link-input{
+  border-width:1px;
+}
+
+/* ── C3b · SWITCH canónico (los 2 toggles eran el mismo, distinto tamaño) ─── */
+.switch,.ur-toggle-btn{width:34px;height:18px;border-radius:var(--radius-full)}
+.switch.sm,.uf-sched-tog{width:30px;height:16px;border-radius:var(--radius-full)}
+
+/* ── C4a · BADGE DE ESTADO: una sola geometría (píldora) para los 4 sistemas ─
+   .b-* / .wwp-s-* / .sdv-badge-* / .avb-* representaban lo mismo con 5 radios. */
+.badge,.wwp-badge,.sdv-badge,.av-badge,.wwp-task-status,
+.wwp-subtask-badge,.wwp-task-item-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:var(--radius-full);
+  font-size:10px;font-weight:700;line-height:1.4;
+  text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;
+}
+
+/* ── C4b · BADGE DE CONTEO: era 5 implementaciones con 3 rojos distintos ──── */
+.count-badge,#tasks-overdue-badge,.notif-badge,.notif-chip-n,.eo2-tb-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:17px;height:17px;padding:0 5px;
+  border-radius:var(--radius-full);background:var(--red-dot);color:#fff;
+  font-size:9px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;
+}
+.eo2-tb-badge{background:var(--accent)}   /* conteo neutro, no alerta */
+
+/* ── C4c · BADGE DE ROL: una geometría (había 4 radios y un hex suelto) ───── */
+.role-badge,.wwp-role-badge{
+  display:inline-flex;align-items:center;
+  padding:2px 8px;border-radius:var(--radius-full);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+}
+.role-manager{background:var(--sky-dot)}   /* era el hex #0284c7 */
+
+/* ── C5a · CARDS: radio y borde propiedad del sistema (contrato Astryx) ─────
+   Se elimina la deriva de 6 radios y 3 anchos de borde.                   */
+.sol-card,.result-card,.eo-card,.eo2-card,.eo2-ch-card,.eo2-kb-card,
+.invd-wl-box,.invd-side-card,.invd-card,.invd-kpi-strip,.invd-kpi,
+.wwp-user-card,.wwp-kpi-card,.kanban-mini-card,.sub-card,.item-card,
+.users-map-side,.wiz-ccard,.pol-kpi,.eo-kpi-card,.can-dev-kpi-card{
+  border-radius:var(--radius-md);border-width:1px;
+}
+/* La familia WWP usaba 1.5px; se normaliza a 1px */
+.wwp-task-card,.role-card,.pol-card,.imp-kpi,.imp-emp-card,.agent-group-card,
+.wwp-chart-box{border-width:1px}
+
+/* ── C5b · TABLA DE DATOS canónica: ~10 tablas casi iguales, ahora una ────── */
+.data-table th,
+.mv-table th,.cont-table th,.sol-table th,.desp-table th,
+.ca-tbl th,.eqp-table th,.invd-tbl th,.rpt-table th{
+  background:var(--surface-2);color:var(--text-muted);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  border-bottom:1px solid var(--border);text-align:left;
+}
+.data-table td,
+.mv-table td,.cont-table td,.sol-table td,.desp-table td,
+.ca-tbl td,.eqp-table td,.invd-tbl td{
+  border-bottom:1px solid var(--border-light);
+}
+.data-table tbody tr:hover td,
+.mv-table tbody tr:hover td,.cont-table tbody tr:hover td,
+.sol-table tbody tr:hover td,.desp-table tbody tr:hover td,
+.eqp-table tbody tr:hover td,.invd-tbl tbody tr:hover td{
+  background:var(--accent-light);
+}
+
+/* ── C6 · MODALES: radio y escala de z-index (había 5 radios y 14 z-index) ── */
+.op-modal-card,.rep-modal,.pol-editor-box,.sdv-edit-modal-card,
+.eo-det-modal,.eo-dev-modal,.sdv-cancel-modal-card,.sdv-block-modal-card,
+.sdv-process-reactivation-modal-card,.sdv-map-modal-card{
+  border-radius:var(--radius-lg);
+}
+/* Escala por capas: drawer < modal < lightbox < cámara */
+.modal-overlay,.op-modal-overlay,.rep-modal-overlay,.sdv-edit-modal-overlay,
+.sdv-cancel-modal-overlay,.sdv-block-modal-overlay,
+.sdv-process-reactivation-modal-overlay,.sdv-map-modal-overlay{z-index:1000}
+.emp-lightbox,.av-lightbox,#photo-lightbox,#rs-lb-overlay{z-index:2000}
+.cam-overlay,.pss-overlay{z-index:3000}
 </style>
 
 </body>

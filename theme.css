@@ -23,6 +23,7 @@
   --border:#d6d4cf;
   --border-light:#dedad5;
   --border-focus:#2b6ad4;
+  --focus-ring:rgba(43,106,212,.18);   /* anillo de foco compartido (plan 11 C3) */
   /* ── Scrollbars (finos, disimulados con la ventana) ── */
   --scrollbar-thumb:rgba(28,36,48,.22);
   --scrollbar-thumb-hover:rgba(28,36,48,.42);
@@ -88,6 +89,7 @@
   --border:#2e333d;
   --border-light:#252a33;
   --border-focus:#4a9eff;
+  --focus-ring:rgba(74,158,255,.28);
   --text-primary:#e8eaed;
   --text-secondary:#9aa5b4;
   /* UX-29 (plan 10): muted/terciario subidos a contraste AA ≥4.5:1 sobre --bg */
