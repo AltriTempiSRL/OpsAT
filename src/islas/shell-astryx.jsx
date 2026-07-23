@@ -15,6 +15,8 @@
 // Compila con `npm run build:islas` (estampa ?v= en el HTML).
 
 import {useEffect, useState, useCallback, Component} from 'react';
+import {Theme} from '@astryxdesign/core/Theme';
+import {temaOpsAT} from './tema-opsat.js';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Layout, LayoutContent} from '@astryxdesign/core/Layout';
 import {SideNav, SideNavHeading, SideNavItem, SideNavSection} from '@astryxdesign/core/SideNav';
@@ -377,7 +379,10 @@ export default function ShellOpsAT() {
   const actual = TODOS.find(i => i.ruta === ruta) || TODOS[0];
   const Panel = actual.panel;
 
+  // <Theme> aplica la identidad de OpsAT (tema-opsat.js). mode="system" respeta
+  // la preferencia del sistema, igual que el modo noche del shell actual.
   return (
+    <Theme theme={temaOpsAT} mode="system">
     <AppShell
       contentPadding={0}
       sideNav={
@@ -422,5 +427,6 @@ export default function ShellOpsAT() {
         }
       />
     </AppShell>
+    </Theme>
   );
 }

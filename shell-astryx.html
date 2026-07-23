@@ -6,15 +6,17 @@
 <title>Ops AT — shell con Astryx</title>
 <!-- Shell de OpsAT sobre Astryx. Orden de carga obligatorio:
      reset → theme → componentes → React global → Astryx UMD → isla compilada. -->
+<!-- OJO: NO se carga astryx-theme.css (el tema neutral precompilado). La marca de
+     OpsAT se inyecta en runtime con <Theme theme={temaOpsAT}> desde la isla.
+     Cargar ambos rompe: el neutral va sin capa y gana sobre @layer astryx-theme. -->
 <link rel="stylesheet" href="/vendor/astryx-reset.css">
-<link rel="stylesheet" href="/vendor/astryx-theme.css">
 <link rel="stylesheet" href="/vendor/astryx.css">
 </head>
 <body>
   <div id="root"></div>
   <script src="/vendor/react-globals.js"></script>
   <script src="/vendor/astryx.umd.js"></script>
-  <script src="/vendor/islas/shell-astryx.js?v=cb6ef4e5"></script>
+  <script src="/vendor/islas/shell-astryx.js?v=9c70c215"></script>
   <script>
     (function () {
       var Isla = window.Isla_shell_astryx && window.Isla_shell_astryx.default;
