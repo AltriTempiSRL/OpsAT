@@ -20,6 +20,10 @@ module.exports = defineConfig({
   testDir: __dirname,
   outputDir: path.join(__dirname, '.artifacts'),
   timeout: 30_000,
+  // El login real verifica bcrypt (CPU); bajo carga el default de 5s para las
+  // aserciones se queda corto (ej. #login-error.show, #screen-login hidden) y
+  // genera flakiness. 10s da margen realista sin ocultar cuelgues verdaderos.
+  expect: { timeout: 10_000 },
   // Tolerancia a flakiness de timing: el login real verifica bcrypt (CPU) y bajo
   // carga (server + Chromium en el mismo equipo) algún login/aserción/geometría
   // puntual pasa del timeout de forma no determinista. 3 reintentos absorben esa
