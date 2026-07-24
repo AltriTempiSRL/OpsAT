@@ -23,9 +23,12 @@ import '@astryxdesign/core/astryx.css';
 import {useEffect, useState, useCallback, Component} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
+import {LinkProvider} from '@astryxdesign/core/Link';
 import {temaOpsAT} from './tema-opsat.js';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/core/Layout';
+import {ResizeHandle, useResizable} from '@astryxdesign/core/Resizable';
+import {useMediaQuery} from '@astryxdesign/core/hooks';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {MetadataList, MetadataListItem} from '@astryxdesign/core/MetadataList';
 import {SideNav, SideNavHeading, SideNavItem, SideNavSection} from '@astryxdesign/core/SideNav';
@@ -130,7 +133,7 @@ function Cifras({items, cargando}) {
       {items.map(k => (
         <HStack key={k.etiqueta} gap={1.5} vAlign="baseline">
           <Text weight="bold">{cargando ? '—' : String(k.valor)}</Text>
-          <Text color="secondary" size="sm">{k.etiqueta}</Text>
+          <Text type="supporting">{k.etiqueta}</Text>
         </HStack>
       ))}
     </HStack>
@@ -147,6 +150,13 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
   const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState({});
   const [filaSel, setFilaSel] = useState(null);
+  // `resizable` espera las props de useResizable(), NO un objeto plano: pasarle
+  // uno hacía que LayoutPanel ignorara `width` y se quedara en su ancho por
+  // defecto. Con el hook, él gobierna el ancho y ResizeHandle va al lado.
+  const inspector = useResizable({defaultSize: 380, minSizePx: 320, maxSizePx: 520, autoSaveId: 'v2-inspector'});
+  // Contrato responsive de la guía de layout: por debajo de ~1024px el panel
+  // NO comprime el contenido; simplemente no se muestra en columna.
+  const anchoSuficiente = useMediaQuery('(min-width: 1024px)');
 
   const texto = busqueda.trim().toLowerCase();
   const visibles = datos.filter(fila => {
@@ -184,7 +194,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
           <HStack gap={3} vAlign="center">
             <Heading level={3}>{titulo}</Heading>
             {subtitulo && (
-              <Text color="secondary" size="sm" wrap="nowrap">{subtitulo}</Text>
+              <Text type="supporting" maxLines={1}>{subtitulo}</Text>
             )}
             <StackItem size="fill" />
             {kpis && !error && <Cifras items={kpis(datos)} cargando={cargando} />}
@@ -218,7 +228,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
                   </>
                 }
                 endContent={
-                  <Text color="secondary" size="sm">
+                  <Text type="supporting">
                     {visibles.length === datos.length
                       ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
                       : `${visibles.length} de ${datos.length}`}
@@ -256,9 +266,10 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
           </VStack>
         </LayoutContent>
       }
-      end={
-        <LayoutPanel width={380} hasDivider isScrollable label="Detalle"
-                     resizable={{minSizePx: 320, maxSizePx: 520, autoSaveId: 'v2-inspector'}}>
+      end={anchoSuficiente ? (
+        <>
+        <ResizeHandle hasDivider {...inspector.props} />
+        <LayoutPanel width={inspector.size} isScrollable label="Detalle">
           {sel && detalle ? (
             <VStack gap={3} padding={4}>
               <HStack hAlign="space-between" vAlign="center">
@@ -281,7 +292,8 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
                         description="Elige una fila para ver su detalle aquí." />
           )}
         </LayoutPanel>
-      }
+        </>
+      ) : null}
     />
   );
 }
@@ -290,7 +302,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
 // Las pantallas con flujos complejos (formularios con Odoo, mapa 3D, escaneo)
 // se sirven DENTRO del shell Astryx embebiendo la implementación actual. La app
 // queda completa y usable hoy; cada una se reconstruye nativa cuando toque.
-function Embebida({titulo, subtitulo, src, alto = 'calc(100dvh - 240px)'}) {
+function Embebida({titulo, subtitulo, src}) {
   return (
     <VStack gap={3}>
       <VStack gap={1}>
@@ -305,12 +317,7 @@ function Embebida({titulo, subtitulo, src, alto = 'calc(100dvh - 240px)'}) {
         isDismissable
       />
       <Card padding={0} width="100%">
-        <iframe
-          src={src}
-          title={titulo}
-          style={{width: '100%', height: alto, border: 'none', display: 'block',
-                  borderRadius: 'var(--radius-container)'}}
-        />
+        <iframe src={src} title={titulo} className="opsat-embebida" />
       </Card>
     </VStack>
   );
@@ -770,7 +777,7 @@ const PanelBuscador    = () => <Embebida titulo="Buscador" subtitulo="Orden, tra
 const PanelInventario  = () => <Embebida titulo="Inventario" subtitulo="Salud de inventario: fiabilidad, tránsitos y cuadre." src="/inventario" />;
 const PanelSinComp     = () => <Embebida titulo="Despachos sin Comprobante" subtitulo="Transferencias sin evidencia documental." src="/sin-adjuntos" />;
 const PanelDevCdp      = () => <Embebida titulo="Devoluciones a CDP" subtitulo="Devoluciones de tiendas recibidas en el almacén CDP." src="/dev-cdp.html" />;
-const PanelMapa        = () => <Embebida titulo="Mapa del Almacén" subtitulo="Vista 3D de ubicaciones y racks." src="/almacen-mapa.html" alto="calc(100dvh - 170px)" />;
+const PanelMapa        = () => <Embebida titulo="Mapa del Almacén" subtitulo="Vista 3D de ubicaciones y racks." src="/almacen-mapa.html" />;
 const PanelEmpaque     = () => <Embebida titulo="Materiales de Empaque" subtitulo="Catálogo y reglas por familia de artículos." src="/empaque.html" />;
 
 // ════════ Navegación: los 5 dominios del plan UX (doc 10) ════════════════
@@ -809,6 +816,32 @@ const DOMINIOS = [
 ];
 const TODOS = DOMINIOS.flatMap(d => d.items);
 
+// El componente de enlace necesita navegar, pero LinkProvider lo instancia fuera
+// del árbol del router. Un puntero de módulo es lo más simple y evita montar un
+// contexto extra solo para esto.
+let _irA = null;
+
+/** Enlace de toda la app (LinkProvider): intercepta la navegación interna y deja
+ *  pasar el resto — cmd/ctrl-clic, botón central y enlaces externos siguen
+ *  abriendo en pestaña nueva como espera el usuario. */
+function EnlaceApp({href, children, ...resto}) {
+  const interno = typeof href === 'string' && href.startsWith('/v2');
+  return (
+    <a
+      href={href}
+      {...resto}
+      onClick={ev => {
+        if (resto.onClick) resto.onClick(ev);
+        if (!interno || ev.defaultPrevented) return;
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return;
+        ev.preventDefault();
+        if (_irA) _irA(href);
+      }}>
+      {children}
+    </a>
+  );
+}
+
 /** Routing con paths reales (pushState/popstate), igual que el shell actual (v227). */
 function useRuta() {
   const [ruta, setRuta] = useState(() => location.pathname);
@@ -844,6 +877,7 @@ class LimiteDeError extends Component {
 
 export default function ShellOpsAT() {
   const [ruta, ir] = useRuta();
+  _irA = ir;   // lo consume EnlaceApp a través de LinkProvider
   const actual = TODOS.find(i => i.ruta === ruta) || TODOS[0];
   const Panel = actual.panel;
 
@@ -851,6 +885,7 @@ export default function ShellOpsAT() {
   // la preferencia del sistema, igual que el modo noche del shell actual.
   return (
     <Theme theme={temaOpsAT} mode="system">
+    <LinkProvider component={EnlaceApp}>
     <AppShell
       contentPadding={0}
       sideNav={
@@ -877,7 +912,6 @@ export default function ShellOpsAT() {
                   icon={i.icon}
                   href={i.ruta}
                   isSelected={i.ruta === actual.ruta}
-                  onClick={ev => { ev.preventDefault(); ir(i.ruta); }}
                 />
               ))}
             </SideNavSection>
@@ -891,6 +925,7 @@ export default function ShellOpsAT() {
         <Panel />
       </LimiteDeError>
     </AppShell>
+    </LinkProvider>
     </Theme>
   );
 }

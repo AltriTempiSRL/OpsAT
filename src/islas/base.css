@@ -1,4 +1,20 @@
 /* Orden CANÓNICO de capas — declarado ANTES de cualquier import (regla nº1 de
-   `astryx docs migration`): sin esto, un reset sin capa o una capa posterior
-   pisa los estilos de los componentes en silencio. */
+   `astryx docs migration`): un estilo SIN capa gana sobre TODA capa nombrada,
+   sin error ni aviso. */
 @layer reset, astryx-base, astryx-theme, app;
+
+/* Estilos propios de la app: van en la capa `app`, la última, para que ganen
+   deliberadamente y no por accidente de orden de archivo. */
+@layer app {
+  /* Pantallas aún no migradas: se sirven embebidas dentro del shell nuevo.
+     El iframe es contenido, no layout — pero su estilo va aquí y no inline
+     (los estilos inline sobre elementos crudos son un anti-patrón del sistema). */
+  .opsat-embebida {
+    width: 100%;
+    height: calc(100dvh - 240px);
+    border: none;
+    display: block;
+    border-radius: var(--radius-container);
+    background: var(--color-background-surface);
+  }
+}
