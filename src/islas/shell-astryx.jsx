@@ -32,6 +32,10 @@ import {StatusDot} from '@astryxdesign/core/StatusDot';
 import {Table, proportional, pixel} from '@astryxdesign/core/Table';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {Banner} from '@astryxdesign/core/Banner';
+import {Toolbar} from '@astryxdesign/core/Toolbar';
+import {TextInput} from '@astryxdesign/core/TextInput';
+import {Selector} from '@astryxdesign/core/Selector';
+import {Divider} from '@astryxdesign/core/Divider';
 import {
   ClipboardDocumentListIcon, TruckIcon, InboxIcon, ArrowPathIcon,
   PaperClipIcon, ArchiveBoxIcon, MagnifyingGlassIcon, CubeIcon,
@@ -123,9 +127,30 @@ function Kpis({items, cargando}) {
   );
 }
 
-/** Encabezado + estados de carga/error/vacío + tabla. Evita repetir en cada pantalla. */
-function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio}) {
+/** Estructura común a toda pantalla de datos: encabezado, KPIs, barra de
+ *  herramientas (buscador + filtros), tabla y los tres estados.
+ *  `buscarEn`: campos donde busca el texto. `filtros`: [{label, campo, opciones}]
+ *  donde opciones = [{valor, etiqueta}]. El filtrado es en cliente. */
+function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros}) {
   const {cargando, error, datos, recargar} = api;
+  const [busqueda, setBusqueda] = useState('');
+  const [seleccion, setSeleccion] = useState({});
+
+  const texto = busqueda.trim().toLowerCase();
+  const visibles = datos.filter(fila => {
+    if (texto && buscarEn && buscarEn.length) {
+      const enc = buscarEn.some(c => String(fila[c] ?? '').toLowerCase().includes(texto));
+      if (!enc) return false;
+    }
+    return (filtros || []).every(f => {
+      const v = seleccion[f.campo];
+      return !v || String(fila[f.campo] ?? '') === v;
+    });
+  });
+
+  const hayFiltroActivo = !!texto || Object.values(seleccion).some(Boolean);
+  const limpiar = () => { setBusqueda(''); setSeleccion({}); };
+
   return (
     <VStack gap={4}>
       <HStack hAlign="space-between" vAlign="center" wrap gap={2}>
@@ -154,6 +179,51 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio}) {
         <HStack gap={2} vAlign="center"><Spinner /><Text color="secondary">Cargando…</Text></HStack>
       )}
 
+      {/* Barra de herramientas: el bloque ToolbarTableFilter del sistema */}
+      {!cargando && !error && datos.length > 0 && (buscarEn || filtros) && (
+        <Toolbar
+          label={'Filtros de ' + titulo}
+          size="sm"
+          dividers={['bottom']}
+          startContent={
+            <>
+              {buscarEn && buscarEn.length > 0 && (
+                <TextInput
+                  label="Buscar"
+                  isLabelHidden
+                  placeholder="Buscar…"
+                  value={busqueda}
+                  onChange={setBusqueda}
+                  startIcon={MagnifyingGlassIcon}
+                />
+              )}
+              {(filtros || []).map(f => (
+                <Selector
+                  key={f.campo}
+                  label={f.label}
+                  isLabelHidden
+                  placeholder={f.label}
+                  hasClear
+                  value={seleccion[f.campo] || null}
+                  onChange={v => setSeleccion(s => ({...s, [f.campo]: v}))}
+                  options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))}
+                />
+              ))}
+              {hayFiltroActivo && (
+                <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />
+              )}
+            </>
+          }
+          endContent={
+            <Text color="secondary" size="sm">
+              {visibles.length === datos.length
+                ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
+                : `${visibles.length} de ${datos.length}`}
+            </Text>
+          }
+        />
+      )}
+
       {!cargando && !error && datos.length === 0 && (
         <Card padding={6}>
           <VStack gap={2} hAlign="center">
@@ -162,8 +232,18 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio}) {
         </Card>
       )}
 
-      {!cargando && !error && datos.length > 0 && (
-        <Table data={datos} columns={columnas} idKey="id" density="balanced"
+      {/* Vacío por filtro: distinto de "no hay datos", y con salida */}
+      {!cargando && !error && datos.length > 0 && visibles.length === 0 && (
+        <Card padding={6}>
+          <VStack gap={3} hAlign="center">
+            <Text color="secondary">Ningún registro coincide con la búsqueda o los filtros.</Text>
+            <Button label="Limpiar filtros" variant="secondary" clickAction={limpiar} />
+          </VStack>
+        </Card>
+      )}
+
+      {!cargando && !error && visibles.length > 0 && (
+        <Table data={visibles} columns={columnas} idKey="id" density="balanced"
                dividers="rows" hasHover textOverflow="truncate" />
       )}
     </VStack>
@@ -211,6 +291,12 @@ function PanelTareas() {
       acciones={<Button label="+ Nueva Tarea" variant="primary" />}
       api={api}
       vacio="No hay tareas que mostrar."
+      buscarEn={['title', 'client', 'odooRef']}
+      filtros={[
+        {label: 'Estado', campo: 'status', opciones: Object.entries(ESTADO_TAREA).map(([v, e]) => ({valor: v, etiqueta: e.label}))},
+        {label: 'Tipo', campo: 'type', opciones: Object.entries(TIPO_TAREA).map(([v, l]) => ({valor: v, etiqueta: l}))},
+        {label: 'Prioridad', campo: 'priority', opciones: Object.entries(PRIORIDAD).map(([v, l]) => ({valor: v, etiqueta: l}))},
+      ]}
       kpis={d => [
         {etiqueta: 'Pendientes',  valor: d.filter(t => t.status === 'pending').length},
         {etiqueta: 'En curso',    valor: d.filter(t => t.status === 'in_progress').length},
@@ -240,6 +326,8 @@ function PanelEstadoOrdenes() {
       subtitulo="Avance de las órdenes de venta hacia la entrega."
       api={api}
       vacio="Sin órdenes en este período."
+      buscarEn={['folio', 'clienteNombre', 'salesperson']}
+      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]) => ({valor: v, etiqueta: e.label}))}]}
       kpis={d => [
         {etiqueta: 'Activas',     valor: d.filter(s => !['despachada','cancelada','rechazada'].includes(s.estado)).length},
         {etiqueta: 'En proceso',  valor: d.filter(s => s.estado === 'en_proceso').length},
@@ -269,6 +357,8 @@ function PanelSDV() {
       subtitulo="Solicitudes de despacho recibidas de Ventas."
       api={api}
       vacio="Sin solicitudes en este período."
+      buscarEn={['folio', 'clienteNombre']}
+      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]) => ({valor: v, etiqueta: e.label}))}]}
       kpis={d => [
         {etiqueta: 'Pendientes',  valor: d.filter(s => s.estado === 'pendiente_revision').length},
         {etiqueta: 'En proceso',  valor: d.filter(s => s.estado === 'en_proceso').length},
@@ -352,6 +442,8 @@ function PanelAverias() {
       acciones={<Button label="+ Registrar avería" variant="primary" />}
       api={api}
       vacio="No hay averías registradas."
+      buscarEn={['ref', 'name', 'comentario']}
+      filtros={[{label: 'Estado', campo: 'status', opciones: Object.keys(ESTADO_AVERIA).map(v => ({valor: v, etiqueta: v}))}]}
       kpis={d => [
         {etiqueta: 'Recibidos', valor: d.filter(a => a.status === 'Recibido').length},
         {etiqueta: 'En taller', valor: d.filter(a => a.status === 'En Taller').length},
@@ -440,6 +532,7 @@ function PanelFlota() {
       acciones={<Button label="Nueva inspección" variant="primary" />}
       api={api}
       vacio="No hay vehículos registrados."
+      buscarEn={['name', 'placa']}
       kpis={d => [
         {etiqueta: 'Vehículos', valor: d.length},
         {etiqueta: 'Medidor detallado', valor: d.filter(v => v.fuelType === 'detallado').length},
@@ -465,6 +558,7 @@ function PanelFormacion() {
       acciones={<Button label="+ Nuevo curso" variant="primary" />}
       api={api}
       vacio="No hay cursos publicados."
+      buscarEn={['title', 'id']}
       kpis={d => [
         {etiqueta: 'Cursos',    valor: d.length},
         {etiqueta: 'Activos',   valor: d.filter(c => c.active !== false).length},
@@ -494,6 +588,11 @@ function PanelEquipo() {
       subtitulo="Adopción y actividad por persona en los últimos 14 días."
       api={api}
       vacio="Sin datos de actividad en el período."
+      buscarEn={['name']}
+      filtros={[
+        {label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))},
+        {label: 'Adopción', campo: 'semaforo', opciones: [{valor:'activo',etiqueta:'Activo'},{valor:'tibio',etiqueta:'Tibio'},{valor:'inactivo',etiqueta:'Inactivo'},{valor:'nunca',etiqueta:'Nunca entró'}]},
+      ]}
       kpis={d => [
         {etiqueta: 'Activos',   valor: d.filter(u => u.semaforo === 'activo').length},
         {etiqueta: 'Tibios',    valor: d.filter(u => u.semaforo === 'tibio').length},
@@ -549,6 +648,8 @@ function PanelUsuarios() {
       acciones={<Button label="+ Nuevo usuario" variant="primary" />}
       api={api}
       vacio="No hay usuarios."
+      buscarEn={['name', 'email']}
+      filtros={[{label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))}]}
       kpis={d => [
         {etiqueta: 'Total',      valor: d.length},
         {etiqueta: 'Admins',     valor: d.filter(u => u.role === 'admin').length},
