@@ -22,8 +22,10 @@ múltiples departamentos**. Regla dura que se deriva de eso y gobierna todo camb
 
 ## Fuente de verdad: carpeta raíz
 
-Todos los archivos editables están en la **carpeta raíz** del proyecto:
-`C:\Users\Gabriel Ramirez\OneDrive\Documentos\Claude\Artifacts\dashboard-despachos-live\`
+Todos los archivos editables están en la **carpeta raíz** del proyecto (el repo git):
+`C:\Users\Gabriel Ramirez\OneDrive\Documentos\GitHub\OpsAT\`
+
+> ⚠️ **La carpeta vieja `C:\Users\Gabriel Ramirez\OneDrive\Documentos\Claude\Artifacts\dashboard-despachos-live\` está CONGELADA** (quedó en v218) y **ya NO es la fuente de verdad**: no editar, no correr ni deployar desde ahí. Todo (editar, correr `restart.bat`, deploy con `railway`) sucede en el repo `GitHub\OpsAT`, que es a donde apunta el link de Railway (proyecto OpsAT / production / dashboard-despachos).
 
 | Archivo | Descripción |
 |---------|-------------|
