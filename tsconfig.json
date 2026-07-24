@@ -1,0 +1,26 @@
+{
+  "//": [
+    "Verificación de tipos de las islas (src/islas). NO emite nada: esbuild",
+    "compila. Esto es solo la red de seguridad que faltaba — sin ella, un nombre",
+    "de prop o de token equivocado llegaba al navegador sin avisar.",
+    "moduleResolution 'bundler' lo exige `astryx docs migration` para que",
+    "resuelvan los subpaths tipo @astryxdesign/core/reset.css."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["react", "react-dom"]
+  },
+  "include": ["src/islas/**/*.ts", "src/islas/**/*.tsx"]
+}

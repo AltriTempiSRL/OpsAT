@@ -12,7 +12,8 @@
     "test:smoke": "node tests/test-smoke.js",
     "test:e2e": "cd tests/e2e && npx playwright test",
     "test:all": "npm run test:inventario && npm run test:geo && npm run test:smoke",
-    "build:islas": "node scripts/build-islas.mjs"
+    "build:islas": "tsc --noEmit && node scripts/build-islas.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -36,6 +37,12 @@
     "@astryxdesign/core": "^0.1.8",
     "@astryxdesign/theme-neutral": "^0.1.8",
     "@heroicons/react": "^2.2.0",
-    "esbuild": "^0.28.1"
+    "@stylexjs/stylex": "^0.19.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.28.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^7.0.2"
   }
 }

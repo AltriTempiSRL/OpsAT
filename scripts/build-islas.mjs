@@ -1,4 +1,4 @@
-// Compila las islas JSX de src/islas/ a vendor/islas/ con esbuild — INSTALACIÓN
+// Compila las islas TSX de src/islas/ (typecheck obligatorio antes: npm run build:islas) a vendor/islas/ con esbuild — INSTALACIÓN
 // CANÓNICA de Astryx (docs migration): imports reales de @astryxdesign/core con
 // tree-shaking, CSS empaquetado con sus capas de cascada, y React dentro del
 // bundle. Ya NO se usan el UMD ni react-globals: eso era un atajo de arranque.
@@ -19,7 +19,7 @@ const SRC = 'src/islas', OUT = 'vendor/islas';
 rmSync(join(OUT, 'chunks'), {recursive: true, force: true});
 mkdirSync(OUT, {recursive: true});
 
-const entries = readdirSync(SRC).filter(f => f.endsWith('.jsx'));
+const entries = readdirSync(SRC).filter(f => f.endsWith('.tsx'));
 if (!entries.length) { console.log('sin islas'); process.exit(0); }
 
 await build({
@@ -39,7 +39,7 @@ await build({
 
 // Estampar ?v=<md5-8> del JS y el CSS en el HTML de cada isla (convención core.js).
 for (const f of entries) {
-  const name = f.replace(/\.jsx$/, '');
+  const name = f.replace(/\.tsx$/, '');
   const html = `${name}.html`;
   if (!existsSync(html)) { console.log(`✓ ${name} (sin HTML que estampar)`); continue; }
   let doc = readFileSync(html, 'utf8');

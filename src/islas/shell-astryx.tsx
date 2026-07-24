@@ -24,7 +24,7 @@ import {useEffect, useState, useCallback, Component} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
 import {LinkProvider} from '@astryxdesign/core/Link';
-import {temaOpsAT} from './tema-opsat.js';
+import {temaOpsAT} from './tema-opsat';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/core/Layout';
 import {ResizeHandle, useResizable} from '@astryxdesign/core/Resizable';
@@ -56,8 +56,41 @@ import {
   AcademicCapIcon, WrenchScrewdriverIcon, ShieldCheckIcon, ChevronRightIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
 
+
+// ════════ Tipos ════════
+/** Fila genérica de la API: las entidades de OpsAT no comparten forma. */
+type Fila = Record<string, any>;
+
+interface EstadoMeta { label?: string; dot: 'success' | 'warning' | 'error' | 'accent' | 'neutral' }
+type MapaEstado = Record<string, EstadoMeta>;
+
+interface Cifra { etiqueta: string; valor: number | string }
+
+interface OpcionFiltro { valor: string; etiqueta: string }
+interface DefFiltro { label: string; campo: string; opciones: OpcionFiltro[] }
+
+interface CampoDetalle { etiqueta: string; valor: React.ReactNode }
+
+interface EstadoApi { cargando: boolean; error: string | null; datos: Fila[]; recargar: () => void }
+
+interface PropsPantalla {
+  titulo: string;
+  subtitulo?: string;
+  acciones?: React.ReactNode;
+  kpis?: (d: Fila[]) => Cifra[];
+  api: EstadoApi;
+  columnas: any[];              // TableColumn<Fila>[] — el genérico exige forma fija
+  vacio?: string;
+  buscarEn?: string[];
+  filtros?: DefFiltro[];
+  detalle?: (fila: Fila) => CampoDetalle[];
+}
+
+interface ItemNav { label: string; icon: any; ruta: string; panel: React.ComponentType }
+interface Dominio { titulo: string; items: ItemNav[] }
+
 // ════════ Vocabulario compartido con core.js (una sola fuente de verdad) ════
-const ESTADO_TAREA = {
+const ESTADO_TAREA: MapaEstado = {
   pending:     {label: 'Pendiente',  dot: 'neutral'},
   assigned:    {label: 'Asignada',   dot: 'accent'},
   in_progress: {label: 'En curso',   dot: 'warning'},
@@ -65,28 +98,28 @@ const ESTADO_TAREA = {
   validated:   {label: 'Validada',   dot: 'success'},
   cancelled:   {label: 'Cancelada',  dot: 'neutral'},
 };
-const TIPO_TAREA = {
+const TIPO_TAREA: Record<string, string> = {
   packaging: 'Empaque', dispatch_order: 'Orden de Despacho',
   item_pickup: 'Recogida de Artículos', truck_loading: 'Carga en Camión',
   warehouse_move: 'Movimiento de Almacén', staffing: 'Solicitud de Personal',
   general: 'General', free: 'Tarea Libre',
 };
-const PRIORIDAD = {high: 'Alta', medium: 'Media', low: 'Baja'};
-const ESTADO_SDV = {
+const PRIORIDAD: Record<string, string> = {high: 'Alta', medium: 'Media', low: 'Baja'};
+const ESTADO_SDV: MapaEstado = {
   pendiente_revision: {label: 'Pendiente revisión', dot: 'warning'},
   en_proceso:         {label: 'En proceso',         dot: 'accent'},
   despachada:         {label: 'Despachada',         dot: 'success'},
   rechazada:          {label: 'Rechazada',          dot: 'error'},
   cancelada:          {label: 'Cancelada',          dot: 'neutral'},
 };
-const ESTADO_AVERIA = {
+const ESTADO_AVERIA: MapaEstado = {
   Recibido:   {dot: 'accent'},  'En Taller': {dot: 'warning'},
   Reparado:   {dot: 'success'}, Descartado:  {dot: 'neutral'},
 };
-const ROL = {admin: 'Admin', manager: 'Encargado', assistant: 'Auxiliar', ventas: 'Ventas'};
+const ROL: Record<string, string> = {admin: 'Admin', manager: 'Encargado', assistant: 'Auxiliar', ventas: 'Ventas'};
 
 // ════════ Datos ════════
-function authHeaders() {
+function authHeaders(): Record<string, string> {
   try {
     const a = JSON.parse(sessionStorage.getItem('wwp_auth') || localStorage.getItem('wwp_auth') || '{}');
     return a.accessToken ? {Authorization: 'Bearer ' + a.accessToken} : {};
@@ -94,8 +127,8 @@ function authHeaders() {
 }
 
 /** Hook genérico de carga: expone {cargando, error, datos, recargar}. */
-function useApi(url, extraer) {
-  const [s, setS] = useState({cargando: true, error: null, datos: []});
+function useApi(url: string, extraer: (j: any) => Fila[]) {
+  const [s, setS] = useState<{cargando: boolean; error: string | null; datos: Fila[]}>({cargando: true, error: null, datos: []});
   const cargar = useCallback(async () => {
     setS(v => ({...v, cargando: true, error: null}));
     try {
@@ -105,14 +138,14 @@ function useApi(url, extraer) {
       if (!r.ok) throw new Error('El servidor respondió ' + r.status + '.');
       const j = await r.json();
       setS({cargando: false, error: null, datos: extraer(j) || []});
-    } catch (e) { setS({cargando: false, error: e.message, datos: []}); }
+    } catch (e) { setS({cargando: false, error: (e as Error).message, datos: []}); }
   }, [url]);
   useEffect(() => { cargar(); }, [cargar]);
   return {...s, recargar: cargar};
 }
 
 // ════════ Piezas reutilizables ════════
-function Estado({mapa, valor}) {
+function Estado({mapa, valor}: {mapa: MapaEstado; valor: string}) {
   const e = mapa[valor] || {label: valor || 'Desconocido', dot: 'neutral'};
   const label = e.label || valor;
   // El label de StatusDot es solo accesible: el texto visible va aparte.
@@ -127,11 +160,11 @@ function Estado({mapa, valor}) {
 /** Tira compacta de cifras en el header. Antes eran Cards: la guía de layout
  *  del sistema lo prohíbe para herramientas de trabajo ("rows only, zero cards"
  *  — envolver todo en Card se lee como prototipo, no como producto). */
-function Cifras({items, cargando}) {
+function Cifras({items, cargando}: {items: Cifra[]; cargando: boolean}) {
   return (
-    <HStack gap={4} vAlign="center" wrap>
+    <HStack gap={4} vAlign="center" wrap="wrap">
       {items.map(k => (
-        <HStack key={k.etiqueta} gap={1.5} vAlign="baseline">
+        <HStack key={k.etiqueta} gap={1.5} vAlign="center">
           <Text weight="bold">{cargando ? '—' : String(k.valor)}</Text>
           <Text type="supporting">{k.etiqueta}</Text>
         </HStack>
@@ -145,11 +178,11 @@ function Cifras({items, cargando}) {
  *  CERO cards. Seleccionar una fila abre el inspector lateral — el patrón
  *  maestro-detalle que la guía llama "la columna vertebral de las herramientas".
  *  `detalle(fila)` devuelve los campos a mostrar en el inspector. */
-function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros, detalle}) {
+function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros, detalle}: PropsPantalla) {
   const {cargando, error, datos, recargar} = api;
   const [busqueda, setBusqueda] = useState('');
-  const [seleccion, setSeleccion] = useState({});
-  const [filaSel, setFilaSel] = useState(null);
+  const [seleccion, setSeleccion] = useState<Record<string, string | null>>({});
+  const [filaSel, setFilaSel] = useState<string | null>(null);
   // `resizable` espera las props de useResizable(), NO un objeto plano: pasarle
   // uno hacía que LayoutPanel ignorara `width` y se quedara en su ancho por
   // defecto. Con el hook, él gobierna el ancho y ResizeHandle va al lado.
@@ -176,7 +209,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
   // Columnas + una de selección: la fila entera abre el inspector.
   const cols = [...columnas, {
     key: '__sel', header: '', width: pixel(44),
-    renderCell: r => (
+    renderCell: (r: Fila) => (
       <Button label="Ver detalle" isIconOnly icon={<Icon icon={ChevronRightIcon} size="sm" />} size="sm"
               variant="ghost" clickAction={() => setFilaSel(r.id ?? r)} />
     ),
@@ -185,7 +218,6 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
   return (
     <Layout
       height="fill"
-      hasDivider
       header={
         <LayoutHeader hasDivider>
           {/* Título y subtítulo EN LÍNEA + StackItem fill como separador — el
@@ -272,7 +304,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
         <LayoutPanel width={inspector.size} isScrollable label="Detalle">
           {sel && detalle ? (
             <VStack gap={3} padding={4}>
-              <HStack hAlign="space-between" vAlign="center">
+              <HStack hAlign="between" vAlign="center">
                 <Heading level={4}>Detalle</Heading>
                 <Button label="Cerrar" isIconOnly icon={<Icon icon={XMarkIcon} size="sm" />} size="sm"
                         variant="ghost" clickAction={() => setFilaSel(null)} />
@@ -302,7 +334,7 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
 // Las pantallas con flujos complejos (formularios con Odoo, mapa 3D, escaneo)
 // se sirven DENTRO del shell Astryx embebiendo la implementación actual. La app
 // queda completa y usable hoy; cada una se reconstruye nativa cuando toque.
-function Embebida({titulo, subtitulo, src}) {
+function Embebida({titulo, subtitulo, src}: {titulo: string; subtitulo?: string; src: string}) {
   return (
     <VStack gap={3}>
       <VStack gap={1}>
@@ -336,11 +368,11 @@ function PanelTareas() {
       vacio="No hay tareas que mostrar."
       buscarEn={['title', 'client', 'odooRef']}
       filtros={[
-        {label: 'Estado', campo: 'status', opciones: Object.entries(ESTADO_TAREA).map(([v, e]) => ({valor: v, etiqueta: e.label}))},
-        {label: 'Tipo', campo: 'type', opciones: Object.entries(TIPO_TAREA).map(([v, l]) => ({valor: v, etiqueta: l}))},
-        {label: 'Prioridad', campo: 'priority', opciones: Object.entries(PRIORIDAD).map(([v, l]) => ({valor: v, etiqueta: l}))},
+        {label: 'Estado', campo: 'status', opciones: Object.entries(ESTADO_TAREA).map(([v, e]: [string, EstadoMeta]) => ({valor: v, etiqueta: e.label ?? v}))},
+        {label: 'Tipo', campo: 'type', opciones: Object.entries(TIPO_TAREA).map(([v, l]: [string, string]) => ({valor: v, etiqueta: l}))},
+        {label: 'Prioridad', campo: 'priority', opciones: Object.entries(PRIORIDAD).map(([v, l]: [string, string]) => ({valor: v, etiqueta: l}))},
       ]}
-      detalle={t => [
+      detalle={(t: Fila) => [
         {etiqueta: 'Tarea', valor: t.title},
         {etiqueta: 'Tipo', valor: TIPO_TAREA[t.type] || t.type},
         {etiqueta: 'Estado', valor: <Estado mapa={ESTADO_TAREA} valor={t.status} />},
@@ -351,7 +383,7 @@ function PanelTareas() {
         {etiqueta: 'Vence', valor: (t.dueDate || '').slice(0, 10)},
         {etiqueta: 'Creada', valor: (t.createdAt || '').slice(0, 16).replace('T', ' ')},
       ]}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Pendientes',  valor: d.filter(t => t.status === 'pending').length},
         {etiqueta: 'En curso',    valor: d.filter(t => t.status === 'in_progress').length},
         {etiqueta: 'Vencidas',    valor: d.filter(t => t.dueDate && t.dueDate < hoy && !['completed','validated'].includes(t.status)).length},
@@ -360,13 +392,13 @@ function PanelTareas() {
       columnas={[
         {key: 'title', header: 'Tarea', width: proportional(2)},
         {key: 'type', header: 'Tipo', width: proportional(1),
-         renderCell: r => <Text size="sm">{TIPO_TAREA[r.type] || r.type || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{TIPO_TAREA[r.type] || r.type || '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(160),
-         renderCell: r => <Estado mapa={ESTADO_TAREA} valor={r.status} />},
+         renderCell: (r: Fila) => <Estado mapa={ESTADO_TAREA} valor={r.status} />},
         {key: 'priority', header: 'Prioridad', width: pixel(110),
-         renderCell: r => r.priority ? <Badge label={PRIORIDAD[r.priority] || r.priority} /> : <Text color="secondary">—</Text>},
+         renderCell: (r: Fila) => r.priority ? <Badge label={PRIORIDAD[r.priority] || r.priority} /> : <Text color="secondary">—</Text>},
         {key: 'client', header: 'Cliente', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.client || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.client || '—'}</Text>},
       ]}
     />
   );
@@ -381,8 +413,8 @@ function PanelEstadoOrdenes() {
       api={api}
       vacio="Sin órdenes en este período."
       buscarEn={['folio', 'clienteNombre', 'salesperson']}
-      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]) => ({valor: v, etiqueta: e.label}))}]}
-      kpis={d => [
+      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]: [string, EstadoMeta]) => ({valor: v, etiqueta: e.label ?? v}))}]}
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Activas',     valor: d.filter(s => !['despachada','cancelada','rechazada'].includes(s.estado)).length},
         {etiqueta: 'En proceso',  valor: d.filter(s => s.estado === 'en_proceso').length},
         {etiqueta: 'Despachadas', valor: d.filter(s => s.estado === 'despachada').length},
@@ -391,13 +423,13 @@ function PanelEstadoOrdenes() {
       columnas={[
         {key: 'folio', header: 'Orden', width: pixel(140)},
         {key: 'clienteNombre', header: 'Cliente', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
         {key: 'salesperson', header: 'Vendedora', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.salesperson || r.vendedor || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.salesperson || r.vendedor || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
-         renderCell: r => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
+         renderCell: (r: Fila) => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
         {key: 'fechaDeseada', header: 'Promesa', width: pixel(130),
-         renderCell: r => <Text size="sm">{(r.fechaDeseada || '').slice(0, 10) || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{(r.fechaDeseada || '').slice(0, 10) || '—'}</Text>},
       ]}
     />
   );
@@ -412,8 +444,8 @@ function PanelSDV() {
       api={api}
       vacio="Sin solicitudes en este período."
       buscarEn={['folio', 'clienteNombre']}
-      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]) => ({valor: v, etiqueta: e.label}))}]}
-      kpis={d => [
+      filtros={[{label: 'Estado', campo: 'estado', opciones: Object.entries(ESTADO_SDV).map(([v, e]: [string, EstadoMeta]) => ({valor: v, etiqueta: e.label ?? v}))}]}
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Pendientes',  valor: d.filter(s => s.estado === 'pendiente_revision').length},
         {etiqueta: 'En proceso',  valor: d.filter(s => s.estado === 'en_proceso').length},
         {etiqueta: 'Despachadas', valor: d.filter(s => s.estado === 'despachada').length},
@@ -422,11 +454,11 @@ function PanelSDV() {
       columnas={[
         {key: 'folio', header: 'Folio', width: pixel(140)},
         {key: 'clienteNombre', header: 'Cliente', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
         {key: 'tipoSolicitud', header: 'Tipo', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.tipoSolicitud || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.tipoSolicitud || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
-         renderCell: r => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
+         renderCell: (r: Fila) => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
       ]}
     />
   );
@@ -440,20 +472,20 @@ function PanelReactivaciones() {
       subtitulo="Solicitudes canceladas que piden volver a la operación."
       api={api}
       vacio="No hay reactivaciones pendientes."
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Pendientes', valor: d.filter(r => r.estado === 'pendiente').length},
         {etiqueta: 'Aprobadas',  valor: d.filter(r => r.estado === 'aprobada').length},
         {etiqueta: 'Total',      valor: d.length},
       ]}
       columnas={[
         {key: 'sdvFolio', header: 'Folio SDV', width: pixel(150),
-         renderCell: r => <Text size="sm">{r.sdvFolio || r.folio || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.sdvFolio || r.folio || '—'}</Text>},
         {key: 'motivo', header: 'Motivo', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.motivo || r.razon || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.motivo || r.razon || '—'}</Text>},
         {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.solicitadoPor || r.creadoNombre || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.solicitadoPor || r.creadoNombre || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(150),
-         renderCell: r => <Estado mapa={{pendiente:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
+         renderCell: (r: Fila) => <Estado mapa={{pendiente:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
       ]}
     />
   );
@@ -468,7 +500,7 @@ function PanelConduces() {
       acciones={<Button label="+ Nuevo conduce" variant="primary" />}
       api={api}
       vacio="No hay conduces registrados."
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Borradores', valor: d.filter(c => c.estado === 'borrador').length},
         {etiqueta: 'Entregados', valor: d.filter(c => c.estado === 'entregado').length},
         {etiqueta: 'Anulados',   valor: d.filter(c => c.estado === 'anulado').length},
@@ -477,11 +509,11 @@ function PanelConduces() {
       columnas={[
         {key: 'folio', header: 'Conduce', width: pixel(130)},
         {key: 'receptorNombre', header: 'Recibe', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.receptorNombre || r.receptor || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.receptorNombre || r.receptor || '—'}</Text>},
         {key: 'empresa', header: 'Empresa', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.empresa || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.empresa || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(150),
-         renderCell: r => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, entregado:{label:'Entregado',dot:'success'}, anulado:{label:'Anulado',dot:'error'}}} valor={r.estado} />},
+         renderCell: (r: Fila) => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, entregado:{label:'Entregado',dot:'success'}, anulado:{label:'Anulado',dot:'error'}}} valor={r.estado} />},
       ]}
     />
   );
@@ -497,8 +529,8 @@ function PanelAverias() {
       api={api}
       vacio="No hay averías registradas."
       buscarEn={['ref', 'name', 'comentario']}
-      filtros={[{label: 'Estado', campo: 'status', opciones: Object.keys(ESTADO_AVERIA).map(v => ({valor: v, etiqueta: v}))}]}
-      detalle={a => [
+      filtros={[{label: 'Estado', campo: 'status', opciones: Object.keys(ESTADO_AVERIA).map((v: string) => ({valor: v, etiqueta: v}))}]}
+      detalle={(a: Fila) => [
         {etiqueta: 'Artículo', valor: a.name},
         {etiqueta: 'Referencia', valor: a.ref},
         {etiqueta: 'Código de barras', valor: a.barcode},
@@ -508,7 +540,7 @@ function PanelAverias() {
         {etiqueta: 'Comentario', valor: a.comentario},
         {etiqueta: 'Registrada', valor: (a.createdAt || '').slice(0, 16).replace('T', ' ')},
       ]}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Recibidos', valor: d.filter(a => a.status === 'Recibido').length},
         {etiqueta: 'En taller', valor: d.filter(a => a.status === 'En Taller').length},
         {etiqueta: 'Reparados', valor: d.filter(a => a.status === 'Reparado').length},
@@ -517,13 +549,13 @@ function PanelAverias() {
       columnas={[
         {key: 'ref', header: 'Referencia', width: pixel(140)},
         {key: 'name', header: 'Artículo', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.name || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.name || '—'}</Text>},
         {key: 'qty', header: 'Cant.', width: pixel(80),
-         renderCell: r => <Text size="sm">{r.qty ?? '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.qty ?? '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(160),
-         renderCell: r => <Estado mapa={ESTADO_AVERIA} valor={r.status} />},
+         renderCell: (r: Fila) => <Estado mapa={ESTADO_AVERIA} valor={r.status} />},
         {key: 'comentario', header: 'Comentario', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.comentario || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.comentario || '—'}</Text>},
       ]}
     />
   );
@@ -538,7 +570,7 @@ function PanelReposicion() {
       acciones={<Button label="+ Nueva solicitud" variant="primary" />}
       api={api}
       vacio="No hay solicitudes de reposición."
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Pendientes',  valor: d.filter(r => r.estado === 'pendiente_aprobacion').length},
         {etiqueta: 'Aprobadas',   valor: d.filter(r => r.estado === 'aprobada').length},
         {etiqueta: 'Completadas', valor: d.filter(r => r.estado === 'completada').length},
@@ -546,15 +578,15 @@ function PanelReposicion() {
       ]}
       columnas={[
         {key: 'ref', header: 'Referencia', width: pixel(140),
-         renderCell: r => <Text size="sm">{r.ref || r.referencia || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.ref || r.referencia || '—'}</Text>},
         {key: 'nombre', header: 'Artículo', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.nombre || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.nombre || '—'}</Text>},
         {key: 'cantidad', header: 'Cant.', width: pixel(80),
-         renderCell: r => <Text size="sm">{r.cantidad ?? '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.cantidad ?? '—'}</Text>},
         {key: 'urgencia', header: 'Urgencia', width: pixel(110),
-         renderCell: r => r.urgencia ? <Badge label={r.urgencia} /> : <Text color="secondary">—</Text>},
+         renderCell: (r: Fila) => r.urgencia ? <Badge label={r.urgencia} /> : <Text color="secondary">—</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
-         renderCell: r => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, pendiente_aprobacion:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'accent'}, en_proceso:{label:'En proceso',dot:'accent'}, completada:{label:'Completada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
+         renderCell: (r: Fila) => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, pendiente_aprobacion:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'accent'}, en_proceso:{label:'En proceso',dot:'accent'}, completada:{label:'Completada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
       ]}
     />
   );
@@ -568,20 +600,20 @@ function PanelSolicitudesShowroom() {
       subtitulo="Artículos pedidos para reponer en el showroom."
       api={api}
       vacio="Sin solicitudes activas."
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Activas',     valor: d.filter(s => s.status === 'activo').length},
         {etiqueta: 'Completadas', valor: d.filter(s => s.status === 'completado').length},
         {etiqueta: 'Total',       valor: d.length},
       ]}
       columnas={[
         {key: 'name', header: 'Artículo', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.name || r.nombre || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.name || r.nombre || '—'}</Text>},
         {key: 'barcode', header: 'Cód. barras', width: pixel(150),
-         renderCell: r => <Text size="sm">{r.barcode || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.barcode || '—'}</Text>},
         {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
-         renderCell: r => <Text size="sm">{r.solicitadoPor || r.usuario || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.solicitadoPor || r.usuario || '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(150),
-         renderCell: r => <Estado mapa={{activo:{label:'Activa',dot:'accent'}, completado:{label:'Completada',dot:'success'}, cancelado:{label:'Cancelada',dot:'neutral'}}} valor={r.status} />},
+         renderCell: (r: Fila) => <Estado mapa={{activo:{label:'Activa',dot:'accent'}, completado:{label:'Completada',dot:'success'}, cancelado:{label:'Cancelada',dot:'neutral'}}} valor={r.status} />},
       ]}
     />
   );
@@ -597,7 +629,7 @@ function PanelFlota() {
       api={api}
       vacio="No hay vehículos registrados."
       buscarEn={['name', 'placa']}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Vehículos', valor: d.length},
         {etiqueta: 'Medidor detallado', valor: d.filter(v => v.fuelType === 'detallado').length},
         {etiqueta: 'Medidor estándar',  valor: d.filter(v => v.fuelType !== 'detallado').length},
@@ -605,9 +637,9 @@ function PanelFlota() {
       columnas={[
         {key: 'name', header: 'Vehículo', width: proportional(2)},
         {key: 'placa', header: 'Placa', width: pixel(140),
-         renderCell: r => <Text size="sm">{r.placa || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.placa || '—'}</Text>},
         {key: 'fuelType', header: 'Medidor', width: pixel(160),
-         renderCell: r => <Badge label={r.fuelType === 'detallado' ? 'Detallado' : 'Estándar'} />},
+         renderCell: (r: Fila) => <Badge label={r.fuelType === 'detallado' ? 'Detallado' : 'Estándar'} />},
       ]}
     />
   );
@@ -623,22 +655,22 @@ function PanelFormacion() {
       api={api}
       vacio="No hay cursos publicados."
       buscarEn={['title', 'id']}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Cursos',    valor: d.length},
         {etiqueta: 'Activos',   valor: d.filter(c => c.active !== false).length},
         {etiqueta: 'Con gate',  valor: d.filter(c => c.enforceGate).length},
       ]}
       columnas={[
         {key: 'title', header: 'Curso', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.title || r.nombre || r.id || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.title || r.nombre || r.id || '—'}</Text>},
         {key: 'passingScore', header: 'Nota mínima', width: pixel(130),
-         renderCell: r => <Text size="sm">{r.passingScore != null ? r.passingScore + '%' : '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.passingScore != null ? r.passingScore + '%' : '—'}</Text>},
         {key: 'validityDays', header: 'Vigencia', width: pixel(120),
-         renderCell: r => <Text size="sm">{r.validityDays ? r.validityDays + ' días' : '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.validityDays ? r.validityDays + ' días' : '—'}</Text>},
         {key: 'enforceGate', header: 'Bloquea tareas', width: pixel(150),
-         renderCell: r => r.enforceGate ? <Badge label="Sí" /> : <Text color="secondary">No</Text>},
+         renderCell: (r: Fila) => r.enforceGate ? <Badge label="Sí" /> : <Text color="secondary">No</Text>},
         {key: 'active', header: 'Estado', width: pixel(140),
-         renderCell: r => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
+         renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
       ]}
     />
   );
@@ -654,10 +686,10 @@ function PanelEquipo() {
       vacio="Sin datos de actividad en el período."
       buscarEn={['name']}
       filtros={[
-        {label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))},
+        {label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]: [string, string]) => ({valor: v, etiqueta: l}))},
         {label: 'Adopción', campo: 'semaforo', opciones: [{valor:'activo',etiqueta:'Activo'},{valor:'tibio',etiqueta:'Tibio'},{valor:'inactivo',etiqueta:'Inactivo'},{valor:'nunca',etiqueta:'Nunca entró'}]},
       ]}
-      detalle={u => [
+      detalle={(u: Fila) => [
         {etiqueta: 'Persona', valor: u.name},
         {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
         {etiqueta: 'Adopción', valor: u.semaforo},
@@ -665,7 +697,7 @@ function PanelEquipo() {
         {etiqueta: 'Nivel', valor: u.nivel},
         {etiqueta: 'Localidad', valor: u.categoria},
       ]}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Activos',   valor: d.filter(u => u.semaforo === 'activo').length},
         {etiqueta: 'Tibios',    valor: d.filter(u => u.semaforo === 'tibio').length},
         {etiqueta: 'Inactivos', valor: d.filter(u => u.semaforo === 'inactivo').length},
@@ -674,11 +706,11 @@ function PanelEquipo() {
       columnas={[
         {key: 'name', header: 'Persona', width: proportional(2)},
         {key: 'role', header: 'Rol', width: pixel(130),
-         renderCell: r => <Badge label={ROL[r.role] || r.role || '—'} />},
+         renderCell: (r: Fila) => <Badge label={ROL[r.role] || r.role || '—'} />},
         {key: 'semaforo', header: 'Adopción', width: pixel(160),
-         renderCell: r => <Estado mapa={{activo:{label:'Activo',dot:'success'}, tibio:{label:'Tibio',dot:'warning'}, inactivo:{label:'Inactivo',dot:'error'}, nunca:{label:'Nunca entró',dot:'neutral'}}} valor={r.semaforo} />},
+         renderCell: (r: Fila) => <Estado mapa={{activo:{label:'Activo',dot:'success'}, tibio:{label:'Tibio',dot:'warning'}, inactivo:{label:'Inactivo',dot:'error'}, nunca:{label:'Nunca entró',dot:'neutral'}}} valor={r.semaforo} />},
         {key: 'nivel', header: 'Nivel', width: pixel(100),
-         renderCell: r => <Text size="sm">{r.nivel ?? '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.nivel ?? '—'}</Text>},
       ]}
     />
   );
@@ -693,7 +725,7 @@ function PanelPoliticas() {
       acciones={<Button label="+ Nueva política" variant="primary" />}
       api={api}
       vacio="No hay políticas definidas."
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Políticas', valor: d.length},
         {etiqueta: 'Activas',   valor: d.filter(p => p.activa !== false).length},
         {etiqueta: 'Pausadas',  valor: d.filter(p => p.activa === false).length},
@@ -701,11 +733,11 @@ function PanelPoliticas() {
       columnas={[
         {key: 'nombre', header: 'Política', width: proportional(2)},
         {key: 'tipo', header: 'Tipo', width: proportional(1),
-         renderCell: r => <Text size="sm">{({lunch_duration:'Duración de almuerzo', arrival_time:'Hora de llegada', task_completion:'Completitud de tareas', vehicle_inspection:'Inspección vehicular'})[r.tipo] || r.tipo || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{(({lunch_duration:'Duración de almuerzo', arrival_time:'Hora de llegada', task_completion:'Completitud de tareas', vehicle_inspection:'Inspección vehicular'} as Record<string,string>)[r.tipo]) || r.tipo || '—'}</Text>},
         {key: 'descripcion', header: 'Descripción', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.descripcion || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.descripcion || '—'}</Text>},
         {key: 'activa', header: 'Estado', width: pixel(140),
-         renderCell: r => <Estado mapa={{true:{label:'Activa',dot:'success'}, false:{label:'Pausada',dot:'neutral'}}} valor={String(r.activa !== false)} />},
+         renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activa',dot:'success'}, false:{label:'Pausada',dot:'neutral'}}} valor={String(r.activa !== false)} />},
       ]}
     />
   );
@@ -721,8 +753,8 @@ function PanelUsuarios() {
       api={api}
       vacio="No hay usuarios."
       buscarEn={['name', 'email']}
-      filtros={[{label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))}]}
-      detalle={u => [
+      filtros={[{label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]: [string, string]) => ({valor: v, etiqueta: l}))}]}
+      detalle={(u: Fila) => [
         {etiqueta: 'Nombre', valor: u.name},
         {etiqueta: 'Correo', valor: u.email},
         {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
@@ -731,7 +763,7 @@ function PanelUsuarios() {
         {etiqueta: 'Último acceso', valor: (u.lastLogin || '').slice(0, 16).replace('T', ' ')},
         {etiqueta: 'Categoría', valor: u.categoria},
       ]}
-      kpis={d => [
+      kpis={(d: Fila[]) => [
         {etiqueta: 'Total',      valor: d.length},
         {etiqueta: 'Admins',     valor: d.filter(u => u.role === 'admin').length},
         {etiqueta: 'Encargados', valor: d.filter(u => u.role === 'manager').length},
@@ -740,11 +772,11 @@ function PanelUsuarios() {
       columnas={[
         {key: 'name', header: 'Nombre', width: proportional(2)},
         {key: 'email', header: 'Correo', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.email || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.email || '—'}</Text>},
         {key: 'role', header: 'Rol', width: pixel(130),
-         renderCell: r => <Badge label={ROL[r.role] || r.role || '—'} />},
+         renderCell: (r: Fila) => <Badge label={ROL[r.role] || r.role || '—'} />},
         {key: 'active', header: 'Estado', width: pixel(140),
-         renderCell: r => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
+         renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
       ]}
     />
   );
@@ -758,14 +790,14 @@ function PanelEvidencias() {
       subtitulo="Archivo fotográfico de la operación, por orden y tarea."
       api={api}
       vacio="No hay evidencias registradas."
-      kpis={d => [{etiqueta: 'Registros', valor: d.length}]}
+      kpis={(d: Fila[]) => [{etiqueta: 'Registros', valor: d.length}]}
       columnas={[
         {key: 'odooRef', header: 'Orden', width: pixel(150),
-         renderCell: r => <Text size="sm">{r.odooRef || r.ref || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.odooRef || r.ref || '—'}</Text>},
         {key: 'title', header: 'Tarea', width: proportional(2),
-         renderCell: r => <Text size="sm">{r.title || '—'}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.title || '—'}</Text>},
         {key: 'count', header: 'Fotos', width: pixel(100),
-         renderCell: r => <Text size="sm">{r.count ?? (r.fotos ? r.fotos.length : '—')}</Text>},
+         renderCell: (r: Fila) => <Text size="sm">{r.count ?? (r.fotos ? r.fotos.length : '—')}</Text>},
       ]}
     />
   );
@@ -781,7 +813,7 @@ const PanelMapa        = () => <Embebida titulo="Mapa del Almacén" subtitulo="V
 const PanelEmpaque     = () => <Embebida titulo="Materiales de Empaque" subtitulo="Catálogo y reglas por familia de artículos." src="/empaque.html" />;
 
 // ════════ Navegación: los 5 dominios del plan UX (doc 10) ════════════════
-const DOMINIOS = [
+const DOMINIOS: Dominio[] = [
   {titulo: 'Operación del equipo', items: [
     {label: 'Tareas', icon: ClipboardDocumentListIcon, ruta: '/v2/tareas', panel: PanelTareas},
     {label: 'Inspección de vehículo', icon: WrenchScrewdriverIcon, ruta: '/v2/inspeccion', panel: PanelFlota},
@@ -819,12 +851,12 @@ const TODOS = DOMINIOS.flatMap(d => d.items);
 // El componente de enlace necesita navegar, pero LinkProvider lo instancia fuera
 // del árbol del router. Un puntero de módulo es lo más simple y evita montar un
 // contexto extra solo para esto.
-let _irA = null;
+let _irA: ((r: string) => void) | null = null;
 
 /** Enlace de toda la app (LinkProvider): intercepta la navegación interna y deja
  *  pasar el resto — cmd/ctrl-clic, botón central y enlaces externos siguen
  *  abriendo en pestaña nueva como espera el usuario. */
-function EnlaceApp({href, children, ...resto}) {
+function EnlaceApp({href, children, ...resto}: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const interno = typeof href === 'string' && href.startsWith('/v2');
   return (
     <a
@@ -844,24 +876,26 @@ function EnlaceApp({href, children, ...resto}) {
 
 /** Routing con paths reales (pushState/popstate), igual que el shell actual (v227). */
 function useRuta() {
-  const [ruta, setRuta] = useState(() => location.pathname);
+  const [ruta, setRuta] = useState<string>(() => location.pathname);
   useEffect(() => {
     const onPop = () => setRuta(location.pathname);
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const ir = useCallback(r => {
+  const ir = useCallback((r: string) => {
     if (r === location.pathname) return;
     history.pushState({}, '', r);
     setRuta(r);
   }, []);
-  return [ruta, ir];
+  return [ruta, ir] as const;
 }
 
-class LimiteDeError extends Component {
-  constructor(p) { super(p); this.state = {fallo: null}; }
-  static getDerivedStateFromError(e) { return {fallo: e}; }
-  componentDidUpdate(prev) { if (prev.clave !== this.props.clave && this.state.fallo) this.setState({fallo: null}); }
+interface PropsLimite { clave: string; children: React.ReactNode }
+interface EstadoLimite { fallo: Error | null }
+class LimiteDeError extends Component<PropsLimite, EstadoLimite> {
+  constructor(p: PropsLimite) { super(p); this.state = {fallo: null}; }
+  static getDerivedStateFromError(e: Error): EstadoLimite { return {fallo: e}; }
+  componentDidUpdate(prev: PropsLimite) { if (prev.clave !== this.props.clave && this.state.fallo) this.setState({fallo: null}); }
   render() {
     if (!this.state.fallo) return this.props.children;
     return (
