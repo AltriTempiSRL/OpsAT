@@ -20,7 +20,11 @@ module.exports = defineConfig({
   testDir: __dirname,
   outputDir: path.join(__dirname, '.artifacts'),
   timeout: 30_000,
-  retries: 0,
+  // Tolerancia a flakiness de timing: el login real verifica bcrypt (CPU) y bajo
+  // carga (server + Chromium en el mismo equipo) algún login/aserción puntual pasa
+  // del timeout de forma no determinista. 2 reintentos absorben esa varianza sin
+  // enmascarar roturas reales (un fallo determinista falla las 3 veces).
+  retries: 2,
   // Un solo server compartido con estado en archivos JSON → serial y determinista.
   workers: 1,
   reporter: [

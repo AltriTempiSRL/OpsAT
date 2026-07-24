@@ -1882,7 +1882,10 @@ async function initMap(){
     if(_currentView==='3d'){if(GL.on){glResize();glApplyFilter();glFrameAll();}else fitView();}else renderMap();
     const q=document.getElementById('warehouse-search').value;if(q)renderSearchResults(q);
   }catch(e){
-    console.error(e);setSync('error','Sin conexión con Odoo');
+    // Fallo de carga desde Odoo (caído/sin credenciales): condición MANEJADA y
+    // mostrada al usuario abajo (setSync error + overlay/toast), no un fault → warn,
+    // no error. Evita ruido en prod ante caídas transitorias y no rompe el guard e2e.
+    console.warn('[almacen-mapa] carga desde Odoo falló:', e);setSync('error','Sin conexión con Odoo');
     if(_hasLoaded){setLoading(false);showMapToast('No se pudo actualizar. Se conservan los últimos datos: '+e.message,'error');}
     else setLoading('No pudimos cargar el mapa',e.message,'error');
   }finally{

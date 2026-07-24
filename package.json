@@ -37,6 +37,7 @@
     "@astryxdesign/core": "^0.1.8",
     "@astryxdesign/theme-neutral": "^0.1.8",
     "@heroicons/react": "^2.2.0",
+    "@playwright/test": "^1.61.1",
     "esbuild": "^0.28.1"
   }
 }

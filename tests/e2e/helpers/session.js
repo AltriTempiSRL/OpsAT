@@ -23,7 +23,13 @@ async function loginBeforeLoad(page, request, creds = ADMIN) {
     user: s.user,
   });
   await page.addInitScript((v) => {
-    try { localStorage.setItem('wwp_auth', v); } catch (e) {}
+    try {
+      localStorage.setItem('wwp_auth', v);
+      // Usuario "que ya aceptó": sin esto, #wwp-welcome (consentimiento de primera
+      // visita, historial.html ~17616) tapa el contenido e intercepta los clicks de
+      // la suite. Mismo seed que smoke-09; centralizado aquí para toda la suite.
+      localStorage.setItem('wwp_welcome_v1', '1');
+    } catch (e) {}
   }, payload);
   return s;
 }
