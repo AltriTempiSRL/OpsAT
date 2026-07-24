@@ -14,8 +14,15 @@
 //
 // Compila con `npm run build:islas` (estampa ?v= en el HTML).
 
+// CSS del sistema, empaquetado por esbuild con sus capas de cascada.
+// El orden de capas se declara PRIMERO (base.css) — regla de `docs migration`.
+import './base.css';
+import '@astryxdesign/core/reset.css';
+import '@astryxdesign/core/astryx.css';
+
 import {useEffect, useState, useCallback, Component} from 'react';
-import {Theme} from '@astryxdesign/core/Theme';
+import {createRoot} from 'react-dom/client';
+import {Theme} from '@astryxdesign/core/theme';
 import {temaOpsAT} from './tema-opsat.js';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/core/Layout';
@@ -26,7 +33,7 @@ import {NavIcon} from '@astryxdesign/core/NavIcon';
 import {Icon} from '@astryxdesign/core/Icon';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Text} from '@astryxdesign/core/Text';
-import {VStack, HStack} from '@astryxdesign/core/Stack';
+import {VStack, HStack, StackItem} from '@astryxdesign/core/Stack';
 import {Card} from '@astryxdesign/core/Card';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Button} from '@astryxdesign/core/Button';
@@ -171,18 +178,18 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
       hasDivider
       header={
         <LayoutHeader hasDivider>
-          <HStack gap={3} vAlign="center" hAlign="space-between" wrap>
-            <VStack gap={0.5}>
-              <Heading level={3}>{titulo}</Heading>
-              {subtitulo && <Text color="secondary" size="sm">{subtitulo}</Text>}
-            </VStack>
-            <HStack gap={4} vAlign="center" wrap>
-              {kpis && !error && <Cifras items={kpis(datos)} cargando={cargando} />}
-              <HStack gap={2}>
-                <Button label="Actualizar" variant="ghost" clickAction={recargar} />
-                {acciones}
-              </HStack>
-            </HStack>
+          {/* Título y subtítulo EN LÍNEA + StackItem fill como separador — el
+              patrón de la plantilla de referencia. Apilarlos en un VStack hacía
+              que el subtítulo se estrangulara a una palabra por línea. */}
+          <HStack gap={3} vAlign="center">
+            <Heading level={3}>{titulo}</Heading>
+            {subtitulo && (
+              <Text color="secondary" size="sm" wrap="nowrap">{subtitulo}</Text>
+            )}
+            <StackItem size="fill" />
+            {kpis && !error && <Cifras items={kpis(datos)} cargando={cargando} />}
+            <Button label="Actualizar" variant="ghost" clickAction={recargar} />
+            {acciones}
           </HStack>
         </LayoutHeader>
       }
@@ -887,3 +894,8 @@ export default function ShellOpsAT() {
     </Theme>
   );
 }
+
+// Auto-montaje: el bundle es un módulo ESM autocontenido (React y Astryx van
+// dentro). Ya no hay globales window.React / window.Astryx que orquestar.
+const raiz = document.getElementById('root');
+if (raiz) createRoot(raiz).render(<ShellOpsAT />);

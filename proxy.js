@@ -20888,12 +20888,13 @@ const _dispatch = async (req, res) => {
   const _ALLOWED_JS = new Set([
     'core.js', 'core-isla.js', 'sw.js',
     'lucide.min.js', 'chart.min.js', 'xlsx.min.js', 'three.min.js', 'OrbitControls.js',
-    // Astryx (design system de Meta) vendorizado en vendor/: bundle UMD + React
-    // como global. Compilados LOCALMENTE y commiteados — prod sigue sin build.
-    'astryx.umd.js', 'react-globals.js',
-    'shell-astryx.js',
   ]);
-  if (_fext === '.js' && !_ALLOWED_JS.has(_fname)) {
+  // vendor/ son artefactos de CLIENTE compilados localmente y commiteados (islas
+  // de Astryx + sus chunks con hash). Se permiten por PREFIJO porque los nombres
+  // de chunk cambian en cada build; listarlos a mano se desincronizaría igual que
+  // la vieja denylist. Ningún módulo del servidor vive bajo vendor/.
+  const _esVendorJs = /^(?:\/)?vendor\//.test(path.relative(__dirname, _realPath).split(path.sep).join('/'));
+  if (_fext === '.js' && !_ALLOWED_JS.has(_fname) && !_esVendorJs) {
     res.writeHead(403, {'Content-Type': 'text/plain'}); res.end('Forbidden'); return;
   }
   // Datos de negocio/respaldo en .json NO deben servirse como estático (fuga de PII):

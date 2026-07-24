@@ -1,0 +1,4 @@
+/* Orden CANÓNICO de capas — declarado ANTES de cualquier import (regla nº1 de
+   `astryx docs migration`): sin esto, un reset sin capa o una capa posterior
+   pisa los estilos de los componentes en silencio. */
+@layer reset, astryx-base, astryx-theme, app;

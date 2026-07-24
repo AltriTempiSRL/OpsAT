@@ -1,55 +1,55 @@
-// Compila las islas JSX de src/islas/ a vendor/islas/ con esbuild.
-// React y Astryx NO se empaquetan: llegan como globales vendorizados
-// (vendor/react-globals.js + vendor/astryx.umd.js), así cada isla pesa poco.
-// Se corre LOCAL y el resultado se commitea — producción sigue sin build.
+// Compila las islas JSX de src/islas/ a vendor/islas/ con esbuild — INSTALACIÓN
+// CANÓNICA de Astryx (docs migration): imports reales de @astryxdesign/core con
+// tree-shaking, CSS empaquetado con sus capas de cascada, y React dentro del
+// bundle. Ya NO se usan el UMD ni react-globals: eso era un atajo de arranque.
+//
+// Salida por isla:
+//   vendor/islas/<isla>.js   (ESM, con chunks compartidos en vendor/islas/chunks/)
+//   vendor/islas/<isla>.css  (reset + astryx-base + estilos usados, en @layer)
+// El HTML carga <script type="module"> y el CSS del bundle, y se estampa ?v=.
+//
+// Se corre LOCAL (npm run build:islas) y el resultado se commitea — producción
+// sigue sirviendo estáticos, sin build en el deploy.
 import {build} from 'esbuild';
-import {readdirSync, mkdirSync, readFileSync, writeFileSync, existsSync} from 'node:fs';
+import {readdirSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {join} from 'node:path';
 
 const SRC = 'src/islas', OUT = 'vendor/islas';
+rmSync(join(OUT, 'chunks'), {recursive: true, force: true});
 mkdirSync(OUT, {recursive: true});
 
-// Mapea los imports de Astryx/React a los globales que ya carga el HTML.
-const globalsPlugin = {
-  name: 'astryx-globals',
-  setup(b) {
-    b.onResolve({filter: /^react$|^react-dom(\/client)?$/}, a => ({path: a.path, namespace: 'g'}));
-    b.onResolve({filter: /^@astryxdesign\/core/},            a => ({path: a.path, namespace: 'g'}));
-    b.onLoad({filter: /.*/, namespace: 'g'}, a => {
-      if (a.path === 'react') return {contents: 'module.exports = window.React'};
-      if (a.path.startsWith('react-dom')) return {contents: 'module.exports = window.ReactDOM'};
-      // @astryxdesign/core/Button → window.Astryx.Button (y el barrel completo)
-      const sub = a.path.split('/')[2];
-      return {contents: sub
-        ? `module.exports = window.Astryx`      // subpath: se re-exporta el objeto entero
-        : 'module.exports = window.Astryx'};
-    });
-  },
-};
-
 const entries = readdirSync(SRC).filter(f => f.endsWith('.jsx'));
+if (!entries.length) { console.log('sin islas'); process.exit(0); }
+
+await build({
+  entryPoints: entries.map(f => `${SRC}/${f}`),
+  bundle: true,
+  minify: true,
+  format: 'esm',                      // módulos reales → permite splitting
+  splitting: true,                    // React/Astryx van a chunks COMPARTIDOS
+  chunkNames: 'chunks/[name]-[hash]',
+  jsx: 'automatic',
+  jsxImportSource: 'react',
+  define: {'process.env.NODE_ENV': '"production"'},
+  loader: {'.css': 'css'},
+  outdir: OUT,
+  logLevel: 'warning',
+});
+
+// Estampar ?v=<md5-8> del JS y el CSS en el HTML de cada isla (convención core.js).
 for (const f of entries) {
   const name = f.replace(/\.jsx$/, '');
-  await build({
-    entryPoints: [`${SRC}/${f}`],
-    bundle: true, minify: true, format: 'iife',
-    globalName: `Isla_${name.replace(/-/g, '_')}`,
-    jsx: 'automatic', jsxImportSource: 'react',
-    define: {'process.env.NODE_ENV': '"production"'},
-    plugins: [globalsPlugin],
-    outfile: `${OUT}/${name}.js`,
-  });
-  // Estampar ?v=<md5-8> en el HTML que la carga — misma convención que core.js.
-  // Sin esto el navegador sirve el bundle viejo (Cache-Control: max-age=3600).
-  const hash = createHash('md5').update(readFileSync(`${OUT}/${name}.js`)).digest('hex').slice(0, 8);
   const html = `${name}.html`;
-  if (existsSync(html)) {
-    const antes = readFileSync(html, 'utf8');
-    const re = new RegExp(`(/vendor/islas/${name}\\.js)(\\?v=[a-f0-9]+)?`, 'g');
-    const despues = antes.replace(re, `$1?v=${hash}`);
-    if (antes !== despues) writeFileSync(html, despues);
-    console.log(`✓ ${f} → ${OUT}/${name}.js  (?v=${hash} estampado en ${html})`);
-  } else {
-    console.log(`✓ ${f} → ${OUT}/${name}.js  (sin HTML que estampar)`);
+  if (!existsSync(html)) { console.log(`✓ ${name} (sin HTML que estampar)`); continue; }
+  let doc = readFileSync(html, 'utf8');
+  for (const ext of ['js', 'css']) {
+    const file = `${OUT}/${name}.${ext}`;
+    if (!existsSync(file)) continue;
+    const hash = createHash('md5').update(readFileSync(file)).digest('hex').slice(0, 8);
+    const re = new RegExp(`(/vendor/islas/${name}\\.${ext})(\\?v=[a-f0-9]+)?`, 'g');
+    doc = doc.replace(re, `$1?v=${hash}`);
   }
+  writeFileSync(html, doc);
+  console.log(`✓ ${name} compilado y estampado en ${html}`);
 }
