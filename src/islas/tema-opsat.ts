@@ -73,9 +73,10 @@ export const temaOpsAT = defineTheme({
         '--color-overlay-pressed':'rgba(255,255,255,.14)',
       },
     },
-    'side-nav-heading': {base: {color: '#ffffff'}},
-    'side-nav-item':    {base: {color: 'rgba(255,255,255,.82)'},
-                         selected: {backgroundColor: 'rgba(255,255,255,.12)', color: '#ffffff'}},
+    // No aplicar color directamente a SideNavHeading/SideNavItem: AppShell
+    // reutiliza esos hijos dentro del drawer móvil, fuera de `.astryx-side-nav`
+    // y sobre una superficie clara. Los tokens scoped de arriba invierten el
+    // sidebar de escritorio sin volver blanco-sobre-blanco el menú móvil.
     // El cuadro del logo va gris como el avatar "AT" del shell actual: con el
     // acento navy se fundía contra el sidebar y el logo desaparecía.
     navicon: {base: {backgroundColor: '#696969', color: '#ffffff'}},

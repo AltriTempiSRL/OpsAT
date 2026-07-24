@@ -11,7 +11,7 @@
      (los estilos inline sobre elementos crudos son un anti-patrón del sistema). */
   .opsat-embebida {
     width: 100%;
-    height: calc(100dvh - 240px);
+    height: 100%;
     border: none;
     display: block;
     border-radius: var(--radius-container);

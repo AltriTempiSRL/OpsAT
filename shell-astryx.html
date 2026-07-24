@@ -4,13 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ops AT — shell con Astryx</title>
-<!-- Shell de OpsAT sobre Astryx. Orden de carga obligatorio:
-     reset → theme → componentes → React global → Astryx UMD → isla compilada. -->
-  <!-- CSS del bundle: reset + astryx-base + tema, ya en sus capas -->
-  <link rel="stylesheet" href="/vendor/islas/shell-astryx.css?v=e4bc66e4">
+<!-- Shell de OpsAT sobre Astryx. El bundle ESM incluye React y los componentes;
+     el CSS conserva el orden de capas reset → astryx-base → astryx-theme → app. -->
+  <link rel="stylesheet" href="/vendor/islas/shell-astryx.css?v=0d7d8bbe">
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="/vendor/islas/shell-astryx.js?v=7d37252c"></script>
+  <script type="module" src="/vendor/islas/shell-astryx.js?v=d8673ab5"></script>
 </body>
 </html>

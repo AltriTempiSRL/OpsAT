@@ -19,16 +19,18 @@
 import './base.css';
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
+import './opsat.css';
 
 import {useEffect, useState, useCallback, Component} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Theme} from '@astryxdesign/core/theme';
 import {LinkProvider} from '@astryxdesign/core/Link';
-import {temaOpsAT} from './tema-opsat';
+import {opsatTheme} from './opsat';
 import {AppShell} from '@astryxdesign/core/AppShell';
 import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/core/Layout';
 import {ResizeHandle, useResizable} from '@astryxdesign/core/Resizable';
 import {useMediaQuery} from '@astryxdesign/core/hooks';
+import {Dialog, DialogHeader} from '@astryxdesign/core/Dialog';
 import {EmptyState} from '@astryxdesign/core/EmptyState';
 import {MetadataList, MetadataListItem} from '@astryxdesign/core/MetadataList';
 import {SideNav, SideNavHeading, SideNavItem, SideNavSection} from '@astryxdesign/core/SideNav';
@@ -37,11 +39,15 @@ import {Icon} from '@astryxdesign/core/Icon';
 import {Heading} from '@astryxdesign/core/Heading';
 import {Text} from '@astryxdesign/core/Text';
 import {VStack, HStack, StackItem} from '@astryxdesign/core/Stack';
+import {Grid} from '@astryxdesign/core/Grid';
 import {Card} from '@astryxdesign/core/Card';
 import {Badge} from '@astryxdesign/core/Badge';
 import {Button} from '@astryxdesign/core/Button';
 import {StatusDot} from '@astryxdesign/core/StatusDot';
-import {Table, proportional, pixel} from '@astryxdesign/core/Table';
+import {Table, proportional, pixel, type TableColumn} from '@astryxdesign/core/Table';
+import {Avatar} from '@astryxdesign/core/Avatar';
+import {Timestamp} from '@astryxdesign/core/Timestamp';
+import {Token} from '@astryxdesign/core/Token';
 import {Spinner} from '@astryxdesign/core/Spinner';
 import {Banner} from '@astryxdesign/core/Banner';
 import {Toolbar} from '@astryxdesign/core/Toolbar';
@@ -71,7 +77,13 @@ interface DefFiltro { label: string; campo: string; opciones: OpcionFiltro[] }
 
 interface CampoDetalle { etiqueta: string; valor: React.ReactNode }
 
-interface EstadoApi { cargando: boolean; error: string | null; datos: Fila[]; recargar: () => void }
+interface EstadoApi {
+  cargando: boolean;
+  error: string | null;
+  errorStatus: number | null;
+  datos: Fila[];
+  recargar: () => void;
+}
 
 interface PropsPantalla {
   titulo: string;
@@ -79,7 +91,7 @@ interface PropsPantalla {
   acciones?: React.ReactNode;
   kpis?: (d: Fila[]) => Cifra[];
   api: EstadoApi;
-  columnas: any[];              // TableColumn<Fila>[] — el genérico exige forma fija
+  columnas: TableColumn<Fila>[];
   vacio?: string;
   buscarEn?: string[];
   filtros?: DefFiltro[];
@@ -88,6 +100,16 @@ interface PropsPantalla {
 
 interface ItemNav { label: string; icon: any; ruta: string; panel: React.ComponentType }
 interface Dominio { titulo: string; items: ItemNav[] }
+type SeleccionFila = string | number | Fila | null;
+interface SesionOpsAT {
+  accessToken?: string;
+  refreshToken?: string;
+  user?: {
+    role?: string;
+    sectionPerms?: Record<string, boolean>;
+  };
+}
+type EstadoSesion = 'comprobando' | 'activa' | 'inactiva';
 
 // ════════ Vocabulario compartido con core.js (una sola fuente de verdad) ════
 const ESTADO_TAREA: MapaEstado = {
@@ -105,6 +127,8 @@ const TIPO_TAREA: Record<string, string> = {
   general: 'General', free: 'Tarea Libre',
 };
 const PRIORIDAD: Record<string, string> = {high: 'Alta', medium: 'Media', low: 'Baja'};
+// Variante semántica: solo "Alta" (rojo) roba la atención; el resto se apaga.
+const PRIO_VAR: Record<string, 'error' | 'warning' | 'neutral'> = {high: 'error', medium: 'warning', low: 'neutral'};
 const ESTADO_SDV: MapaEstado = {
   pendiente_revision: {label: 'Pendiente revisión', dot: 'warning'},
   en_proceso:         {label: 'En proceso',         dot: 'accent'},
@@ -117,28 +141,168 @@ const ESTADO_AVERIA: MapaEstado = {
   Reparado:   {dot: 'success'}, Descartado:  {dot: 'neutral'},
 };
 const ROL: Record<string, string> = {admin: 'Admin', manager: 'Encargado', assistant: 'Auxiliar', ventas: 'Ventas'};
+// Rol es categoría que se escanea → Token con color estable por rol (no Badge gris).
+const ROL_COLOR: Record<string, 'purple' | 'blue' | 'teal' | 'gray'> = {admin: 'purple', manager: 'blue', assistant: 'teal', ventas: 'gray'};
 
 // ════════ Datos ════════
-function authHeaders(): Record<string, string> {
+function leerSesion(): SesionOpsAT {
   try {
-    const a = JSON.parse(sessionStorage.getItem('wwp_auth') || localStorage.getItem('wwp_auth') || '{}');
-    return a.accessToken ? {Authorization: 'Bearer ' + a.accessToken} : {};
-  } catch { return {}; }
+    const guardada = localStorage.getItem('wwp_auth') || sessionStorage.getItem('wwp_auth');
+    if (!guardada) return {};
+    const sesion = JSON.parse(guardada);
+    return sesion && typeof sesion === 'object' ? sesion : {};
+  } catch {
+    return {};
+  }
+}
+
+function tokenVigente(token?: string): boolean {
+  if (!token) return false;
+  try {
+    const partes = token.split('.');
+    if (partes.length !== 3) return false;
+    const base64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
+    return typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function guardarSesion(sesion: SesionOpsAT): boolean {
+  try {
+    const datos = JSON.stringify(sesion);
+    if (localStorage.getItem('wwp_auth')) {
+      localStorage.setItem('wwp_auth', datos);
+      sessionStorage.removeItem('wwp_auth');
+    } else {
+      sessionStorage.setItem('wwp_auth', datos);
+      localStorage.removeItem('wwp_auth');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let renovacionEnCurso: Promise<boolean> | null = null;
+
+async function refrescarSesion(): Promise<boolean> {
+  if (renovacionEnCurso) return renovacionEnCurso;
+  const sesion = leerSesion();
+  if (!sesion.refreshToken) return false;
+
+  renovacionEnCurso = (async () => {
+    try {
+      const respuesta = await fetch('/api/wwp/auth/refresh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({refreshToken: sesion.refreshToken}),
+      });
+      if (!respuesta.ok) return false;
+      const datos = await respuesta.json() as {
+        ok?: boolean;
+        accessToken?: string;
+        user?: unknown;
+      };
+      if (!datos.ok || !datos.accessToken) return false;
+      return guardarSesion({
+        ...sesion,
+        accessToken: datos.accessToken,
+        user: datos.user ?? sesion.user,
+      });
+    } catch {
+      return false;
+    }
+  })();
+
+  try {
+    return await renovacionEnCurso;
+  } finally {
+    renovacionEnCurso = null;
+  }
+}
+
+function useEstadoSesion(): EstadoSesion {
+  const [estado, setEstado] = useState<EstadoSesion>(() => {
+    const sesion = leerSesion();
+    if (tokenVigente(sesion.accessToken)) return 'activa';
+    return sesion.refreshToken ? 'comprobando' : 'inactiva';
+  });
+
+  useEffect(() => {
+    if (estado !== 'comprobando') return;
+    let montado = true;
+    refrescarSesion().then(ok => {
+      if (montado) setEstado(ok ? 'activa' : 'inactiva');
+    });
+    return () => {
+      montado = false;
+    };
+  }, [estado]);
+
+  return estado;
+}
+
+function authHeaders(): Record<string, string> {
+  const sesion = leerSesion();
+  return sesion.accessToken ? {Authorization: 'Bearer ' + sesion.accessToken} : {};
+}
+
+function irAlInicioDeSesion() {
+  location.assign('/historial.html');
+}
+
+function abrirNuevaTarea() {
+  // El wizard todavía vive en el shell operativo actual. El deep-link conserva
+  // la misma sesión/origen y permite que el botón Astryx sea funcional mientras
+  // ese flujo de escritura se migra con sus validaciones y RBAC completos.
+  location.assign('/wwp/tasks?action=new-task');
+}
+
+function puedeCrearTarea(): boolean {
+  const usuario = leerSesion().user;
+  return usuario?.role === 'admin' ||
+    usuario?.sectionPerms?.['wwp.crear_tarea'] === true;
 }
 
 /** Hook genérico de carga: expone {cargando, error, datos, recargar}. */
 function useApi(url: string, extraer: (j: any) => Fila[]) {
-  const [s, setS] = useState<{cargando: boolean; error: string | null; datos: Fila[]}>({cargando: true, error: null, datos: []});
+  const [s, setS] = useState<{
+    cargando: boolean;
+    error: string | null;
+    errorStatus: number | null;
+    datos: Fila[];
+  }>({cargando: true, error: null, errorStatus: null, datos: []});
   const cargar = useCallback(async () => {
-    setS(v => ({...v, cargando: true, error: null}));
+    setS(v => ({...v, cargando: true, error: null, errorStatus: null}));
     try {
-      const r = await fetch(url, {headers: authHeaders()});
-      if (r.status === 401) throw new Error('Sesión expirada — inicia sesión de nuevo.');
-      if (r.status === 403) throw new Error('Tu rol no tiene acceso a esta información.');
-      if (!r.ok) throw new Error('El servidor respondió ' + r.status + '.');
+      const solicitar = () => fetch(url, {headers: authHeaders()});
+      let r = await solicitar();
+      if (r.status === 401 && await refrescarSesion()) {
+        r = await solicitar();
+      }
+      if (!r.ok) {
+        const mensaje = r.status === 401
+          ? 'La sesión venció o no es válida.'
+          : r.status === 403
+            ? 'Tu rol no tiene acceso a esta información.'
+            : 'El servidor respondió ' + r.status + '.';
+        const fallo = new Error(mensaje) as Error & {status: number};
+        fallo.status = r.status;
+        throw fallo;
+      }
       const j = await r.json();
-      setS({cargando: false, error: null, datos: extraer(j) || []});
-    } catch (e) { setS({cargando: false, error: (e as Error).message, datos: []}); }
+      setS({cargando: false, error: null, errorStatus: null, datos: extraer(j) || []});
+    } catch (e) {
+      const fallo = e as Error & {status?: number};
+      setS({
+        cargando: false,
+        error: fallo.message,
+        errorStatus: fallo.status ?? null,
+        datos: [],
+      });
+    }
   }, [url]);
   useEffect(() => { cargar(); }, [cargar]);
   return {...s, recargar: cargar};
@@ -149,27 +313,76 @@ function Estado({mapa, valor}: {mapa: MapaEstado; valor: string}) {
   const e = mapa[valor] || {label: valor || 'Desconocido', dot: 'neutral'};
   const label = e.label || valor;
   // El label de StatusDot es solo accesible: el texto visible va aparte.
+  // El valor va en `body` (14px), no `sm`: es contenido primario de la fila.
   return (
     <HStack gap={2} vAlign="center">
       <StatusDot variant={e.dot} label={label} />
-      <Text size="sm">{label}</Text>
+      <Text>{label}</Text>
     </HStack>
   );
 }
 
-/** Tira compacta de cifras en el header. Antes eran Cards: la guía de layout
- *  del sistema lo prohíbe para herramientas de trabajo ("rows only, zero cards"
- *  — envolver todo en Card se lee como prototipo, no como producto). */
-function Cifras({items, cargando}: {items: Cifra[]; cargando: boolean}) {
-  return (
-    <HStack gap={4} vAlign="center" wrap="wrap">
-      {items.map(k => (
-        <HStack key={k.etiqueta} gap={1.5} vAlign="center">
-          <Text weight="bold">{cargando ? '—' : String(k.valor)}</Text>
-          <Text type="supporting">{k.etiqueta}</Text>
+/** Franja de cifras (KPIs) — su propia región, NO en el header. Cada cifra es un
+ *  callout vertical: número grande (`display-3`, 29px) sobre etiqueta pequeña.
+ *  El tamaño crea la jerarquía, no el peso (regla de `docs typography`:
+ *  "data callouts" van con display types). Filas, no cards. */
+function Cifras({
+  items,
+  cargando,
+  esCompacta = false,
+}: {
+  items: Cifra[];
+  cargando: boolean;
+  esCompacta?: boolean;
+}) {
+  const tile = (k: Cifra) => (
+    <VStack key={k.etiqueta} gap={0.5}>
+      <Text type="display-3" hasTabularNumbers>{cargando ? '—' : String(k.valor)}</Text>
+      <Text type="supporting">{k.etiqueta}</Text>
+    </VStack>
+  );
+
+  // Móvil: 2 columnas. Escritorio: en línea con divisor vertical entre cifras.
+  return esCompacta ? (
+    <VStack gap={0} paddingInline={4} paddingBlock={3} width="100%">
+      <Grid columns={2} gap={4} width="100%">
+        {items.map(tile)}
+      </Grid>
+    </VStack>
+  ) : (
+    <HStack gap={6} paddingInline={4} paddingBlock={3} vAlign="center" wrap="wrap">
+      {items.map((k, i) => (
+        <HStack key={k.etiqueta} gap={6} vAlign="center">
+          {i > 0 && <Divider orientation="vertical" />}
+          {tile(k)}
         </HStack>
       ))}
     </HStack>
+  );
+}
+
+function CamposDeDetalle({
+  fila,
+  detalle,
+}: {
+  fila: Fila;
+  detalle: (fila: Fila) => CampoDetalle[];
+}) {
+  // label arriba: da ancho completo a valores largos (comentario, título) en el
+  // inspector de 380px, sin estrangularlos. El valor va en `body`, no `sm`.
+  return (
+    <MetadataList label={{position: 'top'}}>
+      {detalle(fila).map(campo => {
+        const sinValor = campo.valor == null || campo.valor === '';
+        return (
+          <MetadataListItem key={campo.etiqueta} label={campo.etiqueta}>
+            {typeof campo.valor === 'string' || typeof campo.valor === 'number'
+              ? <Text>{sinValor ? '—' : String(campo.valor)}</Text>
+              : (campo.valor || <Text color="secondary">—</Text>)}
+          </MetadataListItem>
+        );
+      })}
+    </MetadataList>
   );
 }
 
@@ -179,17 +392,17 @@ function Cifras({items, cargando}: {items: Cifra[]; cargando: boolean}) {
  *  maestro-detalle que la guía llama "la columna vertebral de las herramientas".
  *  `detalle(fila)` devuelve los campos a mostrar en el inspector. */
 function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros, detalle}: PropsPantalla) {
-  const {cargando, error, datos, recargar} = api;
+  const {cargando, error, errorStatus, datos, recargar} = api;
   const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState<Record<string, string | null>>({});
-  const [filaSel, setFilaSel] = useState<string | null>(null);
-  // `resizable` espera las props de useResizable(), NO un objeto plano: pasarle
-  // uno hacía que LayoutPanel ignorara `width` y se quedara en su ancho por
-  // defecto. Con el hook, él gobierna el ancho y ResizeHandle va al lado.
+  const [filaSel, setFilaSel] = useState<SeleccionFila>(null);
   const inspector = useResizable({defaultSize: 380, minSizePx: 320, maxSizePx: 520, autoSaveId: 'v2-inspector'});
-  // Contrato responsive de la guía de layout: por debajo de ~1024px el panel
-  // NO comprime el contenido; simplemente no se muestra en columna.
-  const anchoSuficiente = useMediaQuery('(min-width: 1024px)');
+  // Mantener el mismo umbral `lg` del AppShell: cuando la navegación pasa al
+  // drawer, el header y los filtros también deben apilarse.
+  const esCompacta = useMediaQuery('(max-width: 1023px)');
+  // Con sidebar + inspector se necesitan 1280px para que la tabla no se asfixie.
+  // Debajo de ese ancho, el detalle se abre como Dialog.
+  const anchoSuficiente = useMediaQuery('(min-width: 1280px)');
 
   const texto = busqueda.trim().toLowerCase();
   const visibles = datos.filter(fila => {
@@ -204,72 +417,165 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
 
   const hayFiltro = !!texto || Object.values(seleccion).some(Boolean);
   const limpiar = () => { setBusqueda(''); setSeleccion({}); };
-  const sel = filaSel && visibles.find(f => (f.id ?? f) === filaSel) || null;
+  const accesoBloqueado = errorStatus === 401 || errorStatus === 403;
+  const sel = filaSel == null
+    ? null
+    : visibles.find(f => (f.id ?? f) === filaSel) || null;
 
-  // Columnas + una de selección: la fila entera abre el inspector.
-  const cols = [...columnas, {
-    key: '__sel', header: '', width: pixel(44),
-    renderCell: (r: Fila) => (
-      <Button label="Ver detalle" isIconOnly icon={<Icon icon={ChevronRightIcon} size="sm" />} size="sm"
-              variant="ghost" clickAction={() => setFilaSel(r.id ?? r)} />
-    ),
-  }];
+  const cols: TableColumn<Fila>[] = detalle
+    ? [...columnas, {
+        key: '__sel',
+        header: '',
+        width: pixel(44),
+        renderCell: (r: Fila) => (
+          <Button
+            label="Ver detalle"
+            isIconOnly
+            icon={<Icon icon={ChevronRightIcon} size="sm" />}
+            size="sm"
+            variant="ghost"
+            clickAction={() => setFilaSel(r.id ?? r)}
+          />
+        ),
+      }]
+    : columnas;
 
   return (
+    <>
     <Layout
       height="fill"
       header={
         <LayoutHeader hasDivider>
-          {/* Título y subtítulo EN LÍNEA + StackItem fill como separador — el
-              patrón de la plantilla de referencia. Apilarlos en un VStack hacía
-              que el subtítulo se estrangulara a una palabra por línea. */}
-          <HStack gap={3} vAlign="center">
-            <Heading level={3}>{titulo}</Heading>
-            {subtitulo && (
-              <Text type="supporting" maxLines={1}>{subtitulo}</Text>
-            )}
-            <StackItem size="fill" />
-            {kpis && !error && <Cifras items={kpis(datos)} cargando={cargando} />}
-            <Button label="Actualizar" variant="ghost" clickAction={recargar} />
-            {acciones}
-          </HStack>
+          {/* El header NO lleva KPIs: título grande (nivel 1) + subtítulo apilados,
+              y las acciones a la derecha. Los KPIs viven en su franja propia
+              dentro del contenido (abajo) — así el header respira. */}
+          {esCompacta ? (
+            <VStack gap={3} width="100%">
+              <VStack gap={0.5}>
+                <Heading level={1}>{titulo}</Heading>
+                {subtitulo && <Text type="supporting" maxLines={2}>{subtitulo}</Text>}
+              </VStack>
+              {!accesoBloqueado && (
+                <HStack gap={2} vAlign="center" wrap="wrap">
+                  <Button label="Actualizar" variant="ghost" clickAction={recargar} />
+                  {acciones}
+                </HStack>
+              )}
+            </VStack>
+          ) : (
+            <HStack gap={3} vAlign="center">
+              <StackItem size="fill">
+                <VStack gap={0.5}>
+                  <Heading level={1}>{titulo}</Heading>
+                  {subtitulo && <Text type="supporting" maxLines={1}>{subtitulo}</Text>}
+                </VStack>
+              </StackItem>
+              {!accesoBloqueado && (
+                <Button label="Actualizar" variant="ghost" clickAction={recargar} />
+              )}
+              {!accesoBloqueado && acciones}
+            </HStack>
+          )}
         </LayoutHeader>
       }
       content={
         <LayoutContent padding={0}>
           <VStack gap={0}>
+            {/* Franja de KPIs: primera región, edge-to-edge, con su propio aire.
+                Sacada del header (plan 11 P1) para que las cifras tengan presencia. */}
+            {kpis && !error && !cargando && datos.length > 0 && (
+              <>
+                <Cifras items={kpis(datos)} cargando={cargando} esCompacta={esCompacta} />
+                <Divider />
+              </>
+            )}
             {(buscarEn || filtros) && !error && (
-              <Toolbar
-                label={'Filtros de ' + titulo}
-                size="sm"
-                dividers={['bottom']}
-                startContent={
-                  <>
-                    {buscarEn && buscarEn.length > 0 && (
-                      <TextInput label="Buscar" isLabelHidden placeholder="Buscar…"
-                                 value={busqueda} onChange={setBusqueda}
-                                 startIcon={MagnifyingGlassIcon} />
-                    )}
+              esCompacta ? (
+                <VStack gap={2} padding={3} width="100%">
+                  {buscarEn && buscarEn.length > 0 && (
+                    <TextInput
+                      label="Buscar"
+                      isLabelHidden
+                      placeholder="Buscar…"
+                      value={busqueda}
+                      onChange={setBusqueda}
+                      startIcon={MagnifyingGlassIcon}
+                      size="sm"
+                    />
+                  )}
+                  <HStack gap={1} wrap="wrap" width="100%">
                     {(filtros || []).map(f => (
-                      <Selector key={f.campo} label={f.label} isLabelHidden placeholder={f.label}
-                                hasClear value={seleccion[f.campo] || null}
-                                onChange={v => setSeleccion(x => ({...x, [f.campo]: v}))}
-                                options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))} />
+                      <Selector
+                        key={f.campo}
+                        label={f.label}
+                        isLabelHidden
+                        placeholder={f.label}
+                        hasClear
+                        value={seleccion[f.campo] || null}
+                        onChange={v => setSeleccion(x => ({...x, [f.campo]: v}))}
+                        options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))}
+                        size="sm"
+                      />
                     ))}
-                    {hayFiltro && <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />}
-                  </>
-                }
-                endContent={
-                  <Text type="supporting">
-                    {visibles.length === datos.length
-                      ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
-                      : `${visibles.length} de ${datos.length}`}
-                  </Text>
+                  </HStack>
+                  <HStack gap={2} hAlign="between" vAlign="center" width="100%">
+                    <Text type="supporting">
+                      {visibles.length === datos.length
+                        ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
+                        : `${visibles.length} de ${datos.length}`}
+                    </Text>
+                    {hayFiltro && (
+                      <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />
+                    )}
+                  </HStack>
+                </VStack>
+              ) : (
+                <Toolbar
+                  label={'Filtros de ' + titulo}
+                  size="sm"
+                  dividers={['bottom']}
+                  startContent={
+                    <>
+                      {buscarEn && buscarEn.length > 0 && (
+                        <TextInput label="Buscar" isLabelHidden placeholder="Buscar…"
+                                   value={busqueda} onChange={setBusqueda}
+                                   startIcon={MagnifyingGlassIcon} hasClear />
+                      )}
+                      {(filtros || []).map(f => (
+                        <Selector key={f.campo} label={f.label} isLabelHidden placeholder={f.label}
+                                  hasClear value={seleccion[f.campo] || null}
+                                  onChange={v => setSeleccion(x => ({...x, [f.campo]: v}))}
+                                  options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))} />
+                      ))}
+                      {hayFiltro && <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />}
+                    </>
+                  }
+                  endContent={
+                    <Text type="supporting">
+                      {visibles.length === datos.length
+                        ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
+                        : `${visibles.length} de ${datos.length}`}
+                    </Text>
+                  }
+                />
+              )
+            )}
+
+            {error && errorStatus === 401 && (
+              <EmptyState
+                title="Tu sesión terminó"
+                description="Vuelve a iniciar sesión para cargar la información de Ops AT."
+                actions={
+                  <Button
+                    label="Ir al inicio de sesión"
+                    variant="primary"
+                    clickAction={irAlInicioDeSesion}
+                  />
                 }
               />
             )}
 
-            {error && (
+            {error && errorStatus !== 401 && (
               <Banner status="error" container="section"
                       title={'No se pudo cargar ' + titulo.toLowerCase()}
                       description={error}
@@ -298,35 +604,62 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
           </VStack>
         </LayoutContent>
       }
-      end={anchoSuficiente ? (
+      end={anchoSuficiente && sel && detalle ? (
         <>
-        <ResizeHandle hasDivider {...inspector.props} />
-        <LayoutPanel width={inspector.size} isScrollable label="Detalle">
-          {sel && detalle ? (
-            <VStack gap={3} padding={4}>
-              <HStack hAlign="between" vAlign="center">
-                <Heading level={4}>Detalle</Heading>
-                <Button label="Cerrar" isIconOnly icon={<Icon icon={XMarkIcon} size="sm" />} size="sm"
-                        variant="ghost" clickAction={() => setFilaSel(null)} />
-              </HStack>
-              <MetadataList>
-                {detalle(sel).map(d => (
-                  <MetadataListItem key={d.etiqueta} label={d.etiqueta}>
-                    {typeof d.valor === 'string' || typeof d.valor === 'number'
-                      ? <Text size="sm">{String(d.valor || '—')}</Text>
-                      : (d.valor || <Text size="sm">—</Text>)}
-                  </MetadataListItem>
-                ))}
-              </MetadataList>
-            </VStack>
-          ) : (
-            <EmptyState isCompact title="Nada seleccionado"
-                        description="Elige una fila para ver su detalle aquí." />
-          )}
+        <ResizeHandle
+          direction="horizontal"
+          isReversed
+          hasDivider
+          label="Redimensionar detalle"
+          resizable={inspector.props}
+        />
+        <LayoutPanel
+          resizable={inspector.props}
+          isScrollable
+          role="complementary"
+          label="Detalle"
+          padding={4}>
+          <VStack gap={3}>
+            <HStack hAlign="between" vAlign="center">
+              <Heading level={2}>Detalle</Heading>
+              <Button label="Cerrar" isIconOnly icon={<Icon icon={XMarkIcon} size="sm" />} size="sm"
+                      variant="ghost" clickAction={() => setFilaSel(null)} />
+            </HStack>
+            <CamposDeDetalle fila={sel} detalle={detalle} />
+          </VStack>
         </LayoutPanel>
         </>
       ) : null}
     />
+    {detalle && (
+      <Dialog
+        isOpen={!anchoSuficiente && sel != null}
+        purpose="info"
+        width={480}
+        maxHeight="80vh"
+        aria-label={'Detalle de ' + titulo}
+        onOpenChange={abierto => {
+          if (!abierto) setFilaSel(null);
+        }}>
+        <Layout
+          header={
+            <DialogHeader
+              title={'Detalle · ' + titulo}
+              hasDivider
+              onOpenChange={abierto => {
+                if (!abierto) setFilaSel(null);
+              }}
+            />
+          }
+          content={
+            <LayoutContent padding={4}>
+              {sel && <CamposDeDetalle fila={sel} detalle={detalle} />}
+            </LayoutContent>
+          }
+        />
+      </Dialog>
+    )}
+    </>
   );
 }
 
@@ -336,22 +669,35 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
 // queda completa y usable hoy; cada una se reconstruye nativa cuando toque.
 function Embebida({titulo, subtitulo, src}: {titulo: string; subtitulo?: string; src: string}) {
   return (
-    <VStack gap={3}>
-      <VStack gap={1}>
-        <Heading level={2}>{titulo}</Heading>
-        {subtitulo && <Text color="secondary">{subtitulo}</Text>}
-      </VStack>
-      {/* Honestidad al revisar: se ve distinto porque AÚN no es nativa. */}
-      <Banner
-        status="info"
-        title="Interfaz anterior"
-        description="Esta pantalla funciona, pero todavía usa el diseño previo. Falta reconstruirla con el sistema nuevo."
-        isDismissable
-      />
-      <Card padding={0} width="100%">
-        <iframe src={src} title={titulo} className="opsat-embebida" />
-      </Card>
-    </VStack>
+    <Layout
+      height="fill"
+      header={
+        <LayoutHeader hasDivider>
+          <VStack gap={1}>
+            <Heading level={3}>{titulo}</Heading>
+            {subtitulo && <Text type="supporting">{subtitulo}</Text>}
+          </VStack>
+        </LayoutHeader>
+      }
+      content={
+        <LayoutContent padding={4} isScrollable={false}>
+          <VStack gap={3} height="100%">
+            {/* Honestidad al revisar: se ve distinto porque AÚN no es nativa. */}
+            <Banner
+              status="info"
+              title="Interfaz anterior"
+              description="Esta pantalla funciona, pero todavía usa el diseño previo. Falta reconstruirla con el sistema nuevo."
+              isDismissable
+            />
+            <StackItem size="fill">
+              <Card padding={0} width="100%" height="100%">
+                <iframe src={src} title={titulo} className="opsat-embebida" />
+              </Card>
+            </StackItem>
+          </VStack>
+        </LayoutContent>
+      }
+    />
   );
 }
 
@@ -359,11 +705,14 @@ function Embebida({titulo, subtitulo, src}: {titulo: string; subtitulo?: string;
 function PanelTareas() {
   const api = useApi('/api/wwp/tasks?all=1', j => Array.isArray(j) ? j : (j.tasks || []));
   const hoy = new Date().toISOString().slice(0, 10);
+  const puedeCrear = puedeCrearTarea();
   return (
     <Pantalla
       titulo="Tareas"
       subtitulo="Trabajo del equipo, en vivo desde la API de OpsAT."
-      acciones={<Button label="+ Nueva Tarea" variant="primary" />}
+      acciones={puedeCrear
+        ? <Button label="+ Nueva Tarea" variant="primary" clickAction={abrirNuevaTarea} />
+        : undefined}
       api={api}
       vacio="No hay tareas que mostrar."
       buscarEn={['title', 'client', 'odooRef']}
@@ -376,12 +725,12 @@ function PanelTareas() {
         {etiqueta: 'Tarea', valor: t.title},
         {etiqueta: 'Tipo', valor: TIPO_TAREA[t.type] || t.type},
         {etiqueta: 'Estado', valor: <Estado mapa={ESTADO_TAREA} valor={t.status} />},
-        {etiqueta: 'Prioridad', valor: t.priority ? <Badge label={PRIORIDAD[t.priority] || t.priority} /> : null},
+        {etiqueta: 'Prioridad', valor: t.priority ? <Badge variant={PRIO_VAR[t.priority] ?? 'neutral'} label={PRIORIDAD[t.priority] || t.priority} /> : null},
         {etiqueta: 'Cliente', valor: t.client},
         {etiqueta: 'Orden Odoo', valor: t.odooRef},
         {etiqueta: 'Encargado', valor: t.managerName},
-        {etiqueta: 'Vence', valor: (t.dueDate || '').slice(0, 10)},
-        {etiqueta: 'Creada', valor: (t.createdAt || '').slice(0, 16).replace('T', ' ')},
+        {etiqueta: 'Vence', valor: t.dueDate ? <Timestamp value={t.dueDate} format="date" hasTooltip /> : null},
+        {etiqueta: 'Creada', valor: t.createdAt ? <Timestamp value={t.createdAt} format="date_time" hasTooltip /> : null},
       ]}
       kpis={(d: Fila[]) => [
         {etiqueta: 'Pendientes',  valor: d.filter(t => t.status === 'pending').length},
@@ -392,13 +741,13 @@ function PanelTareas() {
       columnas={[
         {key: 'title', header: 'Tarea', width: proportional(2)},
         {key: 'type', header: 'Tipo', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{TIPO_TAREA[r.type] || r.type || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{TIPO_TAREA[r.type] || r.type || '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(160),
          renderCell: (r: Fila) => <Estado mapa={ESTADO_TAREA} valor={r.status} />},
         {key: 'priority', header: 'Prioridad', width: pixel(110),
-         renderCell: (r: Fila) => r.priority ? <Badge label={PRIORIDAD[r.priority] || r.priority} /> : <Text color="secondary">—</Text>},
+         renderCell: (r: Fila) => r.priority ? <Badge variant={PRIO_VAR[r.priority] ?? 'neutral'} label={PRIORIDAD[r.priority] || r.priority} /> : <Text color="secondary">—</Text>},
         {key: 'client', header: 'Cliente', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.client || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.client || '—'}</Text>},
       ]}
     />
   );
@@ -423,13 +772,13 @@ function PanelEstadoOrdenes() {
       columnas={[
         {key: 'folio', header: 'Orden', width: pixel(140)},
         {key: 'clienteNombre', header: 'Cliente', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.clienteNombre || r.cliente || '—'}</Text>},
         {key: 'salesperson', header: 'Vendedora', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.salesperson || r.vendedor || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.salesperson || r.vendedor || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
          renderCell: (r: Fila) => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
         {key: 'fechaDeseada', header: 'Promesa', width: pixel(130),
-         renderCell: (r: Fila) => <Text size="sm">{(r.fechaDeseada || '').slice(0, 10) || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{(r.fechaDeseada || '').slice(0, 10) || '—'}</Text>},
       ]}
     />
   );
@@ -454,9 +803,9 @@ function PanelSDV() {
       columnas={[
         {key: 'folio', header: 'Folio', width: pixel(140)},
         {key: 'clienteNombre', header: 'Cliente', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.clienteNombre || r.cliente || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.clienteNombre || r.cliente || '—'}</Text>},
         {key: 'tipoSolicitud', header: 'Tipo', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.tipoSolicitud || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.tipoSolicitud || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
          renderCell: (r: Fila) => <Estado mapa={ESTADO_SDV} valor={r.estado} />},
       ]}
@@ -479,11 +828,11 @@ function PanelReactivaciones() {
       ]}
       columnas={[
         {key: 'sdvFolio', header: 'Folio SDV', width: pixel(150),
-         renderCell: (r: Fila) => <Text size="sm">{r.sdvFolio || r.folio || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.sdvFolio || r.folio || '—'}</Text>},
         {key: 'motivo', header: 'Motivo', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.motivo || r.razon || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.motivo || r.razon || '—'}</Text>},
         {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.solicitadoPor || r.creadoNombre || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.solicitadoPor || r.creadoNombre || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(150),
          renderCell: (r: Fila) => <Estado mapa={{pendiente:{label:'Pendiente',dot:'warning'}, aprobada:{label:'Aprobada',dot:'success'}, rechazada:{label:'Rechazada',dot:'error'}}} valor={r.estado} />},
       ]}
@@ -509,9 +858,9 @@ function PanelConduces() {
       columnas={[
         {key: 'folio', header: 'Conduce', width: pixel(130)},
         {key: 'receptorNombre', header: 'Recibe', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.receptorNombre || r.receptor || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.receptorNombre || r.receptor || '—'}</Text>},
         {key: 'empresa', header: 'Empresa', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.empresa || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.empresa || '—'}</Text>},
         {key: 'estado', header: 'Estado', width: pixel(150),
          renderCell: (r: Fila) => <Estado mapa={{borrador:{label:'Borrador',dot:'neutral'}, entregado:{label:'Entregado',dot:'success'}, anulado:{label:'Anulado',dot:'error'}}} valor={r.estado} />},
       ]}
@@ -538,7 +887,7 @@ function PanelAverias() {
         {etiqueta: 'Estado', valor: <Estado mapa={ESTADO_AVERIA} valor={a.status} />},
         {etiqueta: 'Ubicación', valor: a.location},
         {etiqueta: 'Comentario', valor: a.comentario},
-        {etiqueta: 'Registrada', valor: (a.createdAt || '').slice(0, 16).replace('T', ' ')},
+        {etiqueta: 'Registrada', valor: a.createdAt ? <Timestamp value={a.createdAt} format="date_time" hasTooltip /> : null},
       ]}
       kpis={(d: Fila[]) => [
         {etiqueta: 'Recibidos', valor: d.filter(a => a.status === 'Recibido').length},
@@ -549,13 +898,13 @@ function PanelAverias() {
       columnas={[
         {key: 'ref', header: 'Referencia', width: pixel(140)},
         {key: 'name', header: 'Artículo', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.name || '—'}</Text>},
-        {key: 'qty', header: 'Cant.', width: pixel(80),
-         renderCell: (r: Fila) => <Text size="sm">{r.qty ?? '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.name || '—'}</Text>},
+        {key: 'qty', header: 'Cant.', width: pixel(80), align: 'end',
+         renderCell: (r: Fila) => <Text hasTabularNumbers>{r.qty ?? '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(160),
          renderCell: (r: Fila) => <Estado mapa={ESTADO_AVERIA} valor={r.status} />},
         {key: 'comentario', header: 'Comentario', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.comentario || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.comentario || '—'}</Text>},
       ]}
     />
   );
@@ -578,11 +927,11 @@ function PanelReposicion() {
       ]}
       columnas={[
         {key: 'ref', header: 'Referencia', width: pixel(140),
-         renderCell: (r: Fila) => <Text size="sm">{r.ref || r.referencia || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.ref || r.referencia || '—'}</Text>},
         {key: 'nombre', header: 'Artículo', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.nombre || '—'}</Text>},
-        {key: 'cantidad', header: 'Cant.', width: pixel(80),
-         renderCell: (r: Fila) => <Text size="sm">{r.cantidad ?? '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.nombre || '—'}</Text>},
+        {key: 'cantidad', header: 'Cant.', width: pixel(80), align: 'end',
+         renderCell: (r: Fila) => <Text hasTabularNumbers>{r.cantidad ?? '—'}</Text>},
         {key: 'urgencia', header: 'Urgencia', width: pixel(110),
          renderCell: (r: Fila) => r.urgencia ? <Badge label={r.urgencia} /> : <Text color="secondary">—</Text>},
         {key: 'estado', header: 'Estado', width: pixel(180),
@@ -607,11 +956,11 @@ function PanelSolicitudesShowroom() {
       ]}
       columnas={[
         {key: 'name', header: 'Artículo', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.name || r.nombre || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.name || r.nombre || '—'}</Text>},
         {key: 'barcode', header: 'Cód. barras', width: pixel(150),
-         renderCell: (r: Fila) => <Text size="sm">{r.barcode || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.barcode || '—'}</Text>},
         {key: 'solicitadoPor', header: 'Solicitado por', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{r.solicitadoPor || r.usuario || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.solicitadoPor || r.usuario || '—'}</Text>},
         {key: 'status', header: 'Estado', width: pixel(150),
          renderCell: (r: Fila) => <Estado mapa={{activo:{label:'Activa',dot:'accent'}, completado:{label:'Completada',dot:'success'}, cancelado:{label:'Cancelada',dot:'neutral'}}} valor={r.status} />},
       ]}
@@ -637,9 +986,9 @@ function PanelFlota() {
       columnas={[
         {key: 'name', header: 'Vehículo', width: proportional(2)},
         {key: 'placa', header: 'Placa', width: pixel(140),
-         renderCell: (r: Fila) => <Text size="sm">{r.placa || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.placa || '—'}</Text>},
         {key: 'fuelType', header: 'Medidor', width: pixel(160),
-         renderCell: (r: Fila) => <Badge label={r.fuelType === 'detallado' ? 'Detallado' : 'Estándar'} />},
+         renderCell: (r: Fila) => <Text>{r.fuelType === 'detallado' ? 'Detallado' : 'Estándar'}</Text>},
       ]}
     />
   );
@@ -662,13 +1011,13 @@ function PanelFormacion() {
       ]}
       columnas={[
         {key: 'title', header: 'Curso', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.title || r.nombre || r.id || '—'}</Text>},
-        {key: 'passingScore', header: 'Nota mínima', width: pixel(130),
-         renderCell: (r: Fila) => <Text size="sm">{r.passingScore != null ? r.passingScore + '%' : '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.title || r.nombre || r.id || '—'}</Text>},
+        {key: 'passingScore', header: 'Nota mínima', width: pixel(130), align: 'end',
+         renderCell: (r: Fila) => <Text hasTabularNumbers>{r.passingScore != null ? r.passingScore + '%' : '—'}</Text>},
         {key: 'validityDays', header: 'Vigencia', width: pixel(120),
-         renderCell: (r: Fila) => <Text size="sm">{r.validityDays ? r.validityDays + ' días' : '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.validityDays ? r.validityDays + ' días' : '—'}</Text>},
         {key: 'enforceGate', header: 'Bloquea tareas', width: pixel(150),
-         renderCell: (r: Fila) => r.enforceGate ? <Badge label="Sí" /> : <Text color="secondary">No</Text>},
+         renderCell: (r: Fila) => <Text color={r.enforceGate ? 'primary' : 'secondary'}>{r.enforceGate ? 'Sí' : 'No'}</Text>},
         {key: 'active', header: 'Estado', width: pixel(140),
          renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
       ]}
@@ -691,7 +1040,7 @@ function PanelEquipo() {
       ]}
       detalle={(u: Fila) => [
         {etiqueta: 'Persona', valor: u.name},
-        {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
+        {etiqueta: 'Rol', valor: <Token color={ROL_COLOR[u.role] ?? 'gray'} size="sm" label={ROL[u.role] || u.role} />},
         {etiqueta: 'Adopción', valor: u.semaforo},
         {etiqueta: 'Trayectoria', valor: u.trayectoria},
         {etiqueta: 'Nivel', valor: u.nivel},
@@ -704,13 +1053,14 @@ function PanelEquipo() {
         {etiqueta: 'Personas',  valor: d.length},
       ]}
       columnas={[
-        {key: 'name', header: 'Persona', width: proportional(2)},
+        {key: 'name', header: 'Persona', width: proportional(2),
+         renderCell: (r: Fila) => <HStack gap={2} vAlign="center"><Avatar size="sm" name={r.name} /><Text>{r.name}</Text></HStack>},
         {key: 'role', header: 'Rol', width: pixel(130),
-         renderCell: (r: Fila) => <Badge label={ROL[r.role] || r.role || '—'} />},
+         renderCell: (r: Fila) => <Token color={ROL_COLOR[r.role] ?? 'gray'} size="sm" label={ROL[r.role] || r.role || '—'} />},
         {key: 'semaforo', header: 'Adopción', width: pixel(160),
          renderCell: (r: Fila) => <Estado mapa={{activo:{label:'Activo',dot:'success'}, tibio:{label:'Tibio',dot:'warning'}, inactivo:{label:'Inactivo',dot:'error'}, nunca:{label:'Nunca entró',dot:'neutral'}}} valor={r.semaforo} />},
-        {key: 'nivel', header: 'Nivel', width: pixel(100),
-         renderCell: (r: Fila) => <Text size="sm">{r.nivel ?? '—'}</Text>},
+        {key: 'nivel', header: 'Nivel', width: pixel(100), align: 'end',
+         renderCell: (r: Fila) => <Text hasTabularNumbers>{r.nivel ?? '—'}</Text>},
       ]}
     />
   );
@@ -733,9 +1083,9 @@ function PanelPoliticas() {
       columnas={[
         {key: 'nombre', header: 'Política', width: proportional(2)},
         {key: 'tipo', header: 'Tipo', width: proportional(1),
-         renderCell: (r: Fila) => <Text size="sm">{(({lunch_duration:'Duración de almuerzo', arrival_time:'Hora de llegada', task_completion:'Completitud de tareas', vehicle_inspection:'Inspección vehicular'} as Record<string,string>)[r.tipo]) || r.tipo || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{(({lunch_duration:'Duración de almuerzo', arrival_time:'Hora de llegada', task_completion:'Completitud de tareas', vehicle_inspection:'Inspección vehicular'} as Record<string,string>)[r.tipo]) || r.tipo || '—'}</Text>},
         {key: 'descripcion', header: 'Descripción', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.descripcion || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.descripcion || '—'}</Text>},
         {key: 'activa', header: 'Estado', width: pixel(140),
          renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activa',dot:'success'}, false:{label:'Pausada',dot:'neutral'}}} valor={String(r.activa !== false)} />},
       ]}
@@ -757,10 +1107,10 @@ function PanelUsuarios() {
       detalle={(u: Fila) => [
         {etiqueta: 'Nombre', valor: u.name},
         {etiqueta: 'Correo', valor: u.email},
-        {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
+        {etiqueta: 'Rol', valor: <Token color={ROL_COLOR[u.role] ?? 'gray'} size="sm" label={ROL[u.role] || u.role} />},
         {etiqueta: 'Estado', valor: <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(u.active !== false)} />},
         {etiqueta: 'ID Odoo', valor: u.odooId},
-        {etiqueta: 'Último acceso', valor: (u.lastLogin || '').slice(0, 16).replace('T', ' ')},
+        {etiqueta: 'Último acceso', valor: u.lastLogin ? <Timestamp value={u.lastLogin} format="auto" hasTooltip /> : null},
         {etiqueta: 'Categoría', valor: u.categoria},
       ]}
       kpis={(d: Fila[]) => [
@@ -770,11 +1120,12 @@ function PanelUsuarios() {
         {etiqueta: 'Auxiliares', valor: d.filter(u => u.role === 'assistant').length},
       ]}
       columnas={[
-        {key: 'name', header: 'Nombre', width: proportional(2)},
+        {key: 'name', header: 'Nombre', width: proportional(2),
+         renderCell: (r: Fila) => <HStack gap={2} vAlign="center"><Avatar size="sm" name={r.name} /><Text>{r.name}</Text></HStack>},
         {key: 'email', header: 'Correo', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.email || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.email || '—'}</Text>},
         {key: 'role', header: 'Rol', width: pixel(130),
-         renderCell: (r: Fila) => <Badge label={ROL[r.role] || r.role || '—'} />},
+         renderCell: (r: Fila) => <Token color={ROL_COLOR[r.role] ?? 'gray'} size="sm" label={ROL[r.role] || r.role || '—'} />},
         {key: 'active', header: 'Estado', width: pixel(140),
          renderCell: (r: Fila) => <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(r.active !== false)} />},
       ]}
@@ -793,11 +1144,11 @@ function PanelEvidencias() {
       kpis={(d: Fila[]) => [{etiqueta: 'Registros', valor: d.length}]}
       columnas={[
         {key: 'odooRef', header: 'Orden', width: pixel(150),
-         renderCell: (r: Fila) => <Text size="sm">{r.odooRef || r.ref || '—'}</Text>},
+         renderCell: (r: Fila) => <Text>{r.odooRef || r.ref || '—'}</Text>},
         {key: 'title', header: 'Tarea', width: proportional(2),
-         renderCell: (r: Fila) => <Text size="sm">{r.title || '—'}</Text>},
-        {key: 'count', header: 'Fotos', width: pixel(100),
-         renderCell: (r: Fila) => <Text size="sm">{r.count ?? (r.fotos ? r.fotos.length : '—')}</Text>},
+         renderCell: (r: Fila) => <Text>{r.title || '—'}</Text>},
+        {key: 'count', header: 'Fotos', width: pixel(100), align: 'end',
+         renderCell: (r: Fila) => <Text hasTabularNumbers>{r.count ?? (r.fotos ? r.fotos.length : '—')}</Text>},
       ]}
     />
   );
@@ -914,14 +1265,54 @@ export default function ShellOpsAT() {
   _irA = ir;   // lo consume EnlaceApp a través de LinkProvider
   const actual = TODOS.find(i => i.ruta === ruta) || TODOS[0];
   const Panel = actual.panel;
+  const estadoSesion = useEstadoSesion();
+  let modoTema: 'light' | 'dark' = 'light';
+  try {
+    modoTema = localStorage.getItem('wwp_theme') === 'dark' ? 'dark' : 'light';
+  } catch {
+    // localStorage puede estar bloqueado por políticas del navegador.
+  }
 
-  // <Theme> aplica la identidad de OpsAT (tema-opsat.js). mode="system" respeta
-  // la preferencia del sistema, igual que el modo noche del shell actual.
+  if (estadoSesion === 'comprobando') {
+    return (
+      <Theme theme={opsatTheme} mode={modoTema}>
+        <AppShell contentPadding={4}>
+          <EmptyState
+            icon={<Spinner />}
+            title="Restaurando sesión…"
+            description="Estamos renovando el acceso seguro a Ops AT."
+          />
+        </AppShell>
+      </Theme>
+    );
+  }
+
+  if (estadoSesion === 'inactiva') {
+    return (
+      <Theme theme={opsatTheme} mode={modoTema}>
+        <AppShell contentPadding={4}>
+          <EmptyState
+            title="Inicia sesión para abrir Ops AT"
+            description="La interfaz nueva usa la misma sesión segura que la aplicación actual."
+            actions={
+              <Button
+                label="Ir al inicio de sesión"
+                variant="primary"
+                clickAction={irAlInicioDeSesion}
+              />
+            }
+          />
+        </AppShell>
+      </Theme>
+    );
+  }
+
   return (
-    <Theme theme={temaOpsAT} mode="system">
+    <Theme theme={opsatTheme} mode={modoTema}>
     <LinkProvider component={EnlaceApp}>
     <AppShell
       contentPadding={0}
+      mobileNav={{breakpoint: 'lg'}}
       sideNav={
         <SideNav
           collapsible

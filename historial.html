@@ -8454,7 +8454,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v237';
+var APP_BUILD = 'v238';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=80377dce"></script>
@@ -24320,6 +24320,10 @@ function _routeCurrentPath(){
 // Capturado al parsear: durante el aterrizaje setHistorialUser/navTo pueden
 // reescribir la URL antes de que _routeLand() la lea.
 var _routeInitialHash = _routeCurrentPath();
+var _routeInitialAction = (function(){
+  try { return new URLSearchParams(location.search).get('action') || ''; }
+  catch (e) { return ''; }
+})();
 var _routeReady = false;      // true tras el primer aterrizaje: los cambios pasan a pushear historial
 var _routeApplying = false;   // true mientras navegamos POR el hash (evita re-escribirlo / loops)
 var _routeLanded = false;     // true si el aterrizaje aplicó un deep-link válido
@@ -24497,6 +24501,22 @@ function _routeLand(){
   }
   if (!_routeLanded) _routeSet(_routeCanonical());
   _routeReady = true;
+
+  // Puente temporal desde el shell Astryx: el botón "+ Nueva Tarea" abre este
+  // wizard heredado hasta que su flujo de escritura/RBAC se migre completo.
+  // La acción se consume una vez y se limpia de la URL para que F5 no reabra.
+  var action = _routeInitialAction;
+  _routeInitialAction = '';
+  if (action) {
+    try {
+      var cleanUrl = new URL(location.href);
+      cleanUrl.searchParams.delete('action');
+      history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    } catch (e) { }
+  }
+  if (action === 'new-task' && hasWwpAccess(_user) && can('create_task')) {
+    setTimeout(function(){ openNewTaskModal(); }, 0);
+  }
 }
 
 /** Hash canónico de la ubicación visible actual (sin subrutas de detalle). */
