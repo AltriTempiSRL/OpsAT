@@ -23,18 +23,24 @@ import { spawnSync } from 'child_process';
 import fs from 'fs';
 
 const DRY = process.argv.includes('--dry-run');
+// Windows: npx/railway son .cmd (shims batch) y spawnSync NO los lanza sin shell
+// (Node 22 bloquea .cmd sin shell:true → ENOENT). En Mac/Linux shell=false, con lo
+// que se conserva la garantía "sin shell strings" del diseño; los args son todos
+// fijos/derivados de fuentes seguras (no entran datos de usuario).
+const WIN = process.platform === 'win32';
 
 function out(cmd, args) {
-  const r = spawnSync(cmd, args, { encoding: 'utf-8' });
+  const r = spawnSync(cmd, args, { encoding: 'utf-8', shell: WIN });
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} → exit ${r.status}: ${(r.stderr || '').slice(0, 300)}`);
   return (r.stdout || '').trim();
 }
 function run(etiqueta, cmd, args, opts = {}) {
   console.log(`\n── ${etiqueta} ──`);
-  const r = spawnSync(cmd, args, { stdio: 'inherit', ...opts });
+  const r = spawnSync(cmd, args, { stdio: 'inherit', shell: WIN, ...opts });
   if (r.status !== 0) { console.error(`✗ ${etiqueta} FALLÓ — deploy abortado`); process.exit(1); }
 }
-const espera = (seg) => spawnSync('sleep', [String(seg)]);
+// sleep síncrono cross-platform (el binario 'sleep' no existe en Windows).
+const espera = (seg) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, seg * 1000);
 
 // 1. Árbol limpio
 const sucio = out('git', ['status', '--porcelain']);
