@@ -30,7 +30,7 @@ function _loadXlsx(cb){
   document.head.appendChild(s);
 }
 </script>
-<link rel="stylesheet" href="/theme.css?v=f127389e">
+<link rel="stylesheet" href="/theme.css?v=131908a0">
 <style>
 /* Sidebar y header: mantienen los mismos oscuros en ambos temas (ya son oscuros)
    --header-bg y --sidebar-bg NO se redefinen en dark mode */
@@ -8444,10 +8444,10 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v236';
+var APP_BUILD = 'v237';
 var _versionReloading = false;
 </script>
-<script src="/core.js?v=80377dce"></script>
+<script src="/core.js?v=8be86d01"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // APP INIT
@@ -25938,10 +25938,51 @@ async function doAnular(id){
   }catch(e){ await _iosAlert('Error: '+e.message); }
 }
 
+// Confirmación reforzada de borrado (a prueba de errores): muestra el DETALLE del conduce
+// (folio, receptor, artículos, unidades, fecha) para que se vea qué se va a borrar, con el
+// botón destructivo en ROJO y 'Cancelar' como opción por defecto (autofocus + clic-fuera =
+// cancelar). Evita borrar la fila equivocada por un reflejo de un solo toque.
+function doConfirmDelete(dp){
+  return new Promise(function(resolve){
+    var units = (dp.lineas||[]).reduce(function(s,l){return s+(parseFloat(l.qty)||0);},0);
+    var nLines = (dp.lineas||[]).length;
+    var rec = (dp.receptor&&dp.receptor.nombre)||'—';
+    var fecha = dp.entregadoAt||dp.createdAt;
+    var fechaStr = fecha ? new Date(fecha).toLocaleDateString('es-DO',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:20px 22px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.35)">'
+      + '<div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">'
+        + '<span style="width:34px;height:34px;border-radius:9px;background:var(--red-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="trash-2" style="width:18px;height:18px;stroke:var(--red-dot)"></i></span>'
+        + '<div style="font-size:16px;font-weight:800;color:var(--text)">Eliminar conduce</div>'
+      + '</div>'
+      + '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">'+esc(dp.folio)+'</div>'
+        + '<div style="font-size:12px;color:var(--text-2);line-height:1.7">'
+          + '<div>Receptor: <b>'+esc(rec)+'</b></div>'
+          + '<div>'+nLines+' artículo'+(nLines!==1?'s':'')+' · '+units+' und</div>'
+          + '<div>'+esc(fechaStr)+'</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="font-size:13px;color:var(--red-text);margin-bottom:16px;display:flex;gap:6px;align-items:flex-start"><i data-lucide="alert-triangle" style="width:15px;height:15px;stroke:currentColor;flex-shrink:0;margin-top:1px"></i><span>Esta acción es permanente y no se puede deshacer.</span></div>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end">'
+        + '<button id="_doDelCancel" style="padding:9px 20px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;min-height:44px">Cancelar</button>'
+        + '<button id="_doDelYes" style="padding:9px 18px;border:1.5px solid var(--red-dot);border-radius:8px;background:transparent;color:var(--red-text);font-size:14px;font-weight:700;cursor:pointer;min-height:44px">Eliminar</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    if(window.lucide) lucide.createIcons();
+    function close(val){ if(ov.parentNode) document.body.removeChild(ov); resolve(val); }
+    document.getElementById('_doDelCancel').onclick = function(){ close(false); };
+    document.getElementById('_doDelYes').onclick    = function(){ close(true); };
+    ov.addEventListener('click', function(e){ if(e.target===ov) close(false); });  // clic fuera = cancelar
+    document.getElementById('_doDelCancel').focus();  // Cancelar por defecto (Enter/Espacio cancela)
+  });
+}
+
 async function doDeleteDespacho(id){
   var dp=_doList.find(function(x){return x.id===id;});
   if(!dp) return;
-  if(!(await _iosConfirm('¿Eliminar definitivamente el conduce '+dp.folio+'? Esta acción no se puede deshacer.'))) return;
+  if(!(await doConfirmDelete(dp))) return;
   try{
     var r=await authFetch('/api/despacho-obsoleto/'+id,{method:'DELETE'});
     var d=await r.json();
