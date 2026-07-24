@@ -289,6 +289,10 @@ html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
 /* App-shell: el sidebar es un marco fijo persistente (Despachos + Workforce Labor).
    Solo visible para usuarios que ya ven Despachos; el contenido se desplaza 210px. */
 body:not(.app-shell) .sidebar{display:none}
+/* Embebido dentro de otro shell (p. ej. /v2): el sidebar propio sobra — lo
+   aporta el contenedor. Sin esto se ven dos navegaciones apiladas. */
+body.embebido .sidebar,body.embebido .mob-nav{display:none!important}
+body.embebido.app-shell #app,body.embebido.app-shell #screen-app{padding-left:0!important}
 /* Menú hamburguesa móvil: el MISMO sidebar de web se desliza como drawer.
    Oculto en desktop; visible y funcional sólo en móvil (ver media query ≤767px). */
 .nav-hamburger{display:none;align-items:center;justify-content:center;width:40px;height:40px;border-radius:8px;background:transparent;border:none;color:var(--text-2);cursor:pointer;flex-shrink:0;padding:0}
@@ -5462,6 +5466,12 @@ tr.eo2-due-red .sdv-badge-pendiente,tr.eo2-due-red .sdv-badge-proceso,tr.eo2-due
 </script>
 </head>
 <body>
+<script>
+  // Marca temprana: si la app va dentro de un iframe (shell /v2), oculta su
+  // propio sidebar. Va aquí, no en core.js, para aplicar ANTES del primer
+  // pintado y evitar el salto de layout.
+  try { if (self !== top) document.body.classList.add('embebido'); } catch (e) { document.body.classList.add('embebido'); }
+</script>
 
 <div id="screen-login">
   <div class="login-card">
@@ -8444,7 +8454,7 @@ var _wwpLastVersion = 0;
 
 // Build embebido. DEBE coincidir con APP_BUILD en proxy.js. Si el servidor
 // reporta otro build, el cliente se recarga solo (auto-update sin Service Worker).
-var APP_BUILD = 'v236';
+var APP_BUILD = 'v237';
 var _versionReloading = false;
 </script>
 <script src="/core.js?v=80377dce"></script>

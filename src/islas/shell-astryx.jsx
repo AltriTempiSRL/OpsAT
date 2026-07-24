@@ -18,7 +18,9 @@ import {useEffect, useState, useCallback, Component} from 'react';
 import {Theme} from '@astryxdesign/core/Theme';
 import {temaOpsAT} from './tema-opsat.js';
 import {AppShell} from '@astryxdesign/core/AppShell';
-import {Layout, LayoutContent} from '@astryxdesign/core/Layout';
+import {Layout, LayoutContent, LayoutHeader, LayoutPanel} from '@astryxdesign/core/Layout';
+import {EmptyState} from '@astryxdesign/core/EmptyState';
+import {MetadataList, MetadataListItem} from '@astryxdesign/core/MetadataList';
 import {SideNav, SideNavHeading, SideNavItem, SideNavSection} from '@astryxdesign/core/SideNav';
 import {NavIcon} from '@astryxdesign/core/NavIcon';
 import {Icon} from '@astryxdesign/core/Icon';
@@ -41,7 +43,7 @@ import {
   PaperClipIcon, ArchiveBoxIcon, MagnifyingGlassIcon, CubeIcon,
   ExclamationTriangleIcon, ArrowsRightLeftIcon, BuildingStorefrontIcon,
   MapIcon, ChartBarIcon, PhotoIcon, Cog6ToothIcon, UserCircleIcon,
-  AcademicCapIcon, WrenchScrewdriverIcon, ShieldCheckIcon,
+  AcademicCapIcon, WrenchScrewdriverIcon, ShieldCheckIcon, ChevronRightIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 // ════════ Vocabulario compartido con core.js (una sola fuente de verdad) ════
@@ -112,35 +114,37 @@ function Estado({mapa, valor}) {
   );
 }
 
-function Kpis({items, cargando}) {
+/** Tira compacta de cifras en el header. Antes eran Cards: la guía de layout
+ *  del sistema lo prohíbe para herramientas de trabajo ("rows only, zero cards"
+ *  — envolver todo en Card se lee como prototipo, no como producto). */
+function Cifras({items, cargando}) {
   return (
-    <HStack gap={3} wrap>
+    <HStack gap={4} vAlign="center" wrap>
       {items.map(k => (
-        <Card key={k.etiqueta} padding={4} minWidth={150}>
-          <VStack gap={1}>
-            <Text color="secondary" size="sm">{k.etiqueta}</Text>
-            <Heading level={3}>{cargando ? '—' : String(k.valor)}</Heading>
-          </VStack>
-        </Card>
+        <HStack key={k.etiqueta} gap={1.5} vAlign="baseline">
+          <Text weight="bold">{cargando ? '—' : String(k.valor)}</Text>
+          <Text color="secondary" size="sm">{k.etiqueta}</Text>
+        </HStack>
       ))}
     </HStack>
   );
 }
 
-/** Estructura común a toda pantalla de datos: encabezado, KPIs, barra de
- *  herramientas (buscador + filtros), tabla y los tres estados.
- *  `buscarEn`: campos donde busca el texto. `filtros`: [{label, campo, opciones}]
- *  donde opciones = [{valor, etiqueta}]. El filtrado es en cliente. */
-function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros}) {
+/** Estructura de herramienta de trabajo, según `astryx docs layout`:
+ *  frame primero (header / contenido edge-to-edge / inspector), filas densas y
+ *  CERO cards. Seleccionar una fila abre el inspector lateral — el patrón
+ *  maestro-detalle que la guía llama "la columna vertebral de las herramientas".
+ *  `detalle(fila)` devuelve los campos a mostrar en el inspector. */
+function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, buscarEn, filtros, detalle}) {
   const {cargando, error, datos, recargar} = api;
   const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState({});
+  const [filaSel, setFilaSel] = useState(null);
 
   const texto = busqueda.trim().toLowerCase();
   const visibles = datos.filter(fila => {
     if (texto && buscarEn && buscarEn.length) {
-      const enc = buscarEn.some(c => String(fila[c] ?? '').toLowerCase().includes(texto));
-      if (!enc) return false;
+      if (!buscarEn.some(c => String(fila[c] ?? '').toLowerCase().includes(texto))) return false;
     }
     return (filtros || []).every(f => {
       const v = seleccion[f.campo];
@@ -148,105 +152,130 @@ function Pantalla({titulo, subtitulo, acciones, kpis, api, columnas, vacio, busc
     });
   });
 
-  const hayFiltroActivo = !!texto || Object.values(seleccion).some(Boolean);
+  const hayFiltro = !!texto || Object.values(seleccion).some(Boolean);
   const limpiar = () => { setBusqueda(''); setSeleccion({}); };
+  const sel = filaSel && visibles.find(f => (f.id ?? f) === filaSel) || null;
+
+  // Columnas + una de selección: la fila entera abre el inspector.
+  const cols = [...columnas, {
+    key: '__sel', header: '', width: pixel(44),
+    renderCell: r => (
+      <Button label="Ver detalle" isIconOnly icon={<Icon icon={ChevronRightIcon} size="sm" />} size="sm"
+              variant="ghost" clickAction={() => setFilaSel(r.id ?? r)} />
+    ),
+  }];
 
   return (
-    <VStack gap={4}>
-      <HStack hAlign="space-between" vAlign="center" wrap gap={2}>
-        <VStack gap={1}>
-          <Heading level={2}>{titulo}</Heading>
-          {subtitulo && <Text color="secondary">{subtitulo}</Text>}
-        </VStack>
-        <HStack gap={2}>
-          <Button label="Actualizar" variant="secondary" clickAction={recargar} />
-          {acciones}
-        </HStack>
-      </HStack>
+    <Layout
+      height="fill"
+      hasDivider
+      header={
+        <LayoutHeader hasDivider>
+          <HStack gap={3} vAlign="center" hAlign="space-between" wrap>
+            <VStack gap={0.5}>
+              <Heading level={3}>{titulo}</Heading>
+              {subtitulo && <Text color="secondary" size="sm">{subtitulo}</Text>}
+            </VStack>
+            <HStack gap={4} vAlign="center" wrap>
+              {kpis && !error && <Cifras items={kpis(datos)} cargando={cargando} />}
+              <HStack gap={2}>
+                <Button label="Actualizar" variant="ghost" clickAction={recargar} />
+                {acciones}
+              </HStack>
+            </HStack>
+          </HStack>
+        </LayoutHeader>
+      }
+      content={
+        <LayoutContent padding={0}>
+          <VStack gap={0}>
+            {(buscarEn || filtros) && !error && (
+              <Toolbar
+                label={'Filtros de ' + titulo}
+                size="sm"
+                dividers={['bottom']}
+                startContent={
+                  <>
+                    {buscarEn && buscarEn.length > 0 && (
+                      <TextInput label="Buscar" isLabelHidden placeholder="Buscar…"
+                                 value={busqueda} onChange={setBusqueda}
+                                 startIcon={MagnifyingGlassIcon} />
+                    )}
+                    {(filtros || []).map(f => (
+                      <Selector key={f.campo} label={f.label} isLabelHidden placeholder={f.label}
+                                hasClear value={seleccion[f.campo] || null}
+                                onChange={v => setSeleccion(x => ({...x, [f.campo]: v}))}
+                                options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))} />
+                    ))}
+                    {hayFiltro && <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />}
+                  </>
+                }
+                endContent={
+                  <Text color="secondary" size="sm">
+                    {visibles.length === datos.length
+                      ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
+                      : `${visibles.length} de ${datos.length}`}
+                  </Text>
+                }
+              />
+            )}
 
-      {kpis && <Kpis items={kpis(datos)} cargando={cargando} />}
+            {error && (
+              <Banner status="error" container="section"
+                      title={'No se pudo cargar ' + titulo.toLowerCase()}
+                      description={error}
+                      endContent={<Button label="Reintentar" variant="secondary" clickAction={recargar} />} />
+            )}
 
-      {error && (
-        <Banner
-          status="error"
-          title={'No se pudo cargar ' + titulo.toLowerCase()}
-          description={error}
-          endContent={<Button label="Reintentar" variant="secondary" clickAction={recargar} />}
-        />
-      )}
+            {cargando && (
+              <EmptyState icon={<Spinner />} title="Cargando…" isCompact />
+            )}
 
-      {cargando && (
-        <HStack gap={2} vAlign="center"><Spinner /><Text color="secondary">Cargando…</Text></HStack>
-      )}
+            {!cargando && !error && datos.length === 0 && (
+              <EmptyState title={vacio || 'No hay nada que mostrar.'}
+                          description="Cuando existan registros aparecerán aquí." />
+            )}
 
-      {/* Barra de herramientas: el bloque ToolbarTableFilter del sistema */}
-      {!cargando && !error && datos.length > 0 && (buscarEn || filtros) && (
-        <Toolbar
-          label={'Filtros de ' + titulo}
-          size="sm"
-          dividers={['bottom']}
-          startContent={
-            <>
-              {buscarEn && buscarEn.length > 0 && (
-                <TextInput
-                  label="Buscar"
-                  isLabelHidden
-                  placeholder="Buscar…"
-                  value={busqueda}
-                  onChange={setBusqueda}
-                  startIcon={MagnifyingGlassIcon}
-                />
-              )}
-              {(filtros || []).map(f => (
-                <Selector
-                  key={f.campo}
-                  label={f.label}
-                  isLabelHidden
-                  placeholder={f.label}
-                  hasClear
-                  value={seleccion[f.campo] || null}
-                  onChange={v => setSeleccion(s => ({...s, [f.campo]: v}))}
-                  options={f.opciones.map(o => ({value: o.valor, label: o.etiqueta}))}
-                />
-              ))}
-              {hayFiltroActivo && (
-                <Button label="Limpiar" variant="ghost" size="sm" clickAction={limpiar} />
-              )}
-            </>
-          }
-          endContent={
-            <Text color="secondary" size="sm">
-              {visibles.length === datos.length
-                ? `${datos.length} registro${datos.length === 1 ? '' : 's'}`
-                : `${visibles.length} de ${datos.length}`}
-            </Text>
-          }
-        />
-      )}
+            {!cargando && !error && datos.length > 0 && visibles.length === 0 && (
+              <EmptyState title="Ningún registro coincide"
+                          description="Prueba con otra búsqueda o quita los filtros."
+                          actions={<Button label="Limpiar filtros" variant="secondary" clickAction={limpiar} />} />
+            )}
 
-      {!cargando && !error && datos.length === 0 && (
-        <Card padding={6}>
-          <VStack gap={2} hAlign="center">
-            <Text color="secondary">{vacio || 'No hay nada que mostrar.'}</Text>
+            {!cargando && !error && visibles.length > 0 && (
+              <Table data={visibles} columns={cols} idKey="id" density="compact"
+                     dividers="rows" hasHover textOverflow="truncate" />
+            )}
           </VStack>
-        </Card>
-      )}
-
-      {/* Vacío por filtro: distinto de "no hay datos", y con salida */}
-      {!cargando && !error && datos.length > 0 && visibles.length === 0 && (
-        <Card padding={6}>
-          <VStack gap={3} hAlign="center">
-            <Text color="secondary">Ningún registro coincide con la búsqueda o los filtros.</Text>
-            <Button label="Limpiar filtros" variant="secondary" clickAction={limpiar} />
-          </VStack>
-        </Card>
-      )}
-
-      {!cargando && !error && visibles.length > 0 && (
-        <Table data={visibles} columns={columnas} idKey="id" density="balanced"
-               dividers="rows" hasHover textOverflow="truncate" />
-      )}
-    </VStack>
+        </LayoutContent>
+      }
+      end={
+        <LayoutPanel width={380} hasDivider isScrollable label="Detalle"
+                     resizable={{minSizePx: 320, maxSizePx: 520, autoSaveId: 'v2-inspector'}}>
+          {sel && detalle ? (
+            <VStack gap={3} padding={4}>
+              <HStack hAlign="space-between" vAlign="center">
+                <Heading level={4}>Detalle</Heading>
+                <Button label="Cerrar" isIconOnly icon={<Icon icon={XMarkIcon} size="sm" />} size="sm"
+                        variant="ghost" clickAction={() => setFilaSel(null)} />
+              </HStack>
+              <MetadataList>
+                {detalle(sel).map(d => (
+                  <MetadataListItem key={d.etiqueta} label={d.etiqueta}>
+                    {typeof d.valor === 'string' || typeof d.valor === 'number'
+                      ? <Text size="sm">{String(d.valor || '—')}</Text>
+                      : (d.valor || <Text size="sm">—</Text>)}
+                  </MetadataListItem>
+                ))}
+              </MetadataList>
+            </VStack>
+          ) : (
+            <EmptyState isCompact title="Nada seleccionado"
+                        description="Elige una fila para ver su detalle aquí." />
+          )}
+        </LayoutPanel>
+      }
+    />
   );
 }
 
@@ -296,6 +325,17 @@ function PanelTareas() {
         {label: 'Estado', campo: 'status', opciones: Object.entries(ESTADO_TAREA).map(([v, e]) => ({valor: v, etiqueta: e.label}))},
         {label: 'Tipo', campo: 'type', opciones: Object.entries(TIPO_TAREA).map(([v, l]) => ({valor: v, etiqueta: l}))},
         {label: 'Prioridad', campo: 'priority', opciones: Object.entries(PRIORIDAD).map(([v, l]) => ({valor: v, etiqueta: l}))},
+      ]}
+      detalle={t => [
+        {etiqueta: 'Tarea', valor: t.title},
+        {etiqueta: 'Tipo', valor: TIPO_TAREA[t.type] || t.type},
+        {etiqueta: 'Estado', valor: <Estado mapa={ESTADO_TAREA} valor={t.status} />},
+        {etiqueta: 'Prioridad', valor: t.priority ? <Badge label={PRIORIDAD[t.priority] || t.priority} /> : null},
+        {etiqueta: 'Cliente', valor: t.client},
+        {etiqueta: 'Orden Odoo', valor: t.odooRef},
+        {etiqueta: 'Encargado', valor: t.managerName},
+        {etiqueta: 'Vence', valor: (t.dueDate || '').slice(0, 10)},
+        {etiqueta: 'Creada', valor: (t.createdAt || '').slice(0, 16).replace('T', ' ')},
       ]}
       kpis={d => [
         {etiqueta: 'Pendientes',  valor: d.filter(t => t.status === 'pending').length},
@@ -444,6 +484,16 @@ function PanelAverias() {
       vacio="No hay averías registradas."
       buscarEn={['ref', 'name', 'comentario']}
       filtros={[{label: 'Estado', campo: 'status', opciones: Object.keys(ESTADO_AVERIA).map(v => ({valor: v, etiqueta: v}))}]}
+      detalle={a => [
+        {etiqueta: 'Artículo', valor: a.name},
+        {etiqueta: 'Referencia', valor: a.ref},
+        {etiqueta: 'Código de barras', valor: a.barcode},
+        {etiqueta: 'Cantidad', valor: a.qty},
+        {etiqueta: 'Estado', valor: <Estado mapa={ESTADO_AVERIA} valor={a.status} />},
+        {etiqueta: 'Ubicación', valor: a.location},
+        {etiqueta: 'Comentario', valor: a.comentario},
+        {etiqueta: 'Registrada', valor: (a.createdAt || '').slice(0, 16).replace('T', ' ')},
+      ]}
       kpis={d => [
         {etiqueta: 'Recibidos', valor: d.filter(a => a.status === 'Recibido').length},
         {etiqueta: 'En taller', valor: d.filter(a => a.status === 'En Taller').length},
@@ -593,6 +643,14 @@ function PanelEquipo() {
         {label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))},
         {label: 'Adopción', campo: 'semaforo', opciones: [{valor:'activo',etiqueta:'Activo'},{valor:'tibio',etiqueta:'Tibio'},{valor:'inactivo',etiqueta:'Inactivo'},{valor:'nunca',etiqueta:'Nunca entró'}]},
       ]}
+      detalle={u => [
+        {etiqueta: 'Persona', valor: u.name},
+        {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
+        {etiqueta: 'Adopción', valor: u.semaforo},
+        {etiqueta: 'Trayectoria', valor: u.trayectoria},
+        {etiqueta: 'Nivel', valor: u.nivel},
+        {etiqueta: 'Localidad', valor: u.categoria},
+      ]}
       kpis={d => [
         {etiqueta: 'Activos',   valor: d.filter(u => u.semaforo === 'activo').length},
         {etiqueta: 'Tibios',    valor: d.filter(u => u.semaforo === 'tibio').length},
@@ -650,6 +708,15 @@ function PanelUsuarios() {
       vacio="No hay usuarios."
       buscarEn={['name', 'email']}
       filtros={[{label: 'Rol', campo: 'role', opciones: Object.entries(ROL).map(([v, l]) => ({valor: v, etiqueta: l}))}]}
+      detalle={u => [
+        {etiqueta: 'Nombre', valor: u.name},
+        {etiqueta: 'Correo', valor: u.email},
+        {etiqueta: 'Rol', valor: <Badge label={ROL[u.role] || u.role} />},
+        {etiqueta: 'Estado', valor: <Estado mapa={{true:{label:'Activo',dot:'success'}, false:{label:'Inactivo',dot:'neutral'}}} valor={String(u.active !== false)} />},
+        {etiqueta: 'ID Odoo', valor: u.odooId},
+        {etiqueta: 'Último acceso', valor: (u.lastLogin || '').slice(0, 16).replace('T', ' ')},
+        {etiqueta: 'Categoría', valor: u.categoria},
+      ]}
       kpis={d => [
         {etiqueta: 'Total',      valor: d.length},
         {etiqueta: 'Admins',     valor: d.filter(u => u.role === 'admin').length},
@@ -810,16 +877,12 @@ export default function ShellOpsAT() {
           ))}
         </SideNav>
       }>
-      <Layout
-        height="fill"
-        content={
-          <LayoutContent padding={6}>
-            <LimiteDeError clave={actual.ruta}>
-              <Panel />
-            </LimiteDeError>
-          </LayoutContent>
-        }
-      />
+      {/* Cada pantalla trae su propio Layout (header / contenido / inspector),
+          según la guía frame-first. El shell no lo envuelve: anidarlos rompe
+          el alto y vuelve a meter padding donde debe ir edge-to-edge. */}
+      <LimiteDeError clave={actual.ruta}>
+        <Panel />
+      </LimiteDeError>
     </AppShell>
     </Theme>
   );
