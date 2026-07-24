@@ -1,10 +1,16 @@
 # Memoria del proyecto — Workforce Platform (historial.html + proxy.js)
 
 > Documento de contexto para retomar el trabajo sin perder decisiones.
-> Última actualización: ejecución del plan maestro de modernización, Fases 0–5 (23-jul-2026).
+> Última actualización: DEPLOY v237 (24-jul-2026) — primer deploy vía deploy.mjs; estrena en prod el shell Astryx.
 
 ## NORTE del producto (dueño, 23-jul-2026)
 OpsAT es **un software modular, multiusuario, para administrar la empresa en múltiples departamentos**. Regla dura (también en CLAUDE.md): el sistema **crece hacia afuera en módulos (islas + dominio backend + RBAC de sección + tests), nunca hacia adentro en el monolito**; `historial.html` y `proxy.js` solo encogen. Cada departamento/función futuro = una isla. RBAC (`ROLE_PERMISSIONS` + `sectionPerms`) es columna vertebral, no detalle. Rumbo en `docs/auditoria-arquitectura/10-plan-maestro-*`; ejecución en `10-plan-fases-*`; base en `09-auditoria-integral-*` (132 hallazgos). "Hacerlo bien ahora" porque los datos aún son casi de prueba → la Fase 2 (esquema v2 con integridad) es la ventana que se cierra al poblarse.
+
+## DEPLOY v237 (24-jul-2026) — tag `deploy-v237`, commit `dc64144`
+Primer deploy real vía `scripts/deploy.mjs` (verificado: health ok + app-version v237 en Railway). **Estrenó en producción todo lo acumulado desde v235**: shell Astryx + sidebar colapsable (v236) y la confirmación reforzada de borrado en Conduces Outlet (v237: diálogo con detalle del conduce, "Eliminar" en rojo, "Cancelar" por defecto, clic-fuera cancela — `doConfirmDelete`, historial.html ~25941).
+- **deploy.mjs corregido para Windows** (`dc64144`): `spawnSync` NO lanza `.cmd` (npx/railway) sin `shell:true` → fallaba con ENOENT silencioso que parecía "suite roja". Fix: `shell: process.platform==='win32'` + sleep síncrono cross-platform (el binario `sleep` no existe en Windows). En Mac/Linux sigue sin shell.
+- **Gate e2e estabilizado** (`afde960`, `b8a9841`, `5b741a0`): (1) `helpers/session.js` siembra `wwp_welcome_v1` — el modal de bienvenida del shell nuevo tapaba los clicks de flujos-criticos; (2) almacen-mapa degrada con `console.warn` (no `console.error`) cuando Odoo falla — condición manejada, no rompe el console-guard; (3) `retries:3` + `expect.timeout:10s` — el login real (bcrypt) flaquea bajo carga; los 2 flaky conocidos (smoke-02 login, smoke-09 geometría) se recuperan en retry; (4) `@playwright/test` declarado como devDependency en la raíz (el gate dependía de él sin declararlo).
+- **Railway re-vinculado**: el link vivía en la carpeta `Claude\Artifacts\dashboard-despachos-live` (⚠️ **congelada en v218, ya NO es la fuente de verdad** — la fuente real es este repo git). `railway link` al repo: workspace Altri Tempi SRL / proyecto OpsAT / production / dashboard-despachos. ⚠️ Pendiente: actualizar CLAUDE.md y `restart.bat`, que aún apuntan a la carpeta vieja.
 
 ## Ejecución plan maestro — Fases 0–5 (23-jul-2026, DOS sesiones en paralelo)
 Auditoría integral 09 (132 hallazgos, 41 agentes) + plan maestro 10. Ejecutado por dos sesiones Claude coordinadas por commits (evitando colisión en proxy.js/historial.html). Estado al cierre — TODO committeado local, **NADA deployado** (deploy = decisión + `scripts/deploy.mjs`):
